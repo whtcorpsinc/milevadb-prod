@@ -24,7 +24,7 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"

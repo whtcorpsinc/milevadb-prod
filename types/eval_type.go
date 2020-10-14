@@ -13,7 +13,7 @@
 
 package types
 
-import ast "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+import ast "github.com/whtcorpsinc/BerolinaSQL/types"
 
 // EvalType indicates the specified types that arguments and result of a built-in function should be.
 type EvalType = ast.EvalType

@@ -17,7 +17,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/uber-go/atomic"
 )
 
@@ -188,12 +188,12 @@ const (
 	// those indices can be scanned concurrently, with the cost of higher system performance impact.
 	MilevaDBBuildStatsConcurrency = "milevadb_build_stats_concurrency"
 
-	// milevadb_distsql_scan_concurrency is used to set the concurrency of a distsql scan task.
-	// A distsql scan task can be a block scan or a index scan, which may be distributed to many EinsteinDB nodes.
+	// milevadb_allegrosql_scan_concurrency is used to set the concurrency of a allegrosql scan task.
+	// A allegrosql scan task can be a block scan or a index scan, which may be distributed to many EinsteinDB nodes.
 	// Higher concurrency may reduce latency, but with the cost of higher memory usage and system performance impact.
 	// If the query has a LIMIT clause, high concurrency makes the system do much more work than needed.
-	// milevadb_distsql_scan_concurrency is deprecated, use milevadb_executor_concurrency instead.
-	MilevaDBDistALLEGROSQLScanConcurrency = "milevadb_distsql_scan_concurrency"
+	// milevadb_allegrosql_scan_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	MilevaDBDistALLEGROSQLScanConcurrency = "milevadb_allegrosql_scan_concurrency"
 
 	// milevadb_opt_insubquery_to_join_and_agg is used to enable/disable the optimizer rule of rewriting IN subquery.
 	MilevaDBOptInSubqToJoinAnPosetDagg = "milevadb_opt_insubq_to_join_and_agg"

@@ -17,8 +17,8 @@ import (
 	"unsafe"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/expression/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"

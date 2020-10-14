@@ -21,9 +21,9 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types/json"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"

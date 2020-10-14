@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/checksum"

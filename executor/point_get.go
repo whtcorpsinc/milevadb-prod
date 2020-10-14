@@ -18,8 +18,8 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"

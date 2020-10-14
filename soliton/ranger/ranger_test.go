@@ -20,7 +20,7 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -44,12 +44,12 @@ func TestT(t *testing.T) {
 var _ = SerialSuites(&testRangerSuite{})
 
 type testRangerSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	testData solitonutil.TestData
 }
 
 func (s *testRangerSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	var err error
 	s.testData, err = solitonutil.LoadTestSuiteData("testdata", "ranger_suite")
 	c.Assert(err, IsNil)

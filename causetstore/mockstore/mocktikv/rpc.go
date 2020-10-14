@@ -31,7 +31,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
 	"github.com/whtcorpsinc/fidelpb/go-fidelpb"

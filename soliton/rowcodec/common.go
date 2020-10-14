@@ -19,8 +19,8 @@ import (
 	"unsafe"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/types"
 )
 
 // CodecVer is the constant number that represent the new event format.

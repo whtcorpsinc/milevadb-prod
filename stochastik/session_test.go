@@ -27,11 +27,11 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor"
@@ -721,7 +721,7 @@ func (s *testStochastikSuite) TestRetryCleanTxn(c *C) {
 
 	// Hijack retry history, add a statement that returns error.
 	history := stochastik.GetHistory(tk.Se)
-	stmtNode, err := berolinaAllegroSQL.New().ParseOneStmt("insert retrytxn values (2, 'a')", "", "")
+	stmtNode, err := BerolinaSQL.New().ParseOneStmt("insert retrytxn values (2, 'a')", "", "")
 	c.Assert(err, IsNil)
 	compiler := executor.Compiler{Ctx: tk.Se}
 	stmt, _ := compiler.Compile(context.TODO(), stmtNode)
@@ -1647,7 +1647,7 @@ func (s *testStochastikSuite3) TestDecimal(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *testStochastikSuite2) TestberolinaAllegroSQL(c *C) {
+func (s *testStochastikSuite2) TestBerolinaSQL(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
 
 	// test for https://github.com/whtcorpsinc/milevadb/pull/177
@@ -2234,7 +2234,7 @@ func (s *testSchemaSuite) TestTableReaderChunk(c *C) {
 		numChunks++
 	}
 	c.Assert(count, Equals, 100)
-	// FIXME: revert this result to new group value after distsql can handle initChunkSize.
+	// FIXME: revert this result to new group value after allegrosql can handle initChunkSize.
 	c.Assert(numChunks, Equals, 1)
 	rs.Close()
 }

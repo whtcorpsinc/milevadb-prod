@@ -21,8 +21,8 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/meta/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/block"

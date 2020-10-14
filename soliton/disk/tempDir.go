@@ -21,7 +21,7 @@ import (
 	"github.com/danjacques/gofslock/fslock"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"

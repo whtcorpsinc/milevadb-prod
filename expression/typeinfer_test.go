@@ -17,9 +17,9 @@ import (
 	"math"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
@@ -43,11 +43,11 @@ type typeInferTestCase struct {
 }
 
 type testInferTypeSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 }
 
 func (s *testInferTypeSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 }
 
 func (s *testInferTypeSuite) TearDownSuite(c *C) {

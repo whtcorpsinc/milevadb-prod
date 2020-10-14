@@ -535,19 +535,19 @@
       {
         "ALLEGROALLEGROSQL": "select /*+ USE_INDEX() */ * from t1, t2 where t1.a=t2.a",
         "Warnings": [
-          "[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:8064]Optimizer hint syntax error at line 1 column 22 near \") */\" "
+          "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:8064]Optimizer hint syntax error at line 1 column 22 near \") */\" "
         ]
       },
       {
         "ALLEGROALLEGROSQL": "select /*+ IGNORE_INDEX() */ * from t1, t2 where t1.a=t2.a",
         "Warnings": [
-          "[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:8064]Optimizer hint syntax error at line 1 column 25 near \") */\" "
+          "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:8064]Optimizer hint syntax error at line 1 column 25 near \") */\" "
         ]
       },
       {
         "ALLEGROALLEGROSQL": "select /*+ USE_INDEX_MERGE() */ * from t1, t2 where t1.a=t2.a",
         "Warnings": [
-          "[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:8064]Optimizer hint syntax error at line 1 column 28 near \") */\" "
+          "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:8064]Optimizer hint syntax error at line 1 column 28 near \") */\" "
         ]
       }
     ]

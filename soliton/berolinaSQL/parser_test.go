@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package berolinaAllegroSQL
+package BerolinaSQL
 
 import (
 	"testing"
@@ -19,16 +19,16 @@ import (
 	. "github.com/whtcorpsinc/check"
 )
 
-var _ = Suite(&testberolinaAllegroSQLSuite{})
+var _ = Suite(&testBerolinaSQLSuite{})
 
-type testberolinaAllegroSQLSuite struct {
+type testBerolinaSQLSuite struct {
 }
 
 func TestT(t *testing.T) {
 	TestingT(t)
 }
 
-func (s *testberolinaAllegroSQLSuite) TestSpace(c *C) {
+func (s *testBerolinaSQLSuite) TestSpace(c *C) {
 	okBlock := []struct {
 		Times    int
 		Input    string
@@ -60,7 +60,7 @@ func (s *testberolinaAllegroSQLSuite) TestSpace(c *C) {
 	}
 }
 
-func (s *testberolinaAllegroSQLSuite) TestDigit(c *C) {
+func (s *testBerolinaSQLSuite) TestDigit(c *C) {
 	okBlock := []struct {
 		Times          int
 		Input          string
@@ -97,7 +97,7 @@ func (s *testberolinaAllegroSQLSuite) TestDigit(c *C) {
 	}
 }
 
-func (s *testberolinaAllegroSQLSuite) TestNumber(c *C) {
+func (s *testBerolinaSQLSuite) TestNumber(c *C) {
 	okBlock := []struct {
 		Input        string
 		ExpectedNum  int
@@ -131,7 +131,7 @@ func (s *testberolinaAllegroSQLSuite) TestNumber(c *C) {
 	}
 }
 
-func (s *testberolinaAllegroSQLSuite) TestCharAndAnyChar(c *C) {
+func (s *testBerolinaSQLSuite) TestCharAndAnyChar(c *C) {
 	okBlock := []struct {
 		Char     byte
 		Input    string

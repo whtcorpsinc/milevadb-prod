@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/soliton"

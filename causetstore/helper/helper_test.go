@@ -24,7 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/causetstore/helper"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"

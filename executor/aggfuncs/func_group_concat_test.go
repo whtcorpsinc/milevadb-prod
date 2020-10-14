@@ -17,8 +17,8 @@ import (
 	"fmt"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
 )

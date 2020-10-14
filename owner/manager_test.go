@@ -22,7 +22,7 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/owner"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"

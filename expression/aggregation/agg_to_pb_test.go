@@ -18,9 +18,9 @@ import (
 	"testing"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -47,12 +47,12 @@ func (dg *dataGen4Expr2PbTest) genDeferredCauset(tp byte, id int64) *expression.
 }
 
 type testEvaluatorSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx stochastikctx.Context
 }
 
 func (s *testEvaluatorSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	s.ctx = mock.NewContext()
 }
 

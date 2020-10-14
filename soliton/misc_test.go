@@ -20,10 +20,10 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/fastrand"
@@ -157,12 +157,12 @@ func (s *testMiscSuite) TestBasicFunc(c *C) {
 
 	// Test for SyntaxError.
 	c.Assert(SyntaxError(nil), IsNil)
-	c.Assert(terror.ErrorEqual(SyntaxError(errors.New("test")), berolinaAllegroSQL.ErrParse), IsTrue)
-	c.Assert(terror.ErrorEqual(SyntaxError(berolinaAllegroSQL.ErrSyntax.GenWithStackByArgs()), berolinaAllegroSQL.ErrSyntax), IsTrue)
+	c.Assert(terror.ErrorEqual(SyntaxError(errors.New("test")), BerolinaSQL.ErrParse), IsTrue)
+	c.Assert(terror.ErrorEqual(SyntaxError(BerolinaSQL.ErrSyntax.GenWithStackByArgs()), BerolinaSQL.ErrSyntax), IsTrue)
 
 	// Test for SyntaxWarn.
 	c.Assert(SyntaxWarn(nil), IsNil)
-	c.Assert(terror.ErrorEqual(SyntaxWarn(errors.New("test")), berolinaAllegroSQL.ErrParse), IsTrue)
+	c.Assert(terror.ErrorEqual(SyntaxWarn(errors.New("test")), BerolinaSQL.ErrParse), IsTrue)
 
 	// Test for ProcessInfo.
 	pi := ProcessInfo{

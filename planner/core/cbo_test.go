@@ -24,7 +24,7 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor"
@@ -247,7 +247,7 @@ func (s *testAnalyzeSuite) TestIndexRead(c *C) {
 	}()
 	testKit.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	testKit.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	testKit.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	testKit.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 
 	testKit.MustExec("use test")
 	testKit.MustExec("drop block if exists t, t1")
@@ -787,7 +787,7 @@ func (s *testAnalyzeSuite) TestLimitCrossEstimation(c *C) {
 
 	tk.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 	tk.MustExec("use test")
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a int primary key, b int not null, c int not null default 0, index idx_bc(b, c))")

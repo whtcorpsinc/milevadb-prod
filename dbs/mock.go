@@ -20,9 +20,9 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"go.etcd.io/etcd/clientv3"

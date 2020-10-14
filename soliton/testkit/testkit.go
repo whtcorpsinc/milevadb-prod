@@ -25,8 +25,8 @@ import (
 
 	"github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastik"
@@ -154,7 +154,7 @@ func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordS
 			return nil, errors.Trace(err)
 		}
 		warns := sc.GetWarnings()
-		berolinaAllegroSQLWarns := warns[len(prevWarns):]
+		BerolinaSQLWarns := warns[len(prevWarns):]
 		var rs0 sqlexec.RecordSet
 		for i, stmt := range stmts {
 			rs, err := tk.Se.ExecuteStmt(ctx, stmt)
@@ -166,8 +166,8 @@ func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordS
 				return nil, errors.Trace(err)
 			}
 		}
-		if len(berolinaAllegroSQLWarns) > 0 {
-			tk.Se.GetStochastikVars().StmtCtx.AppendWarnings(berolinaAllegroSQLWarns)
+		if len(BerolinaSQLWarns) > 0 {
+			tk.Se.GetStochastikVars().StmtCtx.AppendWarnings(BerolinaSQLWarns)
 		}
 		return rs0, nil
 	}

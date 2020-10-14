@@ -18,8 +18,8 @@ import (
 	"fmt"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/meta"
@@ -116,7 +116,7 @@ func globalVarsCount() int64 {
 func (s *testBootstrapSuite) bootstrapWithOnlyDBSWork(causetstore ekv.CausetStorage, c *C) {
 	ss := &stochastik{
 		causetstore:       causetstore,
-		berolinaAllegroSQL:      berolinaAllegroSQL.New(),
+		BerolinaSQL:      BerolinaSQL.New(),
 		stochastikVars: variable.NewStochastikVars(),
 	}
 	ss.txn.init()

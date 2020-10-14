@@ -18,8 +18,8 @@ import (
 	"sort"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -38,16 +38,16 @@ import (
 // make sure `BlockReaderExecutor` implements `Executor`.
 var _ Executor = &BlockReaderExecutor{}
 
-// selectResultHook is used to replog distsql.SelectWithRuntimeStats safely for testing.
+// selectResultHook is used to replog allegrosql.SelectWithRuntimeStats safely for testing.
 type selectResultHook struct {
 	selectResultFunc func(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
-		fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int) (distsql.SelectResult, error)
+		fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int) (allegrosql.SelectResult, error)
 }
 
 func (sr selectResultHook) SelectResult(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
-	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int, rootPlanID int) (distsql.SelectResult, error) {
+	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int, rootPlanID int) (allegrosql.SelectResult, error) {
 	if sr.selectResultFunc == nil {
-		return distsql.SelectWithRuntimeStats(ctx, sctx, kvReq, fieldTypes, fb, copPlanIDs, rootPlanID)
+		return allegrosql.SelectWithRuntimeStats(ctx, sctx, kvReq, fieldTypes, fb, copPlanIDs, rootPlanID)
 	}
 	return sr.selectResultFunc(ctx, sctx, kvReq, fieldTypes, fb, copPlanIDs)
 }
@@ -164,7 +164,7 @@ func (e *BlockReaderExecutor) Open(ctx context.Context) error {
 		e.resultHandler.open(nil, firstResult)
 		return nil
 	}
-	var secondResult distsql.SelectResult
+	var secondResult allegrosql.SelectResult
 	secondResult, err = e.buildResp(ctx, secondPartRanges)
 	if err != nil {
 		e.feedback.Invalidate()
@@ -208,11 +208,11 @@ func (e *BlockReaderExecutor) Close() error {
 	return err
 }
 
-// buildResp first builds request and sends it to einsteindb using distsql.Select. It uses SelectResut returned by the callee
+// buildResp first builds request and sends it to einsteindb using allegrosql.Select. It uses SelectResut returned by the callee
 // to fetch all results.
-func (e *BlockReaderExecutor) buildResp(ctx context.Context, ranges []*ranger.Range) (distsql.SelectResult, error) {
-	var builder distsql.RequestBuilder
-	var reqBuilder *distsql.RequestBuilder
+func (e *BlockReaderExecutor) buildResp(ctx context.Context, ranges []*ranger.Range) (allegrosql.SelectResult, error) {
+	var builder allegrosql.RequestBuilder
+	var reqBuilder *allegrosql.RequestBuilder
 	if e.kvRangeBuilder != nil {
 		kvRange, err := e.kvRangeBuilder.buildKeyRange(getPhysicalBlockID(e.block))
 		if err != nil {
@@ -280,13 +280,13 @@ type blockResultHandler struct {
 	// If we want descending order, `optionalResult` will handles the request whose range is exceed signed, and
 	// the `result` will handle the request whose range is in signed.
 	// Otherwise, we just set `optionalFinished` true and the `result` handles the whole ranges.
-	optionalResult distsql.SelectResult
-	result         distsql.SelectResult
+	optionalResult allegrosql.SelectResult
+	result         allegrosql.SelectResult
 
 	optionalFinished bool
 }
 
-func (tr *blockResultHandler) open(optionalResult, result distsql.SelectResult) {
+func (tr *blockResultHandler) open(optionalResult, result allegrosql.SelectResult) {
 	if optionalResult == nil {
 		tr.optionalFinished = true
 		tr.result = result

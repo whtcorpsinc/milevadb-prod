@@ -29,7 +29,7 @@ import (
 	_ "github.com/go-allegrosql-driver/allegrosql"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -200,9 +200,9 @@ func (t *tester) loadQueries() ([]query, error) {
 	return queries, nil
 }
 
-// berolinaAllegroSQLErrorHandle handle mysql_test syntax `--error ER_PARSE_ERROR`, to allow following query
-// return berolinaAllegroSQL error.
-func (t *tester) berolinaAllegroSQLErrorHandle(query query, err error) error {
+// BerolinaSQLErrorHandle handle mysql_test syntax `--error ER_PARSE_ERROR`, to allow following query
+// return BerolinaSQL error.
+func (t *tester) BerolinaSQLErrorHandle(query query, err error) error {
 	offset := t.buf.Len()
 	for _, expectedErr := range t.expectedErrs {
 		if expectedErr == "ER_PARSE_ERROR" {
@@ -281,7 +281,7 @@ func (t *tester) execute(query query) error {
 
 	list, err := stochastik.Parse(t.ctx, query.Query)
 	if err != nil {
-		return t.berolinaAllegroSQLErrorHandle(query, err)
+		return t.BerolinaSQLErrorHandle(query, err)
 	}
 	for _, st := range list {
 		var qText string
@@ -655,7 +655,7 @@ func main() {
 		"set @@milevadb_hashagg_partial_concurrency=4",
 		"set @@milevadb_window_concurrency=4",
 		"set @@milevadb_projection_concurrency=4",
-		"set @@milevadb_distsql_scan_concurrency=15",
+		"set @@milevadb_allegrosql_scan_concurrency=15",
 		"set @@milevadb_enable_clustered_index=0;",
 	}
 	for _, allegrosql := range resets {

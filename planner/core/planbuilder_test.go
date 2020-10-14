@@ -23,10 +23,10 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/expression/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -163,7 +163,7 @@ func (s *testPlanBuilderSuite) TestDisableFold(c *C) {
 
 	ctx := MockContext()
 	for _, t := range cases {
-		st, err := berolinaAllegroSQL.New().ParseOneStmt(t.ALLEGROALLEGROSQL, "", "")
+		st, err := BerolinaSQL.New().ParseOneStmt(t.ALLEGROALLEGROSQL, "", "")
 		c.Assert(err, IsNil)
 		stmt := st.(*ast.SelectStmt)
 		expr := stmt.Fields.Fields[0].Expr

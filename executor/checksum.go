@@ -17,8 +17,8 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
@@ -128,7 +128,7 @@ func (e *ChecksumBlockExec) checksumWorker(taskCh <-chan *checksumTask, resultCh
 
 func (e *ChecksumBlockExec) handleChecksumRequest(req *ekv.Request) (resp *fidelpb.ChecksumResponse, err error) {
 	ctx := context.TODO()
-	res, err := distsql.Checksum(ctx, e.ctx.GetClient(), req, e.ctx.GetStochastikVars().KVVars)
+	res, err := allegrosql.Checksum(ctx, e.ctx.GetClient(), req, e.ctx.GetStochastikVars().KVVars)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (c *checksumContext) buildBlockRequest(ctx stochastikctx.Context, blockID i
 
 	ranges := ranger.FullIntRange(false)
 
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	return builder.SetBlockRanges(blockID, ranges, nil).
 		SetChecksumRequest(checksum).
 		SetStartTS(c.StartTs).
@@ -251,7 +251,7 @@ func (c *checksumContext) buildIndexRequest(ctx stochastikctx.Context, blockID i
 
 	ranges := ranger.FullRange()
 
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	return builder.SetIndexRanges(ctx.GetStochastikVars().StmtCtx, blockID, indexInfo.ID, ranges).
 		SetChecksumRequest(checksum).
 		SetStartTS(c.StartTs).

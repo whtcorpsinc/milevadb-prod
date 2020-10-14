@@ -24,7 +24,7 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
@@ -255,7 +255,7 @@ select * from t;`)
 	_, err = parseSlowLog(ctx, scanner)
 	c.Assert(err, IsNil)
 
-	// Test berolinaAllegroSQL error.
+	// Test BerolinaSQL error.
 	slowLog = bytes.NewBufferString(
 		`# Time: 2020-05-12-11:23:29.614327491 +0800
 # Txn_start_ts: 405888132465033227#

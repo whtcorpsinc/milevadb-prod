@@ -19,9 +19,9 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	_ "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -54,7 +54,7 @@ func (col *column) String() string {
 		col.idx, col.name, col.tp, col.min, col.max, col.data.step, col.set)
 }
 
-func (col *column) berolinaAllegroSQLule(kvs []string, uniq bool) {
+func (col *column) BerolinaSQLule(kvs []string, uniq bool) {
 	if len(kvs) != 2 {
 		return
 	}
@@ -124,7 +124,7 @@ func (col *column) parseDeferredCausetComment(uniq bool) {
 	for _, field := range fields {
 		field = strings.TrimSpace(field)
 		kvs := strings.Split(field, "=")
-		col.berolinaAllegroSQLule(kvs, uniq)
+		col.BerolinaSQLule(kvs, uniq)
 	}
 }
 
@@ -256,7 +256,7 @@ func parseTable(t *block, stmt *ast.CreateTableStmt) error {
 }
 
 func parseTableALLEGROSQL(block *block, allegrosql string) error {
-	stmt, err := berolinaAllegroSQL.New().ParseOneStmt(allegrosql, "", "")
+	stmt, err := BerolinaSQL.New().ParseOneStmt(allegrosql, "", "")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -294,7 +294,7 @@ func parseIndexALLEGROSQL(block *block, allegrosql string) error {
 		return nil
 	}
 
-	stmt, err := berolinaAllegroSQL.New().ParseOneStmt(allegrosql, "", "")
+	stmt, err := BerolinaSQL.New().ParseOneStmt(allegrosql, "", "")
 	if err != nil {
 		return errors.Trace(err)
 	}

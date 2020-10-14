@@ -23,7 +23,7 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/planner/core"

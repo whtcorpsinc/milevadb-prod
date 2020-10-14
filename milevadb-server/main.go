@@ -28,9 +28,9 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	berolinaAllegroSQLtypes "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
 	"github.com/whtcorpsinc/milevadb/config"
@@ -601,7 +601,7 @@ func setGlobalVars() {
 			zap.String("currentValue", config.GetGlobalConfig().EinsteinDBClient.StoreLivenessTimeout))
 	}
 	einsteindb.StoreLivenessTimeout = t
-	berolinaAllegroSQLtypes.MilevaDBStrictIntegerDisplayWidth = config.GetGlobalConfig().DeprecateIntegerDisplayWidth
+	BerolinaSQLtypes.MilevaDBStrictIntegerDisplayWidth = config.GetGlobalConfig().DeprecateIntegerDisplayWidth
 }
 
 func setupLog() {

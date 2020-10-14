@@ -14,7 +14,7 @@
 package plugin
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
 )
 

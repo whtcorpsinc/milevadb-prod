@@ -24,12 +24,12 @@ import (
 	"unicode"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	milevadbMath "github.com/whtcorpsinc/milevadb/soliton/math"
-	"github.com/whtcorpsinc/milevadb/soliton/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/milevadb/soliton/BerolinaSQL"
 )
 
 // Time format without fractional seconds precision.
@@ -1285,7 +1285,7 @@ func (d Duration) MicroSecond() int {
 }
 
 func isNegativeDuration(str string) (bool, string) {
-	rest, err := berolinaAllegroSQL.Char(str, '-')
+	rest, err := BerolinaSQL.Char(str, '-')
 
 	if err != nil {
 		return false, str
@@ -1295,22 +1295,22 @@ func isNegativeDuration(str string) (bool, string) {
 }
 
 func matchDefCauson(str string) (string, error) {
-	rest := berolinaAllegroSQL.Space0(str)
-	rest, err := berolinaAllegroSQL.Char(rest, ':')
+	rest := BerolinaSQL.Space0(str)
+	rest, err := BerolinaSQL.Char(rest, ':')
 	if err != nil {
 		return str, err
 	}
-	rest = berolinaAllegroSQL.Space0(rest)
+	rest = BerolinaSQL.Space0(rest)
 	return rest, nil
 }
 
 func matchDayHHMMSS(str string) (int, [3]int, string, error) {
-	day, rest, err := berolinaAllegroSQL.Number(str)
+	day, rest, err := BerolinaSQL.Number(str)
 	if err != nil {
 		return 0, [3]int{}, str, err
 	}
 
-	rest, err = berolinaAllegroSQL.Space(rest, 1)
+	rest, err = BerolinaSQL.Space(rest, 1)
 	if err != nil {
 		return 0, [3]int{}, str, err
 	}
@@ -1326,7 +1326,7 @@ func matchDayHHMMSS(str string) (int, [3]int, string, error) {
 func matchHHMMSSDelimited(str string, requireDefCauson bool) ([3]int, string, error) {
 	hhmmss := [3]int{}
 
-	hour, rest, err := berolinaAllegroSQL.Number(str)
+	hour, rest, err := BerolinaSQL.Number(str)
 	if err != nil {
 		return [3]int{}, str, err
 	}
@@ -1334,7 +1334,7 @@ func matchHHMMSSDelimited(str string, requireDefCauson bool) ([3]int, string, er
 
 	for i := 1; i < 3; i++ {
 		if remain, err := matchDefCauson(rest); err == nil {
-			num, remain, err := berolinaAllegroSQL.Number(remain)
+			num, remain, err := BerolinaSQL.Number(remain)
 			if err != nil {
 				return [3]int{}, str, err
 			}
@@ -1352,7 +1352,7 @@ func matchHHMMSSDelimited(str string, requireDefCauson bool) ([3]int, string, er
 }
 
 func matchHHMMSSCompact(str string) ([3]int, string, error) {
-	num, rest, err := berolinaAllegroSQL.Number(str)
+	num, rest, err := BerolinaSQL.Number(str)
 	if err != nil {
 		return [3]int{}, str, err
 	}
@@ -1380,12 +1380,12 @@ func checkHHMMSS(hms [3]int) bool {
 
 // matchFrac returns overflow, fraction, rest, error
 func matchFrac(str string, fsp int8) (bool, int, string, error) {
-	rest, err := berolinaAllegroSQL.Char(str, '.')
+	rest, err := BerolinaSQL.Char(str, '.')
 	if err != nil {
 		return false, 0, str, nil
 	}
 
-	digits, rest, err := berolinaAllegroSQL.Digit(rest, 0)
+	digits, rest, err := BerolinaSQL.Digit(rest, 0)
 	if err != nil {
 		return false, 0, str, err
 	}
@@ -1409,7 +1409,7 @@ func matchDuration(str string, fsp int8) (Duration, error) {
 	}
 
 	negative, rest := isNegativeDuration(str)
-	rest = berolinaAllegroSQL.Space0(rest)
+	rest = BerolinaSQL.Space0(rest)
 
 	hhmmss := [3]int{}
 
@@ -1424,7 +1424,7 @@ func matchDuration(str string, fsp int8) (Duration, error) {
 		return ZeroDuration, ErrTruncatedWrongVal.GenWithStackByArgs("time", str)
 	}
 
-	rest = berolinaAllegroSQL.Space0(rest)
+	rest = BerolinaSQL.Space0(rest)
 	overflow, frac, rest, err := matchFrac(rest, fsp)
 	if err != nil || len(rest) > 0 {
 		return ZeroDuration, ErrTruncatedWrongVal.GenWithStackByArgs("time", str)
@@ -1462,7 +1462,7 @@ func matchDuration(str string, fsp int8) (Duration, error) {
 // 2. the string is start with a series of digits whose length match the full format of DateTime literal (12, 14)
 //	  or the string start with a date literal.
 func canFallbackToDateTime(str string) bool {
-	digits, rest, err := berolinaAllegroSQL.Digit(str, 1)
+	digits, rest, err := BerolinaSQL.Digit(str, 1)
 	if err != nil {
 		return false
 	}
@@ -1470,22 +1470,22 @@ func canFallbackToDateTime(str string) bool {
 		return true
 	}
 
-	rest, err = berolinaAllegroSQL.AnyPunct(rest)
+	rest, err = BerolinaSQL.AnyPunct(rest)
 	if err != nil {
 		return false
 	}
 
-	_, rest, err = berolinaAllegroSQL.Digit(rest, 1)
+	_, rest, err = BerolinaSQL.Digit(rest, 1)
 	if err != nil {
 		return false
 	}
 
-	rest, err = berolinaAllegroSQL.AnyPunct(rest)
+	rest, err = BerolinaSQL.AnyPunct(rest)
 	if err != nil {
 		return false
 	}
 
-	_, rest, err = berolinaAllegroSQL.Digit(rest, 1)
+	_, rest, err = BerolinaSQL.Digit(rest, 1)
 	if err != nil {
 		return false
 	}
@@ -2582,9 +2582,9 @@ var monthAbbrev = map[string]gotime.Month{
 	"Dec": gotime.December,
 }
 
-type dateFormatberolinaAllegroSQL func(t *CoreTime, date string, ctx map[string]int) (remain string, succ bool)
+type dateFormatBerolinaSQL func(t *CoreTime, date string, ctx map[string]int) (remain string, succ bool)
 
-var dateFormatberolinaAllegroSQLTable = map[string]dateFormatberolinaAllegroSQL{
+var dateFormatBerolinaSQLTable = map[string]dateFormatBerolinaSQL{
 	"%b": abbreviatedMonth,      // Abbreviated month name (Jan..Dec)
 	"%c": monthNumeric,          // Month, numeric (0..12)
 	"%d": dayOfMonthNumeric,     // Day of the month, numeric (0..31)
@@ -2650,7 +2650,7 @@ func GetFormatType(format string) (isDuration, isDate bool) {
 }
 
 func matchDateWithToken(t *CoreTime, date string, token string, ctx map[string]int) (remain string, succ bool) {
-	if parse, ok := dateFormatberolinaAllegroSQLTable[token]; ok {
+	if parse, ok := dateFormatBerolinaSQLTable[token]; ok {
 		return parse(t, date, ctx)
 	}
 

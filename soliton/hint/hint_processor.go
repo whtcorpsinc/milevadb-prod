@@ -19,11 +19,11 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -229,7 +229,7 @@ func BindHint(stmt ast.StmtNode, hintsSet *HintsSet) ast.StmtNode {
 }
 
 // ParseHintsSet parses a ALLEGROALLEGROSQL string, then defCauslects and normalizes the HintsSet.
-func ParseHintsSet(p *berolinaAllegroSQL.berolinaAllegroSQL, allegrosql, charset, defCauslation, EDB string) (*HintsSet, []error, error) {
+func ParseHintsSet(p *BerolinaSQL.BerolinaSQL, allegrosql, charset, defCauslation, EDB string) (*HintsSet, []error, error) {
 	stmtNodes, warns, err := p.Parse(allegrosql, charset, defCauslation)
 	if err != nil {
 		return nil, nil, err
@@ -266,11 +266,11 @@ func ParseHintsSet(p *berolinaAllegroSQL.berolinaAllegroSQL, allegrosql, charset
 
 func extractHintWarns(warns []error) []error {
 	for _, w := range warns {
-		if berolinaAllegroSQL.ErrWarnOptimizerHintUnsupportedHint.Equal(w) ||
-			berolinaAllegroSQL.ErrWarnOptimizerHintInvalidToken.Equal(w) ||
-			berolinaAllegroSQL.ErrWarnMemoryQuotaOverflow.Equal(w) ||
-			berolinaAllegroSQL.ErrWarnOptimizerHintParseError.Equal(w) ||
-			berolinaAllegroSQL.ErrWarnOptimizerHintInvalidInteger.Equal(w) {
+		if BerolinaSQL.ErrWarnOptimizerHintUnsupportedHint.Equal(w) ||
+			BerolinaSQL.ErrWarnOptimizerHintInvalidToken.Equal(w) ||
+			BerolinaSQL.ErrWarnMemoryQuotaOverflow.Equal(w) ||
+			BerolinaSQL.ErrWarnOptimizerHintParseError.Equal(w) ||
+			BerolinaSQL.ErrWarnOptimizerHintInvalidInteger.Equal(w) {
 			// Just one warning is enough, however we use a slice here to stop golint complaining
 			// "error should be the last type when returning multiple items" for `ParseHintsSet`.
 			return []error{w}

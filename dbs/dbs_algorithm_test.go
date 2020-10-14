@@ -15,7 +15,7 @@ package dbs_test
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/dbs"
 )
 

@@ -236,39 +236,39 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance", "type"},
 		Comment: "MilevaDB plan cache hit ops",
 	},
-	"milevadb_distsql_execution_duration": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_distsql_handle_query_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type, instance))",
+	"milevadb_allegrosql_execution_duration": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_allegrosql_handle_query_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type, instance))",
 		Labels:   []string{"instance", "type"},
 		Quantile: 0.95,
-		Comment:  "The quantile durations of distsql execution(second)",
+		Comment:  "The quantile durations of allegrosql execution(second)",
 	},
-	"milevadb_distsql_qps": {
-		PromQL:  "sum(rate(milevadb_distsql_handle_query_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
+	"milevadb_allegrosql_qps": {
+		PromQL:  "sum(rate(milevadb_allegrosql_handle_query_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
 		Labels:  []string{"instance", "type"},
-		Comment: "distsql query handling durations per second",
+		Comment: "allegrosql query handling durations per second",
 	},
-	"milevadb_distsql_partial_qps": {
-		PromQL:  "sum(rate(milevadb_distsql_scan_keys_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
+	"milevadb_allegrosql_partial_qps": {
+		PromQL:  "sum(rate(milevadb_allegrosql_scan_keys_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
 		Labels:  []string{"instance"},
-		Comment: "the numebr of distsql partial scan numbers",
+		Comment: "the numebr of allegrosql partial scan numbers",
 	},
-	"milevadb_distsql_scan_key_num": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_distsql_scan_keys_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
+	"milevadb_allegrosql_scan_key_num": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_allegrosql_scan_keys_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
 		Labels:   []string{"instance"},
 		Quantile: 0.95,
-		Comment:  "The quantile numebr of distsql scan numbers",
+		Comment:  "The quantile numebr of allegrosql scan numbers",
 	},
-	"milevadb_distsql_partial_scan_key_num": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_distsql_scan_keys_partial_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
+	"milevadb_allegrosql_partial_scan_key_num": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_allegrosql_scan_keys_partial_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
 		Labels:   []string{"instance"},
 		Quantile: 0.95,
-		Comment:  "The quantile numebr of distsql partial scan key numbers",
+		Comment:  "The quantile numebr of allegrosql partial scan key numbers",
 	},
-	"milevadb_distsql_partial_num": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_distsql_partial_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
+	"milevadb_allegrosql_partial_num": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_allegrosql_partial_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))",
 		Labels:   []string{"instance"},
 		Quantile: 0.95,
-		Comment:  "The quantile of distsql partial numbers per query",
+		Comment:  "The quantile of allegrosql partial numbers per query",
 	},
 	"milevadb_cop_duration": {
 		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_cop_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, instance))",
@@ -2485,15 +2485,15 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance", "type", "result", "action"},
 		Comment: "The total time of MilevaDB dbs worker duration",
 	},
-	"milevadb_distsql_execution_total_count": {
-		PromQL:  "sum(increase(milevadb_distsql_handle_query_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+	"milevadb_allegrosql_execution_total_count": {
+		PromQL:  "sum(increase(milevadb_allegrosql_handle_query_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
-		Comment: "The total count of distsql execution(second)",
+		Comment: "The total count of allegrosql execution(second)",
 	},
-	"milevadb_distsql_execution_total_time": {
-		PromQL:  "sum(increase(milevadb_distsql_handle_query_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+	"milevadb_allegrosql_execution_total_time": {
+		PromQL:  "sum(increase(milevadb_allegrosql_handle_query_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
-		Comment: "The total time of distsql execution(second)",
+		Comment: "The total time of allegrosql execution(second)",
 	},
 	"milevadb_execute_total_count": {
 		PromQL:  "sum(increase(milevadb_stochastik_execute_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
@@ -2912,35 +2912,35 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Comment: "The total time of time consumed by processing asynchronous snapshot requests",
 	},
 
-	"milevadb_distsql_partial_num_total_count": {
-		PromQL:  "sum(increase(milevadb_distsql_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_partial_num_total_count": {
+		PromQL:  "sum(increase(milevadb_allegrosql_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total count of distsql partial numbers per query",
+		Comment: "The total count of allegrosql partial numbers per query",
 	},
-	"milevadb_distsql_partial_scan_key_num_total_count": {
-		PromQL:  "sum(increase(milevadb_distsql_scan_keys_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_partial_scan_key_num_total_count": {
+		PromQL:  "sum(increase(milevadb_allegrosql_scan_keys_partial_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total count of distsql partial scan key numbers",
+		Comment: "The total count of allegrosql partial scan key numbers",
 	},
-	"milevadb_distsql_partial_scan_key_total_num": {
-		PromQL:  "sum(increase(milevadb_distsql_scan_keys_partial_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_partial_scan_key_total_num": {
+		PromQL:  "sum(increase(milevadb_allegrosql_scan_keys_partial_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total num of distsql partial scan key numbers",
+		Comment: "The total num of allegrosql partial scan key numbers",
 	},
-	"milevadb_distsql_partial_total_num": {
-		PromQL:  "sum(increase(milevadb_distsql_partial_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_partial_total_num": {
+		PromQL:  "sum(increase(milevadb_allegrosql_partial_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total num of distsql partial numbers per query",
+		Comment: "The total num of allegrosql partial numbers per query",
 	},
-	"milevadb_distsql_scan_key_num_total_count": {
-		PromQL:  "sum(increase(milevadb_distsql_scan_keys_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_scan_key_num_total_count": {
+		PromQL:  "sum(increase(milevadb_allegrosql_scan_keys_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total count of distsql scan numbers",
+		Comment: "The total count of allegrosql scan numbers",
 	},
-	"milevadb_distsql_scan_key_total_num": {
-		PromQL:  "sum(increase(milevadb_distsql_scan_keys_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_allegrosql_scan_key_total_num": {
+		PromQL:  "sum(increase(milevadb_allegrosql_scan_keys_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
-		Comment: "The total num of distsql scan numbers",
+		Comment: "The total num of allegrosql scan numbers",
 	},
 	"milevadb_kv_write_num_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_kv_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",

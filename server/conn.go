@@ -54,11 +54,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor"
@@ -831,7 +831,7 @@ func queryStrForLog(query string) string {
 }
 
 func errStrForLog(err error) string {
-	if ekv.ErrKeyExists.Equal(err) || berolinaAllegroSQL.ErrParse.Equal(err) || schemareplicant.ErrBlockNotExists.Equal(err) {
+	if ekv.ErrKeyExists.Equal(err) || BerolinaSQL.ErrParse.Equal(err) || schemareplicant.ErrBlockNotExists.Equal(err) {
 		// Do not log stack for duplicated entry error.
 		return err.Error()
 	}
@@ -1376,7 +1376,7 @@ func (cc *clientConn) handleQuery(ctx context.Context, allegrosql string) (err e
 	}
 
 	warns := sc.GetWarnings()
-	berolinaAllegroSQLWarns := warns[len(prevWarns):]
+	BerolinaSQLWarns := warns[len(prevWarns):]
 
 	var pointPlans []plannercore.Plan
 	if len(stmts) > 1 {
@@ -1394,7 +1394,7 @@ func (cc *clientConn) handleQuery(ctx context.Context, allegrosql string) (err e
 			// Save the point plan in Stochastik so we don't need to build the point plan again.
 			cc.ctx.SetValue(plannercore.PointPlanKey, plannercore.PointPlanVal{Plan: pointPlans[i]})
 		}
-		err = cc.handleStmt(ctx, stmt, berolinaAllegroSQLWarns, i == len(stmts)-1)
+		err = cc.handleStmt(ctx, stmt, BerolinaSQLWarns, i == len(stmts)-1)
 		if err != nil {
 			break
 		}
@@ -1930,7 +1930,7 @@ func (cc getLastStmtInConn) String() string {
 	case allegrosql.ComQuery, allegrosql.ComStmtPrepare:
 		allegrosql := string(replog.String(data))
 		if config.RedactLogEnabled() {
-			allegrosql, _ = berolinaAllegroSQL.NormalizeDigest(allegrosql)
+			allegrosql, _ = BerolinaSQL.NormalizeDigest(allegrosql)
 		}
 		return queryStrForLog(allegrosql)
 	case allegrosql.ComStmtExecute, allegrosql.ComStmtFetch:
@@ -1963,7 +1963,7 @@ func (cc getLastStmtInConn) PProfLabel() string {
 	case allegrosql.ComStmtReset:
 		return "ResetStmt"
 	case allegrosql.ComQuery, allegrosql.ComStmtPrepare:
-		return berolinaAllegroSQL.Normalize(queryStrForLog(string(replog.String(data))))
+		return BerolinaSQL.Normalize(queryStrForLog(string(replog.String(data))))
 	case allegrosql.ComStmtExecute, allegrosql.ComStmtFetch:
 		stmtID := binary.LittleEndian.Uint32(data[0:4])
 		return queryStrForLog(cc.preparedStmt2StringNoArgs(stmtID))

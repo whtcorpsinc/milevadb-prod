@@ -17,7 +17,7 @@ import (
 	"context"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
 	"github.com/whtcorpsinc/milevadb/petri"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"

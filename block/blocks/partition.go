@@ -24,10 +24,10 @@ import (
 	"sync"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
@@ -162,7 +162,7 @@ type ForRangeDeferredCausetsPruning struct {
 	MaxValue bool
 }
 
-func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, schemaReplicant *expression.Schema, names []*types.FieldName, p *berolinaAllegroSQL.berolinaAllegroSQL) (*ForRangeDeferredCausetsPruning, error) {
+func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, schemaReplicant *expression.Schema, names []*types.FieldName, p *BerolinaSQL.BerolinaSQL) (*ForRangeDeferredCausetsPruning, error) {
 	var res ForRangeDeferredCausetsPruning
 	res.LessThan = make([]expression.Expression, len(pi.Definitions))
 	for i := 0; i < len(pi.Definitions); i++ {
@@ -182,7 +182,7 @@ func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptro
 
 // parseSimpleExprWithNames parses simple expression string to Expression.
 // The expression string must only reference the defCausumn in the given NameSlice.
-func parseSimpleExprWithNames(p *berolinaAllegroSQL.berolinaAllegroSQL, ctx stochastikctx.Context, exprStr string, schemaReplicant *expression.Schema, names types.NameSlice) (expression.Expression, error) {
+func parseSimpleExprWithNames(p *BerolinaSQL.BerolinaSQL, ctx stochastikctx.Context, exprStr string, schemaReplicant *expression.Schema, names types.NameSlice) (expression.Expression, error) {
 	exprNode, err := parseExpr(p, exprStr)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -236,7 +236,7 @@ func dataForRangePruning(sctx stochastikctx.Context, pi *perceptron.PartitionInf
 func fixOldVersionPartitionInfo(sctx stochastikctx.Context, str string) (int64, bool) {
 	// less than value should be calculate to integer before persistent.
 	// Old version MilevaDB may not do it and causetstore the raw expression.
-	tmp, err := parseSimpleExprWithNames(berolinaAllegroSQL.New(), sctx, str, nil, nil)
+	tmp, err := parseSimpleExprWithNames(BerolinaSQL.New(), sctx, str, nil, nil)
 	if err != nil {
 		return 0, false
 	}
@@ -268,7 +268,7 @@ func generateRangePartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partit
 	// The caller should assure partition info is not nil.
 	locateExprs := make([]expression.Expression, 0, len(pi.Definitions))
 	var buf bytes.Buffer
-	p := berolinaAllegroSQL.New()
+	p := BerolinaSQL.New()
 	schemaReplicant := expression.NewSchema(defCausumns...)
 	partStr := rangePartitionString(pi)
 	for i := 0; i < len(pi.Definitions); i++ {
@@ -320,7 +320,7 @@ func generateHashPartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partiti
 	defCausumns []*expression.DeferredCauset, names types.NameSlice) (*PartitionExpr, error) {
 	// The caller should assure partition info is not nil.
 	schemaReplicant := expression.NewSchema(defCausumns...)
-	origExpr, err := parseExpr(berolinaAllegroSQL.New(), pi.Expr)
+	origExpr, err := parseExpr(BerolinaSQL.New(), pi.Expr)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +635,7 @@ func FindPartitionByName(meta *perceptron.BlockInfo, parName string) (int64, err
 	return -1, errors.Trace(block.ErrUnknownPartition.GenWithStackByArgs(parName, meta.Name.O))
 }
 
-func parseExpr(p *berolinaAllegroSQL.berolinaAllegroSQL, exprStr string) (ast.ExprNode, error) {
+func parseExpr(p *BerolinaSQL.BerolinaSQL, exprStr string) (ast.ExprNode, error) {
 	exprStr = "select " + exprStr
 	stmts, _, err := p.Parse(exprStr, "", "")
 	if err != nil {

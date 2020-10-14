@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -33,12 +33,12 @@ type testUFIDelateSuite struct {
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
 	petri  *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
 
 func (s *testUFIDelateSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	flag.Lookup("mockEinsteinDB")
 	useMockEinsteinDB := *mockEinsteinDB
 	if useMockEinsteinDB {

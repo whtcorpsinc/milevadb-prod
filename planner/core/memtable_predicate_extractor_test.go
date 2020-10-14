@@ -20,7 +20,7 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -57,8 +57,8 @@ func (s *extractorSuite) TearDownSuite(c *C) {
 	s.causetstore.Close()
 }
 
-func (s *extractorSuite) getLogicalMemBlock(c *C, se stochastik.Stochastik, berolinaAllegroSQL *berolinaAllegroSQL.berolinaAllegroSQL, allegrosql string) *plannercore.LogicalMemBlock {
-	stmt, err := berolinaAllegroSQL.ParseOneStmt(allegrosql, "", "")
+func (s *extractorSuite) getLogicalMemBlock(c *C, se stochastik.Stochastik, BerolinaSQL *BerolinaSQL.BerolinaSQL, allegrosql string) *plannercore.LogicalMemBlock {
+	stmt, err := BerolinaSQL.ParseOneStmt(allegrosql, "", "")
 	c.Assert(err, IsNil)
 
 	ctx := context.Background()
@@ -83,7 +83,7 @@ func (s *extractorSuite) TestClusterConfigBlockExtractor(c *C) {
 	se, err := stochastik.CreateStochastik4Test(s.causetstore)
 	c.Assert(err, IsNil)
 
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	var cases = []struct {
 		allegrosql         string
 		nodeTypes   set.StringSet
@@ -235,7 +235,7 @@ func (s *extractorSuite) TestClusterConfigBlockExtractor(c *C) {
 		},
 	}
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		clusterConfigExtractor := logicalMemBlock.Extractor.(*plannercore.ClusterBlockExtractor)
@@ -255,7 +255,7 @@ func (s *extractorSuite) TestClusterLogBlockExtractor(c *C) {
 	se, err := stochastik.CreateStochastik4Test(s.causetstore)
 	c.Assert(err, IsNil)
 
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	var cases = []struct {
 		allegrosql                string
 		nodeTypes          set.StringSet
@@ -530,7 +530,7 @@ func (s *extractorSuite) TestClusterLogBlockExtractor(c *C) {
 		},
 	}
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		clusterConfigExtractor := logicalMemBlock.Extractor.(*plannercore.ClusterLogBlockExtractor)
@@ -560,7 +560,7 @@ func (s *extractorSuite) TestMetricBlockExtractor(c *C) {
 		return t
 	}
 
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	var cases = []struct {
 		allegrosql                string
 		skipRequest        bool
@@ -648,7 +648,7 @@ func (s *extractorSuite) TestMetricBlockExtractor(c *C) {
 	}
 	se.GetStochastikVars().StmtCtx.TimeZone = time.Local
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 		metricBlockExtractor := logicalMemBlock.Extractor.(*plannercore.MetricBlockExtractor)
 		if len(ca.labelConditions) > 0 {
@@ -753,11 +753,11 @@ func (s *extractorSuite) TestMetricsSummaryBlockExtractor(c *C) {
 			skipRequest: true,
 		},
 	}
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	for _, ca := range cases {
 		sort.Float64s(ca.quantiles)
 
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		extractor := logicalMemBlock.Extractor.(*plannercore.MetricSummaryBlockExtractor)
@@ -894,9 +894,9 @@ func (s *extractorSuite) TestInspectionResultBlockExtractor(c *C) {
 			skipInspection: true,
 		},
 	}
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		clusterConfigExtractor := logicalMemBlock.Extractor.(*plannercore.InspectionResultBlockExtractor)
@@ -993,9 +993,9 @@ func (s *extractorSuite) TestInspectionSummaryBlockExtractor(c *C) {
 			skipInspection: true,
 		},
 	}
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		clusterConfigExtractor := logicalMemBlock.Extractor.(*plannercore.InspectionSummaryBlockExtractor)
@@ -1034,9 +1034,9 @@ func (s *extractorSuite) TestInspectionMemruleBlockExtractor(c *C) {
 			skip: true,
 		},
 	}
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	for _, ca := range cases {
-		logicalMemBlock := s.getLogicalMemBlock(c, se, berolinaAllegroSQL, ca.allegrosql)
+		logicalMemBlock := s.getLogicalMemBlock(c, se, BerolinaSQL, ca.allegrosql)
 		c.Assert(logicalMemBlock.Extractor, NotNil)
 
 		clusterConfigExtractor := logicalMemBlock.Extractor.(*plannercore.InspectionMemruleBlockExtractor)

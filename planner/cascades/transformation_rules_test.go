@@ -17,8 +17,8 @@ import (
 	"context"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/planner/memo"
@@ -29,7 +29,7 @@ import (
 var _ = Suite(&testTransformationMemruleSuite{})
 
 type testTransformationMemruleSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	is        schemareplicant.SchemaReplicant
 	sctx      stochastikctx.Context
 	testData  solitonutil.TestData
@@ -39,12 +39,12 @@ type testTransformationMemruleSuite struct {
 func (s *testTransformationMemruleSuite) SetUpSuite(c *C) {
 	s.is = schemareplicant.MockSchemaReplicant([]*perceptron.BlockInfo{plannercore.MockSignedBlock()})
 	s.sctx = plannercore.MockContext()
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	s.optimizer = NewOptimizer()
 	var err error
 	s.testData, err = solitonutil.LoadTestSuiteData("testdata", "transformation_rules_suite")
 	c.Assert(err, IsNil)
-	s.berolinaAllegroSQL.EnableWindowFunc(true)
+	s.BerolinaSQL.EnableWindowFunc(true)
 }
 
 func (s *testTransformationMemruleSuite) TearDownSuite(c *C) {

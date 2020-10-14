@@ -15,8 +15,8 @@ package expression
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/types/json"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -284,7 +284,7 @@ func (s *testEvaluatorSuite) TestJSONObject(c *C) {
 		{[]interface{}{1, 2, "hello", nil}, `{"1": 2, "hello": null}`, true, true},
 		{[]interface{}{nil, 2}, nil, true, false},
 
-		// MilevaDB can only tell booleans from berolinaAllegroSQL.
+		// MilevaDB can only tell booleans from BerolinaSQL.
 		{[]interface{}{1, true}, `{"1": 1}`, true, true},
 	}
 	var err error

@@ -34,13 +34,13 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
@@ -170,7 +170,7 @@ type stochastik struct {
 
 	causetstore ekv.CausetStorage
 
-	berolinaAllegroSQL *berolinaAllegroSQL.berolinaAllegroSQL
+	BerolinaSQL *BerolinaSQL.BerolinaSQL
 
 	preparedPlanCache *kvcache.SimpleLRUCache
 
@@ -1021,9 +1021,9 @@ func (s *stochastik) ParseALLEGROSQL(ctx context.Context, allegrosql, charset, c
 		defer span1.Finish()
 	}
 	defer trace.StartRegion(ctx, "ParseALLEGROSQL").End()
-	s.berolinaAllegroSQL.SetALLEGROSQLMode(s.stochastikVars.ALLEGROSQLMode)
-	s.berolinaAllegroSQL.EnableWindowFunc(s.stochastikVars.EnableWindowFunction)
-	return s.berolinaAllegroSQL.Parse(allegrosql, charset, collation)
+	s.BerolinaSQL.SetALLEGROSQLMode(s.stochastikVars.ALLEGROSQLMode)
+	s.BerolinaSQL.EnableWindowFunc(s.stochastikVars.EnableWindowFunction)
+	return s.BerolinaSQL.Parse(allegrosql, charset, collation)
 }
 
 func (s *stochastik) SetProcessInfo(allegrosql string, t time.Time, command byte, maxExecutionTime uint64) {
@@ -1707,7 +1707,7 @@ func CreateStochastikWithOpt(causetstore ekv.CausetStorage, opt *Opt) (Stochasti
 	}
 	privilege.BindPrivilegeManager(s, pm)
 
-	stochastikBindHandle := bindinfo.NewStochastikBindHandle(s.berolinaAllegroSQL)
+	stochastikBindHandle := bindinfo.NewStochastikBindHandle(s.BerolinaSQL)
 	s.SetValue(bindinfo.StochastikBindInfoKeyType, stochastikBindHandle)
 	// Add stats collector, and it will be freed by background stats worker
 	// which periodically uFIDelates stats using the collected data.
@@ -1905,7 +1905,7 @@ func createStochastikWithOpt(causetstore ekv.CausetStorage, opt *Opt) (*stochast
 	}
 	s := &stochastik{
 		causetstore:           causetstore,
-		berolinaAllegroSQL:          berolinaAllegroSQL.New(),
+		BerolinaSQL:          BerolinaSQL.New(),
 		stochastikVars:     variable.NewStochastikVars(),
 		dbsOwnerChecker: dom.DBS().OwnerManager(),
 		client:          causetstore.GetClient(),
@@ -1926,7 +1926,7 @@ func createStochastikWithOpt(causetstore ekv.CausetStorage, opt *Opt) (*stochast
 	s.stochastikVars.BinlogClient = binloginfo.GetPumpsClient()
 	s.txn.init()
 
-	stochastikBindHandle := bindinfo.NewStochastikBindHandle(s.berolinaAllegroSQL)
+	stochastikBindHandle := bindinfo.NewStochastikBindHandle(s.BerolinaSQL)
 	s.SetValue(bindinfo.StochastikBindInfoKeyType, stochastikBindHandle)
 	return s, nil
 }
@@ -1938,7 +1938,7 @@ func createStochastikWithOpt(causetstore ekv.CausetStorage, opt *Opt) (*stochast
 func CreateStochastikWithPetri(causetstore ekv.CausetStorage, dom *petri.Petri) (*stochastik, error) {
 	s := &stochastik{
 		causetstore:       causetstore,
-		berolinaAllegroSQL:      berolinaAllegroSQL.New(),
+		BerolinaSQL:      BerolinaSQL.New(),
 		stochastikVars: variable.NewStochastikVars(),
 		client:      causetstore.GetClient(),
 	}

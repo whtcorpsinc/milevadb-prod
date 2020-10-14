@@ -18,8 +18,8 @@ import (
 	"flag"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastik"
@@ -37,13 +37,13 @@ type testMyALLEGROSQLConstSuite struct {
 	mvccStore mockeinsteindb.MVCCStore
 	causetstore     ekv.CausetStorage
 	dom       *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 }
 
 var mockEinsteinDB = flag.Bool("mockEinsteinDB", true, "use mock einsteindb causetstore in executor test")
 
 func (s *testMyALLEGROSQLConstSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	flag.Lookup("mockEinsteinDB")
 	useMockEinsteinDB := *mockEinsteinDB
 	if useMockEinsteinDB {

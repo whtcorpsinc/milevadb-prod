@@ -24,7 +24,7 @@ import (
 	_ "github.com/go-allegrosql-driver/allegrosql"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"go.uber.org/zap"
 )
 

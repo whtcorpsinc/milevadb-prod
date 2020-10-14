@@ -17,7 +17,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -113,7 +113,7 @@ func (br *BindRecord) FindBinding(hint string) *Binding {
 // prepareHints builds ID and Hint for BindRecord. If sctx is not nil, we check if
 // the BindALLEGROSQL is still valid.
 func (br *BindRecord) prepareHints(sctx stochastikctx.Context) error {
-	p := berolinaAllegroSQL.New()
+	p := BerolinaSQL.New()
 	for i, bind := range br.Bindings {
 		if (bind.Hint != nil && bind.ID != "") || bind.Status == deleted {
 			continue

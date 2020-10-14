@@ -18,9 +18,9 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	berolinaAllegroSQL_mysql "github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	BerolinaSQL_mysql "github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
@@ -172,7 +172,7 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBet
 			} else if len(tbl.(*blocks.BlockCommon).DeferredCausets) != 3 {
 				// changingDefCauss has been added into meta.
 				checkErr = errors.New("len(defcaus) is not right")
-			} else if getModifyDeferredCauset(c, internalTK.Se.(stochastikctx.Context), "test", "t", "c2", true).Flag&berolinaAllegroSQL_mysql.PreventNullInsertFlag == uint(0) {
+			} else if getModifyDeferredCauset(c, internalTK.Se.(stochastikctx.Context), "test", "t", "c2", true).Flag&BerolinaSQL_mysql.PreventNullInsertFlag == uint(0) {
 				checkErr = errors.New("old defCaus's flag is not right")
 			} else if getModifyDeferredCauset(c, internalTK.Se.(stochastikctx.Context), "test", "t", "_DefCaus$_c2", true) == nil {
 				checkErr = errors.New("changingDefCaus is nil")
@@ -192,9 +192,9 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBet
 	c.Assert(len(tbl.DefCauss()), Equals, 2)
 	defCaus := getModifyDeferredCauset(c, tk.Se.(stochastikctx.Context), "test", "t", "c2", false)
 	c.Assert(defCaus, NotNil)
-	c.Assert(berolinaAllegroSQL_mysql.HasNotNullFlag(defCaus.Flag), Equals, true)
-	c.Assert(defCaus.Flag&berolinaAllegroSQL_mysql.NoDefaultValueFlag, Not(Equals), uint(0))
-	c.Assert(defCaus.Tp, Equals, berolinaAllegroSQL_mysql.TypeTiny)
+	c.Assert(BerolinaSQL_mysql.HasNotNullFlag(defCaus.Flag), Equals, true)
+	c.Assert(defCaus.Flag&BerolinaSQL_mysql.NoDefaultValueFlag, Not(Equals), uint(0))
+	c.Assert(defCaus.Tp, Equals, BerolinaSQL_mysql.TypeTiny)
 	c.Assert(defCaus.ChangeStateInfo, IsNil)
 	tk.MustQuery("select * from t").Check(testkit.Rows("1 1"))
 }
@@ -274,7 +274,7 @@ func assertRollBackedDefCausUnchanged(c *C, tk *testkit.TestKit) {
 	defCaus := getModifyDeferredCauset(c, tk.Se.(stochastikctx.Context), "test", "t", "c2", false)
 	c.Assert(defCaus, NotNil)
 	c.Assert(defCaus.Flag, Equals, uint(0))
-	c.Assert(defCaus.Tp, Equals, berolinaAllegroSQL_mysql.TypeLonglong)
+	c.Assert(defCaus.Tp, Equals, BerolinaSQL_mysql.TypeLonglong)
 	c.Assert(defCaus.ChangeStateInfo, IsNil)
 	tk.MustQuery("select * from t").Check(testkit.Rows("1 1"))
 }

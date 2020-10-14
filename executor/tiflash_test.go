@@ -18,7 +18,7 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastik"
@@ -33,7 +33,7 @@ type tiflashTestSuite struct {
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
 	dom     *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
 

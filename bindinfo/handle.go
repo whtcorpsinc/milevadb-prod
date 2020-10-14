@@ -23,11 +23,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
@@ -35,11 +35,11 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	utilberolinaAllegroSQL "github.com/whtcorpsinc/milevadb/soliton/berolinaAllegroSQL"
+	utilBerolinaSQL "github.com/whtcorpsinc/milevadb/soliton/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/stmtsummary"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
@@ -74,7 +74,7 @@ type BindHandle struct {
 	bindInfo struct {
 		sync.Mutex
 		atomic.Value
-		berolinaAllegroSQL         *berolinaAllegroSQL.berolinaAllegroSQL
+		BerolinaSQL         *BerolinaSQL.BerolinaSQL
 		lastUFIDelateTime types.Time
 	}
 
@@ -106,7 +106,7 @@ func NewBindHandle(ctx stochastikctx.Context) *BindHandle {
 	handle := &BindHandle{}
 	handle.sctx.Context = ctx
 	handle.bindInfo.Value.CausetStore(make(cache, 32))
-	handle.bindInfo.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	handle.bindInfo.BerolinaSQL = BerolinaSQL.New()
 	handle.invalidBindRecordMap.Value.CausetStore(make(map[string]*bindRecordUFIDelate))
 	handle.invalidBindRecordMap.flushFunc = func(record *BindRecord) error {
 		return handle.DropBindRecord(record.OriginalALLEGROSQL, record.EDB, &record.Bindings[0])
@@ -187,7 +187,7 @@ func (h *BindHandle) CreateBindRecord(sctx stochastikctx.Context, record *BindRe
 		return
 	}
 
-	normalizedALLEGROSQL := berolinaAllegroSQL.DigestNormalized(record.OriginalALLEGROSQL)
+	normalizedALLEGROSQL := BerolinaSQL.DigestNormalized(record.OriginalALLEGROSQL)
 	oldRecord := h.GetBindRecord(normalizedALLEGROSQL, record.OriginalALLEGROSQL, record.EDB)
 
 	defer func() {
@@ -204,7 +204,7 @@ func (h *BindHandle) CreateBindRecord(sctx stochastikctx.Context, record *BindRe
 			return
 		}
 
-		// Make sure there is only one goroutine writes the cache and uses berolinaAllegroSQL.
+		// Make sure there is only one goroutine writes the cache and uses BerolinaSQL.
 		h.bindInfo.Lock()
 		if oldRecord != nil {
 			h.removeBindRecord(normalizedALLEGROSQL, oldRecord)
@@ -248,7 +248,7 @@ func (h *BindHandle) AddBindRecord(sctx stochastikctx.Context, record *BindRecor
 		return err
 	}
 
-	oldRecord := h.GetBindRecord(berolinaAllegroSQL.DigestNormalized(record.OriginalALLEGROSQL), record.OriginalALLEGROSQL, record.EDB)
+	oldRecord := h.GetBindRecord(BerolinaSQL.DigestNormalized(record.OriginalALLEGROSQL), record.OriginalALLEGROSQL, record.EDB)
 	var duplicateBinding *Binding
 	if oldRecord != nil {
 		binding := oldRecord.FindBinding(record.Bindings[0].ID)
@@ -284,9 +284,9 @@ func (h *BindHandle) AddBindRecord(sctx stochastikctx.Context, record *BindRecor
 			return
 		}
 
-		// Make sure there is only one goroutine writes the cache and uses berolinaAllegroSQL.
+		// Make sure there is only one goroutine writes the cache and uses BerolinaSQL.
 		h.bindInfo.Lock()
-		h.appendBindRecord(berolinaAllegroSQL.DigestNormalized(record.OriginalALLEGROSQL), record)
+		h.appendBindRecord(BerolinaSQL.DigestNormalized(record.OriginalALLEGROSQL), record)
 		h.bindInfo.Unlock()
 	}()
 
@@ -348,9 +348,9 @@ func (h *BindHandle) DropBindRecord(originalALLEGROSQL, EDB string, binding *Bin
 		if binding != nil {
 			record.Bindings = append(record.Bindings, *binding)
 		}
-		// Make sure there is only one goroutine writes the cache and uses berolinaAllegroSQL.
+		// Make sure there is only one goroutine writes the cache and uses BerolinaSQL.
 		h.bindInfo.Lock()
-		h.removeBindRecord(berolinaAllegroSQL.DigestNormalized(originalALLEGROSQL), record)
+		h.removeBindRecord(BerolinaSQL.DigestNormalized(originalALLEGROSQL), record)
 		h.bindInfo.Unlock()
 	}()
 
@@ -469,7 +469,7 @@ func (h *BindHandle) newBindRecord(event chunk.Row) (string, *BindRecord, error)
 		EDB:          event.GetString(2),
 		Bindings:    []Binding{hint},
 	}
-	hash := berolinaAllegroSQL.DigestNormalized(bindRecord.OriginalALLEGROSQL)
+	hash := BerolinaSQL.DigestNormalized(bindRecord.OriginalALLEGROSQL)
 	h.sctx.Lock()
 	defer h.sctx.Unlock()
 	h.sctx.GetStochastikVars().CurrentDB = bindRecord.EDB
@@ -595,16 +595,16 @@ func (h *BindHandle) logicalDeleteBindInfoALLEGROSQL(originalALLEGROSQL, EDB str
 
 // CaptureBaselines is used to automatically capture plan baselines.
 func (h *BindHandle) CaptureBaselines() {
-	berolinaAllegroSQL4Capture := berolinaAllegroSQL.New()
+	BerolinaSQL4Capture := BerolinaSQL.New()
 	schemas, sqls := stmtsummary.StmtSummaryByDigestMap.GetMoreThanOnceSelect()
 	for i := range sqls {
-		stmt, err := berolinaAllegroSQL4Capture.ParseOneStmt(sqls[i], "", "")
+		stmt, err := BerolinaSQL4Capture.ParseOneStmt(sqls[i], "", "")
 		if err != nil {
 			logutil.BgLogger().Debug("parse ALLEGROALLEGROSQL failed", zap.String("ALLEGROALLEGROSQL", sqls[i]), zap.Error(err))
 			continue
 		}
-		normalizedALLEGROSQL, digiest := berolinaAllegroSQL.NormalizeDigest(sqls[i])
-		dbName := utilberolinaAllegroSQL.GetDefaultDB(stmt, schemas[i])
+		normalizedALLEGROSQL, digiest := BerolinaSQL.NormalizeDigest(sqls[i])
+		dbName := utilBerolinaSQL.GetDefaultDB(stmt, schemas[i])
 		if r := h.GetBindRecord(digiest, normalizedALLEGROSQL, dbName); r != nil && r.HasUsingBinding() {
 			continue
 		}

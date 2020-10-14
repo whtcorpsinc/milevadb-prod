@@ -25,11 +25,11 @@ import (
 	"unsafe"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -216,8 +216,8 @@ type IndexReaderExecutor struct {
 	posetPosetDagPB    *fidelpb.PosetDagRequest
 	startTS  uint64
 
-	// result returns one or more distsql.PartialResult and each PartialResult is returned by one region.
-	result distsql.SelectResult
+	// result returns one or more allegrosql.PartialResult and each PartialResult is returned by one region.
+	result allegrosql.SelectResult
 	// defCausumns are only required by union scan.
 	defCausumns []*perceptron.DeferredCausetInfo
 	// outputDeferredCausets are only required by union scan.
@@ -266,7 +266,7 @@ func (e *IndexReaderExecutor) Open(ctx context.Context) error {
 			return err
 		}
 	}
-	kvRanges, err := distsql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, e.physicalBlockID, e.index.ID, e.ranges, e.feedback)
+	kvRanges, err := allegrosql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, e.physicalBlockID, e.index.ID, e.ranges, e.feedback)
 	if err != nil {
 		e.feedback.Invalidate()
 		return err
@@ -291,7 +291,7 @@ func (e *IndexReaderExecutor) open(ctx context.Context, kvRanges []ekv.KeyRange)
 
 	e.memTracker = memory.NewTracker(e.id, -1)
 	e.memTracker.AttachTo(e.ctx.GetStochastikVars().StmtCtx.MemTracker)
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	kvReq, err := builder.SetKeyRanges(kvRanges).
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(e.startTS).
@@ -391,9 +391,9 @@ func (e *IndexLookUpExecutor) Open(ctx context.Context) error {
 	sc := e.ctx.GetStochastikVars().StmtCtx
 	physicalID := getPhysicalBlockID(e.block)
 	if e.index.ID == -1 {
-		e.kvRanges, err = distsql.CommonHandleRangesToKVRanges(sc, physicalID, e.ranges)
+		e.kvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, physicalID, e.ranges)
 	} else {
-		e.kvRanges, err = distsql.IndexRangesToKVRanges(sc, physicalID, e.index.ID, e.ranges, e.feedback)
+		e.kvRanges, err = allegrosql.IndexRangesToKVRanges(sc, physicalID, e.index.ID, e.ranges, e.feedback)
 	}
 	if err != nil {
 		e.feedback.Invalidate()
@@ -474,7 +474,7 @@ func (e *IndexLookUpExecutor) startIndexWorker(ctx context.Context, kvRanges []e
 
 	tracker := memory.NewTracker(memory.LabelForIndexWorker, -1)
 	tracker.AttachTo(e.memTracker)
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	kvReq, err := builder.SetKeyRanges(kvRanges).
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(e.startTS).
@@ -489,7 +489,7 @@ func (e *IndexLookUpExecutor) startIndexWorker(ctx context.Context, kvRanges []e
 	}
 	tps := e.getRetTpsByHandle()
 	// Since the first read only need handle information. So its returned defCaus is only 1.
-	result, err := distsql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, tps, e.feedback, getPhysicalPlanIDs(e.idxPlans), e.id)
+	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, tps, e.feedback, getPhysicalPlanIDs(e.idxPlans), e.id)
 	if err != nil {
 		return err
 	}
@@ -665,7 +665,7 @@ type indexWorker struct {
 // fetchHandles fetches a batch of handles from index data and builds the index lookup tasks.
 // The tasks are sent to workCh to be further processed by blockWorker, and sent to e.resultCh
 // at the same time to keep data ordered.
-func (w *indexWorker) fetchHandles(ctx context.Context, result distsql.SelectResult) (count uint64, err error) {
+func (w *indexWorker) fetchHandles(ctx context.Context, result allegrosql.SelectResult) (count uint64, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			buf := make([]byte, 4096)
@@ -711,7 +711,7 @@ func (w *indexWorker) fetchHandles(ctx context.Context, result distsql.SelectRes
 	}
 }
 
-func (w *indexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult distsql.SelectResult, count uint64) (
+func (w *indexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult allegrosql.SelectResult, count uint64) (
 	handles []ekv.Handle, retChk *chunk.Chunk, scannedKeys uint64, err error) {
 	var handleOffset []int
 	for i := range w.idxLookup.handleDefCauss {

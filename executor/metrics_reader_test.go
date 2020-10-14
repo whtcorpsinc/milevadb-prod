@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/executor"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/planner"
@@ -60,7 +60,7 @@ func (s *testSuite7) TestStmtLabel(c *C) {
 		{"uFIDelate label set c3 = 3 where c2 = 1 order by c3 limit 1", "UFIDelate"},
 	}
 	for _, tt := range tests {
-		stmtNode, err := berolinaAllegroSQL.New().ParseOneStmt(tt.allegrosql, "", "")
+		stmtNode, err := BerolinaSQL.New().ParseOneStmt(tt.allegrosql, "", "")
 		c.Check(err, IsNil)
 		is := schemareplicant.GetSchemaReplicant(tk.Se)
 		err = plannercore.Preprocess(tk.Se.(stochastikctx.Context), stmtNode, is)

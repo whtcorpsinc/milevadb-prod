@@ -105,7 +105,7 @@ func (s *testJSONSuite) TestBinaryJSONType(c *C) {
 		c.Assert(bj.Type(), Equals, tt.Out)
 	}
 	// we can't parse '9223372036854775808' to JSON::Uint64 now,
-	// because go builtin JSON berolinaAllegroSQL treats that as DOUBLE.
+	// because go builtin JSON BerolinaSQL treats that as DOUBLE.
 	c.Assert(CreateBinary(uint64(1<<63)).Type(), Equals, "UNSIGNED INTEGER")
 }
 

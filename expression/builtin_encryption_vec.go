@@ -28,7 +28,7 @@ import (
 	"sync"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/encrypt"

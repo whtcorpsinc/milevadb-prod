@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"

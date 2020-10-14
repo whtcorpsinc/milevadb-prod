@@ -22,9 +22,9 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -111,7 +111,7 @@ func (e *IndexMergeReaderExecutor) Open(ctx context.Context) error {
 		_, ok := plan[0].(*plannercore.PhysicalIndexScan)
 		if !ok {
 			if e.block.Meta().IsCommonHandle {
-				keyRanges, err := distsql.CommonHandleRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.block), e.ranges[i])
+				keyRanges, err := allegrosql.CommonHandleRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.block), e.ranges[i])
 				if err != nil {
 					return err
 				}
@@ -121,7 +121,7 @@ func (e *IndexMergeReaderExecutor) Open(ctx context.Context) error {
 			}
 			continue
 		}
-		keyRange, err := distsql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.block), e.indexes[i].ID, e.ranges[i], e.feedbacks[i])
+		keyRange, err := allegrosql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.block), e.indexes[i].ID, e.ranges[i], e.feedbacks[i])
 		if err != nil {
 			return err
 		}
@@ -189,7 +189,7 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 		e.posetPosetDagPBs[workID].DefCauslectExecutionSummaries = &defCauslExec
 	}
 
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	kvReq, err := builder.SetKeyRanges(keyRange).
 		SetPosetDagRequest(e.posetPosetDagPBs[workID]).
 		SetStartTS(e.startTS).
@@ -203,7 +203,7 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 		return err
 	}
 
-	result, err := distsql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, e.handleDefCauss.GetFieldsTypes(), e.feedbacks[workID], getPhysicalPlanIDs(e.partialPlans[workID]), e.id)
+	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, e.handleDefCauss.GetFieldsTypes(), e.feedbacks[workID], getPhysicalPlanIDs(e.partialPlans[workID]), e.id)
 	if err != nil {
 		return err
 	}
@@ -568,7 +568,7 @@ type partialIndexWorker struct {
 
 func (w *partialIndexWorker) fetchHandles(
 	ctx context.Context,
-	result distsql.SelectResult,
+	result allegrosql.SelectResult,
 	exitCh <-chan struct{},
 	fetchCh chan<- *lookupBlockTask,
 	resultCh chan<- *lookupBlockTask,
@@ -602,7 +602,7 @@ func (w *partialIndexWorker) fetchHandles(
 	}
 }
 
-func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult distsql.SelectResult, handleDefCauss plannercore.HandleDefCauss) (
+func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult allegrosql.SelectResult, handleDefCauss plannercore.HandleDefCauss) (
 	handles []ekv.Handle, retChk *chunk.Chunk, err error) {
 	handles = make([]ekv.Handle, 0, w.batchSize)
 	for len(handles) < w.batchSize {

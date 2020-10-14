@@ -15,7 +15,7 @@ package server
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 )
 
 type DeferredCausetTestSuite struct {

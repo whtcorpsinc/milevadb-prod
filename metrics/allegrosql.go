@@ -17,12 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// distsql metrics.
+// allegrosql metrics.
 var (
 	DistALLEGROSQLQueryHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "distsql",
+			Subsystem: "allegrosql",
 			Name:      "handle_query_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of handled queries.",
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2, 29), // 0.5ms ~ 1.5days
@@ -31,7 +31,7 @@ var (
 	DistALLEGROSQLScanKeysPartialHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "distsql",
+			Subsystem: "allegrosql",
 			Name:      "scan_keys_partial_num",
 			Help:      "number of scanned keys for each partial result.",
 		},
@@ -39,7 +39,7 @@ var (
 	DistALLEGROSQLScanKeysHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "distsql",
+			Subsystem: "allegrosql",
 			Name:      "scan_keys_num",
 			Help:      "number of scanned keys for each query.",
 		},
@@ -47,7 +47,7 @@ var (
 	DistALLEGROSQLPartialCountHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "distsql",
+			Subsystem: "allegrosql",
 			Name:      "partial_num",
 			Help:      "number of partial results for each query.",
 		},

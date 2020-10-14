@@ -17,8 +17,8 @@ import (
 	"context"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/planner/soliton"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
@@ -30,7 +30,7 @@ import (
 var _ = Suite(&testIndexMergeSuite{})
 
 type testIndexMergeSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 
 	is  schemareplicant.SchemaReplicant
 	ctx stochastikctx.Context
@@ -41,7 +41,7 @@ type testIndexMergeSuite struct {
 func (s *testIndexMergeSuite) SetUpSuite(c *C) {
 	s.is = schemareplicant.MockSchemaReplicant([]*perceptron.BlockInfo{MockSignedBlock(), MockView()})
 	s.ctx = MockContext()
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	var err error
 	s.testdata, err = solitonutil.LoadTestSuiteData("testdata", "index_merge_suite")
 	c.Assert(err, IsNil)

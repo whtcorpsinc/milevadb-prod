@@ -17,7 +17,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 )
 
 func BenchmarkDefaultTypeForValue(b *testing.B) {

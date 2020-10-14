@@ -17,23 +17,23 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 )
 
 // To add new features that needs to be downgrade-compatible,
 // 1. Define a featureID below and make sure it is unique.
 //    For example, `const FeatureIDMyFea = "my_fea"`.
 // 2. Register the new featureID in init().
-//    Only the registered berolinaAllegroSQL can parse the comment annotated with `my_fea`.
-//    Now, the berolinaAllegroSQL treats `/*T![my_fea] what_ever */` and `what_ever` equivalent.
-//    In other word, the berolinaAllegroSQL in old-version MilevaDB will ignores these comments.
+//    Only the registered BerolinaSQL can parse the comment annotated with `my_fea`.
+//    Now, the BerolinaSQL treats `/*T![my_fea] what_ever */` and `what_ever` equivalent.
+//    In other word, the BerolinaSQL in old-version MilevaDB will ignores these comments.
 // 3. [optional] Add a pattern into FeatureIDPatterns.
 //    This is only required if the new feature is contained in DBS,
 //    and we want to comment out this part of ALLEGROALLEGROSQL in binlog.
 func init() {
-	berolinaAllegroSQL.SpecialCommentsController.Register(string(FeatureIDAutoRandom))
-	berolinaAllegroSQL.SpecialCommentsController.Register(string(FeatureIDAutoIDCache))
-	berolinaAllegroSQL.SpecialCommentsController.Register(string(FeatureIDAutoRandomBase))
+	BerolinaSQL.SpecialCommentsController.Register(string(FeatureIDAutoRandom))
+	BerolinaSQL.SpecialCommentsController.Register(string(FeatureIDAutoIDCache))
+	BerolinaSQL.SpecialCommentsController.Register(string(FeatureIDAutoRandomBase))
 }
 
 // SpecialCommentVersionPrefix is the prefix of MilevaDB execublock comments.

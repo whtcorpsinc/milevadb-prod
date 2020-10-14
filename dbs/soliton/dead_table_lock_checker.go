@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.etcd.io/etcd/clientv3"

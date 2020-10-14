@@ -14,8 +14,8 @@
 package types
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	berolinaAllegroSQL_types "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	BerolinaSQL_types "github.com/whtcorpsinc/BerolinaSQL/types"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 )
 
@@ -27,7 +27,7 @@ const (
 
 var (
 	// ErrInvalidDefault is returned when meet a invalid default value.
-	ErrInvalidDefault = berolinaAllegroSQL_types.ErrInvalidDefault
+	ErrInvalidDefault = BerolinaSQL_types.ErrInvalidDefault
 	// ErrDataTooLong is returned when converts a string value that is longer than field type length.
 	ErrDataTooLong = terror.ClassTypes.New(allegrosql.ErrDataTooLong, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDataTooLong])
 	// ErrIllegalValueForType is returned when value of type is illegal.

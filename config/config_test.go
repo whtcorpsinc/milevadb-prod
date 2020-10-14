@@ -24,7 +24,7 @@ import (
 	"github.com/BurntSushi/toml"
 	. "github.com/whtcorpsinc/check"
 	zaplog "github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	tracing "github.com/uber/jaeger-client-go/config"
 )

@@ -2,8 +2,8 @@ package aggfuncs_test
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 )
 
 func (s *testSuite) TestMergePartialResult4Stddevpop(c *C) {

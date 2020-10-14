@@ -16,9 +16,9 @@ package types
 import (
 	"strconv"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	ast "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	ast "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/types/json"
 	utilMath "github.com/whtcorpsinc/milevadb/soliton/math"
 )

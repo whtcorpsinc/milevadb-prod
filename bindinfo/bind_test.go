@@ -22,10 +22,10 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -55,14 +55,14 @@ type testSuite struct {
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
 	petri  *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 }
 
 var mockEinsteinDB = flag.Bool("mockEinsteinDB", true, "use mock einsteindb causetstore in bind test")
 
 func (s *testSuite) SetUpSuite(c *C) {
 	testleak.BeforeTest()
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	flag.Lookup("mockEinsteinDB")
 	useMockEinsteinDB := *mockEinsteinDB
 	if useMockEinsteinDB {
@@ -127,7 +127,7 @@ func (s *testSuite) TestBindParse(c *C) {
 	c.Check(err, IsNil)
 	c.Check(bindHandle.Size(), Equals, 1)
 
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t")
 	bindData := bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t")
@@ -174,7 +174,7 @@ func (s *testSuite) TestGlobalBinding(c *C) {
 	metrics.BindMemoryUsage.WithLabelValues(metrics.ScopeGlobal, bindinfo.Using).Write(pb)
 	c.Assert(pb.GetGauge().GetValue(), Equals, float64(97))
 
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t where i          >      30.0")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t where i          >      30.0")
 
 	bindData := s.petri.BindHandle().GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
@@ -417,7 +417,7 @@ func (s *testSuite) TestBindingSymbolList(c *C) {
 	c.Assert(tk.MustUseIndex("select a, b from t where a = 3 limit 1, 100", "ib(b)"), IsTrue)
 
 	// Normalize
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select a, b from t where a = 1 limit 0, 1")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select a, b from t where a = 1 limit 0, 1")
 
 	bindData := s.petri.BindHandle().GetBindRecord(hash, allegrosql, "test")
 	c.Assert(bindData, NotNil)
@@ -452,7 +452,7 @@ func (s *testSuite) TestBestPlanInBaselines(c *C) {
 	tk.MustExec(`create global binding for select a, b from t where a = 1 limit 0, 1 using select /*+ use_index(@sel_1 test.t, ia) */ a, b from t where a = 1 limit 0, 1`)
 	tk.MustExec(`create global binding for select a, b from t where b = 1 limit 0, 1 using select /*+ use_index(@sel_1 test.t, ib) */ a, b from t where b = 1 limit 0, 1`)
 
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select a, b from t where a = 1 limit 0, 1")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select a, b from t where a = 1 limit 0, 1")
 	bindData := s.petri.BindHandle().GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select a , b from t where a = ? limit ...")
@@ -484,7 +484,7 @@ func (s *testSuite) TestErrorBind(c *C) {
 	_, err := tk.Exec("create global binding for select * from t where i>100 using select * from t use index(index_t) where i>100")
 	c.Assert(err, IsNil, Commentf("err %v", err))
 
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t where i > ?")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t where i > ?")
 	bindData := s.petri.BindHandle().GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where i > ?")
@@ -923,7 +923,7 @@ func (s *testSuite) TestHintsSetEvolveTask(c *C) {
 	bindHandle := s.petri.BindHandle()
 	bindHandle.SaveEvolveTasksToStore()
 	// Verify the added Binding for evolution contains valid ID and Hint, otherwise, panic may happen.
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t where a > ?")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t where a > ?")
 	bindData := bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where a > ?")
@@ -943,7 +943,7 @@ func (s *testSuite) TestHintsSetID(c *C) {
 	tk.MustExec("create global binding for select * from t where a > 10 using select /*+ use_index(test.t, idx_a) */ * from t where a > 10")
 	bindHandle := s.petri.BindHandle()
 	// Verify the added Binding contains ID with restored query block.
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t where a > ?")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t where a > ?")
 	bindData := bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where a > ?")
@@ -989,7 +989,7 @@ func (s *testSuite) TestHintsSetID(c *C) {
 
 	s.cleanBindingEnv(tk)
 	err := tk.ExecToErr("create global binding for select * from t using select /*+ non_exist_hint() */ * from t")
-	c.Assert(terror.ErrorEqual(err, berolinaAllegroSQL.ErrWarnOptimizerHintParseError), IsTrue)
+	c.Assert(terror.ErrorEqual(err, BerolinaSQL.ErrWarnOptimizerHintParseError), IsTrue)
 	tk.MustExec("create global binding for select * from t where a > 10 using select * from t where a > 10")
 	bindData = bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
@@ -1179,7 +1179,7 @@ func (s *testSuite) TestbindingSource(c *C) {
 	// Test Source for ALLEGROALLEGROSQL created allegrosql
 	tk.MustExec("create global binding for select * from t where a > 10 using select * from t ignore index(idx_a) where a > 10")
 	bindHandle := s.petri.BindHandle()
-	allegrosql, hash := berolinaAllegroSQL.NormalizeDigest("select * from t where a > ?")
+	allegrosql, hash := BerolinaSQL.NormalizeDigest("select * from t where a > ?")
 	bindData := bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where a > ?")
@@ -1191,7 +1191,7 @@ func (s *testSuite) TestbindingSource(c *C) {
 	tk.MustExec("set @@milevadb_evolve_plan_baselines=1")
 	tk.MustQuery("select * from t where a > 10")
 	bindHandle.SaveEvolveTasksToStore()
-	allegrosql, hash = berolinaAllegroSQL.NormalizeDigest("select * from t where a > ?")
+	allegrosql, hash = BerolinaSQL.NormalizeDigest("select * from t where a > ?")
 	bindData = bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where a > ?")
@@ -1212,7 +1212,7 @@ func (s *testSuite) TestbindingSource(c *C) {
 	tk.MustExec("select * from t ignore index(idx_a) where a < 10")
 	tk.MustExec("admin capture bindings")
 	bindHandle.CaptureBaselines()
-	allegrosql, hash = berolinaAllegroSQL.NormalizeDigest("select * from t where a < ?")
+	allegrosql, hash = BerolinaSQL.NormalizeDigest("select * from t where a < ?")
 	bindData = bindHandle.GetBindRecord(hash, allegrosql, "test")
 	c.Check(bindData, NotNil)
 	c.Check(bindData.OriginalALLEGROSQL, Equals, "select * from t where a < ?")

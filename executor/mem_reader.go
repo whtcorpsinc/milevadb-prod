@@ -15,9 +15,9 @@ package executor
 
 import (
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -417,7 +417,7 @@ func (m *memIndexLookUpReader) getMemEvents() ([][]types.Causet, error) {
 		return nil, err
 	}
 
-	tblKVRanges := distsql.BlockHandlesToKVRanges(getPhysicalBlockID(m.block), handles)
+	tblKVRanges := allegrosql.BlockHandlesToKVRanges(getPhysicalBlockID(m.block), handles)
 	defCausIDs := make(map[int64]int, len(m.defCausumns))
 	for i, defCaus := range m.defCausumns {
 		defCausIDs[defCaus.ID] = i

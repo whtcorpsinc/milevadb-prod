@@ -18,9 +18,9 @@ import (
 	"fmt"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
@@ -41,14 +41,14 @@ var _ = Suite(&testPlanSuite{})
 var _ = SerialSuites(&testPlanSerialSuite{})
 
 type testPlanSuiteBase struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	is schemareplicant.SchemaReplicant
 }
 
 func (s *testPlanSuiteBase) SetUpSuite(c *C) {
 	s.is = schemareplicant.MockSchemaReplicant([]*perceptron.BlockInfo{core.MockSignedBlock(), core.MockUnsignedBlock()})
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
-	s.berolinaAllegroSQL.EnableWindowFunc(true)
+	s.BerolinaSQL = BerolinaSQL.New()
+	s.BerolinaSQL.EnableWindowFunc(true)
 }
 
 type testPlanSerialSuite struct {

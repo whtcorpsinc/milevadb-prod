@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/errno"
@@ -169,7 +169,7 @@ func DisableStats4Test() {
 func Parse(ctx stochastikctx.Context, src string) ([]ast.StmtNode, error) {
 	logutil.BgLogger().Debug("compiling", zap.String("source", src))
 	charset, defCauslation := ctx.GetStochastikVars().GetCharsetInfo()
-	p := berolinaAllegroSQL.New()
+	p := BerolinaSQL.New()
 	p.EnableWindowFunc(ctx.GetStochastikVars().EnableWindowFunction)
 	p.SetALLEGROSQLMode(ctx.GetStochastikVars().ALLEGROSQLMode)
 	stmts, warns, err := p.Parse(src, charset, defCauslation)

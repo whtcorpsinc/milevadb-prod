@@ -20,7 +20,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
 	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/planner/core"

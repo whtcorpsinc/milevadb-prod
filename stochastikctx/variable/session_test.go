@@ -17,8 +17,8 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -208,7 +208,7 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 # Write_sql_response_total: 1
 # Succ: true`
 	allegrosql := "select * from t;"
-	_, digest := berolinaAllegroSQL.NormalizeDigest(allegrosql)
+	_, digest := BerolinaSQL.NormalizeDigest(allegrosql)
 	logItems := &variable.SlowQueryLogItems{
 		TxnTS:             txnTS,
 		ALLEGROALLEGROSQL:               allegrosql,

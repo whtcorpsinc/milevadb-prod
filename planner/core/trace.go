@@ -14,7 +14,7 @@
 package core
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
 // Trace represents a trace plan.

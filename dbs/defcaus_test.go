@@ -18,12 +18,12 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -1180,7 +1180,7 @@ func (s *testDeferredCausetSuite) TestModifyDeferredCauset(c *C) {
 
 func (s *testDeferredCausetSuite) defCausDefStrToFieldType(c *C, str string) *types.FieldType {
 	sqlA := "alter block t modify defCausumn a " + str
-	stmt, err := berolinaAllegroSQL.New().ParseOneStmt(sqlA, "", "")
+	stmt, err := BerolinaSQL.New().ParseOneStmt(sqlA, "", "")
 	c.Assert(err, IsNil)
 	defCausDef := stmt.(*ast.AlterBlockStmt).Specs[0].NewDeferredCausets[0]
 	chs, defCausl := charset.GetDefaultCharsetAndDefCauslate()

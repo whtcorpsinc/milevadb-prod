@@ -14,7 +14,7 @@
 package expression
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"

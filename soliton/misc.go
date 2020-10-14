@@ -30,10 +30,10 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
@@ -160,7 +160,7 @@ const (
 	syntaxErrorPrefix = "You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use"
 )
 
-// SyntaxError converts berolinaAllegroSQL error to MilevaDB's syntax error.
+// SyntaxError converts BerolinaSQL error to MilevaDB's syntax error.
 func SyntaxError(err error) error {
 	if err == nil {
 		return nil
@@ -175,15 +175,15 @@ func SyntaxError(err error) error {
 		}
 	}
 
-	return berolinaAllegroSQL.ErrParse.GenWithStackByArgs(syntaxErrorPrefix, err.Error())
+	return BerolinaSQL.ErrParse.GenWithStackByArgs(syntaxErrorPrefix, err.Error())
 }
 
-// SyntaxWarn converts berolinaAllegroSQL warn to MilevaDB's syntax warn.
+// SyntaxWarn converts BerolinaSQL warn to MilevaDB's syntax warn.
 func SyntaxWarn(err error) error {
 	if err == nil {
 		return nil
 	}
-	return berolinaAllegroSQL.ErrParse.GenWithStackByArgs(syntaxErrorPrefix, err.Error())
+	return BerolinaSQL.ErrParse.GenWithStackByArgs(syntaxErrorPrefix, err.Error())
 }
 
 var (

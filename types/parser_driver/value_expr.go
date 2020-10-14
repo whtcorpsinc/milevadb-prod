@@ -19,25 +19,25 @@ import (
 	"strconv"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/replog"
 )
 
-// The purpose of driver package is to decompose the dependency of the berolinaAllegroSQL and
+// The purpose of driver package is to decompose the dependency of the BerolinaSQL and
 // types package.
 // It provides the NewValueExpr function for the ast package, so the ast package
 // do not depends on the concrete definition of `types.Causet`, thus get rid of
 // the dependency of the types package.
-// The berolinaAllegroSQL package depends on the ast package, but not the types package.
+// The BerolinaSQL package depends on the ast package, but not the types package.
 // The whole relationship:
 // ast imports []
-// milevadb/types imports [berolinaAllegroSQL/types]
-// berolinaAllegroSQL imports [ast, berolinaAllegroSQL/types]
+// milevadb/types imports [BerolinaSQL/types]
+// BerolinaSQL imports [ast, BerolinaSQL/types]
 // driver imports [ast, milevadb/types]
-// milevadb imports [berolinaAllegroSQL, driver]
+// milevadb imports [BerolinaSQL, driver]
 
 func init() {
 	ast.NewValueExpr = newValueExpr

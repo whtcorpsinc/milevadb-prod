@@ -16,7 +16,7 @@ package types
 import (
 	"strings"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 )
 
 // FieldName records the names used for allegrosql protocol.

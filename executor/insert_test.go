@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/meta/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"

@@ -26,7 +26,7 @@ import (
 	"github.com/whtcorpsinc/goleveldb/leveldb/storage"
 	"github.com/whtcorpsinc/goleveldb/leveldb/soliton"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"

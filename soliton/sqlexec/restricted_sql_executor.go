@@ -16,7 +16,7 @@ package sqlexec
 import (
 	"context"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
@@ -54,11 +54,11 @@ type ALLEGROSQLExecutor interface {
 	ExecuteInternal(ctx context.Context, allegrosql string) ([]RecordSet, error)
 }
 
-// ALLEGROSQLberolinaAllegroSQL is an interface provides parsing allegrosql statement.
-// To parse a allegrosql statement, we could run berolinaAllegroSQL.New() to get a berolinaAllegroSQL object, and then run Parse method on it.
-// But a stochastik already has a berolinaAllegroSQL bind in it, so we define this interface and use stochastik as its implementation,
-// thus avoid allocating new berolinaAllegroSQL. See stochastik.ALLEGROSQLberolinaAllegroSQL for more information.
-type ALLEGROSQLberolinaAllegroSQL interface {
+// ALLEGROSQLBerolinaSQL is an interface provides parsing allegrosql statement.
+// To parse a allegrosql statement, we could run BerolinaSQL.New() to get a BerolinaSQL object, and then run Parse method on it.
+// But a stochastik already has a BerolinaSQL bind in it, so we define this interface and use stochastik as its implementation,
+// thus avoid allocating new BerolinaSQL. See stochastik.ALLEGROSQLBerolinaSQL for more information.
+type ALLEGROSQLBerolinaSQL interface {
 	ParseALLEGROSQL(allegrosql, charset, defCauslation string) ([]ast.StmtNode, error)
 }
 

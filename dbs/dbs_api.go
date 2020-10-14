@@ -30,12 +30,12 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	field_types "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	field_types "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs/memristed"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -48,7 +48,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/block/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -2306,7 +2306,7 @@ func (d *dbs) AlterTable(ctx stochastikctx.Context, ident ast.Ident, specs []*as
 				err = d.CreateIndex(ctx, ident, ast.IndexKeyTypeUnique, perceptron.NewCIStr(constr.Name),
 					spec.Constraint.Keys, constr.Option, false) // IfNotExists should be not applied
 			case ast.ConstraintForeignKey:
-				// NOTE: we do not handle `symbol` and `index_name` well in the berolinaAllegroSQL and we do not check ForeignKey already exists,
+				// NOTE: we do not handle `symbol` and `index_name` well in the BerolinaSQL and we do not check ForeignKey already exists,
 				// so we just also ignore the `if not exists` check.
 				err = d.CreateForeignKey(ctx, ident, perceptron.NewCIStr(constr.Name), spec.Constraint.Keys, spec.Constraint.Refer)
 			case ast.ConstraintPrimaryKey:

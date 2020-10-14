@@ -18,8 +18,8 @@ import (
 	"testing"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -36,7 +36,7 @@ func TestT(t *testing.T) {
 var _ = Suite(&testMemoSuite{})
 
 type testMemoSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	is     schemareplicant.SchemaReplicant
 	schemaReplicant *expression.Schema
 	sctx   stochastikctx.Context
@@ -46,7 +46,7 @@ func (s *testMemoSuite) SetUpSuite(c *C) {
 	testleak.BeforeTest()
 	s.is = schemareplicant.MockSchemaReplicant([]*perceptron.BlockInfo{plannercore.MockSignedBlock()})
 	s.sctx = plannercore.MockContext()
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	s.schemaReplicant = expression.NewSchema()
 }
 

@@ -21,11 +21,11 @@ import (
 	"io"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	ast "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	ast "github.com/whtcorpsinc/BerolinaSQL/types"
 )
 
 // IsTypeBlob returns a boolean indicating whether the tp is a blob type.

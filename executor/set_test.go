@@ -23,8 +23,8 @@ import (
 	"strconv"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/executor"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -581,16 +581,16 @@ func (s *testSuite5) TestSetCharset(c *C) {
 func (s *testSuite5) TestValidateSetVar(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	_, err := tk.Exec("set global milevadb_distsql_scan_concurrency='fff';")
+	_, err := tk.Exec("set global milevadb_allegrosql_scan_concurrency='fff';")
 	c.Assert(terror.ErrorEqual(err, variable.ErrWrongTypeForVar), IsTrue, Commentf("err %v", err))
 
-	_, err = tk.Exec("set global milevadb_distsql_scan_concurrency=-2;")
+	_, err = tk.Exec("set global milevadb_allegrosql_scan_concurrency=-2;")
 	c.Assert(terror.ErrorEqual(err, variable.ErrWrongValueForVar), IsTrue, Commentf("err %v", err))
 
-	_, err = tk.Exec("set @@milevadb_distsql_scan_concurrency='fff';")
+	_, err = tk.Exec("set @@milevadb_allegrosql_scan_concurrency='fff';")
 	c.Assert(terror.ErrorEqual(err, variable.ErrWrongTypeForVar), IsTrue, Commentf("err %v", err))
 
-	_, err = tk.Exec("set @@milevadb_distsql_scan_concurrency=-2;")
+	_, err = tk.Exec("set @@milevadb_allegrosql_scan_concurrency=-2;")
 	c.Assert(terror.ErrorEqual(err, variable.ErrWrongValueForVar), IsTrue, Commentf("err %v", err))
 
 	_, err = tk.Exec("set @@milevadb_batch_delete='ok';")
@@ -969,7 +969,7 @@ func (s *testSuite5) TestSetConcurrency(c *C) {
 	tk.MustQuery("select @@milevadb_hashagg_final_concurrency;").Check(testkit.Events(strconv.Itoa(variable.ConcurrencyUnset)))
 	tk.MustQuery("select @@milevadb_window_concurrency;").Check(testkit.Events(strconv.Itoa(variable.ConcurrencyUnset)))
 	tk.MustQuery("select @@milevadb_projection_concurrency;").Check(testkit.Events(strconv.Itoa(variable.ConcurrencyUnset)))
-	tk.MustQuery("select @@milevadb_distsql_scan_concurrency;").Check(testkit.Events(strconv.Itoa(variable.DefDistALLEGROSQLScanConcurrency)))
+	tk.MustQuery("select @@milevadb_allegrosql_scan_concurrency;").Check(testkit.Events(strconv.Itoa(variable.DefDistALLEGROSQLScanConcurrency)))
 
 	tk.MustQuery("select @@milevadb_index_serial_scan_concurrency;").Check(testkit.Events(strconv.Itoa(variable.DefIndexSerialScanConcurrency)))
 

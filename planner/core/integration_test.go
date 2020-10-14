@@ -20,9 +20,9 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -156,7 +156,7 @@ func (s *testIntegrationSuite) TestPushLimitDownIndexLookUpReader(c *C) {
 
 	tk.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 	tk.MustExec("use test")
 	tk.MustExec("drop block if exists tbl")
 	tk.MustExec("create block tbl(a int, b int, c int, key idx_b_c(b,c))")
@@ -1004,7 +1004,7 @@ func (s *testIntegrationSuite) TestHintWithRequiredProperty(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 	tk.MustExec("use test")
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a int primary key, b int, c int, key b(b))")
@@ -1369,7 +1369,7 @@ func (s *testIntegrationSuite) TestSelectLimit(c *C) {
 	result.Check(testkit.Rows())
 }
 
-func (s *testIntegrationSuite) TestHintberolinaAllegroSQLWarnings(c *C) {
+func (s *testIntegrationSuite) TestHintBerolinaSQLWarnings(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("use test")
 	tk.MustExec("drop block if exists t;")

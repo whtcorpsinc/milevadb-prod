@@ -15,7 +15,7 @@ package metrics
 
 import (
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -467,7 +467,7 @@ func (s *testSuite2) TestMergeJoinDifferentTypes(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 
 	tk.MustExec(`use test`)
 	tk.MustExec(`drop block if exists t1;`)

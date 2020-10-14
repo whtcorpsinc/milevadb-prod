@@ -14,10 +14,10 @@
 package core
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	"github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"
 )

@@ -16,7 +16,7 @@ package soliton
 import (
 	"fmt"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 )
 
 // Event is an event that a dbs operation happened.

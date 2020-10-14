@@ -65,7 +65,7 @@ func (c ConnectionEvent) String() string {
 	return ""
 }
 
-// ParseEvent presents events happen around berolinaAllegroSQL.
+// ParseEvent presents events happen around BerolinaSQL.
 type ParseEvent byte
 
 const (

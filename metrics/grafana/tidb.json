@@ -5464,7 +5464,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "durations of distsql execution by type",
+          "description": "durations of allegrosql execution by type",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -5505,31 +5505,31 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(0.999, sum(rate(milevadb_distsql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
+              "expr": "histogram_quantile(0.999, sum(rate(milevadb_allegrosql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "999-{{type}}",
               "refId": "D"
             },
             {
-              "expr": "histogram_quantile(0.99, sum(rate(milevadb_distsql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
+              "expr": "histogram_quantile(0.99, sum(rate(milevadb_allegrosql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
               "legendFormat": "99-{{type}}",
-              "metric": "milevadb_distsql_handle_query_duration_seconds_bucket",
+              "metric": "milevadb_allegrosql_handle_query_duration_seconds_bucket",
               "refId": "A",
               "step": 4
             },
             {
-              "expr": "histogram_quantile(0.90, sum(rate(milevadb_distsql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
+              "expr": "histogram_quantile(0.90, sum(rate(milevadb_allegrosql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "90-{{type}}",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.50, sum(rate(milevadb_distsql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
+              "expr": "histogram_quantile(0.50, sum(rate(milevadb_allegrosql_handle_query_duration_seconds_bucket[1m])) by (le, type))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -5585,7 +5585,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "distsql query handling durations per second",
+          "description": "allegrosql query handling durations per second",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -5621,11 +5621,11 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_distsql_handle_query_duration_seconds_count[1m]))",
+              "expr": "sum(rate(milevadb_allegrosql_handle_query_duration_seconds_count[1m]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
-              "metric": "milevadb_distsql_query_total",
+              "metric": "milevadb_allegrosql_query_total",
               "refId": "A",
               "step": 4
             }
@@ -5678,7 +5678,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "the numebr of distsql partial scan numbers",
+          "description": "the numebr of allegrosql partial scan numbers",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -5714,11 +5714,11 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_distsql_scan_keys_partial_num_count[1m]))",
+              "expr": "sum(rate(milevadb_allegrosql_scan_keys_partial_num_count[1m]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
-              "metric": "milevadb_distsql_query_total",
+              "metric": "milevadb_allegrosql_query_total",
               "refId": "A",
               "step": 4
             }
@@ -5771,7 +5771,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "the numebr of distsql scan numbers",
+          "description": "the numebr of allegrosql scan numbers",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -5803,21 +5803,21 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1, sum(rate(milevadb_distsql_scan_keys_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(1, sum(rate(milevadb_allegrosql_scan_keys_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "100",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.90, sum(rate(milevadb_distsql_scan_keys_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.90, sum(rate(milevadb_allegrosql_scan_keys_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "90",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.50, sum(rate(milevadb_distsql_scan_keys_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.50, sum(rate(milevadb_allegrosql_scan_keys_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "50",
@@ -5871,7 +5871,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "the numebr of distsql partial scan key numbers",
+          "description": "the numebr of allegrosql partial scan key numbers",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -5903,21 +5903,21 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1, sum(rate(milevadb_distsql_scan_keys_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(1, sum(rate(milevadb_allegrosql_scan_keys_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "100",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.90, sum(rate(milevadb_distsql_scan_keys_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.90, sum(rate(milevadb_allegrosql_scan_keys_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "90",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.80, sum(rate(milevadb_distsql_scan_keys_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.80, sum(rate(milevadb_allegrosql_scan_keys_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "50",
@@ -5971,7 +5971,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "distsql partial numbers per query",
+          "description": "allegrosql partial numbers per query",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -6003,21 +6003,21 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1, sum(rate(milevadb_distsql_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(1, sum(rate(milevadb_allegrosql_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "100",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.90, sum(rate(milevadb_distsql_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.90, sum(rate(milevadb_allegrosql_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "90",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.50, sum(rate(milevadb_distsql_partial_num_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.50, sum(rate(milevadb_allegrosql_partial_num_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "50",

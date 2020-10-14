@@ -17,7 +17,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/FIDelpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 )
 

@@ -51,7 +51,7 @@ FILES     := $$(find $$($(PACKAGE_DIRECTORIES)) -name "*.go")
 FAILPOINT_ENABLE  := $$(find $$PWD/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable)
 FAILPOINT_DISABLE := $$(find $$PWD/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable)
 
-LDFLAGS += -X "github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql.MilevaDBReleaseVersion=$(shell git describe --tags --dirty --always)"
+LDFLAGS += -X "github.com/whtcorpsinc/BerolinaSQL/allegrosql.MilevaDBReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/whtcorpsinc/milevadb/soliton/versioninfo.MilevaDBBuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
 LDFLAGS += -X "github.com/whtcorpsinc/milevadb/soliton/versioninfo.MilevaDBGitHash=$(shell git rev-parse HEAD)"
 LDFLAGS += -X "github.com/whtcorpsinc/milevadb/soliton/versioninfo.MilevaDBGitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
@@ -69,7 +69,7 @@ VB_FILE =
 VB_FUNC =
 
 
-.PHONY: all clean test gotest server dev benchkv benchraw check checklist berolinaAllegroSQL tidy dbstest
+.PHONY: all clean test gotest server dev benchkv benchraw check checklist BerolinaSQL tidy dbstest
 
 default: server buildsucc
 
@@ -80,7 +80,7 @@ buildsucc:
 
 all: dev server benchkv
 
-berolinaAllegroSQL:
+BerolinaSQL:
 	@echo "remove this command later, when our CI script doesn't call it"
 
 dev: checklist check test
@@ -150,7 +150,7 @@ testSuite:
 clean:
 	$(GO) clean -i ./...
 	rm -rf *.out
-	rm -rf berolinaAllegroSQL
+	rm -rf BerolinaSQL
 
 # Split tests for CI to run `make test` in parallel.
 test: test_part_1 test_part_2
@@ -268,7 +268,7 @@ failpoint-disable: tools/bin/failpoint-ctl
 	@$(FAILPOINT_DISABLE)
 
 checkdep:
-	$(GO) list -f '{{ join .Imports "\n" }}' github.com/whtcorpsinc/milevadb/causetstore/einsteindb | grep ^github.com/whtcorpsinc/berolinaAllegroSQL$$ || exit 0; exit 1
+	$(GO) list -f '{{ join .Imports "\n" }}' github.com/whtcorpsinc/milevadb/causetstore/einsteindb | grep ^github.com/whtcorpsinc/BerolinaSQL$$ || exit 0; exit 1
 
 tools/bin/megacheck: tools/check/go.mod
 	cd tools/check; \

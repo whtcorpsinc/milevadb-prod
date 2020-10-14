@@ -19,11 +19,11 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/expression/aggregation"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
@@ -31,7 +31,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/block"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/collate"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
@@ -350,7 +350,7 @@ func (er *expressionRewriter) Enter(inNode ast.Node) (ast.Node, bool) {
 		if len(v.List) != 1 {
 			break
 		}
-		// For 10 in ((select * from t)), the berolinaAllegroSQL won't set v.Sel.
+		// For 10 in ((select * from t)), the BerolinaSQL won't set v.Sel.
 		// So we must process this case here.
 		x := v.List[0]
 		for {

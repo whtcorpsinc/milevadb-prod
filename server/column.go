@@ -14,7 +14,7 @@
 package server
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 )
 
 const maxDeferredCausetNameSize = 256

@@ -25,12 +25,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	field_types "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	field_types "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
@@ -428,7 +428,7 @@ func EvalDefCausDefaultExpr(ctx stochastikctx.Context, defCaus *perceptron.Defer
 func getDefCausDefaultExprValue(ctx stochastikctx.Context, defCaus *perceptron.DeferredCausetInfo, defaultValue string) (types.Causet, error) {
 	var defaultExpr ast.ExprNode
 	expr := fmt.Sprintf("select %s", defaultValue)
-	stmts, _, err := berolinaAllegroSQL.New().Parse(expr, "", "")
+	stmts, _, err := BerolinaSQL.New().Parse(expr, "", "")
 	if err == nil {
 		defaultExpr = stmts[0].(*ast.SelectStmt).Fields.Fields[0].Expr
 	}

@@ -27,12 +27,12 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/expression/aggregation"
@@ -47,7 +47,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/block"
 	"github.com/whtcorpsinc/milevadb/block/blocks"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	util2 "github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	utilhint "github.com/whtcorpsinc/milevadb/soliton/hint"
@@ -898,7 +898,7 @@ func (b *PlanBuilder) buildProjectionFieldNameFromExpressions(ctx context.Contex
 
 	// Non-literal: Output as inputed, except that comments need to be removed.
 	if !isValueExpr {
-		return perceptron.NewCIStr(berolinaAllegroSQL.SpecFieldPattern.ReplaceAllStringFunc(field.Text(), berolinaAllegroSQL.TrimComment)), nil
+		return perceptron.NewCIStr(BerolinaSQL.SpecFieldPattern.ReplaceAllStringFunc(field.Text(), BerolinaSQL.TrimComment)), nil
 	}
 
 	// Literal: Need special processing
@@ -3197,9 +3197,9 @@ func (b *PlanBuilder) buildMemBlock(_ context.Context, dbName perceptron.CIStr, 
 // BuildDataSourceFromView is used to build LogicalPlan from view
 func (b *PlanBuilder) BuildDataSourceFromView(ctx context.Context, dbName perceptron.CIStr, blockInfo *perceptron.BlockInfo) (LogicalPlan, error) {
 	charset, collation := b.ctx.GetStochastikVars().GetCharsetInfo()
-	viewberolinaAllegroSQL := berolinaAllegroSQL.New()
-	viewberolinaAllegroSQL.EnableWindowFunc(b.ctx.GetStochastikVars().EnableWindowFunction)
-	selectNode, err := viewberolinaAllegroSQL.ParseOneStmt(blockInfo.View.SelectStmt, charset, collation)
+	viewBerolinaSQL := BerolinaSQL.New()
+	viewBerolinaSQL.EnableWindowFunc(b.ctx.GetStochastikVars().EnableWindowFunction)
+	selectNode, err := viewBerolinaSQL.ParseOneStmt(blockInfo.View.SelectStmt, charset, collation)
 	if err != nil {
 		return nil, err
 	}

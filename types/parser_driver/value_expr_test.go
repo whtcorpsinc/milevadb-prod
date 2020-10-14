@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 

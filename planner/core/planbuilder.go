@@ -22,12 +22,12 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -42,12 +42,12 @@ import (
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/block"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	util2 "github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	utilberolinaAllegroSQL "github.com/whtcorpsinc/milevadb/soliton/berolinaAllegroSQL"
+	utilBerolinaSQL "github.com/whtcorpsinc/milevadb/soliton/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 
@@ -721,9 +721,9 @@ func (b *PlanBuilder) buildSet(ctx context.Context, v *ast.SetStmt) (Plan, error
 func (b *PlanBuilder) buildDropBindPlan(v *ast.DropBindingStmt) (Plan, error) {
 	p := &ALLEGROSQLBindPlan{
 		ALLEGROSQLBindOp:    OpALLEGROSQLBindDrop,
-		NormdOrigALLEGROSQL: berolinaAllegroSQL.Normalize(v.OriginSel.Text()),
+		NormdOrigALLEGROSQL: BerolinaSQL.Normalize(v.OriginSel.Text()),
 		IsGlobal:     v.GlobalScope,
-		EDB:           utilberolinaAllegroSQL.GetDefaultDB(v.OriginSel, b.ctx.GetStochastikVars().CurrentDB),
+		EDB:           utilBerolinaSQL.GetDefaultDB(v.OriginSel, b.ctx.GetStochastikVars().CurrentDB),
 	}
 	if v.HintedSel != nil {
 		p.BindALLEGROSQL = v.HintedSel.Text()
@@ -736,11 +736,11 @@ func (b *PlanBuilder) buildCreateBindPlan(v *ast.CreateBindingStmt) (Plan, error
 	charSet, collation := b.ctx.GetStochastikVars().GetCharsetInfo()
 	p := &ALLEGROSQLBindPlan{
 		ALLEGROSQLBindOp:    OpALLEGROSQLBindCreate,
-		NormdOrigALLEGROSQL: berolinaAllegroSQL.Normalize(v.OriginSel.Text()),
+		NormdOrigALLEGROSQL: BerolinaSQL.Normalize(v.OriginSel.Text()),
 		BindALLEGROSQL:      v.HintedSel.Text(),
 		IsGlobal:     v.GlobalScope,
 		BindStmt:     v.HintedSel,
-		EDB:           utilberolinaAllegroSQL.GetDefaultDB(v.OriginSel, b.ctx.GetStochastikVars().CurrentDB),
+		EDB:           utilBerolinaSQL.GetDefaultDB(v.OriginSel, b.ctx.GetStochastikVars().CurrentDB),
 		Charset:      charSet,
 		DefCauslation:    collation,
 	}

@@ -17,10 +17,10 @@ import (
 	"fmt"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/soliton"
 )
 
@@ -62,7 +62,7 @@ func (nr *nameResolver) Leave(inNode ast.Node) (node ast.Node, ok bool) {
 func ParseExpression(expr string) (node ast.ExprNode, err error) {
 	expr = fmt.Sprintf("select %s", expr)
 	charset, defCauslation := charset.GetDefaultCharsetAndDefCauslate()
-	stmts, _, err := berolinaAllegroSQL.New().Parse(expr, charset, defCauslation)
+	stmts, _, err := BerolinaSQL.New().Parse(expr, charset, defCauslation)
 	if err == nil {
 		node = stmts[0].(*ast.SelectStmt).Fields.Fields[0].Expr
 	}

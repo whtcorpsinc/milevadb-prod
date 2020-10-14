@@ -25,13 +25,13 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb-tools/pkg/etcd"
 	"github.com/whtcorpsinc/milevadb-tools/pkg/utils"
 	"github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/node"
@@ -251,10 +251,10 @@ func (e *ShowExec) fetchShowBind() error {
 	} else {
 		bindRecords = petri.GetPetri(e.ctx).BindHandle().GetAllBindRecord()
 	}
-	berolinaAllegroSQL := berolinaAllegroSQL.New()
+	BerolinaSQL := BerolinaSQL.New()
 	for _, bindData := range bindRecords {
 		for _, hint := range bindData.Bindings {
-			stmt, err := berolinaAllegroSQL.ParseOneStmt(hint.BindALLEGROSQL, hint.Charset, hint.DefCauslation)
+			stmt, err := BerolinaSQL.ParseOneStmt(hint.BindALLEGROSQL, hint.Charset, hint.DefCauslation)
 			if err != nil {
 				return err
 			}

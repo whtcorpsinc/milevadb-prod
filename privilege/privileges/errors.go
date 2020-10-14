@@ -14,7 +14,7 @@
 package privileges
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 )
 

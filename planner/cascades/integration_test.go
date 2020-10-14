@@ -158,7 +158,7 @@ func (s *testIntegrationSuite) TestAggregation(c *C) {
 	tk.MustExec("set stochastik milevadb_enable_cascades_planner = 1")
 	tk.MustExec("set stochastik milevadb_executor_concurrency = 4")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 	var input []string
 	var output []struct {
 		ALLEGROALLEGROSQL    string
@@ -266,7 +266,7 @@ func (s *testIntegrationSuite) TestJoin(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
 	tk.MustExec("set @@stochastik.milevadb_executor_concurrency = 4;")
 	tk.MustExec("set @@stochastik.milevadb_hash_join_concurrency = 5;")
-	tk.MustExec("set @@stochastik.milevadb_distsql_scan_concurrency = 15;")
+	tk.MustExec("set @@stochastik.milevadb_allegrosql_scan_concurrency = 15;")
 	tk.MustExec("drop block if exists t1")
 	tk.MustExec("drop block if exists t2")
 	tk.MustExec("create block t1(a int primary key, b int)")

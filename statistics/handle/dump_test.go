@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/statistics/handle"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"

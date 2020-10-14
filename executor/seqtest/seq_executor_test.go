@@ -34,10 +34,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	dbssolitonutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
@@ -76,14 +76,14 @@ type seqTestSuite struct {
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
 	petri  *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
 
 var mockEinsteinDB = flag.Bool("mockEinsteinDB", true, "use mock einsteindb causetstore in executor test")
 
 func (s *seqTestSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	flag.Lookup("mockEinsteinDB")
 	useMockEinsteinDB := *mockEinsteinDB
 	if useMockEinsteinDB {
@@ -669,7 +669,7 @@ func (s *seqTestSuite) TestShowStatsHealthy(c *C) {
 }
 
 // TestIndexDoubleReadClose checks that when a index double read returns before reading all the rows, the goroutine doesn't
-// leak. For testing distsql with multiple regions, we need to manually split a mock EinsteinDB.
+// leak. For testing allegrosql with multiple regions, we need to manually split a mock EinsteinDB.
 func (s *seqTestSuite) TestIndexDoubleReadClose(c *C) {
 	if _, ok := s.causetstore.GetClient().(*einsteindb.CopClient); !ok {
 		// Make sure the causetstore is einsteindb causetstore.

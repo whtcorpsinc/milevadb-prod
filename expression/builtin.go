@@ -30,10 +30,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -892,7 +892,7 @@ func GetBuiltinList() []string {
 		}
 		// Skip literal functions
 		// (their names are not readable: 'milevadb`.(dateliteral, for example)
-		// See: https://github.com/whtcorpsinc/berolinaAllegroSQL/pull/591
+		// See: https://github.com/whtcorpsinc/BerolinaSQL/pull/591
 		if strings.HasPrefix(funcName, "'milevadb`.(") {
 			skipFunc = true
 		}

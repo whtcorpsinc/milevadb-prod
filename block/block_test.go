@@ -15,7 +15,7 @@ package block
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 )
 

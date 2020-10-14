@@ -21,7 +21,7 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	stats "github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/statistics/handle"
 	"github.com/whtcorpsinc/milevadb/types"

@@ -32,7 +32,7 @@ import (
 	"github.com/go-allegrosql-driver/allegrosql"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	tmysql "github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	tmysql "github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"

@@ -15,7 +15,7 @@ package expression
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
 func (s *testEvaluatorSuite) TestUnfoldableFuncs(c *C) {

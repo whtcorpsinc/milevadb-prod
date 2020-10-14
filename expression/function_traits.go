@@ -14,7 +14,7 @@
 package expression
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
 // UnCacheableFunctions stores functions which can not be cached to plan cache.

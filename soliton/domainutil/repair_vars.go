@@ -17,7 +17,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 )
 
 type repairInfo struct {

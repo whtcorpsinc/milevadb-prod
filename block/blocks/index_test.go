@@ -19,11 +19,11 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -379,7 +379,7 @@ func (s *testIndexSuite) TestMultiDeferredCausetCommonHandle(c *C) {
 }
 
 func buildBlockInfo(c *C, allegrosql string) *perceptron.BlockInfo {
-	stmt, err := berolinaAllegroSQL.New().ParseOneStmt(allegrosql, "", "")
+	stmt, err := BerolinaSQL.New().ParseOneStmt(allegrosql, "", "")
 	c.Assert(err, IsNil)
 	tblInfo, err := dbs.BuildBlockInfoFromAST(stmt.(*ast.CreateBlockStmt))
 	c.Assert(err, IsNil)

@@ -17,7 +17,7 @@ import (
 	"context"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
+	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/planner/property"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
@@ -28,13 +28,13 @@ import (
 var _ = Suite(&testStatsSuite{})
 
 type testStatsSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	testData solitonutil.TestData
 }
 
 func (s *testStatsSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
-	s.berolinaAllegroSQL.EnableWindowFunc(true)
+	s.BerolinaSQL = BerolinaSQL.New()
+	s.BerolinaSQL.EnableWindowFunc(true)
 
 	var err error
 	s.testData, err = solitonutil.LoadTestSuiteData("testdata", "stats_suite")

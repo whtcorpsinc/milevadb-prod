@@ -20,9 +20,9 @@ import (
 
 	"github.com/cznic/mathutil"
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/planner/core"
@@ -103,7 +103,7 @@ func mockDistsqlSelectCtxGet(ctx context.Context) (totalEvents int, expectedEven
 }
 
 func mockSelectResult(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
-	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int) (distsql.SelectResult, error) {
+	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int) (allegrosql.SelectResult, error) {
 	totalEvents, expectedEventsRet := mockDistsqlSelectCtxGet(ctx)
 	return &requiredEventsSelectResult{
 		retTypes:        fieldTypes,

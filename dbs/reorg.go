@@ -22,10 +22,10 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/meta"
 	"github.com/whtcorpsinc/milevadb/metrics"
@@ -293,7 +293,7 @@ func buildDescBlockScanPosetDag(ctx stochastikctx.Context, tbl block.PhysicalBlo
 	tblScanExec := constructDescBlockScanPB(tbl.GetPhysicalID(), tbl.Meta(), handleDefCauss)
 	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, tblScanExec)
 	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, constructLimitPB(limit))
-	distsql.SetEncodeType(ctx, posetPosetDagReq)
+	allegrosql.SetEncodeType(ctx, posetPosetDagReq)
 	return posetPosetDagReq, nil
 }
 
@@ -307,14 +307,14 @@ func getDeferredCausetsTypes(defCausumns []*perceptron.DeferredCausetInfo) []*ty
 
 // buildDescBlockScan builds a desc block scan upon tblInfo.
 func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl block.PhysicalBlock,
-	handleDefCauss []*perceptron.DeferredCausetInfo, limit uint64) (distsql.SelectResult, error) {
+	handleDefCauss []*perceptron.DeferredCausetInfo, limit uint64) (allegrosql.SelectResult, error) {
 	sctx := newContext(dc.causetstore)
 	posetPosetDagPB, err := buildDescBlockScanPosetDag(sctx, tbl, handleDefCauss, limit)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	var b distsql.RequestBuilder
-	var builder *distsql.RequestBuilder
+	var b allegrosql.RequestBuilder
+	var builder *allegrosql.RequestBuilder
 	if !tbl.Meta().IsCommonHandle {
 		ranges := ranger.FullIntRange(false)
 		builder = b.SetBlockRanges(tbl.GetPhysicalID(), ranges, nil)
@@ -335,7 +335,7 @@ func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl bl
 		return nil, errors.Trace(err)
 	}
 
-	result, err := distsql.Select(ctx, sctx, kvReq, getDeferredCausetsTypes(handleDefCauss), statistics.NewQueryFeedback(0, nil, 0, false))
+	result, err := allegrosql.Select(ctx, sctx, kvReq, getDeferredCausetsTypes(handleDefCauss), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

@@ -15,8 +15,8 @@ package core
 
 import (
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/expression/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -159,7 +159,7 @@ func (p *PhysicalBlockScan) ToPB(ctx stochastikctx.Context, storeType ekv.StoreT
 	executorID := ""
 	if storeType == ekv.TiFlash && p.IsGlobalRead {
 		tsExec.NextReadEngine = fidelpb.EngineType_TiFlash
-		ranges := distsql.BlockRangesToKVRanges(tsExec.BlockId, p.Ranges, nil)
+		ranges := allegrosql.BlockRangesToKVRanges(tsExec.BlockId, p.Ranges, nil)
 		for _, keyRange := range ranges {
 			tsExec.Ranges = append(tsExec.Ranges, fidelpb.KeyRange{Low: keyRange.StartKey, High: keyRange.EndKey})
 		}

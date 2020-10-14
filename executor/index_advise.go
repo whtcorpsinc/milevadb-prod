@@ -18,8 +18,8 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -89,9 +89,9 @@ func (e *IndexAdviseInfo) getStmtNodes(data []byte) error {
 
 	sv := e.Ctx.GetStochastikVars()
 	e.StmtNodes = make([][]ast.StmtNode, len(sqls))
-	sqlberolinaAllegroSQL := berolinaAllegroSQL.New()
+	sqlBerolinaSQL := BerolinaSQL.New()
 	for i, allegrosql := range sqls {
-		stmtNodes, warns, err := sqlberolinaAllegroSQL.Parse(allegrosql, "", "")
+		stmtNodes, warns, err := sqlBerolinaSQL.Parse(allegrosql, "", "")
 		if err != nil {
 			return err
 		}

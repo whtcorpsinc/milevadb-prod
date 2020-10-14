@@ -26,7 +26,7 @@ import (
 	_ "github.com/go-allegrosql-driver/allegrosql"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/prometheus/client_golang/prometheus"

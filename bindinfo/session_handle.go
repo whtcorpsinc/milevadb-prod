@@ -16,8 +16,8 @@ package bindinfo
 import (
 	"time"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -26,12 +26,12 @@ import (
 // StochastikHandle is used to handle all stochastik allegrosql bind operations.
 type StochastikHandle struct {
 	ch     cache
-	berolinaAllegroSQL *berolinaAllegroSQL.berolinaAllegroSQL
+	BerolinaSQL *BerolinaSQL.BerolinaSQL
 }
 
 // NewStochastikBindHandle creates a new StochastikBindHandle.
-func NewStochastikBindHandle(berolinaAllegroSQL *berolinaAllegroSQL.berolinaAllegroSQL) *StochastikHandle {
-	stochastikHandle := &StochastikHandle{berolinaAllegroSQL: berolinaAllegroSQL}
+func NewStochastikBindHandle(BerolinaSQL *BerolinaSQL.BerolinaSQL) *StochastikHandle {
+	stochastikHandle := &StochastikHandle{BerolinaSQL: BerolinaSQL}
 	stochastikHandle.ch = make(cache)
 	return stochastikHandle
 }
@@ -58,7 +58,7 @@ func (h *StochastikHandle) CreateBindRecord(sctx stochastikctx.Context, record *
 	}
 
 	// uFIDelate the BindMeta to the cache.
-	h.appendBindRecord(berolinaAllegroSQL.DigestNormalized(record.OriginalALLEGROSQL), record)
+	h.appendBindRecord(BerolinaSQL.DigestNormalized(record.OriginalALLEGROSQL), record)
 	return nil
 }
 
@@ -75,14 +75,14 @@ func (h *StochastikHandle) DropBindRecord(originalALLEGROSQL, EDB string, bindin
 	} else {
 		newRecord = record
 	}
-	h.ch.setBindRecord(berolinaAllegroSQL.DigestNormalized(record.OriginalALLEGROSQL), newRecord)
+	h.ch.setBindRecord(BerolinaSQL.DigestNormalized(record.OriginalALLEGROSQL), newRecord)
 	uFIDelateMetrics(metrics.ScopeStochastik, oldRecord, newRecord, false)
 	return nil
 }
 
 // GetBindRecord return the BindMeta of the (normdOrigALLEGROSQL,EDB) if BindMeta exist.
 func (h *StochastikHandle) GetBindRecord(normdOrigALLEGROSQL, EDB string) *BindRecord {
-	hash := berolinaAllegroSQL.DigestNormalized(normdOrigALLEGROSQL)
+	hash := BerolinaSQL.DigestNormalized(normdOrigALLEGROSQL)
 	bindRecords := h.ch[hash]
 	for _, bindRecord := range bindRecords {
 		if bindRecord.OriginalALLEGROSQL == normdOrigALLEGROSQL && bindRecord.EDB == EDB {

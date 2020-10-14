@@ -18,7 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/berolinaAllegroSQL"
+	"go/BerolinaSQL"
 	"go/token"
 	"io/ioutil"
 	"os"
@@ -64,7 +64,7 @@ func checkFile(path string) error {
 	if err != nil {
 		return err
 	}
-	file, err := berolinaAllegroSQL.ParseFile(token.NewFileSet(), path, src, berolinaAllegroSQL.AllErrors|berolinaAllegroSQL.ParseComments)
+	file, err := BerolinaSQL.ParseFile(token.NewFileSet(), path, src, BerolinaSQL.AllErrors|BerolinaSQL.ParseComments)
 	if err != nil {
 		return err
 	}

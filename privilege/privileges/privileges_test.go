@@ -25,9 +25,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -1075,7 +1075,7 @@ func (s *testPrivilegeSuite) TestUserBlockConsistency(c *C) {
 	tk.MustExec("create user superadmin")
 	tk.MustExec("grant all privileges on *.* to 'superadmin'")
 
-	// GrantPriv is not in AllGlobalPrivs any more, see whtcorpsinc/berolinaAllegroSQL#581
+	// GrantPriv is not in AllGlobalPrivs any more, see whtcorpsinc/BerolinaSQL#581
 	c.Assert(len(allegrosql.Priv2UserDefCaus), Equals, len(allegrosql.AllGlobalPrivs)+1)
 
 	var buf bytes.Buffer

@@ -38,8 +38,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 	. "github.com/whtcorpsinc/milevadb/soliton/solitonutil"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 )
 
 func TestT(t *testing.T) {
@@ -59,7 +59,7 @@ type testFailDBSuite struct {
 	causetstore ekv.CausetStorage
 	dom         *petri.Petri
 	se          stochastik.Stochastik
-	p           *berolinaAllegroSQL.berolinaAllegroSQL
+	p           *BerolinaSQL.BerolinaSQL
 
 	CommonHandleSuite
 }
@@ -80,7 +80,7 @@ func (s *testFailDBSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.se, err = stochastik.CreateStochastik4Test(s.causetstore)
 	c.Assert(err, IsNil)
-	s.p = berolinaAllegroSQL.New()
+	s.p = BerolinaSQL.New()
 }
 
 func (s *testFailDBSuite) TearDownSuite(c *C) {

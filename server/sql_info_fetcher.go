@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/statistics/handle"
@@ -319,7 +319,7 @@ func (sh *sqlInfoFetcher) getShowCreateBlock(pair blockNamePair, zw *zip.Writer)
 }
 
 func (sh *sqlInfoFetcher) extractBlockNames(allegrosql, curDB string) (map[blockNamePair]struct{}, error) {
-	p := berolinaAllegroSQL.New()
+	p := BerolinaSQL.New()
 	charset, defCauslation := sh.s.GetStochastikVars().GetCharsetInfo()
 	stmts, _, err := p.Parse(allegrosql, charset, defCauslation)
 	if err != nil {

@@ -16,7 +16,7 @@ package dbs
 import (
 	"fmt"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
 // AlterAlgorithm is used to causetstore supported alter algorithm.

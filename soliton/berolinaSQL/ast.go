@@ -11,10 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package berolinaAllegroSQL
+package BerolinaSQL
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
 // GetDefaultDB checks if all defCausumns in the AST have explicit DBName. If not, return specified DBName.

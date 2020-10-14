@@ -21,7 +21,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 )
 
 func (e *ShowExec) fetchShowStatsMeta() error {

@@ -14,7 +14,7 @@
 
 set -uo pipefail
 
-grep "replace.*github.com/whtcorpsinc/berolinaAllegroSQL" go.mod
+grep "replace.*github.com/whtcorpsinc/BerolinaSQL" go.mod
 grep_ret=$?
 
 if [ $grep_ret -eq 0 ];then

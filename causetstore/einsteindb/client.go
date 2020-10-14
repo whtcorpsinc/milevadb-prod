@@ -30,7 +30,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
 	"github.com/whtcorpsinc/ekvproto/pkg/debugpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"

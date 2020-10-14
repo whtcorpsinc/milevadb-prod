@@ -21,12 +21,12 @@ import (
 	"testing"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/planner/property"
@@ -46,7 +46,7 @@ func TestT(t *testing.T) {
 }
 
 type testPlanSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 
 	is  schemareplicant.SchemaReplicant
 	ctx stochastikctx.Context
@@ -60,8 +60,8 @@ func (s *testPlanSuite) SetUpSuite(c *C) {
 	s.is = schemareplicant.MockSchemaReplicant([]*perceptron.BlockInfo{MockSignedBlock(), MockUnsignedBlock(), MockView()})
 	s.ctx = MockContext()
 	s.ctx.GetStochastikVars().EnableWindowFunction = true
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
-	s.berolinaAllegroSQL.EnableWindowFunc(true)
+	s.BerolinaSQL = BerolinaSQL.New()
+	s.BerolinaSQL.EnableWindowFunc(true)
 
 	var err error
 	s.testData, err = solitonutil.LoadTestSuiteData("testdata", "plan_suite_unexported")

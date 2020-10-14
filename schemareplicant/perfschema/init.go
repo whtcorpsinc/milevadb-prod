@@ -17,10 +17,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
@@ -39,7 +39,7 @@ var once sync.Once
 // The initialize order is a problem if init() is used as the function name.
 func Init() {
 	initOnce := func() {
-		p := berolinaAllegroSQL.New()
+		p := BerolinaSQL.New()
 		tbls := make([]*perceptron.BlockInfo, 0)
 		dbID := autoid.PerformanceSchemaDBID
 		for _, allegrosql := range perfSchemaBlocks {

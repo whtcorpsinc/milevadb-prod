@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
@@ -60,7 +60,7 @@ var inspectionSummaryMemrules = map[string][]string{
 		"milevadb_auto_id_request_duration",
 		"FIDel_tso_wait_duration",
 		"FIDel_tso_rpc_duration",
-		"milevadb_distsql_execution_duration",
+		"milevadb_allegrosql_execution_duration",
 		"FIDel_start_tso_wait_duration",
 		"milevadb_transaction_local_latch_wait_duration",
 		"milevadb_transaction_duration",
@@ -134,12 +134,12 @@ var inspectionSummaryMemrules = map[string][]string{
 		"milevadb_execute_duration",
 		"milevadb_expensive_executors_ops",
 		"milevadb_query_using_plan_cache_ops",
-		"milevadb_distsql_execution_duration",
-		"milevadb_distsql_partial_num",
-		"milevadb_distsql_partial_qps",
-		"milevadb_distsql_partial_scan_key_num",
-		"milevadb_distsql_qps",
-		"milevadb_distsql_scan_key_num",
+		"milevadb_allegrosql_execution_duration",
+		"milevadb_allegrosql_partial_num",
+		"milevadb_allegrosql_partial_qps",
+		"milevadb_allegrosql_partial_scan_key_num",
+		"milevadb_allegrosql_qps",
+		"milevadb_allegrosql_scan_key_num",
 		"milevadb_region_cache_ops",
 		"milevadb_batch_client_pending_req_count",
 		"milevadb_batch_client_unavailable_duration",

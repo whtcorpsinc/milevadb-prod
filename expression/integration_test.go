@@ -25,10 +25,10 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -1009,12 +1009,12 @@ func (s *testIntegrationSuite2) TestStringBuiltin(c *C) {
 	result.Check(testkit.Events("123 中文 中文 中文 中文"))
 	// Charset 866 does not have a default defCauslation configured currently, so this will return error.
 	err = tk.ExecToErr(`select convert("123" using "866");`)
-	c.Assert(err.Error(), Equals, "[berolinaAllegroSQL:1115]Unknown character set: '866'")
+	c.Assert(err.Error(), Equals, "[BerolinaSQL:1115]Unknown character set: '866'")
 	// Test case in issue #4436.
 	tk.MustExec("drop block if exists t;")
 	tk.MustExec("create block t(a char(20));")
 	err = tk.ExecToErr("select convert(a using a) from t;")
-	c.Assert(err.Error(), Equals, "[berolinaAllegroSQL:1115]Unknown character set: 'a'")
+	c.Assert(err.Error(), Equals, "[BerolinaSQL:1115]Unknown character set: 'a'")
 
 	// for insert
 	result = tk.MustQuery(`select insert("中文", 1, 1, cast("aaa" as binary)), insert("ba", -1, 1, "aaa"), insert("ba", 1, 100, "aaa"), insert("ba", 100, 1, "aaa");`)
@@ -2864,7 +2864,7 @@ func (s *testIntegrationSuite2) TestBuiltin(c *C) {
 	result = tk.MustQuery("select char(97, null, 100, 256, 89 using ascii)")
 	result.Check(testkit.Events("ad\x01\x00Y"))
 	err = tk.ExecToErr("select char(97, null, 100, 256, 89 using milevadb)")
-	c.Assert(err.Error(), Equals, "[berolinaAllegroSQL:1115]Unknown character set: 'milevadb'")
+	c.Assert(err.Error(), Equals, "[BerolinaSQL:1115]Unknown character set: 'milevadb'")
 
 	// issue 3884
 	tk.MustExec("drop block if exists t")
@@ -4615,7 +4615,7 @@ func (s *testIntegrationSuite) TestUnknowHintIgnore(c *C) {
 	tk.MustExec("USE test")
 	tk.MustExec("create block t(a int)")
 	tk.MustQuery("select /*+ unknown_hint(c1)*/ 1").Check(testkit.Events("1"))
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:8064]Optimizer hint syntax error at line 1 defCausumn 23 near \"unknown_hint(c1)*/\" "))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:8064]Optimizer hint syntax error at line 1 defCausumn 23 near \"unknown_hint(c1)*/\" "))
 	_, err := tk.Exec("select 1 from /*+ test1() */ t")
 	c.Assert(err, IsNil)
 }
@@ -5189,7 +5189,7 @@ func (s *testIntegrationSuite) TestIssue10804(c *C) {
 func (s *testIntegrationSuite) TestInvalidEndingStatement(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("use test")
-	parseErrMsg := "[berolinaAllegroSQL:1064]"
+	parseErrMsg := "[BerolinaSQL:1064]"
 	errMsgLen := len(parseErrMsg)
 
 	assertParseErr := func(allegrosql string) {

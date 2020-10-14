@@ -26,10 +26,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
@@ -63,7 +63,7 @@ type testStateChangeSuiteBase struct {
 	causetstore  ekv.CausetStorage
 	dom    *petri.Petri
 	se     stochastik.Stochastik
-	p      *berolinaAllegroSQL.berolinaAllegroSQL
+	p      *BerolinaSQL.BerolinaSQL
 	preALLEGROSQL string
 }
 
@@ -82,7 +82,7 @@ func (s *testStateChangeSuiteBase) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	_, err = s.se.Execute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	s.p = berolinaAllegroSQL.New()
+	s.p = BerolinaSQL.New()
 }
 
 func (s *testStateChangeSuiteBase) TearDownSuite(c *C) {
@@ -380,7 +380,7 @@ func (t *testExecInfo) createStochastiks(causetstore ekv.CausetStorage, useDB st
 	return nil
 }
 
-func (t *testExecInfo) parseALLEGROSQLs(p *berolinaAllegroSQL.berolinaAllegroSQL) error {
+func (t *testExecInfo) parseALLEGROSQLs(p *BerolinaSQL.BerolinaSQL) error {
 	if t.execCases <= 0 {
 		return nil
 	}

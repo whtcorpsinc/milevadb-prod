@@ -17,15 +17,15 @@ import (
 	"context"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
 )
@@ -51,7 +51,7 @@ func ParseSimpleExprWithBlockInfo(ctx stochastikctx.Context, exprStr string, blo
 	}); ok {
 		stmts, warns, err = p.ParseALLEGROSQL(context.Background(), exprStr, "", "")
 	} else {
-		stmts, warns, err = berolinaAllegroSQL.New().Parse(exprStr, "", "")
+		stmts, warns, err = BerolinaSQL.New().Parse(exprStr, "", "")
 	}
 	for _, warn := range warns {
 		ctx.GetStochastikVars().StmtCtx.AppendWarning(soliton.SyntaxWarn(warn))
@@ -94,7 +94,7 @@ func RewriteSimpleExprWithBlockInfo(ctx stochastikctx.Context, tbl *perceptron.B
 // The expression string must only reference the defCausumn in the given schemaReplicant.
 func ParseSimpleExprsWithSchema(ctx stochastikctx.Context, exprStr string, schemaReplicant *Schema) ([]Expression, error) {
 	exprStr = "select " + exprStr
-	stmts, warns, err := berolinaAllegroSQL.New().Parse(exprStr, "", "")
+	stmts, warns, err := BerolinaSQL.New().Parse(exprStr, "", "")
 	if err != nil {
 		return nil, soliton.SyntaxWarn(err)
 	}
@@ -126,7 +126,7 @@ func ParseSimpleExprsWithNames(ctx stochastikctx.Context, exprStr string, schema
 	}); ok {
 		stmts, warns, err = p.ParseALLEGROSQL(context.Background(), exprStr, "", "")
 	} else {
-		stmts, warns, err = berolinaAllegroSQL.New().Parse(exprStr, "", "")
+		stmts, warns, err = BerolinaSQL.New().Parse(exprStr, "", "")
 	}
 	if err != nil {
 		return nil, soliton.SyntaxWarn(err)

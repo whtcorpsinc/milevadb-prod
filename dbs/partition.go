@@ -25,12 +25,12 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/format"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/format"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 	"github.com/whtcorpsinc/milevadb/dbs/memristed"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
@@ -1428,7 +1428,7 @@ func findDeferredCausetByName(colName string, tblInfo *perceptron.BlockInfo) *pe
 
 func extractPartitionDeferredCausets(partExpr string, tblInfo *perceptron.BlockInfo) ([]*perceptron.DeferredCausetInfo, error) {
 	partExpr = "select " + partExpr
-	stmts, _, err := berolinaAllegroSQL.New().Parse(partExpr, "", "")
+	stmts, _, err := BerolinaSQL.New().Parse(partExpr, "", "")
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

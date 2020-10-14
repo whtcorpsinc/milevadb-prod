@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
@@ -265,15 +265,15 @@ func extractSelectAndNormalizeDigest(stmtNode ast.StmtNode) (*ast.SelectStmt, st
 		switch x.Stmt.(type) {
 		case *ast.SelectStmt:
 			plannercore.EraseLastSemicolon(x)
-			normalizeExplainALLEGROSQL := berolinaAllegroSQL.Normalize(x.Text())
+			normalizeExplainALLEGROSQL := BerolinaSQL.Normalize(x.Text())
 			idx := strings.Index(normalizeExplainALLEGROSQL, "select")
 			normalizeALLEGROSQL := normalizeExplainALLEGROSQL[idx:]
-			hash := berolinaAllegroSQL.DigestNormalized(normalizeALLEGROSQL)
+			hash := BerolinaSQL.DigestNormalized(normalizeALLEGROSQL)
 			return x.Stmt.(*ast.SelectStmt), normalizeALLEGROSQL, hash
 		}
 	case *ast.SelectStmt:
 		plannercore.EraseLastSemicolon(x)
-		normalizedALLEGROSQL, hash := berolinaAllegroSQL.NormalizeDigest(x.Text())
+		normalizedALLEGROSQL, hash := BerolinaSQL.NormalizeDigest(x.Text())
 		return x, normalizedALLEGROSQL, hash
 	}
 	return nil, "", ""

@@ -14,7 +14,7 @@
 package expression
 
 import (
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"

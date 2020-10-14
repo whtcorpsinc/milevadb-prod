@@ -20,10 +20,10 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	berolinaAllegroSQLtypes "github.com/whtcorpsinc/berolinaAllegroSQL/types"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -1009,16 +1009,16 @@ func (s *testSuite5) TestShowClusterConfig(c *C) {
 }
 
 func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c *C) {
-	berolinaAllegroSQLtypes.MilevaDBStrictIntegerDisplayWidth = true
+	BerolinaSQLtypes.MilevaDBStrictIntegerDisplayWidth = true
 	defer func() {
-		berolinaAllegroSQLtypes.MilevaDBStrictIntegerDisplayWidth = false
+		BerolinaSQLtypes.MilevaDBStrictIntegerDisplayWidth = false
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("use test")
 
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a int(2), b varchar(2))")
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` int DEFAULT NULL,\n" +
 		"  `b` varchar(2) DEFAULT NULL\n" +
@@ -1026,7 +1026,7 @@ func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c
 
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a bigint(10), b bigint)")
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` bigint DEFAULT NULL,\n" +
 		"  `b` bigint DEFAULT NULL\n" +
@@ -1035,8 +1035,8 @@ func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a tinyint(5), b tinyint(2), c tinyint)")
 	// Here it will occur 2 warnings.
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release.",
-		"Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release.",
+		"Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` tinyint DEFAULT NULL,\n" +
 		"  `b` tinyint DEFAULT NULL,\n" +
@@ -1045,7 +1045,7 @@ func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c
 
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a smallint(5), b smallint)")
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` smallint DEFAULT NULL,\n" +
 		"  `b` smallint DEFAULT NULL\n" +
@@ -1053,7 +1053,7 @@ func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c
 
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a mediumint(5), b mediumint)")
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` mediumint DEFAULT NULL,\n" +
 		"  `b` mediumint DEFAULT NULL\n" +
@@ -1061,8 +1061,8 @@ func (s *testSerialSuite1) TestShowCreateBlockWithIntegerDisplayLengthWarnings(c
 
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t(a int1(1), b int2(2), c int3, d int4, e int8)")
-	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release.",
-		"Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [berolinaAllegroSQL:1681]Integer display width is deprecated and will be removed in a future release."))
+	tk.MustQuery("show warnings").Check(testkit.Events("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release.",
+		"Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 	tk.MustQuery("show create block t").Check(testkit.Events("t CREATE TABLE `t` (\n" +
 		"  `a` tinyint DEFAULT NULL,\n" +
 		"  `b` smallint DEFAULT NULL,\n" +

@@ -23,9 +23,9 @@ import (
 	"github.com/dgryski/go-farm"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor/aggfuncs"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -54,7 +54,7 @@ func TestT(t *testing.T) {
 }
 
 type testSuite struct {
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx     stochastikctx.Context
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
@@ -62,7 +62,7 @@ type testSuite struct {
 }
 
 func (s *testSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	s.ctx = mock.NewContext()
 	s.ctx.GetStochastikVars().StmtCtx.TimeZone = time.Local
 	causetstore, err := mockstore.NewMockStore(

@@ -16,7 +16,7 @@ package types
 import (
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL/opcode"
 )
 
 // ComputePlus computes the result of a+b.

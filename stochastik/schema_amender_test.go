@@ -21,9 +21,9 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
@@ -229,7 +229,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 	defer causetstore.Close()
 	se := &stochastik{
 		causetstore:       causetstore,
-		berolinaAllegroSQL:      berolinaAllegroSQL.New(),
+		BerolinaSQL:      BerolinaSQL.New(),
 		stochastikVars: variable.NewStochastikVars(),
 	}
 	startStates := []perceptron.SchemaState{perceptron.StateNone, perceptron.StateDeleteOnly}

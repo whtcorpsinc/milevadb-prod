@@ -18,9 +18,9 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
@@ -80,7 +80,7 @@ func (s *testValidatorSuite) TestValidator(c *C) {
 		inPrepare bool
 		err       error
 	}{
-		{"select ?", false, berolinaAllegroSQL.ErrSyntax},
+		{"select ?", false, BerolinaSQL.ErrSyntax},
 		{"select ?", true, nil},
 		{"create block t(id int not null auto_increment default 2, key (id))", true,
 			errors.New("Invalid default value for 'id'")},

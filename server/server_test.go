@@ -34,7 +34,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/log"
-	tmysql "github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	tmysql "github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"

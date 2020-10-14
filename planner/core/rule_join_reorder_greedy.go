@@ -17,7 +17,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/expression"
 )
 

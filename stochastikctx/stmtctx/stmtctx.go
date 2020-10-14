@@ -21,9 +21,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
@@ -203,7 +203,7 @@ func (sc *StatementContext) ResetNowTs() {
 // it will cache result after first calling.
 func (sc *StatementContext) ALLEGROSQLDigest() (normalized, sqlDigest string) {
 	sc.digestMemo.Do(func() {
-		sc.digestMemo.normalized, sc.digestMemo.digest = berolinaAllegroSQL.NormalizeDigest(sc.OriginalALLEGROSQL)
+		sc.digestMemo.normalized, sc.digestMemo.digest = BerolinaSQL.NormalizeDigest(sc.OriginalALLEGROSQL)
 	})
 	return sc.digestMemo.normalized, sc.digestMemo.digest
 }

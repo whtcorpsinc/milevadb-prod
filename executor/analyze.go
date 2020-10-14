@@ -29,11 +29,11 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -222,7 +222,7 @@ func (e *AnalyzeExec) analyzeWorker(taskCh <-chan *analyzeTask, resultCh chan<- 
 func analyzeIndexPushdown(idxExec *AnalyzeIndexExec) analyzeResult {
 	ranges := ranger.FullRange()
 	// For single-defCausumn index, we do not load null rows from EinsteinDB, so the built histogram would not include
-	// null values, and its `NullCount` would be set by result of another distsql call to get null rows.
+	// null values, and its `NullCount` would be set by result of another allegrosql call to get null rows.
 	// For multi-defCausumn index, we cannot define null for the rows, so we still use full range, and the rows
 	// containing null fields would exist in built histograms. Note that, the `NullCount` of histograms for
 	// multi-defCausumn index is always 0 then.
@@ -256,8 +256,8 @@ type AnalyzeIndexExec struct {
 	concurrency    int
 	priority       int
 	analyzePB      *fidelpb.AnalyzeReq
-	result         distsql.SelectResult
-	countNullRes   distsql.SelectResult
+	result         allegrosql.SelectResult
+	countNullRes   allegrosql.SelectResult
 	opts           map[ast.AnalyzeOptionType]uint64
 	job            *statistics.AnalyzeJob
 }
@@ -266,8 +266,8 @@ type AnalyzeIndexExec struct {
 // in corresponding fields based on the input `isNullRange` argument, which indicates if the range is the
 // special null range for single-defCausumn index to get the null count.
 func (e *AnalyzeIndexExec) fetchAnalyzeResult(ranges []*ranger.Range, isNullRange bool) error {
-	var builder distsql.RequestBuilder
-	var kvReqBuilder *distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
+	var kvReqBuilder *allegrosql.RequestBuilder
 	if e.isCommonHandle && e.idxInfo.Primary {
 		kvReqBuilder = builder.SetCommonHandleRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], ranges)
 	} else {
@@ -283,7 +283,7 @@ func (e *AnalyzeIndexExec) fetchAnalyzeResult(ranges []*ranger.Range, isNullRang
 		return err
 	}
 	ctx := context.TODO()
-	result, err := distsql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
+	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (e *AnalyzeIndexExec) open(ranges []*ranger.Range, considerNull bool) error
 	return nil
 }
 
-func (e *AnalyzeIndexExec) buildStatsFromResult(result distsql.SelectResult, needCMS bool) (*statistics.Histogram, *statistics.CMSketch, error) {
+func (e *AnalyzeIndexExec) buildStatsFromResult(result allegrosql.SelectResult, needCMS bool) (*statistics.Histogram, *statistics.CMSketch, error) {
 	failpoint.Inject("buildStatsFromResult", func(val failpoint.Value) {
 		if val.(bool) {
 			failpoint.Return(nil, nil, errors.New("mock buildStatsFromResult error"))
@@ -438,7 +438,7 @@ func (e *AnalyzeDeferredCausetsExec) open(ranges []*ranger.Range) error {
 		e.resultHandler.open(nil, firstResult)
 		return nil
 	}
-	var secondResult distsql.SelectResult
+	var secondResult allegrosql.SelectResult
 	secondResult, err = e.buildResp(secondPartRanges)
 	if err != nil {
 		return err
@@ -448,9 +448,9 @@ func (e *AnalyzeDeferredCausetsExec) open(ranges []*ranger.Range) error {
 	return nil
 }
 
-func (e *AnalyzeDeferredCausetsExec) buildResp(ranges []*ranger.Range) (distsql.SelectResult, error) {
-	var builder distsql.RequestBuilder
-	var reqBuilder *distsql.RequestBuilder
+func (e *AnalyzeDeferredCausetsExec) buildResp(ranges []*ranger.Range) (allegrosql.SelectResult, error) {
+	var builder allegrosql.RequestBuilder
+	var reqBuilder *allegrosql.RequestBuilder
 	if e.handleDefCauss != nil && !e.handleDefCauss.IsInt() {
 		reqBuilder = builder.SetCommonHandleRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], ranges)
 	} else {
@@ -468,7 +468,7 @@ func (e *AnalyzeDeferredCausetsExec) buildResp(ranges []*ranger.Range) (distsql.
 		return nil, err
 	}
 	ctx := context.TODO()
-	result, err := distsql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
+	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
 	if err != nil {
 		return nil, err
 	}

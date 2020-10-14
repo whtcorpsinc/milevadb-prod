@@ -339,11 +339,11 @@ const (
 	ErrSpVarcondAfterCurshndlr                                      = 1337
 	ErrSpCursorAfterHandler                                         = 1338
 	ErrSpCaseNotFound                                               = 1339
-	ErrFberolinaAllegroSQLTooBigFile                                            = 1340
-	ErrFberolinaAllegroSQLBadHeader                                             = 1341
-	ErrFberolinaAllegroSQLEOFInComment                                          = 1342
-	ErrFberolinaAllegroSQLErrorInParameter                                      = 1343
-	ErrFberolinaAllegroSQLEOFInUnknownParameter                                 = 1344
+	ErrFBerolinaSQLTooBigFile                                            = 1340
+	ErrFBerolinaSQLBadHeader                                             = 1341
+	ErrFBerolinaSQLEOFInComment                                          = 1342
+	ErrFBerolinaSQLErrorInParameter                                      = 1343
+	ErrFBerolinaSQLEOFInUnknownParameter                                 = 1344
 	ErrViewNoExplain                                                = 1345
 	ErrFrmUnknownType                                               = 1346
 	ErrWrongObject                                                  = 1347

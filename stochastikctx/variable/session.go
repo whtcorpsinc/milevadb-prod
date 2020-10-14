@@ -29,11 +29,11 @@ import (
 
 	"github.com/klauspost/cpuid"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -427,7 +427,7 @@ type StochastikVars struct {
 	// InRestrictedALLEGROSQL indicates if the stochastik is handling restricted ALLEGROALLEGROSQL execution.
 	InRestrictedALLEGROSQL bool
 
-	// SnapshotTS is used for reading history data. For simplicity, SnapshotTS only supports distsql request.
+	// SnapshotTS is used for reading history data. For simplicity, SnapshotTS only supports allegrosql request.
 	SnapshotTS uint64
 
 	// SnapshotschemaReplicant is used with SnapshotTS, when the schemaReplicant version at snapshotTS less than current schemaReplicant

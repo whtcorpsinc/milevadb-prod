@@ -21,16 +21,16 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/planner"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
@@ -115,10 +115,10 @@ func (e *PrepareExec) Next(ctx context.Context, req *chunk.Chunk) error {
 		stmts []ast.StmtNode
 		err   error
 	)
-	if sqlberolinaAllegroSQL, ok := e.ctx.(sqlexec.ALLEGROSQLberolinaAllegroSQL); ok {
-		stmts, err = sqlberolinaAllegroSQL.ParseALLEGROSQL(e.sqlText, charset, defCauslation)
+	if sqlBerolinaSQL, ok := e.ctx.(sqlexec.ALLEGROSQLBerolinaSQL); ok {
+		stmts, err = sqlBerolinaSQL.ParseALLEGROSQL(e.sqlText, charset, defCauslation)
 	} else {
-		p := berolinaAllegroSQL.New()
+		p := BerolinaSQL.New()
 		p.EnableWindowFunc(vars.EnableWindowFunction)
 		var warns []error
 		stmts, warns, err = p.Parse(e.sqlText, charset, defCauslation)
@@ -208,7 +208,7 @@ func (e *PrepareExec) Next(ctx context.Context, req *chunk.Chunk) error {
 		vars.PreparedStmtNameToID[e.name] = e.ID
 	}
 
-	normalized, digest := berolinaAllegroSQL.NormalizeDigest(prepared.Stmt.Text())
+	normalized, digest := BerolinaSQL.NormalizeDigest(prepared.Stmt.Text())
 	preparedObj := &plannercore.CachedPrepareStmt{
 		PreparedAst:   prepared,
 		VisitInfos:    destBuilder.GetVisitInfo(),

@@ -20,7 +20,7 @@ import (
 	_ "runtime" // import link package
 	_ "unsafe"  // required by go:linkname
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/soliton/israce"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"

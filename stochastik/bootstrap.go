@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
@@ -580,7 +580,7 @@ func upgradeToVer2(s Stochastik, ver int64) {
 		return
 	}
 	// Version 2 add two system variable for DistALLEGROSQL concurrency controlling.
-	// Insert distsql related system variable.
+	// Insert allegrosql related system variable.
 	distALLEGROSQLVars := []string{variable.MilevaDBDistALLEGROSQLScanConcurrency}
 	values := make([]string, 0, len(distALLEGROSQLVars))
 	for _, v := range distALLEGROSQLVars {

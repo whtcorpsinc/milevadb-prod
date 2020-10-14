@@ -19,17 +19,17 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/meta/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/berolinaAllegroSQL_driver"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
 )
@@ -106,7 +106,7 @@ const (
 )
 
 // preprocessor is an ast.Visitor that preprocess
-// ast Nodes parsed from berolinaAllegroSQL.
+// ast Nodes parsed from BerolinaSQL.
 type preprocessor struct {
 	is   schemareplicant.SchemaReplicant
 	ctx  stochastikctx.Context
@@ -205,8 +205,8 @@ func EraseLastSemicolon(stmt ast.StmtNode) {
 }
 
 func (p *preprocessor) checkBindGrammar(originSel, hintedSel ast.StmtNode) {
-	originALLEGROSQL := berolinaAllegroSQL.Normalize(originSel.(*ast.SelectStmt).Text())
-	hintedALLEGROSQL := berolinaAllegroSQL.Normalize(hintedSel.(*ast.SelectStmt).Text())
+	originALLEGROSQL := BerolinaSQL.Normalize(originSel.(*ast.SelectStmt).Text())
+	hintedALLEGROSQL := BerolinaSQL.Normalize(hintedSel.(*ast.SelectStmt).Text())
 
 	if originALLEGROSQL != hintedALLEGROSQL {
 		p.err = errors.Errorf("hinted allegrosql and origin allegrosql don't match when hinted allegrosql erase the hint info, after erase hint info, originALLEGROSQL:%s, hintedALLEGROSQL:%s", originALLEGROSQL, hintedALLEGROSQL)
@@ -225,7 +225,7 @@ func (p *preprocessor) Leave(in ast.Node) (out ast.Node, ok bool) {
 		p.flag &= ^inCreateOrDropBlock
 	case *driver.ParamMarkerExpr:
 		if p.flag&inPrepare == 0 {
-			p.err = berolinaAllegroSQL.ErrSyntax.GenWithStack("syntax error, unexpected '?'")
+			p.err = BerolinaSQL.ErrSyntax.GenWithStack("syntax error, unexpected '?'")
 			return
 		}
 	case *ast.ExplainStmt:
@@ -831,7 +831,7 @@ func checkDeferredCauset(colDef *ast.DeferredCausetDef) error {
 // isDefaultValNowSymFunc checks whether default value is a NOW() builtin function.
 func isDefaultValNowSymFunc(expr ast.ExprNode) bool {
 	if funcCall, ok := expr.(*ast.FuncCallExpr); ok {
-		// Default value NOW() is transformed to CURRENT_TIMESTAMP() in berolinaAllegroSQL.
+		// Default value NOW() is transformed to CURRENT_TIMESTAMP() in BerolinaSQL.
 		if funcCall.FnName.L == ast.CurrentTimestamp {
 			return true
 		}

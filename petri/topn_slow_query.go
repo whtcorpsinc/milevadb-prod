@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 )
 

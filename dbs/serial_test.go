@@ -26,8 +26,8 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
@@ -1039,7 +1039,7 @@ func (s *testSerialSuite) TestAutoRandom(c *C) {
 
 	assertNonPositive("create block t (a bigint auto_random(0) primary key)")
 	tk.MustGetErrMsg("create block t (a bigint auto_random(-1) primary key)",
-		`[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 38 near "-1) primary key)" `)
+		`[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 38 near "-1) primary key)" `)
 
 	// Basic usage.
 	mustExecAndDrop("create block t (a bigint auto_random(1) primary key)")

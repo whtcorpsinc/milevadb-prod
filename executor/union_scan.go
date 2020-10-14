@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"runtime/trace"
 
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -27,7 +27,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
 
-// UnionScanExec merges the rows from dirty block and the rows from distsql request.
+// UnionScanExec merges the rows from dirty block and the rows from allegrosql request.
 type UnionScanExec struct {
 	baseExecutor
 

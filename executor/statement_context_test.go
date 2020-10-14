@@ -18,7 +18,7 @@ import (
 	"unicode/utf8"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/block"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"

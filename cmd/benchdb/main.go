@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
@@ -143,7 +143,7 @@ func (ut *benchDB) mustParseInt(s string) int {
 	return i
 }
 
-func (ut *benchDB) mustberolinaAllegroSQLange(s string) (start, end int) {
+func (ut *benchDB) mustBerolinaSQLange(s string) (start, end int) {
 	strs := strings.Split(s, "_")
 	if len(strs) != 2 {
 		log.Fatal("parse range failed", zap.String("invalid range", s))
@@ -159,7 +159,7 @@ func (ut *benchDB) mustberolinaAllegroSQLange(s string) (start, end int) {
 
 func (ut *benchDB) mustParseSpec(s string) (start, end, count int) {
 	strs := strings.Split(s, ":")
-	start, end = ut.mustberolinaAllegroSQLange(strs[0])
+	start, end = ut.mustBerolinaSQLange(strs[0])
 	if len(strs) == 1 {
 		count = 1
 		return

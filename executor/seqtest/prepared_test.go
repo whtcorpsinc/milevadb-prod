@@ -20,7 +20,7 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/executor"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -72,7 +72,7 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 
 		// incorrect ALLEGROSQLs in prepare. issue #3738, ALLEGROALLEGROSQL in prepare stmt is parsed in DoPrepare.
 		_, err = tk.Exec(`prepare p from "delete from t where a = 7 or 1=1/*' and b = 'p'";`)
-		c.Assert(err.Error(), Equals, `[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use near '/*' and b = 'p'' at line 1`)
+		c.Assert(err.Error(), Equals, `[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use near '/*' and b = 'p'' at line 1`)
 
 		// The `stmt_test5` should not be found.
 		_, err = tk.Exec(`set @a = 1; execute stmt_test_5 using @a;`)
@@ -228,7 +228,7 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 		tk.MustExec("create block prepare1 (a decimal(1))")
 		tk.MustExec("insert into prepare1 values(1);")
 		_, err = tk.Exec("prepare stmt FROM @sql1")
-		c.Assert(err.Error(), Equals, "[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 4 near \"NULL\" ")
+		c.Assert(err.Error(), Equals, "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 4 near \"NULL\" ")
 		tk.MustExec("SET @allegrosql = 'uFIDelate prepare1 set a=5 where a=?';")
 		_, err = tk.Exec("prepare stmt FROM @allegrosql")
 		c.Assert(err, IsNil)

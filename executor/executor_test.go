@@ -33,10 +33,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
@@ -148,14 +148,14 @@ type baseTestSuite struct {
 	cluster cluster.Cluster
 	causetstore   ekv.CausetStorage
 	petri  *petri.Petri
-	*berolinaAllegroSQL.berolinaAllegroSQL
+	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
 
 var mockEinsteinDB = flag.Bool("mockEinsteinDB", true, "use mock einsteindb causetstore in executor test")
 
 func (s *baseTestSuite) SetUpSuite(c *C) {
-	s.berolinaAllegroSQL = berolinaAllegroSQL.New()
+	s.BerolinaSQL = BerolinaSQL.New()
 	flag.Lookup("mockEinsteinDB")
 	useMockEinsteinDB := *mockEinsteinDB
 	if useMockEinsteinDB {
@@ -6280,7 +6280,7 @@ func (s *testSerialSuite) TestKillBlockReader(c *C) {
 	tk.MustExec("drop block if exists t")
 	tk.MustExec("create block t (a int)")
 	tk.MustExec("insert into t values (1),(2),(3)")
-	tk.MustExec("set @@milevadb_distsql_scan_concurrency=1")
+	tk.MustExec("set @@milevadb_allegrosql_scan_concurrency=1")
 	atomic.StoreUint32(&tk.Se.GetStochastikVars().Killed, 0)
 	c.Assert(failpoint.Enable(retry, `return(true)`), IsNil)
 	wg := &sync.WaitGroup{}

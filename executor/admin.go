@@ -18,10 +18,10 @@ import (
 	"math"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
@@ -59,7 +59,7 @@ type ChecHoTTexRangeExec struct {
 	handleRanges []ast.HandleRange
 	srcChunk     *chunk.Chunk
 
-	result distsql.SelectResult
+	result allegrosql.SelectResult
 	defcaus   []*perceptron.DeferredCausetInfo
 }
 
@@ -116,7 +116,7 @@ func (e *ChecHoTTexRangeExec) Open(ctx context.Context) error {
 	if err != nil {
 		return nil
 	}
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	kvReq, err := builder.SetIndexRanges(sc, e.block.ID, e.index.ID, ranger.FullRange()).
 		SetPosetDagRequest(posetPosetDagPB).
 		SetStartTS(txn.StartTS()).
@@ -127,7 +127,7 @@ func (e *ChecHoTTexRangeExec) Open(ctx context.Context) error {
 		return err
 	}
 
-	e.result, err = distsql.Select(ctx, e.ctx, kvReq, e.retFieldTypes, statistics.NewQueryFeedback(0, nil, 0, false))
+	e.result, err = allegrosql.Select(ctx, e.ctx, kvReq, e.retFieldTypes, statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (e *ChecHoTTexRangeExec) buildPosetDagPB() (*fidelpb.PosetDagRequest, error
 	if err != nil {
 		return nil, err
 	}
-	distsql.SetEncodeType(e.ctx, posetPosetDagReq)
+	allegrosql.SetEncodeType(e.ctx, posetPosetDagReq)
 	return posetPosetDagReq, nil
 }
 
@@ -250,16 +250,16 @@ func (e *RecoverIndexExec) buildPosetDagPB(txn ekv.Transaction, limitCnt uint64)
 
 	limitExec := e.constructLimitPB(limitCnt)
 	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, limitExec)
-	distsql.SetEncodeType(e.ctx, posetPosetDagReq)
+	allegrosql.SetEncodeType(e.ctx, posetPosetDagReq)
 	return posetPosetDagReq, nil
 }
 
-func (e *RecoverIndexExec) buildBlockScan(ctx context.Context, txn ekv.Transaction, startHandle ekv.Handle, limitCnt uint64) (distsql.SelectResult, error) {
+func (e *RecoverIndexExec) buildBlockScan(ctx context.Context, txn ekv.Transaction, startHandle ekv.Handle, limitCnt uint64) (allegrosql.SelectResult, error) {
 	posetPosetDagPB, err := e.buildPosetDagPB(txn, limitCnt)
 	if err != nil {
 		return nil, err
 	}
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	builder.KeyRanges, err = buildRecoverIndexKeyRanges(e.ctx.GetStochastikVars().StmtCtx, e.physicalID, startHandle)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ func (e *RecoverIndexExec) buildBlockScan(ctx context.Context, txn ekv.Transacti
 	// Actually, with limitCnt, the match quantum maybe only in one region, so let the concurrency to be 1,
 	// avoid unnecessary region scan.
 	kvReq.Concurrency = 1
-	result, err := distsql.Select(ctx, e.ctx, kvReq, e.defCausumnsTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
+	result, err := allegrosql.Select(ctx, e.ctx, kvReq, e.defCausumnsTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +348,7 @@ type recoverEvents struct {
 	skip    bool
 }
 
-func (e *RecoverIndexExec) fetchRecoverEvents(ctx context.Context, srcResult distsql.SelectResult, result *backfillResult) ([]recoverEvents, error) {
+func (e *RecoverIndexExec) fetchRecoverEvents(ctx context.Context, srcResult allegrosql.SelectResult, result *backfillResult) ([]recoverEvents, error) {
 	e.recoverEvents = e.recoverEvents[:0]
 	idxValLen := len(e.index.Meta().DeferredCausets)
 	result.scanEventCount = 0
@@ -718,13 +718,13 @@ func (e *CleanupIndexExec) cleanBlockIndex(ctx context.Context) error {
 	return nil
 }
 
-func (e *CleanupIndexExec) buildIndexScan(ctx context.Context, txn ekv.Transaction) (distsql.SelectResult, error) {
+func (e *CleanupIndexExec) buildIndexScan(ctx context.Context, txn ekv.Transaction) (allegrosql.SelectResult, error) {
 	posetPosetDagPB, err := e.buildIdxPosetDagPB(txn)
 	if err != nil {
 		return nil, err
 	}
 	sc := e.ctx.GetStochastikVars().StmtCtx
-	var builder distsql.RequestBuilder
+	var builder allegrosql.RequestBuilder
 	ranges := ranger.FullRange()
 	kvReq, err := builder.SetIndexRanges(sc, e.physicalID, e.index.Meta().ID, ranges).
 		SetPosetDagRequest(posetPosetDagPB).
@@ -738,7 +738,7 @@ func (e *CleanupIndexExec) buildIndexScan(ctx context.Context, txn ekv.Transacti
 
 	kvReq.KeyRanges[0].StartKey = ekv.Key(e.lastIdxKey).PrefixNext()
 	kvReq.Concurrency = 1
-	result, err := distsql.Select(ctx, e.ctx, kvReq, e.getIdxDefCausTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
+	result, err := allegrosql.Select(ctx, e.ctx, kvReq, e.getIdxDefCausTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, err
 	}
@@ -786,7 +786,7 @@ func (e *CleanupIndexExec) buildIdxPosetDagPB(txn ekv.Transaction) (*fidelpb.Pos
 
 	limitExec := e.constructLimitPB()
 	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, limitExec)
-	distsql.SetEncodeType(e.ctx, posetPosetDagReq)
+	allegrosql.SetEncodeType(e.ctx, posetPosetDagReq)
 	return posetPosetDagReq, nil
 }
 

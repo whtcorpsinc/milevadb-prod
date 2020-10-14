@@ -14,9 +14,9 @@ package core
 
 import (
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/berolinaAllegroSQL"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/expression"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
@@ -136,7 +136,7 @@ type testCtx struct {
 }
 
 func prepareTestCtx(c *C, createBlock string, partitionExpr string) *testCtx {
-	p := berolinaAllegroSQL.New()
+	p := BerolinaSQL.New()
 	stmt, err := p.ParseOneStmt(createBlock, "", "")
 	c.Assert(err, IsNil)
 	sctx := mock.NewContext()

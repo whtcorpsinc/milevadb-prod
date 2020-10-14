@@ -25,11 +25,11 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/auth"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/distsql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/executor/aggfuncs"
 	"github.com/whtcorpsinc/milevadb/expression"
@@ -2200,7 +2200,7 @@ func (b *executorBuilder) constructPosetDagReq(plans []plannercore.PhysicalPlan,
 		posetPosetDagReq.Executors, streaming, err = constructDistExec(b.ctx, plans)
 	}
 
-	distsql.SetEncodeType(b.ctx, posetPosetDagReq)
+	allegrosql.SetEncodeType(b.ctx, posetPosetDagReq)
 	return posetPosetDagReq, streaming, err
 }
 
@@ -3061,10 +3061,10 @@ func (h kvRangeBuilderFromHandles) buildKeyRange(pid int64) ([]ekv.KeyRange, err
 	sort.Slice(handles, func(i, j int) bool {
 		return handles[i].Compare(handles[j]) < 0
 	})
-	return distsql.BlockHandlesToKVRanges(pid, handles), nil
+	return allegrosql.BlockHandlesToKVRanges(pid, handles), nil
 }
 
-func (builder *dataReaderBuilder) buildBlockReaderBase(ctx context.Context, e *BlockReaderExecutor, reqBuilderWithRange distsql.RequestBuilder) (*BlockReaderExecutor, error) {
+func (builder *dataReaderBuilder) buildBlockReaderBase(ctx context.Context, e *BlockReaderExecutor, reqBuilderWithRange allegrosql.RequestBuilder) (*BlockReaderExecutor, error) {
 	startTS, err := builder.getSnapshotTS()
 	if err != nil {
 		return nil, err
@@ -3095,13 +3095,13 @@ func (builder *dataReaderBuilder) buildBlockReaderFromHandles(ctx context.Contex
 	sort.Slice(handles, func(i, j int) bool {
 		return handles[i].Compare(handles[j]) < 0
 	})
-	var b distsql.RequestBuilder
+	var b allegrosql.RequestBuilder
 	b.SetBlockHandles(getPhysicalBlockID(e.block), handles)
 	return builder.buildBlockReaderBase(ctx, e, b)
 }
 
 func (builder *dataReaderBuilder) buildBlockReaderFromKvRanges(ctx context.Context, e *BlockReaderExecutor, ranges []ekv.KeyRange) (Executor, error) {
-	var b distsql.RequestBuilder
+	var b allegrosql.RequestBuilder
 	b.SetKeyRanges(ranges)
 	return builder.buildBlockReaderBase(ctx, e, b)
 }
@@ -3255,9 +3255,9 @@ func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64
 			var tmpKvRanges []ekv.KeyRange
 			var err error
 			if indexID == -1 {
-				tmpKvRanges, err = distsql.CommonHandleRangesToKVRanges(sc, blockID, ranges)
+				tmpKvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, blockID, ranges)
 			} else {
-				tmpKvRanges, err = distsql.IndexRangesToKVRanges(sc, blockID, indexID, ranges, nil)
+				tmpKvRanges, err = allegrosql.IndexRangesToKVRanges(sc, blockID, indexID, ranges, nil)
 			}
 			if err != nil {
 				return nil, err
@@ -3293,9 +3293,9 @@ func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64
 	}
 	// Index id is -1 means it's a common handle.
 	if indexID == -1 {
-		return distsql.CommonHandleRangesToKVRanges(ctx.GetStochastikVars().StmtCtx, blockID, tmFIDelatumRanges)
+		return allegrosql.CommonHandleRangesToKVRanges(ctx.GetStochastikVars().StmtCtx, blockID, tmFIDelatumRanges)
 	}
-	return distsql.IndexRangesToKVRanges(ctx.GetStochastikVars().StmtCtx, blockID, indexID, tmFIDelatumRanges, nil)
+	return allegrosql.IndexRangesToKVRanges(ctx.GetStochastikVars().StmtCtx, blockID, indexID, tmFIDelatumRanges, nil)
 }
 
 func (b *executorBuilder) buildWindow(v *plannercore.PhysicalWindow) *WindowExec {

@@ -23,11 +23,11 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/ast"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/charset"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/perceptron"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/allegrosql"
-	"github.com/whtcorpsinc/berolinaAllegroSQL/terror"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
@@ -1923,11 +1923,11 @@ func (s *testIntegrationSuite5) TestChangingDBCharset(c *C) {
 		},
 		{
 			"ALTER DATABASE CHARACTER SET = ''",
-			"[berolinaAllegroSQL:1115]Unknown character set: ''",
+			"[BerolinaSQL:1115]Unknown character set: ''",
 		},
 		{
 			"ALTER DATABASE CHARACTER SET = 'INVALID_CHARSET'",
-			"[berolinaAllegroSQL:1115]Unknown character set: 'INVALID_CHARSET'",
+			"[BerolinaSQL:1115]Unknown character set: 'INVALID_CHARSET'",
 		},
 		{
 			"ALTER SCHEMA COLLATE = ''",
@@ -2083,15 +2083,15 @@ func (s *testIntegrationSuite3) TestSqlFunctionsInGeneratedDeferredCausets(c *C)
 	tk.MustGetErrCode("create block t (a int, b int as (statement_digest_text(1)))", errno.ErrGeneratedDeferredCausetFunctionIsNotAllowed)
 }
 
-func (s *testIntegrationSuite3) TestberolinaAllegroSQLIssue284(c *C) {
+func (s *testIntegrationSuite3) TestBerolinaSQLIssue284(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustExec("use test")
-	tk.MustExec("create block test.t_berolinaAllegroSQL_issue_284(c1 int not null primary key)")
-	_, err := tk.Exec("create block test.t_berolinaAllegroSQL_issue_284_2(id int not null primary key, c1 int not null, constraint foreign key (c1) references t_berolinaAllegroSQL_issue_284(c1))")
+	tk.MustExec("create block test.t_BerolinaSQL_issue_284(c1 int not null primary key)")
+	_, err := tk.Exec("create block test.t_BerolinaSQL_issue_284_2(id int not null primary key, c1 int not null, constraint foreign key (c1) references t_BerolinaSQL_issue_284(c1))")
 	c.Assert(err, IsNil)
 
-	tk.MustExec("drop block test.t_berolinaAllegroSQL_issue_284")
-	tk.MustExec("drop block test.t_berolinaAllegroSQL_issue_284_2")
+	tk.MustExec("drop block test.t_BerolinaSQL_issue_284")
+	tk.MustExec("drop block test.t_BerolinaSQL_issue_284_2")
 }
 
 func (s *testIntegrationSuite7) TestAddExpressionIndex(c *C) {
@@ -2338,7 +2338,7 @@ func (s *testIntegrationSuite4) TestAlterIndexVisibility(c *C) {
 
 	// Alter explicit primary key to invisible index should throw error
 	tk.MustExec("create block t2(a int, primary key(a))")
-	tk.MustGetErrMsg("alter block t2 alter index PRIMARY invisible", `[berolinaAllegroSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 34 near "PRIMARY invisible" `)
+	tk.MustGetErrMsg("alter block t2 alter index PRIMARY invisible", `[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 34 near "PRIMARY invisible" `)
 
 	// Alter expression index
 	tk.MustExec("create block t3(a int NOT NULL, b int)")
