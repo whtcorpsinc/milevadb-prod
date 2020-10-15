@@ -38,11 +38,11 @@ type testStmtSummarySuite struct {
 	ssMap *stmtSummaryByDigestMap
 }
 
-func emptyPlanGenerator() string {
+func emptyCausetGenerator() string {
 	return ""
 }
 
-func fakePlanDigestGenerator() string {
+func fakeCausetDigestGenerator() string {
 	return "point_get"
 }
 
@@ -67,97 +67,97 @@ func (s *testStmtSummarySuite) TestAddStatement(c *C) {
 	blocks := []stmtctx.BlockEntry{{EDB: "db1", Block: "tb1"}, {EDB: "db2", Block: "tb2"}}
 	indexes := []string{"a", "b"}
 
-	// first statement
-	stmtExecInfo1 := generateAnyExecInfo()
-	stmtExecInfo1.ExecDetail.CommitDetail.Mu.BackoffTypes = make([]fmt.Stringer, 0)
+	// first memex
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	stmtInterDircInfo1.InterDircDetail.CommitDetail.Mu.BackoffTypes = make([]fmt.Stringer, 0)
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
 	}
 	expectedSummaryElement := stmtSummaryByDigestElement{
 		beginTime:            now + 60,
 		endTime:              now + 1860,
-		sampleALLEGROSQL:            stmtExecInfo1.OriginalALLEGROSQL,
-		samplePlan:           stmtExecInfo1.PlanGenerator(),
-		indexNames:           stmtExecInfo1.StmtCtx.IndexNames,
+		sampleALLEGROSQL:            stmtInterDircInfo1.OriginalALLEGROSQL,
+		sampleCauset:           stmtInterDircInfo1.CausetGenerator(),
+		indexNames:           stmtInterDircInfo1.StmtCtx.IndexNames,
 		execCount:            1,
-		sumLatency:           stmtExecInfo1.TotalLatency,
-		maxLatency:           stmtExecInfo1.TotalLatency,
-		minLatency:           stmtExecInfo1.TotalLatency,
-		sumParseLatency:      stmtExecInfo1.ParseLatency,
-		maxParseLatency:      stmtExecInfo1.ParseLatency,
-		sumCompileLatency:    stmtExecInfo1.CompileLatency,
-		maxCompileLatency:    stmtExecInfo1.CompileLatency,
-		sumNumCausetTasks:    int64(stmtExecInfo1.CausetTasks.NumCausetTasks),
-		maxCopProcessTime:    stmtExecInfo1.CausetTasks.MaxProcessTime,
-		maxCopProcessAddress: stmtExecInfo1.CausetTasks.MaxProcessAddress,
-		maxCopWaitTime:       stmtExecInfo1.CausetTasks.MaxWaitTime,
-		maxCopWaitAddress:    stmtExecInfo1.CausetTasks.MaxWaitAddress,
-		sumProcessTime:       stmtExecInfo1.ExecDetail.ProcessTime,
-		maxProcessTime:       stmtExecInfo1.ExecDetail.ProcessTime,
-		sumWaitTime:          stmtExecInfo1.ExecDetail.WaitTime,
-		maxWaitTime:          stmtExecInfo1.ExecDetail.WaitTime,
-		sumBackoffTime:       stmtExecInfo1.ExecDetail.BackoffTime,
-		maxBackoffTime:       stmtExecInfo1.ExecDetail.BackoffTime,
-		sumTotalKeys:         stmtExecInfo1.ExecDetail.TotalKeys,
-		maxTotalKeys:         stmtExecInfo1.ExecDetail.TotalKeys,
-		sumProcessedKeys:     stmtExecInfo1.ExecDetail.ProcessedKeys,
-		maxProcessedKeys:     stmtExecInfo1.ExecDetail.ProcessedKeys,
-		sumGetCommitTsTime:   stmtExecInfo1.ExecDetail.CommitDetail.GetCommitTsTime,
-		maxGetCommitTsTime:   stmtExecInfo1.ExecDetail.CommitDetail.GetCommitTsTime,
-		sumPrewriteTime:      stmtExecInfo1.ExecDetail.CommitDetail.PrewriteTime,
-		maxPrewriteTime:      stmtExecInfo1.ExecDetail.CommitDetail.PrewriteTime,
-		sumCommitTime:        stmtExecInfo1.ExecDetail.CommitDetail.CommitTime,
-		maxCommitTime:        stmtExecInfo1.ExecDetail.CommitDetail.CommitTime,
-		sumLocalLatchTime:    stmtExecInfo1.ExecDetail.CommitDetail.LocalLatchTime,
-		maxLocalLatchTime:    stmtExecInfo1.ExecDetail.CommitDetail.LocalLatchTime,
-		sumCommitBackoffTime: stmtExecInfo1.ExecDetail.CommitDetail.CommitBackoffTime,
-		maxCommitBackoffTime: stmtExecInfo1.ExecDetail.CommitDetail.CommitBackoffTime,
-		sumResolveLockTime:   stmtExecInfo1.ExecDetail.CommitDetail.ResolveLockTime,
-		maxResolveLockTime:   stmtExecInfo1.ExecDetail.CommitDetail.ResolveLockTime,
-		sumWriteKeys:         int64(stmtExecInfo1.ExecDetail.CommitDetail.WriteKeys),
-		maxWriteKeys:         stmtExecInfo1.ExecDetail.CommitDetail.WriteKeys,
-		sumWriteSize:         int64(stmtExecInfo1.ExecDetail.CommitDetail.WriteSize),
-		maxWriteSize:         stmtExecInfo1.ExecDetail.CommitDetail.WriteSize,
-		sumPrewriteRegionNum: int64(stmtExecInfo1.ExecDetail.CommitDetail.PrewriteRegionNum),
-		maxPrewriteRegionNum: stmtExecInfo1.ExecDetail.CommitDetail.PrewriteRegionNum,
-		sumTxnRetry:          int64(stmtExecInfo1.ExecDetail.CommitDetail.TxnRetry),
-		maxTxnRetry:          stmtExecInfo1.ExecDetail.CommitDetail.TxnRetry,
+		sumLatency:           stmtInterDircInfo1.TotalLatency,
+		maxLatency:           stmtInterDircInfo1.TotalLatency,
+		minLatency:           stmtInterDircInfo1.TotalLatency,
+		sumParseLatency:      stmtInterDircInfo1.ParseLatency,
+		maxParseLatency:      stmtInterDircInfo1.ParseLatency,
+		sumCompileLatency:    stmtInterDircInfo1.CompileLatency,
+		maxCompileLatency:    stmtInterDircInfo1.CompileLatency,
+		sumNumCausetTasks:    int64(stmtInterDircInfo1.CausetTasks.NumCausetTasks),
+		maxCopProcessTime:    stmtInterDircInfo1.CausetTasks.MaxProcessTime,
+		maxCopProcessAddress: stmtInterDircInfo1.CausetTasks.MaxProcessAddress,
+		maxCopWaitTime:       stmtInterDircInfo1.CausetTasks.MaxWaitTime,
+		maxCopWaitAddress:    stmtInterDircInfo1.CausetTasks.MaxWaitAddress,
+		sumProcessTime:       stmtInterDircInfo1.InterDircDetail.ProcessTime,
+		maxProcessTime:       stmtInterDircInfo1.InterDircDetail.ProcessTime,
+		sumWaitTime:          stmtInterDircInfo1.InterDircDetail.WaitTime,
+		maxWaitTime:          stmtInterDircInfo1.InterDircDetail.WaitTime,
+		sumBackoffTime:       stmtInterDircInfo1.InterDircDetail.BackoffTime,
+		maxBackoffTime:       stmtInterDircInfo1.InterDircDetail.BackoffTime,
+		sumTotalKeys:         stmtInterDircInfo1.InterDircDetail.TotalKeys,
+		maxTotalKeys:         stmtInterDircInfo1.InterDircDetail.TotalKeys,
+		sumProcessedKeys:     stmtInterDircInfo1.InterDircDetail.ProcessedKeys,
+		maxProcessedKeys:     stmtInterDircInfo1.InterDircDetail.ProcessedKeys,
+		sumGetCommitTsTime:   stmtInterDircInfo1.InterDircDetail.CommitDetail.GetCommitTsTime,
+		maxGetCommitTsTime:   stmtInterDircInfo1.InterDircDetail.CommitDetail.GetCommitTsTime,
+		sumPrewriteTime:      stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteTime,
+		maxPrewriteTime:      stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteTime,
+		sumCommitTime:        stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitTime,
+		maxCommitTime:        stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitTime,
+		sumLocalLatchTime:    stmtInterDircInfo1.InterDircDetail.CommitDetail.LocalLatchTime,
+		maxLocalLatchTime:    stmtInterDircInfo1.InterDircDetail.CommitDetail.LocalLatchTime,
+		sumCommitBackoffTime: stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitBackoffTime,
+		maxCommitBackoffTime: stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitBackoffTime,
+		sumResolveLockTime:   stmtInterDircInfo1.InterDircDetail.CommitDetail.ResolveLockTime,
+		maxResolveLockTime:   stmtInterDircInfo1.InterDircDetail.CommitDetail.ResolveLockTime,
+		sumWriteKeys:         int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteKeys),
+		maxWriteKeys:         stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteKeys,
+		sumWriteSize:         int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteSize),
+		maxWriteSize:         stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteSize,
+		sumPrewriteRegionNum: int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteRegionNum),
+		maxPrewriteRegionNum: stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteRegionNum,
+		sumTxnRetry:          int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.TxnRetry),
+		maxTxnRetry:          stmtInterDircInfo1.InterDircDetail.CommitDetail.TxnRetry,
 		backoffTypes:         make(map[fmt.Stringer]int),
-		sumMem:               stmtExecInfo1.MemMax,
-		maxMem:               stmtExecInfo1.MemMax,
-		sumDisk:              stmtExecInfo1.DiskMax,
-		maxDisk:              stmtExecInfo1.DiskMax,
-		sumAffectedRows:      stmtExecInfo1.StmtCtx.AffectedRows(),
-		firstSeen:            stmtExecInfo1.StartTime,
-		lastSeen:             stmtExecInfo1.StartTime,
+		sumMem:               stmtInterDircInfo1.MemMax,
+		maxMem:               stmtInterDircInfo1.MemMax,
+		sumDisk:              stmtInterDircInfo1.DiskMax,
+		maxDisk:              stmtInterDircInfo1.DiskMax,
+		sumAffectedRows:      stmtInterDircInfo1.StmtCtx.AffectedRows(),
+		firstSeen:            stmtInterDircInfo1.StartTime,
+		lastSeen:             stmtInterDircInfo1.StartTime,
 	}
 	history := list.New()
 	history.PushBack(&expectedSummaryElement)
 	expectedSummary := stmtSummaryByDigest{
-		schemaName:    stmtExecInfo1.SchemaName,
-		stmtType:      stmtExecInfo1.StmtCtx.StmtType,
-		digest:        stmtExecInfo1.Digest,
-		normalizedALLEGROSQL: stmtExecInfo1.NormalizedALLEGROSQL,
-		planDigest:    stmtExecInfo1.PlanDigest,
+		schemaName:    stmtInterDircInfo1.SchemaName,
+		stmtType:      stmtInterDircInfo1.StmtCtx.StmtType,
+		digest:        stmtInterDircInfo1.Digest,
+		normalizedALLEGROSQL: stmtInterDircInfo1.NormalizedALLEGROSQL,
+		planDigest:    stmtInterDircInfo1.CausetDigest,
 		blockNames:    "db1.tb1,db2.tb2",
 		history:       history,
 	}
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	summary, ok := s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 	c.Assert(matchStmtSummaryByDigest(summary.(*stmtSummaryByDigest), &expectedSummary), IsTrue)
 
-	// Second statement is similar with the first statement, and its values are
-	// greater than that of the first statement.
-	stmtExecInfo2 := &StmtExecInfo{
+	// Second memex is similar with the first memex, and its values are
+	// greater than that of the first memex.
+	stmtInterDircInfo2 := &StmtInterDircInfo{
 		SchemaName:     "schema_name",
 		OriginalALLEGROSQL:    "original_sql2",
 		NormalizedALLEGROSQL:  "normalized_sql",
 		Digest:         "digest",
-		PlanDigest:     "plan_digest",
-		PlanGenerator:  emptyPlanGenerator,
+		CausetDigest:     "plan_digest",
+		CausetGenerator:  emptyCausetGenerator,
 		User:           "user2",
 		TotalLatency:   20000,
 		ParseLatency:   200,
@@ -173,7 +173,7 @@ func (s *testStmtSummarySuite) TestAddStatement(c *C) {
 			MaxWaitAddress:    "201",
 			MaxWaitTime:       2500,
 		},
-		ExecDetail: &execdetails.ExecDetails{
+		InterDircDetail: &execdetails.InterDircDetails{
 			CalleeAddress: "202",
 			ProcessTime:   1500,
 			WaitTime:      150,
@@ -210,72 +210,72 @@ func (s *testStmtSummarySuite) TestAddStatement(c *C) {
 		StartTime: time.Date(2020, 1, 1, 10, 10, 20, 10, time.UTC),
 		Succeed:   true,
 	}
-	stmtExecInfo2.StmtCtx.AddAffectedRows(200)
+	stmtInterDircInfo2.StmtCtx.AddAffectedRows(200)
 	expectedSummaryElement.execCount++
-	expectedSummaryElement.sumLatency += stmtExecInfo2.TotalLatency
-	expectedSummaryElement.maxLatency = stmtExecInfo2.TotalLatency
-	expectedSummaryElement.sumParseLatency += stmtExecInfo2.ParseLatency
-	expectedSummaryElement.maxParseLatency = stmtExecInfo2.ParseLatency
-	expectedSummaryElement.sumCompileLatency += stmtExecInfo2.CompileLatency
-	expectedSummaryElement.maxCompileLatency = stmtExecInfo2.CompileLatency
-	expectedSummaryElement.sumNumCausetTasks += int64(stmtExecInfo2.CausetTasks.NumCausetTasks)
-	expectedSummaryElement.maxCopProcessTime = stmtExecInfo2.CausetTasks.MaxProcessTime
-	expectedSummaryElement.maxCopProcessAddress = stmtExecInfo2.CausetTasks.MaxProcessAddress
-	expectedSummaryElement.maxCopWaitTime = stmtExecInfo2.CausetTasks.MaxWaitTime
-	expectedSummaryElement.maxCopWaitAddress = stmtExecInfo2.CausetTasks.MaxWaitAddress
-	expectedSummaryElement.sumProcessTime += stmtExecInfo2.ExecDetail.ProcessTime
-	expectedSummaryElement.maxProcessTime = stmtExecInfo2.ExecDetail.ProcessTime
-	expectedSummaryElement.sumWaitTime += stmtExecInfo2.ExecDetail.WaitTime
-	expectedSummaryElement.maxWaitTime = stmtExecInfo2.ExecDetail.WaitTime
-	expectedSummaryElement.sumBackoffTime += stmtExecInfo2.ExecDetail.BackoffTime
-	expectedSummaryElement.maxBackoffTime = stmtExecInfo2.ExecDetail.BackoffTime
-	expectedSummaryElement.sumTotalKeys += stmtExecInfo2.ExecDetail.TotalKeys
-	expectedSummaryElement.maxTotalKeys = stmtExecInfo2.ExecDetail.TotalKeys
-	expectedSummaryElement.sumProcessedKeys += stmtExecInfo2.ExecDetail.ProcessedKeys
-	expectedSummaryElement.maxProcessedKeys = stmtExecInfo2.ExecDetail.ProcessedKeys
-	expectedSummaryElement.sumGetCommitTsTime += stmtExecInfo2.ExecDetail.CommitDetail.GetCommitTsTime
-	expectedSummaryElement.maxGetCommitTsTime = stmtExecInfo2.ExecDetail.CommitDetail.GetCommitTsTime
-	expectedSummaryElement.sumPrewriteTime += stmtExecInfo2.ExecDetail.CommitDetail.PrewriteTime
-	expectedSummaryElement.maxPrewriteTime = stmtExecInfo2.ExecDetail.CommitDetail.PrewriteTime
-	expectedSummaryElement.sumCommitTime += stmtExecInfo2.ExecDetail.CommitDetail.CommitTime
-	expectedSummaryElement.maxCommitTime = stmtExecInfo2.ExecDetail.CommitDetail.CommitTime
-	expectedSummaryElement.sumLocalLatchTime += stmtExecInfo2.ExecDetail.CommitDetail.LocalLatchTime
-	expectedSummaryElement.maxLocalLatchTime = stmtExecInfo2.ExecDetail.CommitDetail.LocalLatchTime
-	expectedSummaryElement.sumCommitBackoffTime += stmtExecInfo2.ExecDetail.CommitDetail.CommitBackoffTime
-	expectedSummaryElement.maxCommitBackoffTime = stmtExecInfo2.ExecDetail.CommitDetail.CommitBackoffTime
-	expectedSummaryElement.sumResolveLockTime += stmtExecInfo2.ExecDetail.CommitDetail.ResolveLockTime
-	expectedSummaryElement.maxResolveLockTime = stmtExecInfo2.ExecDetail.CommitDetail.ResolveLockTime
-	expectedSummaryElement.sumWriteKeys += int64(stmtExecInfo2.ExecDetail.CommitDetail.WriteKeys)
-	expectedSummaryElement.maxWriteKeys = stmtExecInfo2.ExecDetail.CommitDetail.WriteKeys
-	expectedSummaryElement.sumWriteSize += int64(stmtExecInfo2.ExecDetail.CommitDetail.WriteSize)
-	expectedSummaryElement.maxWriteSize = stmtExecInfo2.ExecDetail.CommitDetail.WriteSize
-	expectedSummaryElement.sumPrewriteRegionNum += int64(stmtExecInfo2.ExecDetail.CommitDetail.PrewriteRegionNum)
-	expectedSummaryElement.maxPrewriteRegionNum = stmtExecInfo2.ExecDetail.CommitDetail.PrewriteRegionNum
-	expectedSummaryElement.sumTxnRetry += int64(stmtExecInfo2.ExecDetail.CommitDetail.TxnRetry)
-	expectedSummaryElement.maxTxnRetry = stmtExecInfo2.ExecDetail.CommitDetail.TxnRetry
+	expectedSummaryElement.sumLatency += stmtInterDircInfo2.TotalLatency
+	expectedSummaryElement.maxLatency = stmtInterDircInfo2.TotalLatency
+	expectedSummaryElement.sumParseLatency += stmtInterDircInfo2.ParseLatency
+	expectedSummaryElement.maxParseLatency = stmtInterDircInfo2.ParseLatency
+	expectedSummaryElement.sumCompileLatency += stmtInterDircInfo2.CompileLatency
+	expectedSummaryElement.maxCompileLatency = stmtInterDircInfo2.CompileLatency
+	expectedSummaryElement.sumNumCausetTasks += int64(stmtInterDircInfo2.CausetTasks.NumCausetTasks)
+	expectedSummaryElement.maxCopProcessTime = stmtInterDircInfo2.CausetTasks.MaxProcessTime
+	expectedSummaryElement.maxCopProcessAddress = stmtInterDircInfo2.CausetTasks.MaxProcessAddress
+	expectedSummaryElement.maxCopWaitTime = stmtInterDircInfo2.CausetTasks.MaxWaitTime
+	expectedSummaryElement.maxCopWaitAddress = stmtInterDircInfo2.CausetTasks.MaxWaitAddress
+	expectedSummaryElement.sumProcessTime += stmtInterDircInfo2.InterDircDetail.ProcessTime
+	expectedSummaryElement.maxProcessTime = stmtInterDircInfo2.InterDircDetail.ProcessTime
+	expectedSummaryElement.sumWaitTime += stmtInterDircInfo2.InterDircDetail.WaitTime
+	expectedSummaryElement.maxWaitTime = stmtInterDircInfo2.InterDircDetail.WaitTime
+	expectedSummaryElement.sumBackoffTime += stmtInterDircInfo2.InterDircDetail.BackoffTime
+	expectedSummaryElement.maxBackoffTime = stmtInterDircInfo2.InterDircDetail.BackoffTime
+	expectedSummaryElement.sumTotalKeys += stmtInterDircInfo2.InterDircDetail.TotalKeys
+	expectedSummaryElement.maxTotalKeys = stmtInterDircInfo2.InterDircDetail.TotalKeys
+	expectedSummaryElement.sumProcessedKeys += stmtInterDircInfo2.InterDircDetail.ProcessedKeys
+	expectedSummaryElement.maxProcessedKeys = stmtInterDircInfo2.InterDircDetail.ProcessedKeys
+	expectedSummaryElement.sumGetCommitTsTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.GetCommitTsTime
+	expectedSummaryElement.maxGetCommitTsTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.GetCommitTsTime
+	expectedSummaryElement.sumPrewriteTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.PrewriteTime
+	expectedSummaryElement.maxPrewriteTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.PrewriteTime
+	expectedSummaryElement.sumCommitTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.CommitTime
+	expectedSummaryElement.maxCommitTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.CommitTime
+	expectedSummaryElement.sumLocalLatchTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.LocalLatchTime
+	expectedSummaryElement.maxLocalLatchTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.LocalLatchTime
+	expectedSummaryElement.sumCommitBackoffTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.CommitBackoffTime
+	expectedSummaryElement.maxCommitBackoffTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.CommitBackoffTime
+	expectedSummaryElement.sumResolveLockTime += stmtInterDircInfo2.InterDircDetail.CommitDetail.ResolveLockTime
+	expectedSummaryElement.maxResolveLockTime = stmtInterDircInfo2.InterDircDetail.CommitDetail.ResolveLockTime
+	expectedSummaryElement.sumWriteKeys += int64(stmtInterDircInfo2.InterDircDetail.CommitDetail.WriteKeys)
+	expectedSummaryElement.maxWriteKeys = stmtInterDircInfo2.InterDircDetail.CommitDetail.WriteKeys
+	expectedSummaryElement.sumWriteSize += int64(stmtInterDircInfo2.InterDircDetail.CommitDetail.WriteSize)
+	expectedSummaryElement.maxWriteSize = stmtInterDircInfo2.InterDircDetail.CommitDetail.WriteSize
+	expectedSummaryElement.sumPrewriteRegionNum += int64(stmtInterDircInfo2.InterDircDetail.CommitDetail.PrewriteRegionNum)
+	expectedSummaryElement.maxPrewriteRegionNum = stmtInterDircInfo2.InterDircDetail.CommitDetail.PrewriteRegionNum
+	expectedSummaryElement.sumTxnRetry += int64(stmtInterDircInfo2.InterDircDetail.CommitDetail.TxnRetry)
+	expectedSummaryElement.maxTxnRetry = stmtInterDircInfo2.InterDircDetail.CommitDetail.TxnRetry
 	expectedSummaryElement.sumBackoffTimes += 1
 	expectedSummaryElement.backoffTypes[einsteindb.BoTxnLock] = 1
-	expectedSummaryElement.sumMem += stmtExecInfo2.MemMax
-	expectedSummaryElement.maxMem = stmtExecInfo2.MemMax
-	expectedSummaryElement.sumDisk += stmtExecInfo2.DiskMax
-	expectedSummaryElement.maxDisk = stmtExecInfo2.DiskMax
-	expectedSummaryElement.sumAffectedRows += stmtExecInfo2.StmtCtx.AffectedRows()
-	expectedSummaryElement.lastSeen = stmtExecInfo2.StartTime
+	expectedSummaryElement.sumMem += stmtInterDircInfo2.MemMax
+	expectedSummaryElement.maxMem = stmtInterDircInfo2.MemMax
+	expectedSummaryElement.sumDisk += stmtInterDircInfo2.DiskMax
+	expectedSummaryElement.maxDisk = stmtInterDircInfo2.DiskMax
+	expectedSummaryElement.sumAffectedRows += stmtInterDircInfo2.StmtCtx.AffectedRows()
+	expectedSummaryElement.lastSeen = stmtInterDircInfo2.StartTime
 
-	s.ssMap.AddStatement(stmtExecInfo2)
+	s.ssMap.AddStatement(stmtInterDircInfo2)
 	summary, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 	c.Assert(matchStmtSummaryByDigest(summary.(*stmtSummaryByDigest), &expectedSummary), IsTrue)
 
-	// Third statement is similar with the first statement, and its values are
-	// less than that of the first statement.
-	stmtExecInfo3 := &StmtExecInfo{
+	// Third memex is similar with the first memex, and its values are
+	// less than that of the first memex.
+	stmtInterDircInfo3 := &StmtInterDircInfo{
 		SchemaName:     "schema_name",
 		OriginalALLEGROSQL:    "original_sql3",
 		NormalizedALLEGROSQL:  "normalized_sql",
 		Digest:         "digest",
-		PlanDigest:     "plan_digest",
-		PlanGenerator:  emptyPlanGenerator,
+		CausetDigest:     "plan_digest",
+		CausetGenerator:  emptyCausetGenerator,
 		User:           "user3",
 		TotalLatency:   1000,
 		ParseLatency:   50,
@@ -291,7 +291,7 @@ func (s *testStmtSummarySuite) TestAddStatement(c *C) {
 			MaxWaitAddress:    "301",
 			MaxWaitTime:       250,
 		},
-		ExecDetail: &execdetails.ExecDetails{
+		InterDircDetail: &execdetails.InterDircDetails{
 			CalleeAddress: "302",
 			ProcessTime:   150,
 			WaitTime:      15,
@@ -328,76 +328,76 @@ func (s *testStmtSummarySuite) TestAddStatement(c *C) {
 		StartTime: time.Date(2020, 1, 1, 10, 10, 0, 10, time.UTC),
 		Succeed:   true,
 	}
-	stmtExecInfo3.StmtCtx.AddAffectedRows(20000)
+	stmtInterDircInfo3.StmtCtx.AddAffectedRows(20000)
 	expectedSummaryElement.execCount++
-	expectedSummaryElement.sumLatency += stmtExecInfo3.TotalLatency
-	expectedSummaryElement.minLatency = stmtExecInfo3.TotalLatency
-	expectedSummaryElement.sumParseLatency += stmtExecInfo3.ParseLatency
-	expectedSummaryElement.sumCompileLatency += stmtExecInfo3.CompileLatency
-	expectedSummaryElement.sumNumCausetTasks += int64(stmtExecInfo3.CausetTasks.NumCausetTasks)
-	expectedSummaryElement.sumProcessTime += stmtExecInfo3.ExecDetail.ProcessTime
-	expectedSummaryElement.sumWaitTime += stmtExecInfo3.ExecDetail.WaitTime
-	expectedSummaryElement.sumBackoffTime += stmtExecInfo3.ExecDetail.BackoffTime
-	expectedSummaryElement.sumTotalKeys += stmtExecInfo3.ExecDetail.TotalKeys
-	expectedSummaryElement.sumProcessedKeys += stmtExecInfo3.ExecDetail.ProcessedKeys
-	expectedSummaryElement.sumGetCommitTsTime += stmtExecInfo3.ExecDetail.CommitDetail.GetCommitTsTime
-	expectedSummaryElement.sumPrewriteTime += stmtExecInfo3.ExecDetail.CommitDetail.PrewriteTime
-	expectedSummaryElement.sumCommitTime += stmtExecInfo3.ExecDetail.CommitDetail.CommitTime
-	expectedSummaryElement.sumLocalLatchTime += stmtExecInfo3.ExecDetail.CommitDetail.LocalLatchTime
-	expectedSummaryElement.sumCommitBackoffTime += stmtExecInfo3.ExecDetail.CommitDetail.CommitBackoffTime
-	expectedSummaryElement.sumResolveLockTime += stmtExecInfo3.ExecDetail.CommitDetail.ResolveLockTime
-	expectedSummaryElement.sumWriteKeys += int64(stmtExecInfo3.ExecDetail.CommitDetail.WriteKeys)
-	expectedSummaryElement.sumWriteSize += int64(stmtExecInfo3.ExecDetail.CommitDetail.WriteSize)
-	expectedSummaryElement.sumPrewriteRegionNum += int64(stmtExecInfo3.ExecDetail.CommitDetail.PrewriteRegionNum)
-	expectedSummaryElement.sumTxnRetry += int64(stmtExecInfo3.ExecDetail.CommitDetail.TxnRetry)
+	expectedSummaryElement.sumLatency += stmtInterDircInfo3.TotalLatency
+	expectedSummaryElement.minLatency = stmtInterDircInfo3.TotalLatency
+	expectedSummaryElement.sumParseLatency += stmtInterDircInfo3.ParseLatency
+	expectedSummaryElement.sumCompileLatency += stmtInterDircInfo3.CompileLatency
+	expectedSummaryElement.sumNumCausetTasks += int64(stmtInterDircInfo3.CausetTasks.NumCausetTasks)
+	expectedSummaryElement.sumProcessTime += stmtInterDircInfo3.InterDircDetail.ProcessTime
+	expectedSummaryElement.sumWaitTime += stmtInterDircInfo3.InterDircDetail.WaitTime
+	expectedSummaryElement.sumBackoffTime += stmtInterDircInfo3.InterDircDetail.BackoffTime
+	expectedSummaryElement.sumTotalKeys += stmtInterDircInfo3.InterDircDetail.TotalKeys
+	expectedSummaryElement.sumProcessedKeys += stmtInterDircInfo3.InterDircDetail.ProcessedKeys
+	expectedSummaryElement.sumGetCommitTsTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.GetCommitTsTime
+	expectedSummaryElement.sumPrewriteTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.PrewriteTime
+	expectedSummaryElement.sumCommitTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.CommitTime
+	expectedSummaryElement.sumLocalLatchTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.LocalLatchTime
+	expectedSummaryElement.sumCommitBackoffTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.CommitBackoffTime
+	expectedSummaryElement.sumResolveLockTime += stmtInterDircInfo3.InterDircDetail.CommitDetail.ResolveLockTime
+	expectedSummaryElement.sumWriteKeys += int64(stmtInterDircInfo3.InterDircDetail.CommitDetail.WriteKeys)
+	expectedSummaryElement.sumWriteSize += int64(stmtInterDircInfo3.InterDircDetail.CommitDetail.WriteSize)
+	expectedSummaryElement.sumPrewriteRegionNum += int64(stmtInterDircInfo3.InterDircDetail.CommitDetail.PrewriteRegionNum)
+	expectedSummaryElement.sumTxnRetry += int64(stmtInterDircInfo3.InterDircDetail.CommitDetail.TxnRetry)
 	expectedSummaryElement.sumBackoffTimes += 1
 	expectedSummaryElement.backoffTypes[einsteindb.BoTxnLock] = 2
-	expectedSummaryElement.sumMem += stmtExecInfo3.MemMax
-	expectedSummaryElement.sumDisk += stmtExecInfo3.DiskMax
-	expectedSummaryElement.sumAffectedRows += stmtExecInfo3.StmtCtx.AffectedRows()
-	expectedSummaryElement.firstSeen = stmtExecInfo3.StartTime
+	expectedSummaryElement.sumMem += stmtInterDircInfo3.MemMax
+	expectedSummaryElement.sumDisk += stmtInterDircInfo3.DiskMax
+	expectedSummaryElement.sumAffectedRows += stmtInterDircInfo3.StmtCtx.AffectedRows()
+	expectedSummaryElement.firstSeen = stmtInterDircInfo3.StartTime
 
-	s.ssMap.AddStatement(stmtExecInfo3)
+	s.ssMap.AddStatement(stmtInterDircInfo3)
 	summary, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 	c.Assert(matchStmtSummaryByDigest(summary.(*stmtSummaryByDigest), &expectedSummary), IsTrue)
 
-	// Fourth statement is in a different schemaReplicant.
-	stmtExecInfo4 := stmtExecInfo1
-	stmtExecInfo4.SchemaName = "schema2"
-	stmtExecInfo4.ExecDetail.CommitDetail = nil
+	// Fourth memex is in a different schemaReplicant.
+	stmtInterDircInfo4 := stmtInterDircInfo1
+	stmtInterDircInfo4.SchemaName = "schema2"
+	stmtInterDircInfo4.InterDircDetail.CommitDetail = nil
 	key = &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo4.SchemaName,
-		digest:     stmtExecInfo4.Digest,
-		planDigest: stmtExecInfo4.PlanDigest,
+		schemaName: stmtInterDircInfo4.SchemaName,
+		digest:     stmtInterDircInfo4.Digest,
+		planDigest: stmtInterDircInfo4.CausetDigest,
 	}
-	s.ssMap.AddStatement(stmtExecInfo4)
+	s.ssMap.AddStatement(stmtInterDircInfo4)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 2)
 	_, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 
-	// Fifth statement has a different digest.
-	stmtExecInfo5 := stmtExecInfo1
-	stmtExecInfo5.Digest = "digest2"
+	// Fifth memex has a different digest.
+	stmtInterDircInfo5 := stmtInterDircInfo1
+	stmtInterDircInfo5.Digest = "digest2"
 	key = &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo5.SchemaName,
-		digest:     stmtExecInfo5.Digest,
-		planDigest: stmtExecInfo4.PlanDigest,
+		schemaName: stmtInterDircInfo5.SchemaName,
+		digest:     stmtInterDircInfo5.Digest,
+		planDigest: stmtInterDircInfo4.CausetDigest,
 	}
-	s.ssMap.AddStatement(stmtExecInfo5)
+	s.ssMap.AddStatement(stmtInterDircInfo5)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 3)
 	_, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 
-	// Sixth statement has a different plan digest.
-	stmtExecInfo6 := stmtExecInfo1
-	stmtExecInfo6.PlanDigest = "plan_digest2"
+	// Sixth memex has a different plan digest.
+	stmtInterDircInfo6 := stmtInterDircInfo1
+	stmtInterDircInfo6.CausetDigest = "plan_digest2"
 	key = &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo6.SchemaName,
-		digest:     stmtExecInfo6.Digest,
-		planDigest: stmtExecInfo6.PlanDigest,
+		schemaName: stmtInterDircInfo6.SchemaName,
+		digest:     stmtInterDircInfo6.Digest,
+		planDigest: stmtInterDircInfo6.CausetDigest,
 	}
-	s.ssMap.AddStatement(stmtExecInfo6)
+	s.ssMap.AddStatement(stmtInterDircInfo6)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 4)
 	_, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
@@ -426,7 +426,7 @@ func matchStmtSummaryByDigest(first, second *stmtSummaryByDigest) bool {
 		if ssElement1.beginTime != ssElement2.beginTime ||
 			ssElement1.endTime != ssElement2.endTime ||
 			ssElement1.sampleALLEGROSQL != ssElement2.sampleALLEGROSQL ||
-			ssElement1.samplePlan != ssElement2.samplePlan ||
+			ssElement1.sampleCauset != ssElement2.sampleCauset ||
 			ssElement1.prevALLEGROSQL != ssElement2.prevALLEGROSQL ||
 			ssElement1.execCount != ssElement2.execCount ||
 			ssElement1.sumErrors != ssElement2.sumErrors ||
@@ -513,16 +513,16 @@ func match(c *C, event []types.Causet, expected ...interface{}) {
 	}
 }
 
-func generateAnyExecInfo() *StmtExecInfo {
+func generateAnyInterDircInfo() *StmtInterDircInfo {
 	blocks := []stmtctx.BlockEntry{{EDB: "db1", Block: "tb1"}, {EDB: "db2", Block: "tb2"}}
 	indexes := []string{"a"}
-	stmtExecInfo := &StmtExecInfo{
+	stmtInterDircInfo := &StmtInterDircInfo{
 		SchemaName:     "schema_name",
 		OriginalALLEGROSQL:    "original_sql1",
 		NormalizedALLEGROSQL:  "normalized_sql",
 		Digest:         "digest",
-		PlanDigest:     "plan_digest",
-		PlanGenerator:  emptyPlanGenerator,
+		CausetDigest:     "plan_digest",
+		CausetGenerator:  emptyCausetGenerator,
 		User:           "user",
 		TotalLatency:   10000,
 		ParseLatency:   100,
@@ -538,7 +538,7 @@ func generateAnyExecInfo() *StmtExecInfo {
 			MaxWaitAddress:    "128",
 			MaxWaitTime:       1500,
 		},
-		ExecDetail: &execdetails.ExecDetails{
+		InterDircDetail: &execdetails.InterDircDetails{
 			CalleeAddress: "129",
 			ProcessTime:   500,
 			WaitTime:      50,
@@ -575,8 +575,8 @@ func generateAnyExecInfo() *StmtExecInfo {
 		StartTime: time.Date(2020, 1, 1, 10, 10, 10, 10, time.UTC),
 		Succeed:   true,
 	}
-	stmtExecInfo.StmtCtx.AddAffectedRows(10000)
-	return stmtExecInfo
+	stmtInterDircInfo.StmtCtx.AddAffectedRows(10000)
+	return stmtInterDircInfo
 }
 
 // Test stmtSummaryByDigest.ToCauset.
@@ -586,35 +586,35 @@ func (s *testStmtSummarySuite) TestToCauset(c *C) {
 	// to disable expiration
 	s.ssMap.beginTimeForCurInterval = now + 60
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	datums := s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 1)
 	n := types.NewTime(types.FromGoTime(time.Unix(s.ssMap.beginTimeForCurInterval, 0)), allegrosql.TypeTimestamp, types.DefaultFsp)
 	e := types.NewTime(types.FromGoTime(time.Unix(s.ssMap.beginTimeForCurInterval+1800, 0)), allegrosql.TypeTimestamp, types.DefaultFsp)
-	t := types.NewTime(types.FromGoTime(stmtExecInfo1.StartTime), allegrosql.TypeTimestamp, types.DefaultFsp)
-	expectedCauset := []interface{}{n, e, "Select", stmtExecInfo1.SchemaName, stmtExecInfo1.Digest, stmtExecInfo1.NormalizedALLEGROSQL,
-		"db1.tb1,db2.tb2", "a", stmtExecInfo1.User, 1, 0, 0, int64(stmtExecInfo1.TotalLatency),
-		int64(stmtExecInfo1.TotalLatency), int64(stmtExecInfo1.TotalLatency), int64(stmtExecInfo1.TotalLatency),
-		int64(stmtExecInfo1.ParseLatency), int64(stmtExecInfo1.ParseLatency), int64(stmtExecInfo1.CompileLatency),
-		int64(stmtExecInfo1.CompileLatency), stmtExecInfo1.CausetTasks.NumCausetTasks, int64(stmtExecInfo1.CausetTasks.MaxProcessTime),
-		stmtExecInfo1.CausetTasks.MaxProcessAddress, int64(stmtExecInfo1.CausetTasks.MaxWaitTime),
-		stmtExecInfo1.CausetTasks.MaxWaitAddress, int64(stmtExecInfo1.ExecDetail.ProcessTime), int64(stmtExecInfo1.ExecDetail.ProcessTime),
-		int64(stmtExecInfo1.ExecDetail.WaitTime), int64(stmtExecInfo1.ExecDetail.WaitTime), int64(stmtExecInfo1.ExecDetail.BackoffTime),
-		int64(stmtExecInfo1.ExecDetail.BackoffTime), stmtExecInfo1.ExecDetail.TotalKeys, stmtExecInfo1.ExecDetail.TotalKeys,
-		stmtExecInfo1.ExecDetail.ProcessedKeys, stmtExecInfo1.ExecDetail.ProcessedKeys,
-		int64(stmtExecInfo1.ExecDetail.CommitDetail.PrewriteTime), int64(stmtExecInfo1.ExecDetail.CommitDetail.PrewriteTime),
-		int64(stmtExecInfo1.ExecDetail.CommitDetail.CommitTime), int64(stmtExecInfo1.ExecDetail.CommitDetail.CommitTime),
-		int64(stmtExecInfo1.ExecDetail.CommitDetail.GetCommitTsTime), int64(stmtExecInfo1.ExecDetail.CommitDetail.GetCommitTsTime),
-		stmtExecInfo1.ExecDetail.CommitDetail.CommitBackoffTime, stmtExecInfo1.ExecDetail.CommitDetail.CommitBackoffTime,
-		stmtExecInfo1.ExecDetail.CommitDetail.ResolveLockTime, stmtExecInfo1.ExecDetail.CommitDetail.ResolveLockTime,
-		int64(stmtExecInfo1.ExecDetail.CommitDetail.LocalLatchTime), int64(stmtExecInfo1.ExecDetail.CommitDetail.LocalLatchTime),
-		stmtExecInfo1.ExecDetail.CommitDetail.WriteKeys, stmtExecInfo1.ExecDetail.CommitDetail.WriteKeys,
-		stmtExecInfo1.ExecDetail.CommitDetail.WriteSize, stmtExecInfo1.ExecDetail.CommitDetail.WriteSize,
-		stmtExecInfo1.ExecDetail.CommitDetail.PrewriteRegionNum, stmtExecInfo1.ExecDetail.CommitDetail.PrewriteRegionNum,
-		stmtExecInfo1.ExecDetail.CommitDetail.TxnRetry, stmtExecInfo1.ExecDetail.CommitDetail.TxnRetry, 0, 0, 1,
-		"txnLock:1", stmtExecInfo1.MemMax, stmtExecInfo1.MemMax, stmtExecInfo1.DiskMax, stmtExecInfo1.DiskMax, stmtExecInfo1.StmtCtx.AffectedRows(),
-		t, t, 0, 0, stmtExecInfo1.OriginalALLEGROSQL, stmtExecInfo1.PrevALLEGROSQL, "plan_digest", ""}
+	t := types.NewTime(types.FromGoTime(stmtInterDircInfo1.StartTime), allegrosql.TypeTimestamp, types.DefaultFsp)
+	expectedCauset := []interface{}{n, e, "Select", stmtInterDircInfo1.SchemaName, stmtInterDircInfo1.Digest, stmtInterDircInfo1.NormalizedALLEGROSQL,
+		"db1.tb1,db2.tb2", "a", stmtInterDircInfo1.User, 1, 0, 0, int64(stmtInterDircInfo1.TotalLatency),
+		int64(stmtInterDircInfo1.TotalLatency), int64(stmtInterDircInfo1.TotalLatency), int64(stmtInterDircInfo1.TotalLatency),
+		int64(stmtInterDircInfo1.ParseLatency), int64(stmtInterDircInfo1.ParseLatency), int64(stmtInterDircInfo1.CompileLatency),
+		int64(stmtInterDircInfo1.CompileLatency), stmtInterDircInfo1.CausetTasks.NumCausetTasks, int64(stmtInterDircInfo1.CausetTasks.MaxProcessTime),
+		stmtInterDircInfo1.CausetTasks.MaxProcessAddress, int64(stmtInterDircInfo1.CausetTasks.MaxWaitTime),
+		stmtInterDircInfo1.CausetTasks.MaxWaitAddress, int64(stmtInterDircInfo1.InterDircDetail.ProcessTime), int64(stmtInterDircInfo1.InterDircDetail.ProcessTime),
+		int64(stmtInterDircInfo1.InterDircDetail.WaitTime), int64(stmtInterDircInfo1.InterDircDetail.WaitTime), int64(stmtInterDircInfo1.InterDircDetail.BackoffTime),
+		int64(stmtInterDircInfo1.InterDircDetail.BackoffTime), stmtInterDircInfo1.InterDircDetail.TotalKeys, stmtInterDircInfo1.InterDircDetail.TotalKeys,
+		stmtInterDircInfo1.InterDircDetail.ProcessedKeys, stmtInterDircInfo1.InterDircDetail.ProcessedKeys,
+		int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteTime), int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteTime),
+		int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitTime), int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitTime),
+		int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.GetCommitTsTime), int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.GetCommitTsTime),
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitBackoffTime, stmtInterDircInfo1.InterDircDetail.CommitDetail.CommitBackoffTime,
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.ResolveLockTime, stmtInterDircInfo1.InterDircDetail.CommitDetail.ResolveLockTime,
+		int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.LocalLatchTime), int64(stmtInterDircInfo1.InterDircDetail.CommitDetail.LocalLatchTime),
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteKeys, stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteKeys,
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteSize, stmtInterDircInfo1.InterDircDetail.CommitDetail.WriteSize,
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteRegionNum, stmtInterDircInfo1.InterDircDetail.CommitDetail.PrewriteRegionNum,
+		stmtInterDircInfo1.InterDircDetail.CommitDetail.TxnRetry, stmtInterDircInfo1.InterDircDetail.CommitDetail.TxnRetry, 0, 0, 1,
+		"txnLock:1", stmtInterDircInfo1.MemMax, stmtInterDircInfo1.MemMax, stmtInterDircInfo1.DiskMax, stmtInterDircInfo1.DiskMax, stmtInterDircInfo1.StmtCtx.AffectedRows(),
+		t, t, 0, 0, stmtInterDircInfo1.OriginalALLEGROSQL, stmtInterDircInfo1.PrevALLEGROSQL, "plan_digest", ""}
 	match(c, datums[0], expectedCauset...)
 	datums = s.ssMap.ToHistoryCauset(nil, true)
 	c.Assert(len(datums), Equals, 1)
@@ -635,12 +635,12 @@ func (s *testStmtSummarySuite) TestAddStatementParallel(c *C) {
 
 	addStmtFunc := func() {
 		defer wg.Done()
-		stmtExecInfo1 := generateAnyExecInfo()
+		stmtInterDircInfo1 := generateAnyInterDircInfo()
 
 		// Add 32 times with different digest.
 		for i := 0; i < loops; i++ {
-			stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-			s.ssMap.AddStatement(stmtExecInfo1)
+			stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+			s.ssMap.AddStatement(stmtInterDircInfo1)
 		}
 
 		// There would be 32 summaries.
@@ -657,7 +657,7 @@ func (s *testStmtSummarySuite) TestAddStatementParallel(c *C) {
 	c.Assert(len(datums), Equals, loops)
 }
 
-// Test max number of statement count.
+// Test max number of memex count.
 func (s *testStmtSummarySuite) TestMaxStmtCount(c *C) {
 	s.ssMap.Clear()
 	now := time.Now().Unix()
@@ -676,11 +676,11 @@ func (s *testStmtSummarySuite) TestMaxStmtCount(c *C) {
 	}()
 
 	// 100 digests
-	stmtExecInfo1 := generateAnyExecInfo()
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
 	loops := 100
 	for i := 0; i < loops; i++ {
-		stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-		s.ssMap.AddStatement(stmtExecInfo1)
+		stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+		s.ssMap.AddStatement(stmtInterDircInfo1)
 	}
 
 	// Summary count should be MaxStmtCount.
@@ -690,9 +690,9 @@ func (s *testStmtSummarySuite) TestMaxStmtCount(c *C) {
 	// LRU cache should work.
 	for i := loops - 10; i < loops; i++ {
 		key := &stmtSummaryByDigestKey{
-			schemaName: stmtExecInfo1.SchemaName,
+			schemaName: stmtInterDircInfo1.SchemaName,
 			digest:     fmt.Sprintf("digest%d", i),
-			planDigest: stmtExecInfo1.PlanDigest,
+			planDigest: stmtInterDircInfo1.CausetDigest,
 		}
 		_, ok := sm.Get(key)
 		c.Assert(ok, IsTrue)
@@ -701,16 +701,16 @@ func (s *testStmtSummarySuite) TestMaxStmtCount(c *C) {
 	// Change to a bigger value.
 	c.Assert(s.ssMap.SetMaxStmtCount("50", true), IsNil)
 	for i := 0; i < loops; i++ {
-		stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-		s.ssMap.AddStatement(stmtExecInfo1)
+		stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+		s.ssMap.AddStatement(stmtInterDircInfo1)
 	}
 	c.Assert(sm.Size(), Equals, 50)
 
 	// Change to a smaller value.
 	c.Assert(s.ssMap.SetMaxStmtCount("10", true), IsNil)
 	for i := 0; i < loops; i++ {
-		stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-		s.ssMap.AddStatement(stmtExecInfo1)
+		stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+		s.ssMap.AddStatement(stmtInterDircInfo1)
 	}
 	c.Assert(sm.Size(), Equals, 10)
 }
@@ -730,16 +730,16 @@ func (s *testStmtSummarySuite) TestMaxALLEGROSQLLength(c *C) {
 	length := maxALLEGROSQLLength * 10
 	str := strings.Repeat("a", length)
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	stmtExecInfo1.OriginalALLEGROSQL = str
-	stmtExecInfo1.NormalizedALLEGROSQL = str
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	stmtInterDircInfo1.OriginalALLEGROSQL = str
+	stmtInterDircInfo1.NormalizedALLEGROSQL = str
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
-		prevDigest: stmtExecInfo1.PrevALLEGROSQLDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
+		prevDigest: stmtInterDircInfo1.PrevALLEGROSQLDigest,
 	}
 	value, ok := s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
@@ -772,12 +772,12 @@ func (s *testStmtSummarySuite) TestSetMaxStmtCountParallel(c *C) {
 
 	addStmtFunc := func() {
 		defer wg.Done()
-		stmtExecInfo1 := generateAnyExecInfo()
+		stmtInterDircInfo1 := generateAnyInterDircInfo()
 
 		// Add 32 times with different digest.
 		for i := 0; i < loops; i++ {
-			stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-			s.ssMap.AddStatement(stmtExecInfo1)
+			stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+			s.ssMap.AddStatement(stmtInterDircInfo1)
 		}
 	}
 	for i := 0; i < threads; i++ {
@@ -809,15 +809,15 @@ func (s *testStmtSummarySuite) TestDisableStmtSummary(c *C) {
 	s.ssMap.SetEnabled("0", false)
 	s.ssMap.beginTimeForCurInterval = now + 60
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	datums := s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 0)
 
 	// Set true in stochastik scope, it will overwrite global scope.
 	s.ssMap.SetEnabled("1", true)
 
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	datums = s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 1)
 
@@ -825,25 +825,25 @@ func (s *testStmtSummarySuite) TestDisableStmtSummary(c *C) {
 	s.ssMap.SetEnabled("0", false)
 	s.ssMap.beginTimeForCurInterval = now + 60
 
-	stmtExecInfo2 := stmtExecInfo1
-	stmtExecInfo2.OriginalALLEGROSQL = "original_sql2"
-	stmtExecInfo2.NormalizedALLEGROSQL = "normalized_sql2"
-	stmtExecInfo2.Digest = "digest2"
-	s.ssMap.AddStatement(stmtExecInfo2)
+	stmtInterDircInfo2 := stmtInterDircInfo1
+	stmtInterDircInfo2.OriginalALLEGROSQL = "original_sql2"
+	stmtInterDircInfo2.NormalizedALLEGROSQL = "normalized_sql2"
+	stmtInterDircInfo2.Digest = "digest2"
+	s.ssMap.AddStatement(stmtInterDircInfo2)
 	datums = s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 2)
 
 	// Unset in stochastik scope.
 	s.ssMap.SetEnabled("", true)
 	s.ssMap.beginTimeForCurInterval = now + 60
-	s.ssMap.AddStatement(stmtExecInfo2)
+	s.ssMap.AddStatement(stmtInterDircInfo2)
 	datums = s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 0)
 
 	// Unset in global scope.
 	s.ssMap.SetEnabled("", false)
 	s.ssMap.beginTimeForCurInterval = now + 60
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	datums = s.ssMap.ToCurrentCauset(nil, true)
 	c.Assert(len(datums), Equals, 1)
 
@@ -851,7 +851,7 @@ func (s *testStmtSummarySuite) TestDisableStmtSummary(c *C) {
 	s.ssMap.SetEnabled("1", false)
 }
 
-// Test disable and enable statement summary concurrently with adding statements.
+// Test disable and enable memex summary concurrently with adding memexs.
 func (s *testStmtSummarySuite) TestEnableSummaryParallel(c *C) {
 	s.ssMap.Clear()
 
@@ -862,13 +862,13 @@ func (s *testStmtSummarySuite) TestEnableSummaryParallel(c *C) {
 
 	addStmtFunc := func() {
 		defer wg.Done()
-		stmtExecInfo1 := generateAnyExecInfo()
+		stmtInterDircInfo1 := generateAnyInterDircInfo()
 
 		// Add 32 times with same digest.
 		for i := 0; i < loops; i++ {
 			// Sometimes enable it and sometimes disable it.
 			s.ssMap.SetEnabled(fmt.Sprintf("%d", i%2), false)
-			s.ssMap.AddStatement(stmtExecInfo1)
+			s.ssMap.AddStatement(stmtInterDircInfo1)
 			// Try to read it.
 			s.ssMap.ToHistoryCauset(nil, true)
 		}
@@ -889,24 +889,24 @@ func (s *testStmtSummarySuite) TestEnableSummaryParallel(c *C) {
 func (s *testStmtSummarySuite) TestGetMoreThanOnceSelect(c *C) {
 	s.ssMap.Clear()
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	stmtExecInfo1.OriginalALLEGROSQL = "insert 1"
-	stmtExecInfo1.NormalizedALLEGROSQL = "insert ?"
-	stmtExecInfo1.StmtCtx.StmtType = "Insert"
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	stmtInterDircInfo1.OriginalALLEGROSQL = "insert 1"
+	stmtInterDircInfo1.NormalizedALLEGROSQL = "insert ?"
+	stmtInterDircInfo1.StmtCtx.StmtType = "Insert"
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	schemas, sqls := s.ssMap.GetMoreThanOnceSelect()
 	c.Assert(len(schemas), Equals, 0)
 	c.Assert(len(sqls), Equals, 0)
 
-	stmtExecInfo1.NormalizedALLEGROSQL = "select ?"
-	stmtExecInfo1.Digest = "digest1"
-	stmtExecInfo1.StmtCtx.StmtType = "Select"
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1.NormalizedALLEGROSQL = "select ?"
+	stmtInterDircInfo1.Digest = "digest1"
+	stmtInterDircInfo1.StmtCtx.StmtType = "Select"
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	schemas, sqls = s.ssMap.GetMoreThanOnceSelect()
 	c.Assert(len(schemas), Equals, 0)
 	c.Assert(len(sqls), Equals, 0)
 
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	schemas, sqls = s.ssMap.GetMoreThanOnceSelect()
 	c.Assert(len(schemas), Equals, 1)
 	c.Assert(len(sqls), Equals, 1)
@@ -924,19 +924,19 @@ func (s *testStmtSummarySuite) TestFormatBackoffTypes(c *C) {
 	c.Assert(formatBackoffTypes(backoffMap), Equals, "txnLock:2,FIDelRPC:1")
 }
 
-// Test refreshing current statement summary periodically.
+// Test refreshing current memex summary periodically.
 func (s *testStmtSummarySuite) TestRefreshCurrentSummary(c *C) {
 	s.ssMap.Clear()
 	now := time.Now().Unix()
 
 	s.ssMap.beginTimeForCurInterval = now + 10
-	stmtExecInfo1 := generateAnyExecInfo()
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
 	}
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 	value, ok := s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
@@ -946,7 +946,7 @@ func (s *testStmtSummarySuite) TestRefreshCurrentSummary(c *C) {
 
 	s.ssMap.beginTimeForCurInterval = now - 1900
 	ssElement.beginTime = now - 1900
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 	value, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
@@ -958,11 +958,11 @@ func (s *testStmtSummarySuite) TestRefreshCurrentSummary(c *C) {
 	s.ssMap.SetRefreshInterval("10", false)
 	s.ssMap.beginTimeForCurInterval = now - 20
 	ssElement.beginTime = now - 20
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(value.(*stmtSummaryByDigest).history.Len(), Equals, 3)
 }
 
-// Test expiring statement summary to history.
+// Test expiring memex summary to history.
 func (s *testStmtSummarySuite) TestSummaryHistory(c *C) {
 	s.ssMap.Clear()
 	now := time.Now().Unix()
@@ -971,15 +971,15 @@ func (s *testStmtSummarySuite) TestSummaryHistory(c *C) {
 	defer s.ssMap.SetRefreshInterval("1800", false)
 	defer s.ssMap.SetHistorySize("24", false)
 
-	stmtExecInfo1 := generateAnyExecInfo()
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
 	}
 	for i := 0; i < 11; i++ {
 		s.ssMap.beginTimeForCurInterval = now + int64(i+1)*10
-		s.ssMap.AddStatement(stmtExecInfo1)
+		s.ssMap.AddStatement(stmtInterDircInfo1)
 		c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 		value, ok := s.ssMap.summaryMap.Get(key)
 		c.Assert(ok, IsTrue)
@@ -1012,30 +1012,30 @@ func (s *testStmtSummarySuite) TestPrevALLEGROSQL(c *C) {
 	// to disable expiration
 	s.ssMap.beginTimeForCurInterval = now + 60
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	stmtExecInfo1.PrevALLEGROSQL = "prevALLEGROSQL"
-	stmtExecInfo1.PrevALLEGROSQLDigest = "prevALLEGROSQLDigest"
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	stmtInterDircInfo1.PrevALLEGROSQL = "prevALLEGROSQL"
+	stmtInterDircInfo1.PrevALLEGROSQLDigest = "prevALLEGROSQLDigest"
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
-		prevDigest: stmtExecInfo1.PrevALLEGROSQLDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
+		prevDigest: stmtInterDircInfo1.PrevALLEGROSQLDigest,
 	}
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 	_, ok := s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
 
 	// same prevALLEGROSQL
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 
 	// different prevALLEGROSQL
-	stmtExecInfo2 := stmtExecInfo1
-	stmtExecInfo2.PrevALLEGROSQL = "prevALLEGROSQL1"
-	stmtExecInfo2.PrevALLEGROSQLDigest = "prevALLEGROSQLDigest1"
-	key.prevDigest = stmtExecInfo2.PrevALLEGROSQLDigest
-	s.ssMap.AddStatement(stmtExecInfo2)
+	stmtInterDircInfo2 := stmtInterDircInfo1
+	stmtInterDircInfo2.PrevALLEGROSQL = "prevALLEGROSQL1"
+	stmtInterDircInfo2.PrevALLEGROSQLDigest = "prevALLEGROSQLDigest1"
+	key.prevDigest = stmtInterDircInfo2.PrevALLEGROSQLDigest
+	s.ssMap.AddStatement(stmtInterDircInfo2)
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 2)
 	_, ok = s.ssMap.summaryMap.Get(key)
 	c.Assert(ok, IsTrue)
@@ -1046,12 +1046,12 @@ func (s *testStmtSummarySuite) TestEndTime(c *C) {
 	now := time.Now().Unix()
 	s.ssMap.beginTimeForCurInterval = now - 100
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
-		planDigest: stmtExecInfo1.PlanDigest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
+		planDigest: stmtInterDircInfo1.CausetDigest,
 	}
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
 	value, ok := s.ssMap.summaryMap.Get(key)
@@ -1063,14 +1063,14 @@ func (s *testStmtSummarySuite) TestEndTime(c *C) {
 
 	s.ssMap.SetRefreshInterval("3600", false)
 	defer s.ssMap.SetRefreshInterval("1800", false)
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(ssbd.history.Len(), Equals, 1)
 	ssElement = ssbd.history.Back().Value.(*stmtSummaryByDigestElement)
 	c.Assert(ssElement.beginTime, Equals, now-100)
 	c.Assert(ssElement.endTime, Equals, now+3500)
 
 	s.ssMap.SetRefreshInterval("60", false)
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(ssbd.history.Len(), Equals, 2)
 	now2 := time.Now().Unix()
 	ssElement = ssbd.history.Front().Value.(*stmtSummaryByDigestElement)
@@ -1088,13 +1088,13 @@ func (s *testStmtSummarySuite) TestPointGet(c *C) {
 	now := time.Now().Unix()
 	s.ssMap.beginTimeForCurInterval = now - 100
 
-	stmtExecInfo1 := generateAnyExecInfo()
-	stmtExecInfo1.PlanDigest = ""
-	stmtExecInfo1.PlanDigestGen = fakePlanDigestGenerator
-	s.ssMap.AddStatement(stmtExecInfo1)
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
+	stmtInterDircInfo1.CausetDigest = ""
+	stmtInterDircInfo1.CausetDigestGen = fakeCausetDigestGenerator
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	key := &stmtSummaryByDigestKey{
-		schemaName: stmtExecInfo1.SchemaName,
-		digest:     stmtExecInfo1.Digest,
+		schemaName: stmtInterDircInfo1.SchemaName,
+		digest:     stmtInterDircInfo1.Digest,
 		planDigest: "",
 	}
 	c.Assert(s.ssMap.summaryMap.Size(), Equals, 1)
@@ -1104,7 +1104,7 @@ func (s *testStmtSummarySuite) TestPointGet(c *C) {
 	ssElement := ssbd.history.Back().Value.(*stmtSummaryByDigestElement)
 	c.Assert(ssElement.execCount, Equals, int64(1))
 
-	s.ssMap.AddStatement(stmtExecInfo1)
+	s.ssMap.AddStatement(stmtInterDircInfo1)
 	c.Assert(ssElement.execCount, Equals, int64(2))
 }
 
@@ -1112,11 +1112,11 @@ func (s *testStmtSummarySuite) TestAccessPrivilege(c *C) {
 	s.ssMap.Clear()
 
 	loops := 32
-	stmtExecInfo1 := generateAnyExecInfo()
+	stmtInterDircInfo1 := generateAnyInterDircInfo()
 
 	for i := 0; i < loops; i++ {
-		stmtExecInfo1.Digest = fmt.Sprintf("digest%d", i)
-		s.ssMap.AddStatement(stmtExecInfo1)
+		stmtInterDircInfo1.Digest = fmt.Sprintf("digest%d", i)
+		s.ssMap.AddStatement(stmtInterDircInfo1)
 	}
 
 	user := &auth.UserIdentity{Username: "user"}

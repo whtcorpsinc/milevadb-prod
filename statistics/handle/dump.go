@@ -62,10 +62,10 @@ func dumpJSONDefCaus(hist *statistics.Histogram, CMSketch *statistics.CMSketch) 
 }
 
 // DumpStatsToJSON dumps statistic to json.
-func (h *Handle) DumpStatsToJSON(dbName string, blockInfo *perceptron.TableInfo, historyStatsExec sqlexec.RestrictedALLEGROSQLExecutor) (*JSONTable, error) {
+func (h *Handle) DumpStatsToJSON(dbName string, blockInfo *perceptron.TableInfo, historyStatsInterDirc sqlexec.RestrictedALLEGROSQLInterlockingDirectorate) (*JSONTable, error) {
 	pi := blockInfo.GetPartitionInfo()
 	if pi == nil {
-		return h.blockStatsToJSON(dbName, blockInfo, blockInfo.ID, historyStatsExec)
+		return h.blockStatsToJSON(dbName, blockInfo, blockInfo.ID, historyStatsInterDirc)
 	}
 	jsonTbl := &JSONTable{
 		DatabaseName: dbName,
@@ -73,7 +73,7 @@ func (h *Handle) DumpStatsToJSON(dbName string, blockInfo *perceptron.TableInfo,
 		Partitions:   make(map[string]*JSONTable, len(pi.Definitions)),
 	}
 	for _, def := range pi.Definitions {
-		tbl, err := h.blockStatsToJSON(dbName, blockInfo, def.ID, historyStatsExec)
+		tbl, err := h.blockStatsToJSON(dbName, blockInfo, def.ID, historyStatsInterDirc)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -85,12 +85,12 @@ func (h *Handle) DumpStatsToJSON(dbName string, blockInfo *perceptron.TableInfo,
 	return jsonTbl, nil
 }
 
-func (h *Handle) blockStatsToJSON(dbName string, blockInfo *perceptron.TableInfo, physicalID int64, historyStatsExec sqlexec.RestrictedALLEGROSQLExecutor) (*JSONTable, error) {
-	tbl, err := h.blockStatsFromStorage(blockInfo, physicalID, true, historyStatsExec)
+func (h *Handle) blockStatsToJSON(dbName string, blockInfo *perceptron.TableInfo, physicalID int64, historyStatsInterDirc sqlexec.RestrictedALLEGROSQLInterlockingDirectorate) (*JSONTable, error) {
+	tbl, err := h.blockStatsFromStorage(blockInfo, physicalID, true, historyStatsInterDirc)
 	if err != nil || tbl == nil {
 		return nil, err
 	}
-	tbl.Version, tbl.ModifyCount, tbl.Count, err = h.statsMetaByTableIDFromStorage(physicalID, historyStatsExec)
+	tbl.Version, tbl.ModifyCount, tbl.Count, err = h.statsMetaByTableIDFromStorage(physicalID, historyStatsInterDirc)
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +120,11 @@ func (h *Handle) blockStatsToJSON(dbName string, blockInfo *perceptron.TableInfo
 
 // LoadStatsFromJSON will load statistic from JSONTable, and save it to the storage.
 func (h *Handle) LoadStatsFromJSON(is schemareplicant.SchemaReplicant, jsonTbl *JSONTable) error {
-	block, err := is.TableByName(perceptron.NewCIStr(jsonTbl.DatabaseName), perceptron.NewCIStr(jsonTbl.TableName))
+	causet, err := is.TableByName(perceptron.NewCIStr(jsonTbl.DatabaseName), perceptron.NewCIStr(jsonTbl.TableName))
 	if err != nil {
 		return errors.Trace(err)
 	}
-	blockInfo := block.Meta()
+	blockInfo := causet.Meta()
 	pi := blockInfo.GetPartitionInfo()
 	if pi == nil {
 		err := h.loadStatsFromJSON(blockInfo, blockInfo.ID, jsonTbl)

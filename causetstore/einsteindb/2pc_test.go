@@ -284,7 +284,7 @@ func (s *testCommitterSuite) TestContextCancelRetryable(c *C) {
 	c.Assert(err, IsNil)
 	// txn2 writes "a"(PK), "b", "c" on different regions.
 	// "c" will return a retryable error.
-	// "b" will get a Locked error first, then the context must be canceled after backoff for lock.
+	// "b" will get a Locked error first, then the context must be canceled after backoff for dagger.
 	err = txn2.Set([]byte("a"), []byte("a2"))
 	c.Assert(err, IsNil)
 	err = txn2.Set([]byte("b"), []byte("b2"))
@@ -531,14 +531,14 @@ func (s *testCommitterSuite) TestPrewriteTxnSize(c *C) {
 
 	// Check the written locks in the first region (50 keys)
 	for i := byte(50); i < 100; i++ {
-		lock := s.getLockInfo(c, []byte{i})
-		c.Assert(int(lock.TxnSize), Equals, 50)
+		dagger := s.getLockInfo(c, []byte{i})
+		c.Assert(int(dagger.TxnSize), Equals, 50)
 	}
 
 	// Check the written locks in the second region (20 keys)
 	for i := byte(100); i < 120; i++ {
-		lock := s.getLockInfo(c, []byte{i})
-		c.Assert(int(lock.TxnSize), Equals, 20)
+		dagger := s.getLockInfo(c, []byte{i})
+		c.Assert(int(dagger.TxnSize), Equals, 20)
 	}
 }
 
@@ -593,7 +593,7 @@ func (s *testCommitterSuite) TestRejectCommitTS(c *C) {
 }
 
 func (s *testCommitterSuite) TestPessimisticPrewriteRequest(c *C) {
-	// This test checks that the isPessimisticLock field is set in the request even when no keys are pessimistic lock.
+	// This test checks that the isPessimisticLock field is set in the request even when no keys are pessimistic dagger.
 	txn := s.begin(c)
 	txn.SetOption(ekv.Pessimistic, true)
 	err := txn.Set([]byte("t1"), []byte("v1"))
@@ -610,7 +610,7 @@ func (s *testCommitterSuite) TestPessimisticPrewriteRequest(c *C) {
 }
 
 func (s *testCommitterSuite) TestUnsetPrimaryKey(c *C) {
-	// This test checks that the isPessimisticLock field is set in the request even when no keys are pessimistic lock.
+	// This test checks that the isPessimisticLock field is set in the request even when no keys are pessimistic dagger.
 	key := ekv.Key("key")
 	txn := s.begin(c)
 	c.Assert(txn.Set(key, key), IsNil)
@@ -665,7 +665,7 @@ func (s *testCommitterSuite) TestPessimisticTTL(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(status.ttl, GreaterEqual, lockInfo.LockTtl)
 
-	// Check primary lock TTL is auto increasing while the pessimistic txn is ongoing.
+	// Check primary dagger TTL is auto increasing while the pessimistic txn is ongoing.
 	for i := 0; i < 50; i++ {
 		lockInfoNew := s.getLockInfo(c, key)
 		if lockInfoNew.LockTtl > lockInfo.LockTtl {
@@ -755,7 +755,7 @@ func (s *testCommitterSuite) TestDeleteYourWriteCauseGhostPrimary(c *C) {
 	txn2.DelOption(ekv.Pessimistic)
 	txn2.causetstore.txnLatches = nil
 	v, err := txn2.Get(context.Background(), k3)
-	c.Assert(err, IsNil) // should resolve lock and read txn1 k3 result instead of rollback it.
+	c.Assert(err, IsNil) // should resolve dagger and read txn1 k3 result instead of rollback it.
 	c.Assert(v[0], Equals, byte(2))
 	txn1.committer.testingKnobs.bkAfterCommitPrimary <- struct{}{}
 	txn1Done.Wait()
@@ -829,23 +829,23 @@ func (s *testCommitterSuite) TestDeleteAllYourWritesWithSFU(c *C) {
 }
 
 // TestAcquireFalseTimeoutLock tests acquiring a key which is a secondary key of another transaction.
-// The lock's own TTL is expired but the primary key is still alive due to heartbeats.
+// The dagger's own TTL is expired but the primary key is still alive due to heartbeats.
 func (s *testCommitterSuite) TestAcquireFalseTimeoutLock(c *C) {
 	atomic.StoreUint64(&ManagedLockTTL, 1000)       // 1s
 	defer atomic.StoreUint64(&ManagedLockTTL, 3000) // restore default test value
 
-	// k1 is the primary lock of txn1
+	// k1 is the primary dagger of txn1
 	k1 := ekv.Key("k1")
-	// k2 is a secondary lock of txn1 and a key txn2 wants to lock
+	// k2 is a secondary dagger of txn1 and a key txn2 wants to dagger
 	k2 := ekv.Key("k2")
 
 	txn1 := s.begin(c)
 	txn1.SetOption(ekv.Pessimistic, true)
-	// lock the primary key
+	// dagger the primary key
 	lockCtx := &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err := txn1.LockKeys(context.Background(), lockCtx, k1)
 	c.Assert(err, IsNil)
-	// lock the secondary key
+	// dagger the secondary key
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err = txn1.LockKeys(context.Background(), lockCtx, k2)
 	c.Assert(err, IsNil)
@@ -860,13 +860,13 @@ func (s *testCommitterSuite) TestAcquireFalseTimeoutLock(c *C) {
 	// test no wait
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn2.startTS, LockWaitTime: ekv.LockNoWait, WaitStartTime: time.Now()}
 	err = txn2.LockKeys(context.Background(), lockCtx, k2)
-	// cannot acquire lock immediately thus error
+	// cannot acquire dagger immediately thus error
 	c.Assert(err.Error(), Equals, ErrLockAcquireFailAndNoWaitSet.Error())
 
 	// test for wait limited time (200ms)
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn2.startTS, LockWaitTime: 200, WaitStartTime: time.Now()}
 	err = txn2.LockKeys(context.Background(), lockCtx, k2)
-	// cannot acquire lock in time thus error
+	// cannot acquire dagger in time thus error
 	c.Assert(err.Error(), Equals, ErrLockWaitTimeout.Error())
 }
 
@@ -894,38 +894,38 @@ func (s *testCommitterSuite) getLockInfo(c *C, key []byte) *kvrpcpb.LockInfo {
 func (s *testCommitterSuite) TestPkNotFound(c *C) {
 	atomic.StoreUint64(&ManagedLockTTL, 100)        // 100ms
 	defer atomic.StoreUint64(&ManagedLockTTL, 3000) // restore default value
-	// k1 is the primary lock of txn1
+	// k1 is the primary dagger of txn1
 	k1 := ekv.Key("k1")
-	// k2 is a secondary lock of txn1 and a key txn2 wants to lock
+	// k2 is a secondary dagger of txn1 and a key txn2 wants to dagger
 	k2 := ekv.Key("k2")
 	k3 := ekv.Key("k3")
 
 	txn1 := s.begin(c)
 	txn1.SetOption(ekv.Pessimistic, true)
-	// lock the primary key
+	// dagger the primary key
 	lockCtx := &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err := txn1.LockKeys(context.Background(), lockCtx, k1)
 	c.Assert(err, IsNil)
-	// lock the secondary key
+	// dagger the secondary key
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err = txn1.LockKeys(context.Background(), lockCtx, k2)
 	c.Assert(err, IsNil)
 
-	// Stop txn ttl manager and remove primary key, like milevadb server crashes and the priamry key lock does not exists actually,
-	// while the secondary lock operation succeeded
+	// Stop txn ttl manager and remove primary key, like milevadb server crashes and the priamry key dagger does not exists actually,
+	// while the secondary dagger operation succeeded
 	bo := NewBackofferWithVars(context.Background(), pessimisticLockMaxBackoff, nil)
 	txn1.committer.ttlManager.close()
 	err = txn1.committer.pessimisticRollbackMutations(bo, CommitterMutations{keys: [][]byte{k1}})
 	c.Assert(err, IsNil)
 
-	// Txn2 tries to lock the secondary key k2, dead loop if the left secondary lock by txn1 not resolved
+	// Txn2 tries to dagger the secondary key k2, dead loop if the left secondary dagger by txn1 not resolved
 	txn2 := s.begin(c)
 	txn2.SetOption(ekv.Pessimistic, true)
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn2.startTS, WaitStartTime: time.Now()}
 	err = txn2.LockKeys(context.Background(), lockCtx, k2)
 	c.Assert(err, IsNil)
 
-	// Using smaller forUFIDelateTS cannot rollback this lock, other lock will fail
+	// Using smaller forUFIDelateTS cannot rollback this dagger, other dagger will fail
 	lockKey3 := &Lock{
 		Key:             k3,
 		Primary:         k1,
@@ -952,20 +952,20 @@ func (s *testCommitterSuite) TestPkNotFound(c *C) {
 }
 
 func (s *testCommitterSuite) TestPessimisticLockPrimary(c *C) {
-	// a is the primary lock of txn1
+	// a is the primary dagger of txn1
 	k1 := ekv.Key("a")
-	// b is a secondary lock of txn1 and a key txn2 wants to lock, b is on another region
+	// b is a secondary dagger of txn1 and a key txn2 wants to dagger, b is on another region
 	k2 := ekv.Key("b")
 
 	txn1 := s.begin(c)
 	txn1.SetOption(ekv.Pessimistic, true)
-	// txn1 lock k1
+	// txn1 dagger k1
 	lockCtx := &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err := txn1.LockKeys(context.Background(), lockCtx, k1)
 	c.Assert(err, IsNil)
 
-	// txn2 wants to lock k1, k2, k1(pk) is blocked by txn1, pessimisticLockKeys has been changed to
-	// lock primary key first and then secondary keys concurrently, k2 should not be locked by txn2
+	// txn2 wants to dagger k1, k2, k1(pk) is blocked by txn1, pessimisticLockKeys has been changed to
+	// dagger primary key first and then secondary keys concurrently, k2 should not be locked by txn2
 	doneCh := make(chan error)
 	go func() {
 		txn2 := s.begin(c)
@@ -1033,7 +1033,7 @@ func (s *testCommitterSuite) TestCommitDeadLock(c *C) {
 	s.cluster.ScheduleDelay(txn1.startTS, region2.Id, 5*time.Millisecond)
 
 	// Txn1 prewrites k1, k2 and txn2 prewrites k2, k1, the large txn
-	// protocol run ttlManager and uFIDelate their TTL, cause dead lock.
+	// protocol run ttlManager and uFIDelate their TTL, cause dead dagger.
 	ch := make(chan error, 2)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -1074,7 +1074,7 @@ func (s *testCommitterSuite) TestPushPessimisticLock(c *C) {
 	c.Assert(err, IsNil)
 	err = txn1.committer.prewriteMutations(NewBackofferWithVars(ctx, PrewriteMaxBackoff, nil), txn1.committer.mutations)
 	c.Assert(err, IsNil)
-	// The primary lock is a pessimistic lock and the secondary lock is a optimistic lock.
+	// The primary dagger is a pessimistic dagger and the secondary dagger is a optimistic dagger.
 	lock1 := s.getLockInfo(c, k1)
 	c.Assert(lock1.LockType, Equals, kvrpcpb.Op_PessimisticLock)
 	c.Assert(lock1.PrimaryLock, BytesEquals, []byte(k1))
@@ -1086,7 +1086,7 @@ func (s *testCommitterSuite) TestPushPessimisticLock(c *C) {
 	start := time.Now()
 	_, err = txn2.Get(ctx, k2)
 	elapsed := time.Since(start)
-	// The optimistic lock shouldn't block reads.
+	// The optimistic dagger shouldn't causet reads.
 	c.Assert(elapsed, Less, 500*time.Millisecond)
 	c.Assert(ekv.IsErrNotFound(err), IsTrue)
 
@@ -1101,7 +1101,7 @@ func (s *testCommitterSuite) TestResolveMixed(c *C) {
 	defer atomic.StoreUint64(&ManagedLockTTL, 3000) // restore default value
 	ctx := context.Background()
 
-	// pk is the primary lock of txn1
+	// pk is the primary dagger of txn1
 	pk := ekv.Key("pk")
 	secondaryLockkeys := make([]ekv.Key, 0, bigTxnThreshold)
 	for i := 0; i < bigTxnThreshold; i++ {
@@ -1110,14 +1110,14 @@ func (s *testCommitterSuite) TestResolveMixed(c *C) {
 	}
 	pessimisticLockKey := ekv.Key("pessimisticLockKey")
 
-	// make the optimistic and pessimistic lock left with primary lock not found
+	// make the optimistic and pessimistic dagger left with primary dagger not found
 	txn1 := s.begin(c)
 	txn1.SetOption(ekv.Pessimistic, true)
-	// lock the primary key
+	// dagger the primary key
 	lockCtx := &ekv.LockCtx{ForUFIDelateTS: txn1.startTS, WaitStartTime: time.Now()}
 	err := txn1.LockKeys(context.Background(), lockCtx, pk)
 	c.Assert(err, IsNil)
-	// lock the optimistic keys
+	// dagger the optimistic keys
 	for i := 0; i < bigTxnThreshold; i++ {
 		txn1.Set(secondaryLockkeys[i], []byte(fmt.Sprintf("v%d", i)))
 	}
@@ -1125,7 +1125,7 @@ func (s *testCommitterSuite) TestResolveMixed(c *C) {
 	c.Assert(err, IsNil)
 	err = txn1.committer.prewriteMutations(NewBackofferWithVars(ctx, PrewriteMaxBackoff, nil), txn1.committer.mutations)
 	c.Assert(err, IsNil)
-	// lock the pessimistic keys
+	// dagger the pessimistic keys
 	err = txn1.LockKeys(context.Background(), lockCtx, pessimisticLockKey)
 	c.Assert(err, IsNil)
 	lock1 := s.getLockInfo(c, pessimisticLockKey)
@@ -1146,11 +1146,11 @@ func (s *testCommitterSuite) TestResolveMixed(c *C) {
 	cleanTxns := make(map[RegionVerID]struct{})
 	time.Sleep(time.Duration(atomic.LoadUint64(&ManagedLockTTL)) * time.Millisecond)
 	optimisticLockInfo := s.getLockInfo(c, optimisticLockKey)
-	lock := NewLock(optimisticLockInfo)
-	err = s.causetstore.lockResolver.resolveLock(NewBackofferWithVars(ctx, pessimisticLockMaxBackoff, nil), lock, TxnStatus{}, false, cleanTxns)
+	dagger := NewLock(optimisticLockInfo)
+	err = s.causetstore.lockResolver.resolveLock(NewBackofferWithVars(ctx, pessimisticLockMaxBackoff, nil), dagger, TxnStatus{}, false, cleanTxns)
 	c.Assert(err, IsNil)
 
-	// txn2 tries to lock the pessimisticLockKey, the lock should has been resolved in clean whole region resolve
+	// txn2 tries to dagger the pessimisticLockKey, the dagger should has been resolved in clean whole region resolve
 	txn2 := s.begin(c)
 	txn2.SetOption(ekv.Pessimistic, true)
 	lockCtx = &ekv.LockCtx{ForUFIDelateTS: txn2.startTS, WaitStartTime: time.Now(), LockWaitTime: ekv.LockNoWait}

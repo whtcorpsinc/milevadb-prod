@@ -131,12 +131,12 @@ func (s *testSuite) TestSelectNormalChunkSize(c *C) {
 func (s *testSuite) TestSelectWithRuntimeStats(c *C) {
 	planIDs := []int{1, 2, 3}
 	response, defCausTypes := s.createSelectNormal(1, 2, c, planIDs)
-	if len(response.copPlanIDs) != len(planIDs) {
-		c.Fatal("invalid copPlanIDs")
+	if len(response.copCausetIDs) != len(planIDs) {
+		c.Fatal("invalid copCausetIDs")
 	}
 	for i := range planIDs {
-		if response.copPlanIDs[i] != planIDs[i] {
-			c.Fatal("invalid copPlanIDs")
+		if response.copCausetIDs[i] != planIDs[i] {
+			c.Fatal("invalid copCausetIDs")
 		}
 	}
 

@@ -17,10 +17,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 )
 
-func onLockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func onLockBlocks(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	arg := &lockBlocksArg{}
 	if err := job.DecodeArgs(arg); err != nil {
 		// Invalid arguments, cancel this job.
@@ -28,12 +28,12 @@ func onLockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
 		return ver, errors.Trace(err)
 	}
 
-	// Unlock block first.
+	// Unlock causet first.
 	if arg.IndexOfUnlock < len(arg.UnlockBlocks) {
 		return unlockBlocks(t, job, arg)
 	}
 
-	// Check block locked by other, this can be only checked at the first time.
+	// Check causet locked by other, this can be only checked at the first time.
 	if arg.IndexOfLock == 0 {
 		for i, tl := range arg.LockBlocks {
 			job.SchemaID = tl.SchemaID
@@ -44,9 +44,9 @@ func onLockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
 			}
 			err = checkBlockLocked(tbInfo, arg.LockBlocks[i].Tp, arg.StochastikInfo)
 			if err != nil {
-				// If any request block was locked by other stochastik, just cancel this job.
-				// No need to rolling back the unlocked blocks, MyALLEGROSQL will release the lock first
-				// and block if the request block was locked by other.
+				// If any request causet was locked by other stochastik, just cancel this job.
+				// No need to rolling back the unlocked blocks, MyALLEGROSQL will release the dagger first
+				// and causet if the request causet was locked by other.
 				job.State = perceptron.JobStateCancelled
 				return ver, errors.Trace(err)
 			}
@@ -74,8 +74,8 @@ func onLockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
 			tbInfo.Lock.State = perceptron.BlockLockStatePreLock
 			tbInfo.Lock.TS = t.StartTS
 			ver, err = uFIDelateVersionAndBlockInfo(t, job, tbInfo, true)
-		// If the state of the lock is public, it means the lock is a read lock and already locked by other stochastik,
-		// so this request of lock block doesn't need pre-lock state, just uFIDelate the TS and block info is ok.
+		// If the state of the dagger is public, it means the dagger is a read dagger and already locked by other stochastik,
+		// so this request of dagger causet doesn't need pre-dagger state, just uFIDelate the TS and causet info is ok.
 		case perceptron.BlockLockStatePreLock, perceptron.BlockLockStatePublic:
 			tbInfo.Lock.State = perceptron.BlockLockStatePublic
 			tbInfo.Lock.TS = t.StartTS
@@ -91,7 +91,7 @@ func onLockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
 			}
 		default:
 			job.State = perceptron.JobStateCancelled
-			return ver, ErrInvalidDBSState.GenWithStackByArgs("block lock", tbInfo.Lock.State)
+			return ver, ErrInvalidDBSState.GenWithStackByArgs("causet dagger", tbInfo.Lock.State)
 		}
 	}
 
@@ -108,7 +108,7 @@ func findStochastikInfoIndex(stochastik []perceptron.StochastikInfo, stochastikI
 	return -1
 }
 
-// lockBlock uses to check block locked and acquire the block lock for the request stochastik.
+// lockBlock uses to check causet locked and acquire the causet dagger for the request stochastik.
 func lockBlock(tbInfo *perceptron.BlockInfo, idx int, arg *lockBlocksArg) error {
 	if !tbInfo.IsLocked() {
 		tbInfo.Lock = &perceptron.BlockLockInfo{
@@ -117,14 +117,14 @@ func lockBlock(tbInfo *perceptron.BlockInfo, idx int, arg *lockBlocksArg) error 
 		tbInfo.Lock.Stochastiks = append(tbInfo.Lock.Stochastiks, arg.StochastikInfo)
 		return nil
 	}
-	// If the state of the lock is in pre-lock, then the lock must be locked by the current request. So we can just return here.
-	// Because the lock/unlock job must be serial execution in DBS owner now.
+	// If the state of the dagger is in pre-dagger, then the dagger must be locked by the current request. So we can just return here.
+	// Because the dagger/unlock job must be serial execution in DBS tenant now.
 	if tbInfo.Lock.State == perceptron.BlockLockStatePreLock {
 		return nil
 	}
 	if tbInfo.Lock.Tp == perceptron.BlockLockRead && arg.LockBlocks[idx].Tp == perceptron.BlockLockRead {
 		stochastiHoTTex := findStochastikInfoIndex(tbInfo.Lock.Stochastiks, arg.StochastikInfo)
-		// repeat lock.
+		// repeat dagger.
 		if stochastiHoTTex >= 0 {
 			return nil
 		}
@@ -132,12 +132,12 @@ func lockBlock(tbInfo *perceptron.BlockInfo, idx int, arg *lockBlocksArg) error 
 		return nil
 	}
 
-	// Unlock blocks should execute before lock blocks.
+	// Unlock blocks should execute before dagger blocks.
 	// Normally execute to here is impossible.
 	return schemareplicant.ErrBlockLocked.GenWithStackByArgs(tbInfo.Name.L, tbInfo.Lock.Tp, tbInfo.Lock.Stochastiks[0])
 }
 
-// checkBlockLocked uses to check whether block was locked.
+// checkBlockLocked uses to check whether causet was locked.
 func checkBlockLocked(tbInfo *perceptron.BlockInfo, lockTp perceptron.BlockLockType, stochastikInfo perceptron.StochastikInfo) error {
 	if !tbInfo.IsLocked() {
 		return nil
@@ -149,12 +149,12 @@ func checkBlockLocked(tbInfo *perceptron.BlockInfo, lockTp perceptron.BlockLockT
 		return nil
 	}
 	stochastiHoTTex := findStochastikInfoIndex(tbInfo.Lock.Stochastiks, stochastikInfo)
-	// If the request stochastik already locked the block before, In other words, repeat lock.
+	// If the request stochastik already locked the causet before, In other words, repeat dagger.
 	if stochastiHoTTex >= 0 {
 		if tbInfo.Lock.Tp == lockTp {
 			return nil
 		}
-		// If no other stochastik locked this block.
+		// If no other stochastik locked this causet.
 		if len(tbInfo.Lock.Stochastiks) == 1 {
 			return nil
 		}
@@ -162,8 +162,8 @@ func checkBlockLocked(tbInfo *perceptron.BlockInfo, lockTp perceptron.BlockLockT
 	return schemareplicant.ErrBlockLocked.GenWithStackByArgs(tbInfo.Name.L, tbInfo.Lock.Tp, tbInfo.Lock.Stochastiks[0])
 }
 
-// unlockBlocks uses unlock a batch of block lock one by one.
-func unlockBlocks(t *meta.Meta, job *perceptron.Job, arg *lockBlocksArg) (ver int64, err error) {
+// unlockBlocks uses unlock a batch of causet dagger one by one.
+func unlockBlocks(t *spacetime.Meta, job *perceptron.Job, arg *lockBlocksArg) (ver int64, err error) {
 	if arg.IndexOfUnlock >= len(arg.UnlockBlocks) {
 		return ver, nil
 	}
@@ -172,7 +172,7 @@ func unlockBlocks(t *meta.Meta, job *perceptron.Job, arg *lockBlocksArg) (ver in
 	tbInfo, err := getBlockInfo(t, job.BlockID, job.SchemaID)
 	if err != nil {
 		if schemareplicant.ErrDatabaseNotExists.Equal(err) || schemareplicant.ErrBlockNotExists.Equal(err) {
-			// The block maybe has been dropped. just ignore this err and go on.
+			// The causet maybe has been dropped. just ignore this err and go on.
 			arg.IndexOfUnlock++
 			job.Args = []interface{}{arg}
 			return ver, nil
@@ -193,7 +193,7 @@ func unlockBlocks(t *meta.Meta, job *perceptron.Job, arg *lockBlocksArg) (ver in
 	return ver, nil
 }
 
-// unlockBlock uses to unlock block lock that hold by the stochastik.
+// unlockBlock uses to unlock causet dagger that hold by the stochastik.
 func unlockBlock(tbInfo *perceptron.BlockInfo, arg *lockBlocksArg) (needUFIDelateBlockInfo bool) {
 	if !tbInfo.IsLocked() {
 		return false
@@ -205,7 +205,7 @@ func unlockBlock(tbInfo *perceptron.BlockInfo, arg *lockBlocksArg) (needUFIDelat
 
 	stochastiHoTTex := findStochastikInfoIndex(tbInfo.Lock.Stochastiks, arg.StochastikInfo)
 	if stochastiHoTTex < 0 {
-		// When stochastik clean block lock, stochastik maybe send unlock block even the block lock maybe not hold by the stochastik.
+		// When stochastik clean causet dagger, stochastik maybe send unlock causet even the causet dagger maybe not hold by the stochastik.
 		// so just ignore and return here.
 		return false
 	}
@@ -218,7 +218,7 @@ func unlockBlock(tbInfo *perceptron.BlockInfo, arg *lockBlocksArg) (needUFIDelat
 	return true
 }
 
-func onUnlockBlocks(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func onUnlockBlocks(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	arg := &lockBlocksArg{}
 	if err := job.DecodeArgs(arg); err != nil {
 		// Invalid arguments, cancel this job.

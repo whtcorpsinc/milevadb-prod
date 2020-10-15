@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package block
+package causet
 
 import (
 	"fmt"
@@ -32,7 +32,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	field_types "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -43,12 +43,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeferredCauset provides meta data describing a block defCausumn.
+// DeferredCauset provides spacetime data describing a causet defCausumn.
 type DeferredCauset struct {
 	*perceptron.DeferredCausetInfo
-	// If this defCausumn is a generated defCausumn, the expression will be stored here.
+	// If this defCausumn is a generated defCausumn, the memex will be stored here.
 	GeneratedExpr ast.ExprNode
-	// If this defCausumn has default expr value, this expression will be stored here.
+	// If this defCausumn has default expr value, this memex will be stored here.
 	DefaultExpr ast.ExprNode
 }
 
@@ -161,8 +161,8 @@ func handleWrongUtf8Value(ctx stochastikctx.Context, defCaus *perceptron.Deferre
 // CastValue casts a value based on defCausumn type.
 // If forceIgnoreTruncate is true, truncated errors will be ignored.
 // If returnOverflow is true, don't handle overflow errors in this function.
-// It's safe now and it's the same as the behavior of select statement.
-// Set it to true only in FillVirtualDeferredCausetValue and UnionScanExec.Next()
+// It's safe now and it's the same as the behavior of select memex.
+// Set it to true only in FillVirtualDeferredCausetValue and UnionScanInterDirc.Next()
 // If the handle of err is changed latter, the behavior of forceIgnoreTruncate also need to change.
 // TODO: change the third arg to TypeField. Not pass DeferredCausetInfo.
 func CastValue(ctx stochastikctx.Context, val types.Causet, defCaus *perceptron.DeferredCausetInfo, returnOverflow, forceIgnoreTruncate bool) (casted types.Causet, err error) {
@@ -265,7 +265,7 @@ func NewDefCausDesc(defCaus *DeferredCauset) *DefCausDesc {
 	// TODO: if we have no primary key and a unique index which's defCausumns are all not null
 	// we will set these defCausumns' flag as PriKeyFlag
 	// see https://dev.allegrosql.com/doc/refman/5.7/en/show-defCausumns.html
-	// create block
+	// create causet
 	name := defCaus.Name
 	nullFlag := "YES"
 	if allegrosql.HasNotNullFlag(defCaus.Flag) {
@@ -413,7 +413,7 @@ func GetDefCausDefaultValue(ctx stochastikctx.Context, defCaus *perceptron.Defer
 
 // EvalDefCausDefaultExpr eval default expr node to explicit default value.
 func EvalDefCausDefaultExpr(ctx stochastikctx.Context, defCaus *perceptron.DeferredCausetInfo, defaultExpr ast.ExprNode) (types.Causet, error) {
-	d, err := expression.EvalAstExpr(ctx, defaultExpr)
+	d, err := memex.EvalAstExpr(ctx, defaultExpr)
 	if err != nil {
 		return types.Causet{}, err
 	}
@@ -432,7 +432,7 @@ func getDefCausDefaultExprValue(ctx stochastikctx.Context, defCaus *perceptron.D
 	if err == nil {
 		defaultExpr = stmts[0].(*ast.SelectStmt).Fields.Fields[0].Expr
 	}
-	d, err := expression.EvalAstExpr(ctx, defaultExpr)
+	d, err := memex.EvalAstExpr(ctx, defaultExpr)
 	if err != nil {
 		return types.Causet{}, err
 	}
@@ -473,7 +473,7 @@ func getDefCausDefaultValue(ctx stochastikctx.Context, defCaus *perceptron.Defer
 			defer func() { sc.TimeZone = originalTZ }()
 		}
 	}
-	value, err := expression.GetTimeValue(ctx, defaultVal, defCaus.Tp, int8(defCaus.Decimal))
+	value, err := memex.GetTimeValue(ctx, defaultVal, defCaus.Tp, int8(defCaus.Decimal))
 	if err != nil {
 		return types.Causet{}, errGetDefaultFailed.GenWithStackByArgs(defCaus.Name)
 	}

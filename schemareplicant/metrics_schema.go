@@ -23,9 +23,9 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 )
@@ -59,7 +59,7 @@ func init() {
 	RegisterVirtualBlock(dbInfo, blockFromMeta)
 }
 
-// MetricBlockDef is the metric block define.
+// MetricBlockDef is the metric causet define.
 type MetricBlockDef struct {
 	PromQL   string
 	Labels   []string
@@ -67,17 +67,17 @@ type MetricBlockDef struct {
 	Comment  string
 }
 
-// IsMetricBlock uses to checks whether the block is a metric block.
+// IsMetricBlock uses to checks whether the causet is a metric causet.
 func IsMetricBlock(lowerBlockName string) bool {
 	_, ok := MetricBlockMap[lowerBlockName]
 	return ok
 }
 
-// GetMetricBlockDef gets the metric block define.
+// GetMetricBlockDef gets the metric causet define.
 func GetMetricBlockDef(lowerBlockName string) (*MetricBlockDef, error) {
 	def, ok := MetricBlockMap[lowerBlockName]
 	if !ok {
-		return nil, errors.Errorf("can not find metric block: %v", lowerBlockName)
+		return nil, errors.Errorf("can not find metric causet: %v", lowerBlockName)
 	}
 	return &def, nil
 }
@@ -146,22 +146,22 @@ func GenLabelConditionValues(values set.StringSet) string {
 	return strings.Join(vs, "|")
 }
 
-// metricSchemaBlock stands for the fake block all its data is in the memory.
+// metricSchemaBlock stands for the fake causet all its data is in the memory.
 type metricSchemaBlock struct {
 	schemareplicantBlock
 }
 
-func blockFromMeta(alloc autoid.SlabPredictors, meta *perceptron.BlockInfo) (block.Block, error) {
-	defCausumns := make([]*block.DeferredCauset, 0, len(meta.DeferredCausets))
-	for _, defCausInfo := range meta.DeferredCausets {
-		defCaus := block.ToDeferredCauset(defCausInfo)
+func blockFromMeta(alloc autoid.SlabPredictors, spacetime *perceptron.BlockInfo) (causet.Block, error) {
+	defCausumns := make([]*causet.DeferredCauset, 0, len(spacetime.DeferredCausets))
+	for _, defCausInfo := range spacetime.DeferredCausets {
+		defCaus := causet.ToDeferredCauset(defCausInfo)
 		defCausumns = append(defCausumns, defCaus)
 	}
 	t := &metricSchemaBlock{
 		schemareplicantBlock: schemareplicantBlock{
-			meta: meta,
+			spacetime: spacetime,
 			defcaus: defCausumns,
-			tp:   block.VirtualBlock,
+			tp:   causet.VirtualBlock,
 		},
 	}
 	return t, nil

@@ -35,7 +35,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/planner/core"
+	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	// CreateUserTable is the ALLEGROALLEGROSQL statement creates User block in system EDB.
+	// CreateUserTable is the ALLEGROALLEGROSQL memex creates User causet in system EDB.
 	CreateUserTable = `CREATE TABLE if not exists allegrosql.user (
 		Host				CHAR(64),
 		User				CHAR(32),
@@ -63,7 +63,7 @@ const (
 		Super_priv			ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Create_tmp_block_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Lock_blocks_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
-		Execute_priv			ENUM('N','Y') NOT NULL DEFAULT 'N',
+		InterDircute_priv			ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Create_view_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Show_view_priv			ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Create_routine_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
@@ -81,14 +81,14 @@ const (
 		Config_priv				ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Create_Tablespace_Priv    ENUM('N','Y') NOT NULL DEFAULT 'N',
 		PRIMARY KEY (Host, User));`
-	// CreateGlobalPrivTable is the ALLEGROALLEGROSQL statement creates Global scope privilege block in system EDB.
+	// CreateGlobalPrivTable is the ALLEGROALLEGROSQL memex creates Global scope privilege causet in system EDB.
 	CreateGlobalPrivTable = "CREATE TABLE if not exists allegrosql.global_priv (" +
 		"Host char(60) NOT NULL DEFAULT ''," +
 		"User char(80) NOT NULL DEFAULT ''," +
 		"Priv longtext NOT NULL DEFAULT ''," +
 		"PRIMARY KEY (Host, User)" +
 		")"
-	// CreateDBPrivTable is the ALLEGROALLEGROSQL statement creates EDB scope privilege block in system EDB.
+	// CreateDBPrivTable is the ALLEGROALLEGROSQL memex creates EDB scope privilege causet in system EDB.
 	CreateDBPrivTable = `CREATE TABLE if not exists allegrosql.EDB (
 		Host			CHAR(60),
 		EDB			CHAR(64),
@@ -109,11 +109,11 @@ const (
 		Show_view_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Create_routine_priv	ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Alter_routine_priv	ENUM('N','Y') NOT NULL DEFAULT 'N',
-		Execute_priv		ENUM('N','Y') Not Null DEFAULT 'N',
+		InterDircute_priv		ENUM('N','Y') Not Null DEFAULT 'N',
 		Event_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
 		Trigger_priv		ENUM('N','Y') NOT NULL DEFAULT 'N',
 		PRIMARY KEY (Host, EDB, User));`
-	// CreateTablePrivTable is the ALLEGROALLEGROSQL statement creates block scope privilege block in system EDB.
+	// CreateTablePrivTable is the ALLEGROALLEGROSQL memex creates causet scope privilege causet in system EDB.
 	CreateTablePrivTable = `CREATE TABLE if not exists allegrosql.blocks_priv (
 		Host		CHAR(60),
 		EDB		CHAR(64),
@@ -124,7 +124,7 @@ const (
 		Table_priv	SET('Select','Insert','UFIDelate','Delete','Create','Drop','Grant','Index','Alter','Create View','Show View','Trigger','References'),
 		DeferredCauset_priv	SET('Select','Insert','UFIDelate'),
 		PRIMARY KEY (Host, EDB, User, Table_name));`
-	// CreateDeferredCausetPrivTable is the ALLEGROALLEGROSQL statement creates column scope privilege block in system EDB.
+	// CreateDeferredCausetPrivTable is the ALLEGROALLEGROSQL memex creates column scope privilege causet in system EDB.
 	CreateDeferredCausetPrivTable = `CREATE TABLE if not exists allegrosql.columns_priv(
 		Host		CHAR(60),
 		EDB		CHAR(64),
@@ -134,22 +134,22 @@ const (
 		Timestamp	Timestamp DEFAULT CURRENT_TIMESTAMP,
 		DeferredCauset_priv	SET('Select','Insert','UFIDelate'),
 		PRIMARY KEY (Host, EDB, User, Table_name, DeferredCauset_name));`
-	// CreateGlobalVariablesTable is the ALLEGROALLEGROSQL statement creates global variable block in system EDB.
-	// TODO: MyALLEGROSQL puts GLOBAL_VARIABLES block in INFORMATION_SCHEMA EDB.
-	// INFORMATION_SCHEMA is a virtual EDB in MilevaDB. So we put this block in system EDB.
+	// CreateGlobalVariablesTable is the ALLEGROALLEGROSQL memex creates global variable causet in system EDB.
+	// TODO: MyALLEGROSQL puts GLOBAL_VARIABLES causet in INFORMATION_SCHEMA EDB.
+	// INFORMATION_SCHEMA is a virtual EDB in MilevaDB. So we put this causet in system EDB.
 	// Maybe we will put it back to INFORMATION_SCHEMA.
 	CreateGlobalVariablesTable = `CREATE TABLE if not exists allegrosql.GLOBAL_VARIABLES(
 		VARIABLE_NAME  VARCHAR(64) Not Null PRIMARY KEY,
 		VARIABLE_VALUE VARCHAR(1024) DEFAULT Null);`
-	// CreateMilevaDBTable is the ALLEGROALLEGROSQL statement creates a block in system EDB.
-	// This block is a key-value struct contains some information used by MilevaDB.
+	// CreateMilevaDBTable is the ALLEGROALLEGROSQL memex creates a causet in system EDB.
+	// This causet is a key-value struct contains some information used by MilevaDB.
 	// Currently we only put bootstrapped in it which indicates if the system is already bootstrapped.
 	CreateMilevaDBTable = `CREATE TABLE if not exists allegrosql.milevadb(
 		VARIABLE_NAME  VARCHAR(64) Not Null PRIMARY KEY,
 		VARIABLE_VALUE VARCHAR(1024) DEFAULT Null,
 		COMMENT VARCHAR(1024));`
 
-	// CreateHelpTopic is the ALLEGROALLEGROSQL statement creates help_topic block in system EDB.
+	// CreateHelpTopic is the ALLEGROALLEGROSQL memex creates help_topic causet in system EDB.
 	// See: https://dev.allegrosql.com/doc/refman/5.5/en/system-database.html#system-database-help-blocks
 	CreateHelpTopic = `CREATE TABLE if not exists allegrosql.help_topic (
   		help_topic_id int(10) unsigned NOT NULL,
@@ -162,8 +162,8 @@ const (
   		UNIQUE KEY name (name)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT='help topics';`
 
-	// CreateStatsMetaTable stores the meta of block statistics.
-	CreateStatsMetaTable = `CREATE TABLE if not exists allegrosql.stats_meta (
+	// CreateStatsMetaTable stores the spacetime of causet statistics.
+	CreateStatsMetaTable = `CREATE TABLE if not exists allegrosql.stats_spacetime (
 		version bigint(64) unsigned NOT NULL,
 		block_id bigint(64) NOT NULL,
 		modify_count bigint(64) NOT NULL DEFAULT 0,
@@ -172,7 +172,7 @@ const (
 		unique index tbl(block_id)
 	);`
 
-	// CreateStatsDefCaussTable stores the statistics of block columns.
+	// CreateStatsDefCaussTable stores the statistics of causet columns.
 	CreateStatsDefCaussTable = `CREATE TABLE if not exists allegrosql.stats_histograms (
 		block_id bigint(64) NOT NULL,
 		is_index tinyint(2) NOT NULL,
@@ -190,7 +190,7 @@ const (
 		unique index tbl(block_id, is_index, hist_id)
 	);`
 
-	// CreateStatsBucketsTable stores the histogram info for every block columns.
+	// CreateStatsBucketsTable stores the histogram info for every causet columns.
 	CreateStatsBucketsTable = `CREATE TABLE if not exists allegrosql.stats_buckets (
 		block_id bigint(64) NOT NULL,
 		is_index tinyint(2) NOT NULL,
@@ -276,7 +276,7 @@ const (
 		index tbl(block_id, is_index, hist_id)
 	);`
 
-	// CreateExprPushdownBlacklist stores the expressions which are not allowed to be pushed down.
+	// CreateExprPushdownBlacklist stores the memexs which are not allowed to be pushed down.
 	CreateExprPushdownBlacklist = `CREATE TABLE IF NOT EXISTS allegrosql.expr_pushdown_blacklist (
 		name char(100) NOT NULL,
 		store_type char(100) NOT NULL DEFAULT 'einsteindb,tiflash,milevadb',
@@ -327,7 +327,7 @@ func bootstrap(s Stochastik) {
 			logutil.BgLogger().Fatal("check bootstrap error",
 				zap.Error(err))
 		}
-		// For rolling upgrade, we can't do upgrade only in the owner.
+		// For rolling upgrade, we can't do upgrade only in the tenant.
 		if b {
 			upgrade(s)
 			logutil.BgLogger().Info("upgrade successful in bootstrap",
@@ -335,8 +335,8 @@ func bootstrap(s Stochastik) {
 			return
 		}
 		// To reduce conflict when multiple MilevaDB-server start at the same time.
-		// Actually only one server need to do the bootstrap. So we chose DBS owner to do this.
-		if dom.DBS().OwnerManager().IsOwner() {
+		// Actually only one server need to do the bootstrap. So we chose DBS tenant to do this.
+		if dom.DBS().TenantManager().IsTenant() {
 			doDBSWorks(s)
 			doDMLWorks(s)
 			logutil.BgLogger().Info("bootstrap successful",
@@ -348,21 +348,21 @@ func bootstrap(s Stochastik) {
 }
 
 const (
-	// varTrue is the true value in allegrosql.MilevaDB block for boolean columns.
+	// varTrue is the true value in allegrosql.MilevaDB causet for boolean columns.
 	varTrue = "True"
-	// varFalse is the false value in allegrosql.MilevaDB block for boolean columns.
+	// varFalse is the false value in allegrosql.MilevaDB causet for boolean columns.
 	varFalse = "False"
-	// The variable name in allegrosql.MilevaDB block.
+	// The variable name in allegrosql.MilevaDB causet.
 	// It is used for checking if the causetstore is bootstrapped by any MilevaDB server.
 	// If the value is `True`, the causetstore is already bootstrapped by a MilevaDB server.
 	bootstrappedVar = "bootstrapped"
-	// The variable name in allegrosql.MilevaDB block.
+	// The variable name in allegrosql.MilevaDB causet.
 	// It is used for getting the version of the MilevaDB server which bootstrapped the causetstore.
 	milevadbServerVersionVar = "milevadb_server_version"
-	// The variable name in allegrosql.milevadb block and it will be used when we want to know
+	// The variable name in allegrosql.milevadb causet and it will be used when we want to know
 	// system timezone.
 	milevadbSystemTZ = "system_tz"
-	// The variable name in allegrosql.milevadb block and it will indicate if the new collations are enabled in the MilevaDB cluster.
+	// The variable name in allegrosql.milevadb causet and it will indicate if the new collations are enabled in the MilevaDB cluster.
 	milevadbNewDefCauslationEnabled = "new_collation_enabled"
 	// Const for MilevaDB server version 2.
 	version2  = 2
@@ -409,11 +409,11 @@ const (
 	version41 = 41
 	// version42 add storeType and reason column in expr_pushdown_blacklist
 	version42 = 42
-	// version43 uFIDelates global variables related to statement summary.
+	// version43 uFIDelates global variables related to memex summary.
 	version43 = 43
 	// version44 delete milevadb_isolation_read_engines from allegrosql.global_variables to avoid unexpected behavior after upgrade.
 	version44 = 44
-	// version45 introduces CONFIG_PRIV for SET CONFIG statements.
+	// version45 introduces CONFIG_PRIV for SET CONFIG memexs.
 	version45 = 45
 	// version46 fix a bug in v3.1.1.
 	version46 = 46
@@ -421,9 +421,9 @@ const (
 	version47 = 47
 	// version48 reset all deprecated concurrency related system-variables if they were all default value.
 	version48 = 48
-	// version49 introduces allegrosql.stats_extended block.
+	// version49 introduces allegrosql.stats_extended causet.
 	version49 = 49
-	// version50 add allegrosql.schema_index_usage block.
+	// version50 add allegrosql.schema_index_usage causet.
 	version50 = 50
 	// version51 introduces CreateTablespacePriv to allegrosql.user.
 	version51 = 51
@@ -486,12 +486,12 @@ var (
 
 func checkBootstrapped(s Stochastik) (bool, error) {
 	//  Check if system EDB exists.
-	_, err := s.Execute(context.Background(), fmt.Sprintf("USE %s;", allegrosql.SystemDB))
+	_, err := s.InterDircute(context.Background(), fmt.Sprintf("USE %s;", allegrosql.SystemDB))
 	if err != nil && schemareplicant.ErrDatabaseNotExists.NotEqual(err) {
 		logutil.BgLogger().Fatal("check bootstrap error",
 			zap.Error(err))
 	}
-	// Check bootstrapped variable value in MilevaDB block.
+	// Check bootstrapped variable value in MilevaDB causet.
 	sVal, _, err := getMilevaDBVar(s, bootstrappedVar)
 	if err != nil {
 		if schemareplicant.ErrTableNotExists.Equal(err) {
@@ -509,13 +509,13 @@ func checkBootstrapped(s Stochastik) (bool, error) {
 	return isBootstrapped, nil
 }
 
-// getMilevaDBVar gets variable value from allegrosql.milevadb block.
+// getMilevaDBVar gets variable value from allegrosql.milevadb causet.
 // Those variables are used by MilevaDB server.
 func getMilevaDBVar(s Stochastik, name string) (sVal string, isNull bool, e error) {
 	allegrosql := fmt.Sprintf(`SELECT HIGH_PRIORITY VARIABLE_VALUE FROM %s.%s WHERE VARIABLE_NAME="%s"`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, name)
 	ctx := context.Background()
-	rs, err := s.Execute(ctx, allegrosql)
+	rs, err := s.InterDircute(ctx, allegrosql)
 	if err != nil {
 		return "", true, errors.Trace(err)
 	}
@@ -537,7 +537,7 @@ func getMilevaDBVar(s Stochastik, name string) (sVal string, isNull bool, e erro
 }
 
 // upgrade function  will do some upgrade works, when the system is bootstrapped by low version MilevaDB server
-// For example, add new system variables into allegrosql.global_variables block.
+// For example, add new system variables into allegrosql.global_variables causet.
 func upgrade(s Stochastik) {
 	ver, err := getBootstrapVersion(s)
 	terror.MustNil(err)
@@ -551,7 +551,7 @@ func upgrade(s Stochastik) {
 	}
 
 	uFIDelateBootstrapVer(s)
-	_, err = s.Execute(context.Background(), "COMMIT")
+	_, err = s.InterDircute(context.Background(), "COMMIT")
 
 	if err != nil {
 		sleepTime := 1 * time.Second
@@ -589,7 +589,7 @@ func upgradeToVer2(s Stochastik, ver int64) {
 	}
 	allegrosql := fmt.Sprintf("INSERT HIGH_PRIORITY IGNORE INTO %s.%s VALUES %s;", allegrosql.SystemDB, allegrosql.GlobalVariablesTable,
 		strings.Join(values, ", "))
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 // upgradeToVer3 uFIDelates to version 3.
@@ -600,7 +600,7 @@ func upgradeToVer3(s Stochastik, ver int64) {
 	// Version 3 fix tx_read_only variable value.
 	allegrosql := fmt.Sprintf("UFIDelATE HIGH_PRIORITY %s.%s set variable_value = '0' where variable_name = 'tx_read_only';",
 		allegrosql.SystemDB, allegrosql.GlobalVariablesTable)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 // upgradeToVer4 uFIDelates to version 4.
@@ -609,15 +609,15 @@ func upgradeToVer4(s Stochastik, ver int64) {
 		return
 	}
 	allegrosql := CreateStatsMetaTable
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 func upgradeToVer5(s Stochastik, ver int64) {
 	if ver >= version5 {
 		return
 	}
-	mustExecute(s, CreateStatsDefCaussTable)
-	mustExecute(s, CreateStatsBucketsTable)
+	mustInterDircute(s, CreateStatsDefCaussTable)
+	mustInterDircute(s, CreateStatsBucketsTable)
 }
 
 func upgradeToVer6(s Stochastik, ver int64) {
@@ -626,7 +626,7 @@ func upgradeToVer6(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Super_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Show_db_priv`", schemareplicant.ErrDeferredCausetExists)
 	// For reasons of compatibility, set the non-exists privilege column value to 'Y', as MilevaDB doesn't check them in older versions.
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Super_priv='Y'")
 }
 
 func upgradeToVer7(s Stochastik, ver int64) {
@@ -635,7 +635,7 @@ func upgradeToVer7(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Process_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Drop_priv`", schemareplicant.ErrDeferredCausetExists)
 	// For reasons of compatibility, set the non-exists privilege column value to 'Y', as MilevaDB doesn't check them in older versions.
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Process_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Process_priv='Y'")
 }
 
 func upgradeToVer8(s Stochastik, ver int64) {
@@ -643,7 +643,7 @@ func upgradeToVer8(s Stochastik, ver int64) {
 		return
 	}
 	// This is a dummy upgrade, it checks whether upgradeToVer7 success, if not, do it again.
-	if _, err := s.Execute(context.Background(), "SELECT HIGH_PRIORITY `Process_priv` from allegrosql.user limit 0"); err == nil {
+	if _, err := s.InterDircute(context.Background(), "SELECT HIGH_PRIORITY `Process_priv` from allegrosql.user limit 0"); err == nil {
 		return
 	}
 	upgradeToVer7(s, ver)
@@ -655,11 +655,11 @@ func upgradeToVer9(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Trigger_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_user_priv`", schemareplicant.ErrDeferredCausetExists)
 	// For reasons of compatibility, set the non-exists privilege column value to 'Y', as MilevaDB doesn't check them in older versions.
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Trigger_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Trigger_priv='Y'")
 }
 
 func doReentrantDBS(s Stochastik, allegrosql string, ignorableErrs ...error) {
-	_, err := s.Execute(context.Background(), allegrosql)
+	_, err := s.InterDircute(context.Background(), allegrosql)
 	for _, ignorableErr := range ignorableErrs {
 		if terror.ErrorEqual(err, ignorableErr) {
 			return
@@ -685,14 +685,14 @@ func upgradeToVer11(s Stochastik, ver int64) {
 	if ver >= version11 {
 		return
 	}
-	_, err := s.Execute(context.Background(), "ALTER TABLE allegrosql.user ADD COLUMN `References_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Grant_priv`")
+	_, err := s.InterDircute(context.Background(), "ALTER TABLE allegrosql.user ADD COLUMN `References_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Grant_priv`")
 	if err != nil {
 		if terror.ErrorEqual(err, schemareplicant.ErrDeferredCausetExists) {
 			return
 		}
 		logutil.BgLogger().Fatal("upgradeToVer11 error", zap.Error(err))
 	}
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET References_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET References_priv='Y'")
 }
 
 func upgradeToVer12(s Stochastik, ver int64) {
@@ -700,13 +700,13 @@ func upgradeToVer12(s Stochastik, ver int64) {
 		return
 	}
 	ctx := context.Background()
-	_, err := s.Execute(ctx, "BEGIN")
+	_, err := s.InterDircute(ctx, "BEGIN")
 	terror.MustNil(err)
 	allegrosql := "SELECT HIGH_PRIORITY user, host, password FROM allegrosql.user WHERE password != ''"
-	rs, err := s.Execute(ctx, allegrosql)
+	rs, err := s.InterDircute(ctx, allegrosql)
 	if terror.ErrorEqual(err, core.ErrUnknownDeferredCauset) {
 		allegrosql := "SELECT HIGH_PRIORITY user, host, authentication_string FROM allegrosql.user WHERE authentication_string != ''"
-		rs, err = s.Execute(ctx, allegrosql)
+		rs, err = s.InterDircute(ctx, allegrosql)
 	}
 	terror.MustNil(err)
 	r := rs[0]
@@ -731,14 +731,14 @@ func upgradeToVer12(s Stochastik, ver int64) {
 	terror.MustNil(err)
 
 	for _, allegrosql := range sqls {
-		mustExecute(s, allegrosql)
+		mustInterDircute(s, allegrosql)
 	}
 
 	allegrosql = fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES ("%s", "%d", "MilevaDB bootstrap version.") ON DUPLICATE KEY UFIDelATE VARIABLE_VALUE="%d"`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, milevadbServerVersionVar, version12, version12)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 
-	mustExecute(s, "COMMIT")
+	mustInterDircute(s, "COMMIT")
 }
 
 func upgradeToVer13(s Stochastik, ver int64) {
@@ -748,7 +748,7 @@ func upgradeToVer13(s Stochastik, ver int64) {
 	sqls := []string{
 		"ALTER TABLE allegrosql.user ADD COLUMN `Create_tmp_block_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Super_priv`",
 		"ALTER TABLE allegrosql.user ADD COLUMN `Lock_blocks_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_tmp_block_priv`",
-		"ALTER TABLE allegrosql.user ADD COLUMN `Create_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Execute_priv`",
+		"ALTER TABLE allegrosql.user ADD COLUMN `Create_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `InterDircute_priv`",
 		"ALTER TABLE allegrosql.user ADD COLUMN `Show_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_view_priv`",
 		"ALTER TABLE allegrosql.user ADD COLUMN `Create_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Show_view_priv`",
 		"ALTER TABLE allegrosql.user ADD COLUMN `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_routine_priv`",
@@ -756,7 +756,7 @@ func upgradeToVer13(s Stochastik, ver int64) {
 	}
 	ctx := context.Background()
 	for _, allegrosql := range sqls {
-		_, err := s.Execute(ctx, allegrosql)
+		_, err := s.InterDircute(ctx, allegrosql)
 		if err != nil {
 			if terror.ErrorEqual(err, schemareplicant.ErrDeferredCausetExists) {
 				continue
@@ -764,8 +764,8 @@ func upgradeToVer13(s Stochastik, ver int64) {
 			logutil.BgLogger().Fatal("upgradeToVer13 error", zap.Error(err))
 		}
 	}
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_tmp_block_priv='Y',Lock_blocks_priv='Y',Create_routine_priv='Y',Alter_routine_priv='Y',Event_priv='Y' WHERE Super_priv='Y'")
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_view_priv='Y',Show_view_priv='Y' WHERE Create_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_tmp_block_priv='Y',Lock_blocks_priv='Y',Create_routine_priv='Y',Alter_routine_priv='Y',Event_priv='Y' WHERE Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_view_priv='Y',Show_view_priv='Y' WHERE Create_priv='Y'")
 }
 
 func upgradeToVer14(s Stochastik, ver int64) {
@@ -780,12 +780,12 @@ func upgradeToVer14(s Stochastik, ver int64) {
 		"ALTER TABLE allegrosql.EDB ADD COLUMN `Show_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_view_priv`",
 		"ALTER TABLE allegrosql.EDB ADD COLUMN `Create_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Show_view_priv`",
 		"ALTER TABLE allegrosql.EDB ADD COLUMN `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Create_routine_priv`",
-		"ALTER TABLE allegrosql.EDB ADD COLUMN `Event_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Execute_priv`",
+		"ALTER TABLE allegrosql.EDB ADD COLUMN `Event_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `InterDircute_priv`",
 		"ALTER TABLE allegrosql.EDB ADD COLUMN `Trigger_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N' AFTER `Event_priv`",
 	}
 	ctx := context.Background()
 	for _, allegrosql := range sqls {
-		_, err := s.Execute(ctx, allegrosql)
+		_, err := s.InterDircute(ctx, allegrosql)
 		if err != nil {
 			if terror.ErrorEqual(err, schemareplicant.ErrDeferredCausetExists) {
 				continue
@@ -800,7 +800,7 @@ func upgradeToVer15(s Stochastik, ver int64) {
 		return
 	}
 	var err error
-	_, err = s.Execute(context.Background(), CreateGCDeleteRangeTable)
+	_, err = s.InterDircute(context.Background(), CreateGCDeleteRangeTable)
 	if err != nil {
 		logutil.BgLogger().Fatal("upgradeToVer15 error", zap.Error(err))
 	}
@@ -847,7 +847,7 @@ func upgradeToVer21(s Stochastik, ver int64) {
 	if ver >= version21 {
 		return
 	}
-	mustExecute(s, CreateGCDeleteRangeDoneTable)
+	mustInterDircute(s, CreateGCDeleteRangeDoneTable)
 
 	doReentrantDBS(s, "ALTER TABLE allegrosql.gc_delete_range DROP INDEX job_id", dbs.ErrCantDropFieldOrKey)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.gc_delete_range ADD UNIQUE INDEX delete_range_index (job_id, element_id)", dbs.ErrDupKeyName)
@@ -872,7 +872,7 @@ func upgradeToVer23(s Stochastik, ver int64) {
 func writeSystemTZ(s Stochastik) {
 	allegrosql := fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES ("%s", "%s", "MilevaDB Global System Timezone.") ON DUPLICATE KEY UFIDelATE VARIABLE_VALUE="%s"`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, milevadbSystemTZ, timeutil.InferSystemTZ(), timeutil.InferSystemTZ())
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 // upgradeToVer24 initializes `System` timezone according to docs/design/2020-09-10-adding-tz-env.md
@@ -890,22 +890,22 @@ func upgradeToVer25(s Stochastik, ver int64) {
 	}
 	allegrosql := fmt.Sprintf("UFIDelATE HIGH_PRIORITY %[1]s.%[2]s SET VARIABLE_VALUE = '%[4]d' WHERE VARIABLE_NAME = '%[3]s' AND VARIABLE_VALUE < %[4]d",
 		allegrosql.SystemDB, allegrosql.GlobalVariablesTable, variable.MilevaDBMaxChunkSize, variable.DefInitChunkSize)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 func upgradeToVer26(s Stochastik, ver int64) {
 	if ver >= version26 {
 		return
 	}
-	mustExecute(s, CreateRoleEdgesTable)
-	mustExecute(s, CreateDefaultRolesTable)
+	mustInterDircute(s, CreateRoleEdgesTable)
+	mustInterDircute(s, CreateDefaultRolesTable)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Create_role_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Drop_role_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Account_locked` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	// user with Create_user_Priv privilege should have Create_view_priv and Show_view_priv after upgrade to v3.0
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_role_priv='Y',Drop_role_priv='Y' WHERE Create_user_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_role_priv='Y',Drop_role_priv='Y' WHERE Create_user_priv='Y'")
 	// user with Create_Priv privilege should have Create_view_priv and Show_view_priv after upgrade to v3.0
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_view_priv='Y',Show_view_priv='Y' WHERE Create_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_view_priv='Y',Show_view_priv='Y' WHERE Create_priv='Y'")
 }
 
 func upgradeToVer27(s Stochastik, ver int64) {
@@ -936,7 +936,7 @@ func upgradeToVer30(s Stochastik, ver int64) {
 	if ver >= version30 {
 		return
 	}
-	mustExecute(s, CreateStatsTopNTable)
+	mustInterDircute(s, CreateStatsTopNTable)
 }
 
 func upgradeToVer31(s Stochastik, ver int64) {
@@ -973,7 +973,7 @@ func upgradeToVer35(s Stochastik, ver int64) {
 	}
 	allegrosql := fmt.Sprintf("UFIDelATE HIGH_PRIORITY %s.%s SET VARIABLE_NAME = '%s' WHERE VARIABLE_NAME = 'milevadb_back_off_weight'",
 		allegrosql.SystemDB, allegrosql.GlobalVariablesTable, variable.MilevaDBBackOffWeight)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 func upgradeToVer36(s Stochastik, ver int64) {
@@ -982,8 +982,8 @@ func upgradeToVer36(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Shutdown_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	// A root user will have those privileges after upgrading.
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Shutdown_priv='Y' where Super_priv='Y'")
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_tmp_block_priv='Y',Lock_blocks_priv='Y',Create_routine_priv='Y',Alter_routine_priv='Y',Event_priv='Y' WHERE Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Shutdown_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_tmp_block_priv='Y',Lock_blocks_priv='Y',Create_routine_priv='Y',Alter_routine_priv='Y',Event_priv='Y' WHERE Super_priv='Y'")
 }
 
 func upgradeToVer37(s Stochastik, ver int64) {
@@ -993,7 +993,7 @@ func upgradeToVer37(s Stochastik, ver int64) {
 	// when upgrade from old milevadb and no 'milevadb_enable_window_function' in GLOBAL_VARIABLES, init it with 0.
 	allegrosql := fmt.Sprintf("INSERT IGNORE INTO  %s.%s (`VARIABLE_NAME`, `VARIABLE_VALUE`) VALUES ('%s', '%d')",
 		allegrosql.SystemDB, allegrosql.GlobalVariablesTable, variable.MilevaDBEnableWindowFunction, 0)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 func upgradeToVer38(s Stochastik, ver int64) {
@@ -1001,7 +1001,7 @@ func upgradeToVer38(s Stochastik, ver int64) {
 		return
 	}
 	var err error
-	_, err = s.Execute(context.Background(), CreateGlobalPrivTable)
+	_, err = s.InterDircute(context.Background(), CreateGlobalPrivTable)
 	if err != nil {
 		logutil.BgLogger().Fatal("upgradeToVer38 error", zap.Error(err))
 	}
@@ -1013,8 +1013,8 @@ func upgradeToVer39(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Reload_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `File_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Reload_priv='Y' where Super_priv='Y'")
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET File_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Reload_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET File_priv='Y' where Super_priv='Y'")
 }
 
 func writeNewDefCauslationParameter(s Stochastik, flag bool) {
@@ -1025,7 +1025,7 @@ func writeNewDefCauslationParameter(s Stochastik, flag bool) {
 	}
 	allegrosql := fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES ("%s", '%s', '%s') ON DUPLICATE KEY UFIDelATE VARIABLE_VALUE='%s'`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, milevadbNewDefCauslationEnabled, b, comment, b)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
 func upgradeToVer40(s Stochastik, ver int64) {
@@ -1046,7 +1046,7 @@ func upgradeToVer41(s Stochastik, ver int64) {
 
 // writeDefaultExprPushDownBlacklist writes default expr pushdown blacklist into allegrosql.expr_pushdown_blacklist
 func writeDefaultExprPushDownBlacklist(s Stochastik) {
-	mustExecute(s, "INSERT HIGH_PRIORITY INTO allegrosql.expr_pushdown_blacklist VALUES"+
+	mustInterDircute(s, "INSERT HIGH_PRIORITY INTO allegrosql.expr_pushdown_blacklist VALUES"+
 		"('date_add','tiflash', 'DST(daylight saving time) does not take effect in TiFlash date_add'),"+
 		"('cast','tiflash', 'Behavior of some corner cases(overflow, truncate etc) is different in TiFlash and MilevaDB')")
 }
@@ -1060,16 +1060,16 @@ func upgradeToVer42(s Stochastik, ver int64) {
 	writeDefaultExprPushDownBlacklist(s)
 }
 
-// Convert statement summary global variables to non-empty values.
+// Convert memex summary global variables to non-empty values.
 func writeStmtSummaryVars(s Stochastik) {
 	allegrosql := fmt.Sprintf("UFIDelATE %s.%s SET variable_value='%%s' WHERE variable_name='%%s' AND variable_value=''", allegrosql.SystemDB, allegrosql.GlobalVariablesTable)
 	stmtSummaryConfig := config.GetGlobalConfig().StmtSummary
-	mustExecute(s, fmt.Sprintf(allegrosql, variable.BoolToIntStr(stmtSummaryConfig.Enable), variable.MilevaDBEnableStmtSummary))
-	mustExecute(s, fmt.Sprintf(allegrosql, variable.BoolToIntStr(stmtSummaryConfig.EnableInternalQuery), variable.MilevaDBStmtSummaryInternalQuery))
-	mustExecute(s, fmt.Sprintf(allegrosql, strconv.Itoa(stmtSummaryConfig.RefreshInterval), variable.MilevaDBStmtSummaryRefreshInterval))
-	mustExecute(s, fmt.Sprintf(allegrosql, strconv.Itoa(stmtSummaryConfig.HistorySize), variable.MilevaDBStmtSummaryHistorySize))
-	mustExecute(s, fmt.Sprintf(allegrosql, strconv.FormatUint(uint64(stmtSummaryConfig.MaxStmtCount), 10), variable.MilevaDBStmtSummaryMaxStmtCount))
-	mustExecute(s, fmt.Sprintf(allegrosql, strconv.FormatUint(uint64(stmtSummaryConfig.MaxALLEGROSQLLength), 10), variable.MilevaDBStmtSummaryMaxALLEGROSQLLength))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, variable.BoolToIntStr(stmtSummaryConfig.Enable), variable.MilevaDBEnableStmtSummary))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, variable.BoolToIntStr(stmtSummaryConfig.EnableInternalQuery), variable.MilevaDBStmtSummaryInternalQuery))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, strconv.Itoa(stmtSummaryConfig.RefreshInterval), variable.MilevaDBStmtSummaryRefreshInterval))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, strconv.Itoa(stmtSummaryConfig.HistorySize), variable.MilevaDBStmtSummaryHistorySize))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, strconv.FormatUint(uint64(stmtSummaryConfig.MaxStmtCount), 10), variable.MilevaDBStmtSummaryMaxStmtCount))
+	mustInterDircute(s, fmt.Sprintf(allegrosql, strconv.FormatUint(uint64(stmtSummaryConfig.MaxALLEGROSQLLength), 10), variable.MilevaDBStmtSummaryMaxALLEGROSQLLength))
 }
 
 func upgradeToVer43(s Stochastik, ver int64) {
@@ -1083,7 +1083,7 @@ func upgradeToVer44(s Stochastik, ver int64) {
 	if ver >= version44 {
 		return
 	}
-	mustExecute(s, "DELETE FROM allegrosql.global_variables where variable_name = \"milevadb_isolation_read_engines\"")
+	mustInterDircute(s, "DELETE FROM allegrosql.global_variables where variable_name = \"milevadb_isolation_read_engines\"")
 }
 
 func upgradeToVer45(s Stochastik, ver int64) {
@@ -1091,7 +1091,7 @@ func upgradeToVer45(s Stochastik, ver int64) {
 		return
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Config_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Config_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Config_priv='Y' where Super_priv='Y'")
 }
 
 // In v3.1.1, we wrongly replace the context of upgradeToVer39 with upgradeToVer44. If we upgrade from v3.1.1 to a newer version,
@@ -1102,8 +1102,8 @@ func upgradeToVer46(s Stochastik, ver int64) {
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Reload_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `File_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Reload_priv='Y' where Super_priv='Y'")
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET File_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Reload_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET File_priv='Y' where Super_priv='Y'")
 }
 
 func upgradeToVer47(s Stochastik, ver int64) {
@@ -1133,7 +1133,7 @@ func upgradeToVer48(s Stochastik, ver int64) {
 
 	selectALLEGROSQL := "select HIGH_PRIORITY * from allegrosql.global_variables where variable_name in ('" + strings.Join(names, quoteCommaQuote) + "')"
 	ctx := context.Background()
-	rs, err := s.Execute(ctx, selectALLEGROSQL)
+	rs, err := s.InterDircute(ctx, selectALLEGROSQL)
 	terror.MustNil(err)
 	r := rs[0]
 	defer terror.Call(r.Close)
@@ -1152,13 +1152,13 @@ func upgradeToVer48(s Stochastik, ver int64) {
 	}
 	terror.MustNil(err)
 
-	mustExecute(s, "BEGIN")
+	mustInterDircute(s, "BEGIN")
 	v := strconv.Itoa(variable.ConcurrencyUnset)
 	allegrosql := fmt.Sprintf("UFIDelATE %s.%s SET variable_value='%%s' WHERE variable_name='%%s'", allegrosql.SystemDB, allegrosql.GlobalVariablesTable)
 	for _, name := range names {
-		mustExecute(s, fmt.Sprintf(allegrosql, v, name))
+		mustInterDircute(s, fmt.Sprintf(allegrosql, v, name))
 	}
-	mustExecute(s, "COMMIT")
+	mustInterDircute(s, "COMMIT")
 }
 
 func upgradeToVer49(s Stochastik, ver int64) {
@@ -1180,18 +1180,18 @@ func upgradeToVer51(s Stochastik, ver int64) {
 		return
 	}
 	doReentrantDBS(s, "ALTER TABLE allegrosql.user ADD COLUMN `Create_blockspace_priv` ENUM('N','Y') DEFAULT 'N'", schemareplicant.ErrDeferredCausetExists)
-	mustExecute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_blockspace_priv='Y' where Super_priv='Y'")
+	mustInterDircute(s, "UFIDelATE HIGH_PRIORITY allegrosql.user SET Create_blockspace_priv='Y' where Super_priv='Y'")
 }
 
-// uFIDelateBootstrapVer uFIDelates bootstrap version variable in allegrosql.MilevaDB block.
+// uFIDelateBootstrapVer uFIDelates bootstrap version variable in allegrosql.MilevaDB causet.
 func uFIDelateBootstrapVer(s Stochastik) {
 	// UFIDelate bootstrap version.
 	allegrosql := fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES ("%s", "%d", "MilevaDB bootstrap version.") ON DUPLICATE KEY UFIDelATE VARIABLE_VALUE="%d"`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, milevadbServerVersionVar, currentBootstrapVersion, currentBootstrapVersion)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 }
 
-// getBootstrapVersion gets bootstrap version from allegrosql.milevadb block;
+// getBootstrapVersion gets bootstrap version from allegrosql.milevadb causet;
 func getBootstrapVersion(s Stochastik) (int64, error) {
 	sVal, isNull, err := getMilevaDBVar(s, milevadbServerVersionVar)
 	if err != nil {
@@ -1203,65 +1203,65 @@ func getBootstrapVersion(s Stochastik) (int64, error) {
 	return strconv.ParseInt(sVal, 10, 64)
 }
 
-// doDBSWorks executes DBS statements in bootstrap stage.
+// doDBSWorks executes DBS memexs in bootstrap stage.
 func doDBSWorks(s Stochastik) {
 	// Create a test database.
-	mustExecute(s, "CREATE DATABASE IF NOT EXISTS test")
+	mustInterDircute(s, "CREATE DATABASE IF NOT EXISTS test")
 	// Create system EDB.
-	mustExecute(s, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s;", allegrosql.SystemDB))
-	// Create user block.
-	mustExecute(s, CreateUserTable)
+	mustInterDircute(s, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s;", allegrosql.SystemDB))
+	// Create user causet.
+	mustInterDircute(s, CreateUserTable)
 	// Create privilege blocks.
-	mustExecute(s, CreateGlobalPrivTable)
-	mustExecute(s, CreateDBPrivTable)
-	mustExecute(s, CreateTablePrivTable)
-	mustExecute(s, CreateDeferredCausetPrivTable)
-	// Create global system variable block.
-	mustExecute(s, CreateGlobalVariablesTable)
-	// Create MilevaDB block.
-	mustExecute(s, CreateMilevaDBTable)
-	// Create help block.
-	mustExecute(s, CreateHelpTopic)
-	// Create stats_meta block.
-	mustExecute(s, CreateStatsMetaTable)
-	// Create stats_columns block.
-	mustExecute(s, CreateStatsDefCaussTable)
-	// Create stats_buckets block.
-	mustExecute(s, CreateStatsBucketsTable)
-	// Create gc_delete_range block.
-	mustExecute(s, CreateGCDeleteRangeTable)
-	// Create gc_delete_range_done block.
-	mustExecute(s, CreateGCDeleteRangeDoneTable)
-	// Create stats_feedback block.
-	mustExecute(s, CreateStatsFeedbackTable)
-	// Create role_edges block.
-	mustExecute(s, CreateRoleEdgesTable)
-	// Create default_roles block.
-	mustExecute(s, CreateDefaultRolesTable)
-	// Create bind_info block.
-	mustExecute(s, CreateBindInfoTable)
-	// Create stats_topn_store block.
-	mustExecute(s, CreateStatsTopNTable)
-	// Create expr_pushdown_blacklist block.
-	mustExecute(s, CreateExprPushdownBlacklist)
-	// Create opt_rule_blacklist block.
-	mustExecute(s, CreateOptMemruleBlacklist)
-	// Create stats_extended block.
-	mustExecute(s, CreateStatsExtended)
+	mustInterDircute(s, CreateGlobalPrivTable)
+	mustInterDircute(s, CreateDBPrivTable)
+	mustInterDircute(s, CreateTablePrivTable)
+	mustInterDircute(s, CreateDeferredCausetPrivTable)
+	// Create global system variable causet.
+	mustInterDircute(s, CreateGlobalVariablesTable)
+	// Create MilevaDB causet.
+	mustInterDircute(s, CreateMilevaDBTable)
+	// Create help causet.
+	mustInterDircute(s, CreateHelpTopic)
+	// Create stats_spacetime causet.
+	mustInterDircute(s, CreateStatsMetaTable)
+	// Create stats_columns causet.
+	mustInterDircute(s, CreateStatsDefCaussTable)
+	// Create stats_buckets causet.
+	mustInterDircute(s, CreateStatsBucketsTable)
+	// Create gc_delete_range causet.
+	mustInterDircute(s, CreateGCDeleteRangeTable)
+	// Create gc_delete_range_done causet.
+	mustInterDircute(s, CreateGCDeleteRangeDoneTable)
+	// Create stats_feedback causet.
+	mustInterDircute(s, CreateStatsFeedbackTable)
+	// Create role_edges causet.
+	mustInterDircute(s, CreateRoleEdgesTable)
+	// Create default_roles causet.
+	mustInterDircute(s, CreateDefaultRolesTable)
+	// Create bind_info causet.
+	mustInterDircute(s, CreateBindInfoTable)
+	// Create stats_topn_store causet.
+	mustInterDircute(s, CreateStatsTopNTable)
+	// Create expr_pushdown_blacklist causet.
+	mustInterDircute(s, CreateExprPushdownBlacklist)
+	// Create opt_rule_blacklist causet.
+	mustInterDircute(s, CreateOptMemruleBlacklist)
+	// Create stats_extended causet.
+	mustInterDircute(s, CreateStatsExtended)
 	// Create schema_index_usage.
-	mustExecute(s, CreateSchemaIndexUsageTable)
+	mustInterDircute(s, CreateSchemaIndexUsageTable)
 }
 
-// doDMLWorks executes DML statements in bootstrap stage.
-// All the statements run in a single transaction.
+// doDMLWorks executes DML memexs in bootstrap stage.
+// All the memexs run in a single transaction.
 func doDMLWorks(s Stochastik) {
-	mustExecute(s, "BEGIN")
+	mustInterDircute(s, "BEGIN")
 
 	// Insert a default user with empty password.
-	mustExecute(s, `INSERT HIGH_PRIORITY INTO allegrosql.user VALUES
+	mustInterDircute(s, `INSERT HIGH_PRIORITY INTO allegrosql.user VALUES
 		("%", "root", "", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "N", "Y", "Y", "Y", "Y", "Y")`)
 
-	// Init global system variables block.
+	// Init global system variables causet.
 	values := make([]string, 0, len(variable.SysVars))
 	for k, v := range variable.SysVars {
 		// Stochastik only variable should not be inserted.
@@ -1289,16 +1289,16 @@ func doDMLWorks(s Stochastik) {
 	}
 	allegrosql := fmt.Sprintf("INSERT HIGH_PRIORITY INTO %s.%s VALUES %s;", allegrosql.SystemDB, allegrosql.GlobalVariablesTable,
 		strings.Join(values, ", "))
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 
 	allegrosql = fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES("%s", "%s", "Bootstrap flag. Do not delete.")
 		ON DUPLICATE KEY UFIDelATE VARIABLE_VALUE="%s"`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, bootstrappedVar, varTrue, varTrue)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 
 	allegrosql = fmt.Sprintf(`INSERT HIGH_PRIORITY INTO %s.%s VALUES("%s", "%d", "Bootstrap version. Do not delete.")`,
 		allegrosql.SystemDB, allegrosql.MilevaDBTable, milevadbServerVersionVar, currentBootstrapVersion)
-	mustExecute(s, allegrosql)
+	mustInterDircute(s, allegrosql)
 
 	writeSystemTZ(s)
 
@@ -1308,7 +1308,7 @@ func doDMLWorks(s Stochastik) {
 
 	writeStmtSummaryVars(s)
 
-	_, err := s.Execute(context.Background(), "COMMIT")
+	_, err := s.InterDircute(context.Background(), "COMMIT")
 	if err != nil {
 		sleepTime := 1 * time.Second
 		logutil.BgLogger().Info("doDMLWorks failed", zap.Error(err), zap.Duration("sleeping time", sleepTime))
@@ -1325,11 +1325,11 @@ func doDMLWorks(s Stochastik) {
 	}
 }
 
-func mustExecute(s Stochastik, allegrosql string) {
-	_, err := s.Execute(context.Background(), allegrosql)
+func mustInterDircute(s Stochastik, allegrosql string) {
+	_, err := s.InterDircute(context.Background(), allegrosql)
 	if err != nil {
 		debug.PrintStack()
-		logutil.BgLogger().Fatal("mustExecute error", zap.Error(err))
+		logutil.BgLogger().Fatal("mustInterDircute error", zap.Error(err))
 	}
 }
 

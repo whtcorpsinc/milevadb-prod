@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package block
+package causet
 
 import (
 	"context"
@@ -63,11 +63,11 @@ func WithCtx(ctx context.Context) CreateIdxOptFunc {
 type Index interface {
 	// Meta returns IndexInfo.
 	Meta() *perceptron.IndexInfo
-	// Create supports insert into statement.
+	// Create supports insert into memex.
 	Create(ctx stochastikctx.Context, us ekv.UnionStore, indexedValues []types.Causet, h ekv.Handle, opts ...CreateIdxOptFunc) (ekv.Handle, error)
-	// Delete supports delete from statement.
+	// Delete supports delete from memex.
 	Delete(sc *stmtctx.StatementContext, m ekv.Mutator, indexedValues []types.Causet, h ekv.Handle) error
-	// Drop supports drop block, drop index statements.
+	// Drop supports drop causet, drop index memexs.
 	Drop(us ekv.UnionStore) error
 	// Exist supports check index exists or not.
 	Exist(sc *stmtctx.StatementContext, us ekv.UnionStore, indexedValues []types.Causet, h ekv.Handle) (bool, ekv.Handle, error)

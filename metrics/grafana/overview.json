@@ -36,7 +36,7 @@
     },
     {
       "type": "panel",
-      "id": "block",
+      "id": "causet",
       "name": "Block",
       "version": ""
     }
@@ -247,7 +247,7 @@
           "timeFrom": "1s",
           "title": "",
           "transform": "timeseries_aggregations",
-          "type": "block"
+          "type": "causet"
         },
         {
           "columns": [
@@ -425,7 +425,7 @@
           "timeFrom": "1s",
           "title": "",
           "transform": "timeseries_aggregations",
-          "type": "block"
+          "type": "causet"
         }
       ],
       "repeat": null,
@@ -958,7 +958,7 @@
           "timeFrom": "1s",
           "title": "Abnormal stores",
           "transform": "timeseries_aggregations",
-          "type": "block"
+          "type": "causet"
         },
         {
           "aliasDefCausors": {},
@@ -1681,7 +1681,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_executor_statement_total[1m])) by (type)",
+              "expr": "sum(rate(milevadb_interlock_memex_total[1m])) by (type)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",
@@ -4052,7 +4052,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(einsteindb_coprocessor_executor_count[1m])) by (type)",
+              "expr": "sum(rate(einsteindb_coprocessor_interlock_count[1m])) by (type)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",
@@ -4065,7 +4065,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "interlock executor count",
+          "title": "interlock interlock count",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -4486,7 +4486,7 @@
           "targets": [
             {
               "expr": "count(node_cpu_seconds_total{mode=\"user\"}) by (instance)",
-              "format": "block",
+              "format": "causet",
               "instant": true,
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -4496,8 +4496,8 @@
           ],
           "timeFrom": null,
           "title": "Vcores",
-          "transform": "block",
-          "type": "block"
+          "transform": "causet",
+          "type": "causet"
         },
         {
           "columns": [],
@@ -4598,7 +4598,7 @@
           "targets": [
             {
               "expr": "node_memory_MemTotal_bytes",
-              "format": "block",
+              "format": "causet",
               "instant": true,
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -4608,8 +4608,8 @@
           ],
           "timeFrom": "1s",
           "title": "Memory",
-          "transform": "block",
-          "type": "block"
+          "transform": "causet",
+          "type": "causet"
         },
         {
           "aliasDefCausors": {},

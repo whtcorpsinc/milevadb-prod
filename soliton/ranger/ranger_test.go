@@ -22,9 +22,9 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -80,9 +80,9 @@ func (s *testRangerSuite) TestBlockRange(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int unsigned)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int unsigned)")
 
 	tests := []struct {
 		exprStr     string
@@ -304,24 +304,24 @@ func (s *testRangerSuite) TestBlockRange(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		conds := make([]expression.Expression, len(selection.Conditions))
+		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
-			conds[i] = expression.PushDownNot(sctx, cond)
+			conds[i] = memex.PushDownNot(sctx, cond)
 		}
-		tbl := selection.Children()[0].(*plannercore.DataSource).BlockInfo()
-		defCaus := expression.DefCausInfo2DefCaus(selection.Schema().DeferredCausets, tbl.DeferredCausets[0])
+		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
+		defCaus := memex.DefCausInfo2DefCaus(selection.Schema().DeferredCausets, tbl.DeferredCausets[0])
 		c.Assert(defCaus, NotNil)
-		var filter []expression.Expression
+		var filter []memex.Expression
 		conds, filter = ranger.DetachCondsForDeferredCauset(sctx, conds, defCaus)
 		c.Assert(fmt.Sprintf("%s", conds), Equals, tt.accessConds, Commentf("wrong access conditions for expr: %s", tt.exprStr))
 		c.Assert(fmt.Sprintf("%s", filter), Equals, tt.filterConds, Commentf("wrong filter conditions for expr: %s", tt.exprStr))
 		result, err := ranger.BuildBlockRange(conds, new(stmtctx.StatementContext), defCaus.RetType)
-		c.Assert(err, IsNil, Commentf("failed to build block range for expr %s", tt.exprStr))
+		c.Assert(err, IsNil, Commentf("failed to build causet range for expr %s", tt.exprStr))
 		got := fmt.Sprintf("%v", result)
 		c.Assert(got, Equals, tt.resultStr, Commentf("different for expr %s", tt.exprStr))
 	}
@@ -336,10 +336,10 @@ func (s *testRangerSuite) TestIndexRange(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec(`
-create block t(
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc(`
+create causet t(
 	a varchar(50),
 	b int,
 	c double,
@@ -631,18 +631,18 @@ create block t(
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		tbl := selection.Children()[0].(*plannercore.DataSource).BlockInfo()
+		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
 		c.Assert(selection, NotNil, Commentf("expr:%v", tt.exprStr))
-		conds := make([]expression.Expression, len(selection.Conditions))
+		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
-			conds[i] = expression.PushDownNot(sctx, cond)
+			conds[i] = memex.PushDownNot(sctx, cond)
 		}
-		defcaus, lengths := expression.IndexInfo2PrefixDefCauss(tbl.DeferredCausets, selection.Schema().DeferredCausets, tbl.Indices[tt.indexPos])
+		defcaus, lengths := memex.IndexInfo2PrefixDefCauss(tbl.DeferredCausets, selection.Schema().DeferredCausets, tbl.Indices[tt.indexPos])
 		c.Assert(defcaus, NotNil)
 		res, err := ranger.DetachCondAndBuildRangeForIndex(sctx, conds, defcaus, lengths)
 		c.Assert(err, IsNil)
@@ -663,9 +663,9 @@ func (s *testRangerSuite) TestIndexRangeForUnsignedInt(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t (a smallint(5) unsigned,key (a) )")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t (a smallint(5) unsigned,key (a) )")
 
 	tests := []struct {
 		indexPos    int
@@ -752,18 +752,18 @@ func (s *testRangerSuite) TestIndexRangeForUnsignedInt(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		tbl := selection.Children()[0].(*plannercore.DataSource).BlockInfo()
+		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
 		c.Assert(selection, NotNil, Commentf("expr:%v", tt.exprStr))
-		conds := make([]expression.Expression, len(selection.Conditions))
+		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
-			conds[i] = expression.PushDownNot(sctx, cond)
+			conds[i] = memex.PushDownNot(sctx, cond)
 		}
-		defcaus, lengths := expression.IndexInfo2PrefixDefCauss(tbl.DeferredCausets, selection.Schema().DeferredCausets, tbl.Indices[tt.indexPos])
+		defcaus, lengths := memex.IndexInfo2PrefixDefCauss(tbl.DeferredCausets, selection.Schema().DeferredCausets, tbl.Indices[tt.indexPos])
 		c.Assert(defcaus, NotNil)
 		res, err := ranger.DetachCondAndBuildRangeForIndex(sctx, conds, defcaus, lengths)
 		c.Assert(err, IsNil)
@@ -783,9 +783,9 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b double, c float(3, 2), d varchar(3), e bigint unsigned)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b double, c float(3, 2), d varchar(3), e bigint unsigned)")
 
 	tests := []struct {
 		defCausPos      int
@@ -1100,18 +1100,18 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		sel := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		ds, ok := sel.Children()[0].(*plannercore.DataSource)
+		sel := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		ds, ok := sel.Children()[0].(*causetcore.DataSource)
 		c.Assert(ok, IsTrue, Commentf("expr:%v", tt.exprStr))
-		conds := make([]expression.Expression, len(sel.Conditions))
+		conds := make([]memex.Expression, len(sel.Conditions))
 		for i, cond := range sel.Conditions {
-			conds[i] = expression.PushDownNot(sctx, cond)
+			conds[i] = memex.PushDownNot(sctx, cond)
 		}
-		defCaus := expression.DefCausInfo2DefCaus(sel.Schema().DeferredCausets, ds.BlockInfo().DeferredCausets[tt.defCausPos])
+		defCaus := memex.DefCausInfo2DefCaus(sel.Schema().DeferredCausets, ds.BlockInfo().DeferredCausets[tt.defCausPos])
 		c.Assert(defCaus, NotNil)
 		conds = ranger.ExtractAccessConditionsForDeferredCauset(conds, defCaus.UniqueID)
 		c.Assert(fmt.Sprintf("%s", conds), Equals, tt.accessConds, Commentf("wrong access conditions for expr: %s", tt.exprStr))
@@ -1131,18 +1131,18 @@ func (s *testRangerSuite) TestIndexRangeElimininatedProjection(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("set @@milevadb_enable_clustered_index=0")
-	testKit.MustExec("create block t(a int not null, b int not null, primary key(a,b))")
-	testKit.MustExec("insert into t values(1,2)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("set @@milevadb_enable_clustered_index=0")
+	testKit.MustInterDirc("create causet t(a int not null, b int not null, primary key(a,b))")
+	testKit.MustInterDirc("insert into t values(1,2)")
+	testKit.MustInterDirc("analyze causet t")
 	testKit.MustQuery("explain select * from (select * from t union all select ifnull(a,b), b from t) sub where a > 0").Check(testkit.Rows(
 		"Union_11 2.00 root  ",
 		"├─IndexReader_14 1.00 root  index:IndexRangeScan_13",
-		"│ └─IndexRangeScan_13 1.00 cop[einsteindb] block:t, index:PRIMARY(a, b) range:(0,+inf], keep order:false",
+		"│ └─IndexRangeScan_13 1.00 cop[einsteindb] causet:t, index:PRIMARY(a, b) range:(0,+inf], keep order:false",
 		"└─IndexReader_17 1.00 root  index:IndexRangeScan_16",
-		"  └─IndexRangeScan_16 1.00 cop[einsteindb] block:t, index:PRIMARY(a, b) range:(0,+inf], keep order:false",
+		"  └─IndexRangeScan_16 1.00 cop[einsteindb] causet:t, index:PRIMARY(a, b) range:(0,+inf], keep order:false",
 	))
 	testKit.MustQuery("select * from (select * from t union all select ifnull(a,b), b from t) sub where a > 0").Check(testkit.Rows(
 		"1 2",
@@ -1159,11 +1159,11 @@ func (s *testRangerSuite) TestCompIndexInExprCorrDefCaus(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int primary key, b int, c int, d int, e int, index idx(b,c,d))")
-	testKit.MustExec("insert into t values(1,1,1,1,2),(2,1,2,1,0)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int primary key, b int, c int, d int, e int, index idx(b,c,d))")
+	testKit.MustInterDirc("insert into t values(1,1,1,1,2),(2,1,2,1,0)")
+	testKit.MustInterDirc("analyze causet t")
 
 	var input []string
 	var output []struct {
@@ -1189,12 +1189,12 @@ func (s *testRangerSuite) TestIndexStringIsTrueRange(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t0")
-	testKit.MustExec("CREATE TABLE t0(c0 TEXT(10));")
-	testKit.MustExec("INSERT INTO t0(c0) VALUES (1);")
-	testKit.MustExec("CREATE INDEX i0 ON t0(c0(10));")
-	testKit.MustExec("analyze block t0;")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t0")
+	testKit.MustInterDirc("CREATE TABLE t0(c0 TEXT(10));")
+	testKit.MustInterDirc("INSERT INTO t0(c0) VALUES (1);")
+	testKit.MustInterDirc("CREATE INDEX i0 ON t0(c0(10));")
+	testKit.MustInterDirc("analyze causet t0;")
 
 	var input []string
 	var output []struct {
@@ -1220,25 +1220,25 @@ func (s *testRangerSuite) TestCompIndexDNFMatch(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, key(a,b,c));")
-	testKit.MustExec("insert into t values(1,2,2)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, key(a,b,c));")
+	testKit.MustInterDirc("insert into t values(1,2,2)")
 
 	var input []string
 	var output []struct {
 		ALLEGROALLEGROSQL    string
-		Plan   []string
+		Causet   []string
 		Result []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
 		s.testData.OnRecord(func() {
 			output[i].ALLEGROALLEGROSQL = tt
-			output[i].Plan = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
+			output[i].Causet = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
 			output[i].Result = s.testData.ConvertRowsToStrings(testKit.MustQuery(tt).Rows())
 		})
-		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Plan...))
+		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Causet...))
 		testKit.MustQuery(tt).Check(testkit.Rows(output[i].Result...))
 	}
 }
@@ -1252,26 +1252,26 @@ func (s *testRangerSuite) TestCompIndexMultiDefCausDNF1(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, primary key(a,b));")
-	testKit.MustExec("insert into t values(1,1,1),(2,2,3)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, primary key(a,b));")
+	testKit.MustInterDirc("insert into t values(1,1,1),(2,2,3)")
+	testKit.MustInterDirc("analyze causet t")
 
 	var input []string
 	var output []struct {
 		ALLEGROALLEGROSQL    string
-		Plan   []string
+		Causet   []string
 		Result []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
 		s.testData.OnRecord(func() {
 			output[i].ALLEGROALLEGROSQL = tt
-			output[i].Plan = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
+			output[i].Causet = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
 			output[i].Result = s.testData.ConvertRowsToStrings(testKit.MustQuery(tt).Rows())
 		})
-		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Plan...))
+		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Causet...))
 		testKit.MustQuery(tt).Check(testkit.Rows(output[i].Result...))
 	}
 }
@@ -1285,26 +1285,26 @@ func (s *testRangerSuite) TestCompIndexMultiDefCausDNF2(c *C) {
 	}()
 	c.Assert(err, IsNil)
 	testKit := testkit.NewTestKit(c, causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, primary key(a,b,c));")
-	testKit.MustExec("insert into t values(1,1,1),(2,2,3)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, primary key(a,b,c));")
+	testKit.MustInterDirc("insert into t values(1,1,1),(2,2,3)")
+	testKit.MustInterDirc("analyze causet t")
 
 	var input []string
 	var output []struct {
 		ALLEGROALLEGROSQL    string
-		Plan   []string
+		Causet   []string
 		Result []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
 		s.testData.OnRecord(func() {
 			output[i].ALLEGROALLEGROSQL = tt
-			output[i].Plan = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
+			output[i].Causet = s.testData.ConvertRowsToStrings(testKit.MustQuery("explain " + tt).Rows())
 			output[i].Result = s.testData.ConvertRowsToStrings(testKit.MustQuery(tt).Rows())
 		})
-		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Plan...))
+		testKit.MustQuery("explain " + tt).Check(testkit.Rows(output[i].Causet...))
 		testKit.MustQuery(tt).Check(testkit.Rows(output[i].Result...))
 	}
 }

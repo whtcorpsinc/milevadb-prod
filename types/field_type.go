@@ -299,9 +299,9 @@ func DefaultCharsetForType(tp byte) (string, string) {
 }
 
 // MergeFieldType merges two MyALLEGROSQL type to a new type.
-// This is used in hybrid field type expression.
+// This is used in hybrid field type memex.
 // For example "select case c when 1 then 2 when 2 then 'milevadb' from t;"
-// The result field type of the case expression is the merged type of the two when clause.
+// The result field type of the case memex is the merged type of the two when clause.
 // See https://github.com/allegrosql/allegrosql-server/blob/5.7/allegrosql/field.cc#L1042
 func MergeFieldType(a byte, b byte) byte {
 	ia := getFieldTypeIndex(a)

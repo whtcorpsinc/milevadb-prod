@@ -67,14 +67,14 @@ func (s *testBlockSuite) TearDownSuite(c *C) {
 }
 
 func (s *testBlockSuite) TestPredefinedBlocks(c *C) {
-	c.Assert(perfschema.IsPredefinedBlock("EVENTS_statements_summary_by_digest"), IsTrue)
-	c.Assert(perfschema.IsPredefinedBlock("statements"), IsFalse)
+	c.Assert(perfschema.IsPredefinedBlock("EVENTS_memexs_summary_by_digest"), IsTrue)
+	c.Assert(perfschema.IsPredefinedBlock("memexs"), IsFalse)
 }
 
 func (s *testBlockSuite) TestPerfSchemaBlocks(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("use performance_schema")
+	tk.MustInterDirc("use performance_schema")
 	tk.MustQuery("select * from global_status where variable_name = 'Ssl_verify_mode'").Check(testkit.Events())
 	tk.MustQuery("select * from stochastik_status where variable_name = 'Ssl_verify_mode'").Check(testkit.Events())
 	tk.MustQuery("select * from setup_actors").Check(testkit.Events())
@@ -119,7 +119,7 @@ func (s *testBlockSuite) TestEinsteinDBProfileCPU(c *C) {
 
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("use performance_schema")
+	tk.MustInterDirc("use performance_schema")
 	result := tk.MustQuery("select function, percent_abs, percent_rel from einsteindb_profile_cpu where depth < 3")
 
 	warnings := tk.Se.GetStochastikVars().StmtCtx.GetWarnings()
@@ -180,7 +180,7 @@ func (s *testBlockSuite) TestEinsteinDBProfileCPU(c *C) {
 	router.HandleFunc("/fidel/api/v1/debug/pprof/heap", handlerFactory("heap"))
 	router.HandleFunc("/fidel/api/v1/debug/pprof/mutex", handlerFactory("mutex"))
 	router.HandleFunc("/fidel/api/v1/debug/pprof/allocs", handlerFactory("allocs"))
-	router.HandleFunc("/fidel/api/v1/debug/pprof/block", handlerFactory("block"))
+	router.HandleFunc("/fidel/api/v1/debug/pprof/causet", handlerFactory("causet"))
 	router.HandleFunc("/fidel/api/v1/debug/pprof/goroutine", handlerFactory("goroutine", 2))
 
 	tk.MustQuery("select * from FIDel_profile_cpu where depth < 3")

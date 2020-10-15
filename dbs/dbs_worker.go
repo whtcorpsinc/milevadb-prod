@@ -27,7 +27,7 @@ import (
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
@@ -60,7 +60,7 @@ func SetWaitTimeWhenErrorOccurred(dur time.Duration) {
 type workerType byte
 
 const (
-	// generalWorker is the worker who handles all DBS statements except “add index”.
+	// generalWorker is the worker who handles all DBS memexs except “add index”.
 	generalWorker workerType = 0
 	// addIdxWorker is the worker who handles the operation of adding indexes.
 	addIdxWorker workerType = 1
@@ -123,7 +123,7 @@ func (w *worker) close() {
 	logutil.Logger(w.logCtx).Info("[dbs] DBS worker closed", zap.Duration("take time", time.Since(startTime)))
 }
 
-// start is used for async online schemaReplicant changing, it will try to become the owner firstly,
+// start is used for async online schemaReplicant changing, it will try to become the tenant firstly,
 // then wait or pull the job queue to handle a schemaReplicant change job.
 func (w *worker) start(d *dbsCtx) {
 	logutil.Logger(w.logCtx).Info("[dbs] start DBS worker")
@@ -134,7 +134,7 @@ func (w *worker) start(d *dbsCtx) {
 		nil, true,
 	)
 
-	// We use 4 * lease time to check owner's timeout, so here, we will uFIDelate owner's status
+	// We use 4 * lease time to check tenant's timeout, so here, we will uFIDelate tenant's status
 	// every 2 * lease time. If lease is 0, we will use default 1s.
 	// But we use etcd to speed up, normally it takes less than 1s now, so we use 1s as the max value.
 	checkTime := chooseLeaseTime(2*d.lease, 1*time.Second)
@@ -167,16 +167,16 @@ func asyncNotify(ch chan struct{}) {
 
 // buildJobDependence sets the curjob's dependency-ID.
 // The dependency-job's ID must less than the current job's ID, and we need the largest one in the list.
-func buildJobDependence(t *meta.Meta, curJob *perceptron.Job) error {
+func buildJobDependence(t *spacetime.Meta, curJob *perceptron.Job) error {
 	// Jobs in the same queue are ordered. If we want to find a job's dependency-job, we need to look for
 	// it from the other queue. So if the job is "CausetActionAddIndex" job, we need find its dependency-job from DefaultJobList.
 	var jobs []*perceptron.Job
 	var err error
 	switch curJob.Type {
 	case perceptron.CausetActionAddIndex, perceptron.CausetActionAddPrimaryKey:
-		jobs, err = t.GetAllDBSJobsInQueue(meta.DefaultJobListKey)
+		jobs, err = t.GetAllDBSJobsInQueue(spacetime.DefaultJobListKey)
 	default:
-		jobs, err = t.GetAllDBSJobsInQueue(meta.AddIndexJobListKey)
+		jobs, err = t.GetAllDBSJobsInQueue(spacetime.AddIndexJobListKey)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -224,7 +224,7 @@ func (d *dbs) limitDBSJobs() {
 func (d *dbs) addBatchDBSJobs(tasks []*limitJobTask) {
 	startTime := time.Now()
 	err := ekv.RunInNewTxn(d.causetstore, true, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		ids, err := t.GenGlobalIDs(len(tasks))
 		if err != nil {
 			return errors.Trace(err)
@@ -239,7 +239,7 @@ func (d *dbs) addBatchDBSJobs(tasks []*limitJobTask) {
 			}
 
 			if job.Type == perceptron.CausetActionAddIndex || job.Type == perceptron.CausetActionAddPrimaryKey {
-				jobKey := meta.AddIndexJobListKey
+				jobKey := spacetime.AddIndexJobListKey
 				err = t.EnQueueDBSJob(job, jobKey)
 			} else {
 				err = t.EnQueueDBSJob(job)
@@ -265,7 +265,7 @@ func (d *dbs) getHistoryDBSJob(id int64) (*perceptron.Job, error) {
 	var job *perceptron.Job
 
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err1 error
 		job, err1 = t.GetHistoryDBSJob(id)
 		return errors.Trace(err1)
@@ -275,13 +275,13 @@ func (d *dbs) getHistoryDBSJob(id int64) (*perceptron.Job, error) {
 }
 
 // getFirstDBSJob gets the first DBS job form DBS queue.
-func (w *worker) getFirstDBSJob(t *meta.Meta) (*perceptron.Job, error) {
+func (w *worker) getFirstDBSJob(t *spacetime.Meta) (*perceptron.Job, error) {
 	job, err := t.GetDBSJobByIdx(0)
 	return job, errors.Trace(err)
 }
 
 // handleUFIDelateJobError handles the too large DBS job.
-func (w *worker) handleUFIDelateJobError(t *meta.Meta, job *perceptron.Job, err error) error {
+func (w *worker) handleUFIDelateJobError(t *spacetime.Meta, job *perceptron.Job, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -300,7 +300,7 @@ func (w *worker) handleUFIDelateJobError(t *meta.Meta, job *perceptron.Job, err 
 
 // uFIDelateDBSJob uFIDelates the DBS job information.
 // Every time we enter another state except final state, we must call this function.
-func (w *worker) uFIDelateDBSJob(t *meta.Meta, job *perceptron.Job, meetErr bool) error {
+func (w *worker) uFIDelateDBSJob(t *spacetime.Meta, job *perceptron.Job, meetErr bool) error {
 	failpoint.Inject("mockErrEntrySizeTooLarge", func(val failpoint.Value) {
 		if val.(bool) {
 			failpoint.Return(ekv.ErrEntryTooLarge)
@@ -329,7 +329,7 @@ func (w *worker) deleteRange(job *perceptron.Job) error {
 
 // finishDBSJob deletes the finished DBS job in the dbs queue and puts it to history queue.
 // If the DBS job need to handle in background, it will prepare a background job.
-func (w *worker) finishDBSJob(t *meta.Meta, job *perceptron.Job) (err error) {
+func (w *worker) finishDBSJob(t *spacetime.Meta, job *perceptron.Job) (err error) {
 	startTime := time.Now()
 	defer func() {
 		metrics.DBSWorkerHistogram.WithLabelValues(metrics.WorkerFinishDBSJob, job.Type.String(), metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
@@ -374,7 +374,7 @@ func (w *worker) finishDBSJob(t *meta.Meta, job *perceptron.Job) (err error) {
 	return errors.Trace(err)
 }
 
-func finishRecoverBlock(w *worker, t *meta.Meta, job *perceptron.Job) error {
+func finishRecoverBlock(w *worker, t *spacetime.Meta, job *perceptron.Job) error {
 	tbInfo := &perceptron.BlockInfo{}
 	var autoIncID, autoRandID, dropJobID, recoverBlockCheckFlag int64
 	var snapshotTS uint64
@@ -391,7 +391,7 @@ func finishRecoverBlock(w *worker, t *meta.Meta, job *perceptron.Job) error {
 	return nil
 }
 
-func isDependencyJobDone(t *meta.Meta, job *perceptron.Job) (bool, error) {
+func isDependencyJobDone(t *spacetime.Meta, job *perceptron.Job) (bool, error) {
 	if job.DependencyID == noneDependencyJob {
 		return true, nil
 	}
@@ -408,11 +408,11 @@ func isDependencyJobDone(t *meta.Meta, job *perceptron.Job) (bool, error) {
 	return true, nil
 }
 
-func newMetaWithQueueTp(txn ekv.Transaction, tp string) *meta.Meta {
+func newMetaWithQueueTp(txn ekv.Transaction, tp string) *spacetime.Meta {
 	if tp == perceptron.AddIndexStr || tp == perceptron.AddPrimaryKeyStr {
-		return meta.NewMeta(txn, meta.AddIndexJobListKey)
+		return spacetime.NewMeta(txn, spacetime.AddIndexJobListKey)
 	}
-	return meta.NewMeta(txn)
+	return spacetime.NewMeta(txn)
 }
 
 // handleDBSJobQueue handles DBS jobs in DBS Job queue.
@@ -431,14 +431,14 @@ func (w *worker) handleDBSJobQueue(d *dbsCtx) error {
 		)
 		waitTime := 2 * d.lease
 		err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-			// We are not owner, return and retry checking later.
-			if !d.isOwner() {
+			// We are not tenant, return and retry checking later.
+			if !d.isTenant() {
 				return nil
 			}
 
 			var err error
 			t := newMetaWithQueueTp(txn, w.typeStr())
-			// We become the owner. Get the first job and run it.
+			// We become the tenant. Get the first job and run it.
 			job, err = w.getFirstDBSJob(t)
 			if job == nil || err != nil {
 				return errors.Trace(err)
@@ -476,7 +476,7 @@ func (w *worker) handleDBSJobQueue(d *dbsCtx) error {
 			if runJobErr != nil && !job.IsRollingback() && !job.IsRollbackDone() {
 				// If the running job meets an error
 				// and the job state is rolling back, it means that we have already handled this error.
-				// Some DBS jobs (such as adding indexes) may need to uFIDelate the block info and the schemaReplicant version,
+				// Some DBS jobs (such as adding indexes) may need to uFIDelate the causet info and the schemaReplicant version,
 				// then shouldn't discard the KV modification.
 				// And the job state is rollback done, it means the job was already finished, also shouldn't discard too.
 				// Otherwise, we should discard the KV modification when running job.
@@ -529,10 +529,10 @@ func (w *worker) handleDBSJobQueue(d *dbsCtx) error {
 func skipWriteBinlog(job *perceptron.Job) bool {
 	switch job.Type {
 	// CausetActionUFIDelateTiFlashReplicaStatus is a MilevaDB internal DBS,
-	// it's used to uFIDelate block's TiFlash replica available status.
+	// it's used to uFIDelate causet's TiFlash replica available status.
 	case perceptron.CausetActionUFIDelateTiFlashReplicaStatus:
 		return true
-	// It is done without modifying block info, bin log is not needed
+	// It is done without modifying causet info, bin log is not needed
 	case perceptron.CausetActionAlterBlockAlterPartition:
 		return true
 	}
@@ -579,7 +579,7 @@ func chooseLeaseTime(t, max time.Duration) time.Duration {
 }
 
 // runDBSJob runs a DBS job. It returns the current schemaReplicant version in this transaction and the error.
-func (w *worker) runDBSJob(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func (w *worker) runDBSJob(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	defer milevadbutil.Recover(metrics.LabelDBSWorker, fmt.Sprintf("%s runDBSJob", w),
 		func() {
 			// If run DBS job panic, just cancel the DBS jobs.
@@ -759,7 +759,7 @@ func (w *worker) waitSchemaChanged(ctx context.Context, d *dbsCtx, waitTime time
 		return
 	}
 
-	err = d.schemaSyncer.OwnerUFIDelateGlobalVersion(ctx, latestSchemaVersion)
+	err = d.schemaSyncer.TenantUFIDelateGlobalVersion(ctx, latestSchemaVersion)
 	if err != nil {
 		logutil.Logger(w.logCtx).Info("[dbs] uFIDelate latest schemaReplicant version failed", zap.Int64("ver", latestSchemaVersion), zap.Error(err))
 		if terror.ErrorEqual(err, context.DeadlineExceeded) {
@@ -769,8 +769,8 @@ func (w *worker) waitSchemaChanged(ctx context.Context, d *dbsCtx, waitTime time
 		}
 	}
 
-	// OwnerCheckAllVersions returns only when context is timeout(2 * lease) or all MilevaDB schemas are synced.
-	err = d.schemaSyncer.OwnerCheckAllVersions(ctx, latestSchemaVersion)
+	// TenantCheckAllVersions returns only when context is timeout(2 * lease) or all MilevaDB schemas are synced.
+	err = d.schemaSyncer.TenantCheckAllVersions(ctx, latestSchemaVersion)
 	if err != nil {
 		logutil.Logger(w.logCtx).Info("[dbs] wait latest schemaReplicant version to deadline", zap.Int64("ver", latestSchemaVersion), zap.Error(err))
 		if terror.ErrorEqual(err, context.DeadlineExceeded) {
@@ -811,7 +811,7 @@ func (w *worker) waitSchemaSynced(d *dbsCtx, job *perceptron.Job, waitTime time.
 }
 
 // uFIDelateSchemaVersion increments the schemaReplicant version by 1 and sets SchemaDiff.
-func uFIDelateSchemaVersion(t *meta.Meta, job *perceptron.Job) (int64, error) {
+func uFIDelateSchemaVersion(t *spacetime.Meta, job *perceptron.Job) (int64, error) {
 	schemaVersion, err := t.GenSchemaVersion()
 	if err != nil {
 		return 0, errors.Trace(err)
@@ -823,7 +823,7 @@ func uFIDelateSchemaVersion(t *meta.Meta, job *perceptron.Job) (int64, error) {
 	}
 	switch job.Type {
 	case perceptron.CausetActionTruncateBlock:
-		// Truncate block has two block ID, should be handled differently.
+		// Truncate causet has two causet ID, should be handled differently.
 		err = job.DecodeArgs(&diff.BlockID)
 		if err != nil {
 			return 0, errors.Trace(err)
@@ -836,8 +836,8 @@ func uFIDelateSchemaVersion(t *meta.Meta, job *perceptron.Job) (int64, error) {
 		if err := job.DecodeArgs(tbInfo, &orReplace, &oldTbInfoID); err != nil {
 			return 0, errors.Trace(err)
 		}
-		// When the statement is "create or replace view " and we need to drop the old view,
-		// it has two block IDs and should be handled differently.
+		// When the memex is "create or replace view " and we need to drop the old view,
+		// it has two causet IDs and should be handled differently.
 		if oldTbInfoID > 0 && orReplace {
 			diff.OldBlockID = oldTbInfoID
 		}

@@ -25,8 +25,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -73,7 +73,7 @@ func TestT(t *testing.T) {
 	batchInsertDeleteRangeSize = 2
 
 	config.UFIDelateGlobal(func(conf *config.Config) {
-		// Test for block lock.
+		// Test for causet dagger.
 		conf.EnableBlockLock = true
 		conf.Log.SlowThreshold = 10000
 		// Test for add/drop primary key.
@@ -115,7 +115,7 @@ func getSchemaVer(c *C, ctx stochastikctx.Context) int64 {
 	c.Assert(err, IsNil)
 	txn, err := ctx.Txn(true)
 	c.Assert(err, IsNil)
-	m := meta.NewMeta(txn)
+	m := spacetime.NewMeta(txn)
 	ver, err := m.GetSchemaVersion()
 	c.Assert(err, IsNil)
 	return ver
@@ -145,7 +145,7 @@ func checkHistoryJob(c *C, job *perceptron.Job) {
 func checkHistoryJobArgs(c *C, ctx stochastikctx.Context, id int64, args *historyJobArgs) {
 	txn, err := ctx.Txn(true)
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	historyJob, err := t.GetHistoryDBSJob(id)
 	c.Assert(err, IsNil)
 	c.Assert(historyJob.BinlogInfo.FinishedTS, Greater, uint64(0))

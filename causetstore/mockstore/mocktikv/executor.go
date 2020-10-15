@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
@@ -35,11 +35,11 @@ import (
 )
 
 var (
-	_ executor = &blockScanExec{}
-	_ executor = &indexScanExec{}
-	_ executor = &selectionExec{}
-	_ executor = &limitExec{}
-	_ executor = &topNExec{}
+	_ interlock = &blockScanInterDirc{}
+	_ interlock = &indexScanInterDirc{}
+	_ interlock = &selectionInterDirc{}
+	_ interlock = &limitInterDirc{}
+	_ interlock = &topNInterDirc{}
 )
 
 type execDetail struct {
@@ -56,20 +56,20 @@ func (e *execDetail) uFIDelate(begin time.Time, event [][]byte) {
 	}
 }
 
-type executor interface {
-	SetSrcExec(executor)
-	GetSrcExec() executor
+type interlock interface {
+	SetSrcInterDirc(interlock)
+	GetSrcInterDirc() interlock
 	ResetCounts()
 	Counts() []int64
 	Next(ctx context.Context) ([][]byte, error)
 	// Cursor returns the key gonna to be scanned by the Next() function.
 	Cursor() (key []byte, desc bool)
-	// ExecDetails returns its and its children's execution details.
-	// The order is same as PosetDagRequest.Executors, which children are in front of parents.
-	ExecDetails() []*execDetail
+	// InterDircDetails returns its and its children's execution details.
+	// The order is same as PosetDagRequest.InterlockingDirectorates, which children are in front of parents.
+	InterDircDetails() []*execDetail
 }
 
-type blockScanExec struct {
+type blockScanInterDirc struct {
 	*fidelpb.TableScan
 	colIDs         map[int64]int
 	kvRanges       []ekv.KeyRange
@@ -82,35 +82,35 @@ type blockScanExec struct {
 	start          int
 	counts         []int64
 	execDetail     *execDetail
-	rd             *rowcodec.BytesDecoder
+	rd             *rowcodec.BytesCausetDecoder
 
-	src executor
+	src interlock
 }
 
-func (e *blockScanExec) ExecDetails() []*execDetail {
+func (e *blockScanInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *blockScanExec) SetSrcExec(exec executor) {
+func (e *blockScanInterDirc) SetSrcInterDirc(exec interlock) {
 	e.src = exec
 }
 
-func (e *blockScanExec) GetSrcExec() executor {
+func (e *blockScanInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *blockScanExec) ResetCounts() {
+func (e *blockScanInterDirc) ResetCounts() {
 	if e.counts != nil {
 		e.start = e.cursor
 		e.counts[e.start] = 0
 	}
 }
 
-func (e *blockScanExec) Counts() []int64 {
+func (e *blockScanInterDirc) Counts() []int64 {
 	if e.counts == nil {
 		return nil
 	}
@@ -120,7 +120,7 @@ func (e *blockScanExec) Counts() []int64 {
 	return e.counts[e.start : e.cursor+1]
 }
 
-func (e *blockScanExec) Cursor() ([]byte, bool) {
+func (e *blockScanInterDirc) Cursor() ([]byte, bool) {
 	if len(e.seekKey) > 0 {
 		return e.seekKey, e.Desc
 	}
@@ -143,7 +143,7 @@ func (e *blockScanExec) Cursor() ([]byte, bool) {
 	return e.kvRanges[len(e.kvRanges)-1].EndKey, e.Desc
 }
 
-func (e *blockScanExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *blockScanInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -181,7 +181,7 @@ func (e *blockScanExec) Next(ctx context.Context) (value [][]byte, err error) {
 	return nil, nil
 }
 
-func (e *blockScanExec) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
+func (e *blockScanInterDirc) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
 	val, err := e.mvccStore.Get(ran.StartKey, e.startTS, e.isolationLevel, e.resolvedLocks)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -200,7 +200,7 @@ func (e *blockScanExec) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
 	return event, nil
 }
 
-func (e *blockScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
+func (e *blockScanInterDirc) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 	if e.seekKey == nil {
 		if e.Desc {
 			e.seekKey = ran.EndKey
@@ -219,7 +219,7 @@ func (e *blockScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 		pair = pairs[0]
 	}
 	if pair.Err != nil {
-		// TODO: Handle lock error.
+		// TODO: Handle dagger error.
 		return nil, errors.Trace(pair.Err)
 	}
 	if pair.Key == nil {
@@ -248,7 +248,7 @@ func (e *blockScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 	return event, nil
 }
 
-type indexScanExec struct {
+type indexScanInterDirc struct {
 	*fidelpb.IndexScan
 	defcausLen        int
 	kvRanges       []ekv.KeyRange
@@ -264,33 +264,33 @@ type indexScanExec struct {
 	execDetail     *execDetail
 	colInfos       []rowcodec.DefCausInfo
 
-	src executor
+	src interlock
 }
 
-func (e *indexScanExec) ExecDetails() []*execDetail {
+func (e *indexScanInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *indexScanExec) SetSrcExec(exec executor) {
+func (e *indexScanInterDirc) SetSrcInterDirc(exec interlock) {
 	e.src = exec
 }
 
-func (e *indexScanExec) GetSrcExec() executor {
+func (e *indexScanInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *indexScanExec) ResetCounts() {
+func (e *indexScanInterDirc) ResetCounts() {
 	if e.counts != nil {
 		e.start = e.cursor
 		e.counts[e.start] = 0
 	}
 }
 
-func (e *indexScanExec) Counts() []int64 {
+func (e *indexScanInterDirc) Counts() []int64 {
 	if e.counts == nil {
 		return nil
 	}
@@ -300,11 +300,11 @@ func (e *indexScanExec) Counts() []int64 {
 	return e.counts[e.start : e.cursor+1]
 }
 
-func (e *indexScanExec) isUnique() bool {
+func (e *indexScanInterDirc) isUnique() bool {
 	return e.Unique != nil && *e.Unique
 }
 
-func (e *indexScanExec) Cursor() ([]byte, bool) {
+func (e *indexScanInterDirc) Cursor() ([]byte, bool) {
 	if len(e.seekKey) > 0 {
 		return e.seekKey, e.Desc
 	}
@@ -324,7 +324,7 @@ func (e *indexScanExec) Cursor() ([]byte, bool) {
 	return e.kvRanges[len(e.kvRanges)-1].EndKey, e.Desc
 }
 
-func (e *indexScanExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *indexScanInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -363,7 +363,7 @@ func (e *indexScanExec) Next(ctx context.Context) (value [][]byte, err error) {
 }
 
 // getRowFromPoint is only used for unique key.
-func (e *indexScanExec) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
+func (e *indexScanInterDirc) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
 	val, err := e.mvccStore.Get(ran.StartKey, e.startTS, e.isolationLevel, e.resolvedLocks)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -374,7 +374,7 @@ func (e *indexScanExec) getRowFromPoint(ran ekv.KeyRange) ([][]byte, error) {
 	return blockcodec.DecodeIndexKV(ran.StartKey, val, e.defcausLen, e.hdStatus, e.colInfos)
 }
 
-func (e *indexScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
+func (e *indexScanInterDirc) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 	if e.seekKey == nil {
 		if e.Desc {
 			e.seekKey = ran.EndKey
@@ -393,7 +393,7 @@ func (e *indexScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 		pair = pairs[0]
 	}
 	if pair.Err != nil {
-		// TODO: Handle lock error.
+		// TODO: Handle dagger error.
 		return nil, errors.Trace(pair.Err)
 	}
 	if pair.Key == nil {
@@ -413,41 +413,41 @@ func (e *indexScanExec) getRowFromRange(ran ekv.KeyRange) ([][]byte, error) {
 	return blockcodec.DecodeIndexKV(pair.Key, pair.Value, e.defcausLen, e.hdStatus, e.colInfos)
 }
 
-type selectionExec struct {
-	conditions        []expression.Expression
+type selectionInterDirc struct {
+	conditions        []memex.Expression
 	relatedDefCausOffsets []int
 	event               []types.Causet
 	evalCtx           *evalContext
-	src               executor
+	src               interlock
 	execDetail        *execDetail
 }
 
-func (e *selectionExec) ExecDetails() []*execDetail {
+func (e *selectionInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *selectionExec) SetSrcExec(exec executor) {
+func (e *selectionInterDirc) SetSrcInterDirc(exec interlock) {
 	e.src = exec
 }
 
-func (e *selectionExec) GetSrcExec() executor {
+func (e *selectionInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *selectionExec) ResetCounts() {
+func (e *selectionInterDirc) ResetCounts() {
 	e.src.ResetCounts()
 }
 
-func (e *selectionExec) Counts() []int64 {
+func (e *selectionInterDirc) Counts() []int64 {
 	return e.src.Counts()
 }
 
-// evalBool evaluates expression to a boolean value.
-func evalBool(exprs []expression.Expression, event []types.Causet, ctx *stmtctx.StatementContext) (bool, error) {
+// evalBool evaluates memex to a boolean value.
+func evalBool(exprs []memex.Expression, event []types.Causet, ctx *stmtctx.StatementContext) (bool, error) {
 	for _, expr := range exprs {
 		data, err := expr.Eval(chunk.MutRowFromCausets(event).ToRow())
 		if err != nil {
@@ -458,7 +458,7 @@ func evalBool(exprs []expression.Expression, event []types.Causet, ctx *stmtctx.
 		}
 
 		isBool, err := data.ToBool(ctx)
-		isBool, err = expression.HandleOverflowOnSelection(ctx, isBool, err)
+		isBool, err = memex.HandleOverflowOnSelection(ctx, isBool, err)
 		if err != nil {
 			return false, errors.Trace(err)
 		}
@@ -469,11 +469,11 @@ func evalBool(exprs []expression.Expression, event []types.Causet, ctx *stmtctx.
 	return true, nil
 }
 
-func (e *selectionExec) Cursor() ([]byte, bool) {
+func (e *selectionInterDirc) Cursor() ([]byte, bool) {
 	return e.src.Cursor()
 }
 
-func (e *selectionExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *selectionInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -500,44 +500,44 @@ func (e *selectionExec) Next(ctx context.Context) (value [][]byte, err error) {
 	}
 }
 
-type topNExec struct {
+type topNInterDirc struct {
 	heap              *topNHeap
 	evalCtx           *evalContext
 	relatedDefCausOffsets []int
-	orderByExprs      []expression.Expression
+	orderByExprs      []memex.Expression
 	event               []types.Causet
 	cursor            int
 	executed          bool
 	execDetail        *execDetail
 
-	src executor
+	src interlock
 }
 
-func (e *topNExec) ExecDetails() []*execDetail {
+func (e *topNInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *topNExec) SetSrcExec(src executor) {
+func (e *topNInterDirc) SetSrcInterDirc(src interlock) {
 	e.src = src
 }
 
-func (e *topNExec) GetSrcExec() executor {
+func (e *topNInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *topNExec) ResetCounts() {
+func (e *topNInterDirc) ResetCounts() {
 	e.src.ResetCounts()
 }
 
-func (e *topNExec) Counts() []int64 {
+func (e *topNInterDirc) Counts() []int64 {
 	return e.src.Counts()
 }
 
-func (e *topNExec) innerNext(ctx context.Context) (bool, error) {
+func (e *topNInterDirc) innerNext(ctx context.Context) (bool, error) {
 	value, err := e.src.Next(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
@@ -552,11 +552,11 @@ func (e *topNExec) innerNext(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (e *topNExec) Cursor() ([]byte, bool) {
+func (e *topNInterDirc) Cursor() ([]byte, bool) {
 	panic("don't not use interlock streaming API for topN!")
 }
 
-func (e *topNExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *topNInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -584,7 +584,7 @@ func (e *topNExec) Next(ctx context.Context) (value [][]byte, err error) {
 
 // evalTopN evaluates the top n elements from the data. The input receives a record including its handle and data.
 // And this function will check if this record can replace one of the old records.
-func (e *topNExec) evalTopN(value [][]byte) error {
+func (e *topNInterDirc) evalTopN(value [][]byte) error {
 	newRow := &sortRow{
 		key: make([]types.Causet, len(e.orderByExprs)),
 	}
@@ -605,44 +605,44 @@ func (e *topNExec) evalTopN(value [][]byte) error {
 	return errors.Trace(e.heap.err)
 }
 
-type limitExec struct {
+type limitInterDirc struct {
 	limit  uint64
 	cursor uint64
 
-	src executor
+	src interlock
 
 	execDetail *execDetail
 }
 
-func (e *limitExec) ExecDetails() []*execDetail {
+func (e *limitInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *limitExec) SetSrcExec(src executor) {
+func (e *limitInterDirc) SetSrcInterDirc(src interlock) {
 	e.src = src
 }
 
-func (e *limitExec) GetSrcExec() executor {
+func (e *limitInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *limitExec) ResetCounts() {
+func (e *limitInterDirc) ResetCounts() {
 	e.src.ResetCounts()
 }
 
-func (e *limitExec) Counts() []int64 {
+func (e *limitInterDirc) Counts() []int64 {
 	return e.src.Counts()
 }
 
-func (e *limitExec) Cursor() ([]byte, bool) {
+func (e *limitInterDirc) Cursor() ([]byte, bool) {
 	return e.src.Cursor()
 }
 
-func (e *limitExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *limitInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -670,7 +670,7 @@ func hasDefCausVal(data [][]byte, colIDs map[int64]int, id int64) bool {
 }
 
 // getRowData decodes raw byte slice to event data.
-func getRowData(columns []*fidelpb.DeferredCausetInfo, colIDs map[int64]int, handle int64, value []byte, rd *rowcodec.BytesDecoder) ([][]byte, error) {
+func getRowData(columns []*fidelpb.DeferredCausetInfo, colIDs map[int64]int, handle int64, value []byte, rd *rowcodec.BytesCausetDecoder) ([][]byte, error) {
 	if rowcodec.IsNewFormat(value) {
 		return rd.DecodeToBytes(colIDs, ekv.IntHandle(handle), value, nil)
 	}
@@ -717,10 +717,10 @@ func getRowData(columns []*fidelpb.DeferredCausetInfo, colIDs map[int64]int, han
 	return values, nil
 }
 
-func convertToExprs(sc *stmtctx.StatementContext, fieldTps []*types.FieldType, pbExprs []*fidelpb.Expr) ([]expression.Expression, error) {
-	exprs := make([]expression.Expression, 0, len(pbExprs))
+func convertToExprs(sc *stmtctx.StatementContext, fieldTps []*types.FieldType, pbExprs []*fidelpb.Expr) ([]memex.Expression, error) {
+	exprs := make([]memex.Expression, 0, len(pbExprs))
 	for _, expr := range pbExprs {
-		e, err := expression.PBToExpr(expr, fieldTps, sc)
+		e, err := memex.PBToExpr(expr, fieldTps, sc)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}

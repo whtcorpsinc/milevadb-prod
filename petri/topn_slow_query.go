@@ -209,7 +209,7 @@ type SlowQueryInfo struct {
 	ALLEGROALLEGROSQL        string
 	Start      time.Time
 	Duration   time.Duration
-	Detail     execdetails.ExecDetails
+	Detail     execdetails.InterDircDetails
 	ConnID     uint64
 	TxnTS      uint64
 	User       string

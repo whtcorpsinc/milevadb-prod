@@ -22,11 +22,11 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	math2 "github.com/whtcorpsinc/milevadb/soliton/math"
 )
 
-func onCreateSequence(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onCreateSequence(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	tbInfo := &perceptron.BlockInfo{}
 	if err := job.DecodeArgs(tbInfo); err != nil {
@@ -67,7 +67,7 @@ func onCreateSequence(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, 
 	}
 }
 
-func createSequenceWithCheck(t *meta.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
+func createSequenceWithCheck(t *spacetime.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
 	err := checkBlockInfoValid(tbInfo)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -166,7 +166,7 @@ func buildSequenceInfo(stmt *ast.CreateSequenceStmt, ident ast.Ident) (*perceptr
 		Increment:  perceptron.DefaultSequenceIncrementValue,
 	}
 
-	// Handle block comment options.
+	// Handle causet comment options.
 	for _, op := range stmt.TblOptions {
 		switch op.Tp {
 		case ast.BlockOptionComment:

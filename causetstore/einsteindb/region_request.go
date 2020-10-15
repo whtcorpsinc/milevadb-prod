@@ -150,7 +150,7 @@ func (ss *RegionBatchRequestSender) sendStreamReqToAddr(bo *Backoffer, ctxs []co
 		}
 		return nil, true, func() {}, nil
 	}
-	// We don't need to process region error or lock error. Because TiFlash will retry by itself.
+	// We don't need to process region error or dagger error. Because TiFlash will retry by itself.
 	return
 }
 
@@ -420,7 +420,7 @@ func (s *RegionRequestSender) sendReqToRegion(bo *Backoffer, rpcCtx *RPCContext,
 	}
 	if err != nil {
 		// Because in rpc logic, context.Cancel() will be transferred to rpcContext.Cancel error. For rpcContext cancel,
-		// we need to retry the request. But for context cancel active, for example, limitExec gets the required rows,
+		// we need to retry the request. But for context cancel active, for example, limitInterDirc gets the required rows,
 		// we shouldn't retry the request, it will go to backoff and hang in retry logic.
 		if ctx.Err() != nil && errors.Cause(ctx.Err()) == context.Canceled {
 			return nil, false, errors.Trace(ctx.Err())

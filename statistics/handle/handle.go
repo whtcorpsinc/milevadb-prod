@@ -35,7 +35,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -60,24 +60,24 @@ type Handle struct {
 		ctx stochastikctx.Context
 		// rateMap contains the error rate delta from feedback.
 		rateMap errorRateDeltaMap
-		// pid2tid is the map from partition ID to block ID.
+		// pid2tid is the map from partition ID to causet ID.
 		pid2tid map[int64]int64
 		// schemaVersion is the version of information schemaReplicant when `pid2tid` is built.
 		schemaVersion int64
 	}
 
-	// It can be read by multiple readers at the same time without acquiring lock, but it can be
-	// written only after acquiring the lock.
+	// It can be read by multiple readers at the same time without acquiring dagger, but it can be
+	// written only after acquiring the dagger.
 	statsCache struct {
 		sync.Mutex
 		atomic.Value
 		memTracker *memory.Tracker
 	}
 
-	restrictedExec sqlexec.RestrictedALLEGROSQLExecutor
+	restrictedInterDirc sqlexec.RestrictedALLEGROSQLInterlockingDirectorate
 
 	// dbsEventCh is a channel to notify a dbs operation has happened.
-	// It is sent only by owner or the drop stats executor, and read by stats handle.
+	// It is sent only by tenant or the drop stats interlock, and read by stats handle.
 	dbsEventCh chan *soliton.Event
 	// listHead contains all the stats collector required by stochastik.
 	listHead *StochastikStatsDefCauslector
@@ -120,8 +120,8 @@ func NewHandle(ctx stochastikctx.Context, lease time.Duration) *Handle {
 	}
 	handle.lease.CausetStore(lease)
 	// It is safe to use it concurrently because the exec won't touch the ctx.
-	if exec, ok := ctx.(sqlexec.RestrictedALLEGROSQLExecutor); ok {
-		handle.restrictedExec = exec
+	if exec, ok := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate); ok {
+		handle.restrictedInterDirc = exec
 	}
 	handle.statsCache.memTracker = memory.NewTracker(memory.LabelForStatsCache, -1)
 	handle.mu.ctx = ctx
@@ -153,14 +153,14 @@ func DurationToTS(d time.Duration) uint64 {
 	return oracle.ComposeTS(d.Nanoseconds()/int64(time.Millisecond), 0)
 }
 
-// UFIDelate reads stats meta from causetstore and uFIDelates the stats map.
+// UFIDelate reads stats spacetime from causetstore and uFIDelates the stats map.
 func (h *Handle) UFIDelate(is schemareplicant.SchemaReplicant) error {
 	oldCache := h.statsCache.Load().(statsCache)
 	lastVersion := oldCache.version
 	// We need this because for two blocks, the smaller version may write later than the one with larger version.
 	// Consider the case that there are two blocks A and B, their version and commit time is (A0, A1) and (B0, B1),
 	// and A0 < B0 < B1 < A1. We will first read the stats of B, and uFIDelate the lastVersion to B0, but we cannot read
-	// the block stats of A0 if we read stats that greater than lastVersion which is B0.
+	// the causet stats of A0 if we read stats that greater than lastVersion which is B0.
 	// We can read the stats if the diff between commit time and version is less than three lease.
 	offset := DurationToTS(3 * h.Lease())
 	if oldCache.version >= offset {
@@ -168,8 +168,8 @@ func (h *Handle) UFIDelate(is schemareplicant.SchemaReplicant) error {
 	} else {
 		lastVersion = 0
 	}
-	allegrosql := fmt.Sprintf("SELECT version, block_id, modify_count, count from allegrosql.stats_meta where version > %d order by version", lastVersion)
-	rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	allegrosql := fmt.Sprintf("SELECT version, block_id, modify_count, count from allegrosql.stats_spacetime where version > %d order by version", lastVersion)
+	rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -183,18 +183,18 @@ func (h *Handle) UFIDelate(is schemareplicant.SchemaReplicant) error {
 		count := event.GetInt64(3)
 		lastVersion = version
 		h.mu.Lock()
-		block, ok := h.getTableByPhysicalID(is, physicalID)
+		causet, ok := h.getTableByPhysicalID(is, physicalID)
 		h.mu.Unlock()
 		if !ok {
-			logutil.BgLogger().Debug("unknown physical ID in stats meta block, maybe it has been dropped", zap.Int64("ID", physicalID))
+			logutil.BgLogger().Debug("unknown physical ID in stats spacetime causet, maybe it has been dropped", zap.Int64("ID", physicalID))
 			deletedTableIDs = append(deletedTableIDs, physicalID)
 			continue
 		}
-		blockInfo := block.Meta()
+		blockInfo := causet.Meta()
 		tbl, err := h.blockStatsFromStorage(blockInfo, physicalID, false, nil)
-		// Error is not nil may mean that there are some dbs changes on this block, we will not uFIDelate it.
+		// Error is not nil may mean that there are some dbs changes on this causet, we will not uFIDelate it.
 		if err != nil {
-			logutil.BgLogger().Debug("error occurred when read block stats", zap.String("block", blockInfo.Name.O), zap.Error(err))
+			logutil.BgLogger().Debug("error occurred when read causet stats", zap.String("causet", blockInfo.Name.O), zap.Error(err))
 			continue
 		}
 		if tbl == nil {
@@ -211,7 +211,7 @@ func (h *Handle) UFIDelate(is schemareplicant.SchemaReplicant) error {
 	return nil
 }
 
-func (h *Handle) getTableByPhysicalID(is schemareplicant.SchemaReplicant, physicalID int64) (block.Block, bool) {
+func (h *Handle) getTableByPhysicalID(is schemareplicant.SchemaReplicant, physicalID int64) (causet.Block, bool) {
 	if is.SchemaMetaVersion() != h.mu.schemaVersion {
 		h.mu.schemaVersion = is.SchemaMetaVersion()
 		h.mu.pid2tid = buildPartitionID2TableID(is)
@@ -245,7 +245,7 @@ func (h *Handle) GetMemConsumed() (size int64) {
 	return
 }
 
-// GetAllTableStatsMemUsage get all the mem usage with true block.
+// GetAllTableStatsMemUsage get all the mem usage with true causet.
 // only used by test.
 func (h *Handle) GetAllTableStatsMemUsage() int64 {
 	data := h.statsCache.Value.Load().(statsCache)
@@ -257,7 +257,7 @@ func (h *Handle) GetAllTableStatsMemUsage() int64 {
 	return allUsage
 }
 
-// GetTableStats retrieves the statistics block from cache, and the cache will be uFIDelated by a goroutine.
+// GetTableStats retrieves the statistics causet from cache, and the cache will be uFIDelated by a goroutine.
 func (h *Handle) GetTableStats(tblInfo *perceptron.TableInfo) *statistics.Block {
 	return h.GetPartitionStats(tblInfo, tblInfo.ID)
 }
@@ -275,7 +275,7 @@ func (h *Handle) GetPartitionStats(tblInfo *perceptron.TableInfo, pid int64) *st
 	return tbl
 }
 
-// CanRuntimePrune indicates whether tbl support runtime prune for block and first partition id.
+// CanRuntimePrune indicates whether tbl support runtime prune for causet and first partition id.
 func (h *Handle) CanRuntimePrune(tid, p0Id int64) bool {
 	if h == nil {
 		return false
@@ -326,7 +326,7 @@ func (sc statsCache) initMemoryUsage() {
 	return
 }
 
-// uFIDelate uFIDelates the statistics block cache using copy on write.
+// uFIDelate uFIDelates the statistics causet cache using copy on write.
 func (sc statsCache) uFIDelate(blocks []*statistics.Block, deletedIDs []int64, newVersion uint64) statsCache {
 	newCache := sc.copy()
 	newCache.version = newVersion
@@ -437,17 +437,17 @@ func (h *Handle) cmSketchFromStorage(reader *statsReader, tblID int64, isIndex, 
 	return statistics.DecodeCMSketch(rows[0].GetBytes(0), topNRows)
 }
 
-func (h *Handle) indexStatsFromStorage(reader *statsReader, event chunk.Row, block *statistics.Block, blockInfo *perceptron.TableInfo) error {
+func (h *Handle) indexStatsFromStorage(reader *statsReader, event chunk.Row, causet *statistics.Block, blockInfo *perceptron.TableInfo) error {
 	histID := event.GetInt64(2)
 	distinct := event.GetInt64(3)
 	histVer := event.GetUint64(4)
 	nullCount := event.GetInt64(5)
-	idx := block.Indices[histID]
+	idx := causet.Indices[histID]
 	errorRate := statistics.ErrorRate{}
 	flag := event.GetInt64(8)
 	lastAnalyzePos := event.GetCauset(10, types.NewFieldType(allegrosql.TypeBlob))
 	if statistics.IsAnalyzed(flag) && !reader.isHistory() {
-		h.mu.rateMap.clear(block.PhysicalID, histID, true)
+		h.mu.rateMap.clear(causet.PhysicalID, histID, true)
 	} else if idx != nil {
 		errorRate = idx.ErrorRate
 	}
@@ -456,11 +456,11 @@ func (h *Handle) indexStatsFromStorage(reader *statsReader, event chunk.Row, blo
 			continue
 		}
 		if idx == nil || idx.LastUFIDelateVersion < histVer {
-			hg, err := h.histogramFromStorage(reader, block.PhysicalID, histID, types.NewFieldType(allegrosql.TypeBlob), distinct, 1, histVer, nullCount, 0, 0)
+			hg, err := h.histogramFromStorage(reader, causet.PhysicalID, histID, types.NewFieldType(allegrosql.TypeBlob), distinct, 1, histVer, nullCount, 0, 0)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			cms, err := h.cmSketchFromStorage(reader, block.PhysicalID, 1, idxInfo.ID)
+			cms, err := h.cmSketchFromStorage(reader, causet.PhysicalID, 1, idxInfo.ID)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -470,14 +470,14 @@ func (h *Handle) indexStatsFromStorage(reader *statsReader, event chunk.Row, blo
 		break
 	}
 	if idx != nil {
-		block.Indices[histID] = idx
+		causet.Indices[histID] = idx
 	} else {
-		logutil.BgLogger().Debug("we cannot find index id in block info. It may be deleted.", zap.Int64("indexID", histID), zap.String("block", blockInfo.Name.O))
+		logutil.BgLogger().Debug("we cannot find index id in causet info. It may be deleted.", zap.Int64("indexID", histID), zap.String("causet", blockInfo.Name.O))
 	}
 	return nil
 }
 
-func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, block *statistics.Block, blockInfo *perceptron.TableInfo, loadAll bool) error {
+func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, causet *statistics.Block, blockInfo *perceptron.TableInfo, loadAll bool) error {
 	histID := event.GetInt64(2)
 	distinct := event.GetInt64(3)
 	histVer := event.GetUint64(4)
@@ -485,11 +485,11 @@ func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, bl
 	totDefCausSize := event.GetInt64(6)
 	correlation := event.GetFloat64(9)
 	lastAnalyzePos := event.GetCauset(10, types.NewFieldType(allegrosql.TypeBlob))
-	col := block.DeferredCausets[histID]
+	col := causet.DeferredCausets[histID]
 	errorRate := statistics.ErrorRate{}
 	flag := event.GetInt64(8)
 	if statistics.IsAnalyzed(flag) && !reader.isHistory() {
-		h.mu.rateMap.clear(block.PhysicalID, histID, false)
+		h.mu.rateMap.clear(causet.PhysicalID, histID, false)
 	} else if col != nil {
 		errorRate = col.ErrorRate
 	}
@@ -508,12 +508,12 @@ func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, bl
 			(col == nil || col.Len() == 0 && col.LastUFIDelateVersion < histVer) &&
 			!loadAll
 		if notNeedLoad {
-			count, err := h.columnCountFromStorage(reader, block.PhysicalID, histID)
+			count, err := h.columnCountFromStorage(reader, causet.PhysicalID, histID)
 			if err != nil {
 				return errors.Trace(err)
 			}
 			col = &statistics.DeferredCauset{
-				PhysicalID: block.PhysicalID,
+				PhysicalID: causet.PhysicalID,
 				Histogram:  *statistics.NewHistogram(histID, distinct, nullCount, histVer, &colInfo.FieldType, 0, totDefCausSize),
 				Info:       colInfo,
 				Count:      count + nullCount,
@@ -526,16 +526,16 @@ func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, bl
 			break
 		}
 		if col == nil || col.LastUFIDelateVersion < histVer || loadAll {
-			hg, err := h.histogramFromStorage(reader, block.PhysicalID, histID, &colInfo.FieldType, distinct, 0, histVer, nullCount, totDefCausSize, correlation)
+			hg, err := h.histogramFromStorage(reader, causet.PhysicalID, histID, &colInfo.FieldType, distinct, 0, histVer, nullCount, totDefCausSize, correlation)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			cms, err := h.cmSketchFromStorage(reader, block.PhysicalID, 0, colInfo.ID)
+			cms, err := h.cmSketchFromStorage(reader, causet.PhysicalID, 0, colInfo.ID)
 			if err != nil {
 				return errors.Trace(err)
 			}
 			col = &statistics.DeferredCauset{
-				PhysicalID: block.PhysicalID,
+				PhysicalID: causet.PhysicalID,
 				Histogram:  *hg,
 				Info:       colInfo,
 				CMSketch:   cms,
@@ -555,19 +555,19 @@ func (h *Handle) columnStatsFromStorage(reader *statsReader, event chunk.Row, bl
 		break
 	}
 	if col != nil {
-		block.DeferredCausets[col.ID] = col
+		causet.DeferredCausets[col.ID] = col
 	} else {
 		// If we didn't find a DeferredCauset or Index in blockInfo, we won't load the histogram for it.
-		// But don't worry, next lease the dbs will be uFIDelated, and we will load a same block for two times to
+		// But don't worry, next lease the dbs will be uFIDelated, and we will load a same causet for two times to
 		// avoid error.
-		logutil.BgLogger().Debug("we cannot find column in block info now. It may be deleted", zap.Int64("colID", histID), zap.String("block", blockInfo.Name.O))
+		logutil.BgLogger().Debug("we cannot find column in causet info now. It may be deleted", zap.Int64("colID", histID), zap.String("causet", blockInfo.Name.O))
 	}
 	return nil
 }
 
-// blockStatsFromStorage loads block stats info from storage.
-func (h *Handle) blockStatsFromStorage(blockInfo *perceptron.TableInfo, physicalID int64, loadAll bool, historyStatsExec sqlexec.RestrictedALLEGROSQLExecutor) (_ *statistics.Block, err error) {
-	reader, err := h.getStatsReader(historyStatsExec)
+// blockStatsFromStorage loads causet stats info from storage.
+func (h *Handle) blockStatsFromStorage(blockInfo *perceptron.TableInfo, physicalID int64, loadAll bool, historyStatsInterDirc sqlexec.RestrictedALLEGROSQLInterlockingDirectorate) (_ *statistics.Block, err error) {
+	reader, err := h.getStatsReader(historyStatsInterDirc)
 	if err != nil {
 		return nil, err
 	}
@@ -577,54 +577,54 @@ func (h *Handle) blockStatsFromStorage(blockInfo *perceptron.TableInfo, physical
 			err = err1
 		}
 	}()
-	block, ok := h.statsCache.Load().(statsCache).blocks[physicalID]
-	// If block stats is pseudo, we also need to copy it, since we will use the column stats when
+	causet, ok := h.statsCache.Load().(statsCache).blocks[physicalID]
+	// If causet stats is pseudo, we also need to copy it, since we will use the column stats when
 	// the average error rate of it is small.
-	if !ok || historyStatsExec != nil {
+	if !ok || historyStatsInterDirc != nil {
 		histDefCausl := statistics.HistDefCausl{
 			PhysicalID:     physicalID,
 			HavePhysicalID: true,
 			DeferredCausets:        make(map[int64]*statistics.DeferredCauset, len(blockInfo.DeferredCausets)),
 			Indices:        make(map[int64]*statistics.Index, len(blockInfo.Indices)),
 		}
-		block = &statistics.Block{
+		causet = &statistics.Block{
 			HistDefCausl: histDefCausl,
 		}
 	} else {
 		// We copy it before writing to avoid race.
-		block = block.Copy()
+		causet = causet.Copy()
 	}
-	block.Pseudo = false
+	causet.Pseudo = false
 	selALLEGROSQL := fmt.Sprintf("select block_id, is_index, hist_id, distinct_count, version, null_count, tot_col_size, stats_ver, flag, correlation, last_analyze_pos from allegrosql.stats_histograms where block_id = %d", physicalID)
 	rows, _, err := reader.read(selALLEGROSQL)
-	// Check deleted block.
+	// Check deleted causet.
 	if err != nil || len(rows) == 0 {
 		return nil, nil
 	}
 	for _, event := range rows {
 		if event.GetInt64(1) > 0 {
-			err = h.indexStatsFromStorage(reader, event, block, blockInfo)
+			err = h.indexStatsFromStorage(reader, event, causet, blockInfo)
 		} else {
-			err = h.columnStatsFromStorage(reader, event, block, blockInfo, loadAll)
+			err = h.columnStatsFromStorage(reader, event, causet, blockInfo, loadAll)
 		}
 		if err != nil {
 			return nil, err
 		}
 	}
-	return h.extendedStatsFromStorage(reader, block, physicalID, loadAll)
+	return h.extendedStatsFromStorage(reader, causet, physicalID, loadAll)
 }
 
-func (h *Handle) extendedStatsFromStorage(reader *statsReader, block *statistics.Block, physicalID int64, loadAll bool) (*statistics.Block, error) {
+func (h *Handle) extendedStatsFromStorage(reader *statsReader, causet *statistics.Block, physicalID int64, loadAll bool) (*statistics.Block, error) {
 	lastVersion := uint64(0)
-	if block.ExtendedStats != nil && !loadAll {
-		lastVersion = block.ExtendedStats.LastUFIDelateVersion
+	if causet.ExtendedStats != nil && !loadAll {
+		lastVersion = causet.ExtendedStats.LastUFIDelateVersion
 	} else {
-		block.ExtendedStats = statistics.NewExtendedStatsDefCausl()
+		causet.ExtendedStats = statistics.NewExtendedStatsDefCausl()
 	}
 	allegrosql := fmt.Sprintf("select stats_name, EDB, status, type, column_ids, scalar_stats, blob_stats, version from allegrosql.stats_extended where block_id = %d and status in (%d, %d) and version > %d", physicalID, StatsStatusAnalyzed, StatsStatusDeleted, lastVersion)
 	rows, _, err := reader.read(allegrosql)
 	if err != nil || len(rows) == 0 {
-		return block, nil
+		return causet, nil
 	}
 	for _, event := range rows {
 		lastVersion = mathutil.MaxUint64(lastVersion, event.GetUint64(7))
@@ -634,7 +634,7 @@ func (h *Handle) extendedStatsFromStorage(reader *statsReader, block *statistics
 		}
 		status := uint8(event.GetInt64(2))
 		if status == StatsStatusDeleted {
-			delete(block.ExtendedStats.Stats, key)
+			delete(causet.ExtendedStats.Stats, key)
 		} else {
 			item := &statistics.ExtendedStatsItem{
 				Tp:         uint8(event.GetInt64(3)),
@@ -647,11 +647,11 @@ func (h *Handle) extendedStatsFromStorage(reader *statsReader, block *statistics
 				logutil.BgLogger().Debug("decode column IDs failed", zap.String("column_ids", colIDs), zap.Error(err))
 				return nil, err
 			}
-			block.ExtendedStats.Stats[key] = item
+			causet.ExtendedStats.Stats[key] = item
 		}
 	}
-	block.ExtendedStats.LastUFIDelateVersion = lastVersion
-	return block, nil
+	causet.ExtendedStats.LastUFIDelateVersion = lastVersion
+	return causet, nil
 }
 
 // SaveStatsToStorage saves the stats to storage.
@@ -659,8 +659,8 @@ func (h *Handle) SaveStatsToStorage(blockID int64, count int64, isIndex int, hg 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -676,9 +676,9 @@ func (h *Handle) SaveStatsToStorage(blockID int64, count int64, isIndex int, hg 
 	sqls := make([]string, 0, 4)
 	// If the count is less than 0, then we do not want to uFIDelate the modify count and count.
 	if count >= 0 {
-		sqls = append(sqls, fmt.Sprintf("replace into allegrosql.stats_meta (version, block_id, count) values (%d, %d, %d)", version, blockID, count))
+		sqls = append(sqls, fmt.Sprintf("replace into allegrosql.stats_spacetime (version, block_id, count) values (%d, %d, %d)", version, blockID, count))
 	} else {
-		sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d where block_id = %d", version, blockID))
+		sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d where block_id = %d", version, blockID))
 	}
 	data, err := statistics.EncodeCMSketchWithoutTopN(cms)
 	if err != nil {
@@ -686,8 +686,8 @@ func (h *Handle) SaveStatsToStorage(blockID int64, count int64, isIndex int, hg 
 	}
 	// Delete outdated data
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_top_n where block_id = %d and is_index = %d and hist_id = %d", blockID, isIndex, hg.ID))
-	for _, meta := range cms.TopN() {
-		sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_top_n (block_id, is_index, hist_id, value, count) values (%d, %d, %d, X'%X', %d)", blockID, isIndex, hg.ID, meta.Data, meta.Count))
+	for _, spacetime := range cms.TopN() {
+		sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_top_n (block_id, is_index, hist_id, value, count) values (%d, %d, %d, X'%X', %d)", blockID, isIndex, hg.ID, spacetime.Data, spacetime.Count))
 	}
 	flag := 0
 	if isAnalyzed == 1 {
@@ -724,13 +724,13 @@ func (h *Handle) SaveStatsToStorage(blockID int64, count int64, isIndex int, hg 
 	return execALLEGROSQLs(context.Background(), exec, sqls)
 }
 
-// SaveMetaToStorage will save stats_meta to storage.
+// SaveMetaToStorage will save stats_spacetime to storage.
 func (h *Handle) SaveMetaToStorage(blockID, count, modifyCount int64) (err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -743,8 +743,8 @@ func (h *Handle) SaveMetaToStorage(blockID, count, modifyCount int64) (err error
 	}
 	var allegrosql string
 	version := txn.StartTS()
-	allegrosql = fmt.Sprintf("replace into allegrosql.stats_meta (version, block_id, count, modify_count) values (%d, %d, %d, %d)", version, blockID, count, modifyCount)
-	_, err = exec.Execute(ctx, allegrosql)
+	allegrosql = fmt.Sprintf("replace into allegrosql.stats_spacetime (version, block_id, count, modify_count) values (%d, %d, %d, %d)", version, blockID, count, modifyCount)
+	_, err = exec.InterDircute(ctx, allegrosql)
 	return
 }
 
@@ -797,13 +797,13 @@ func (h *Handle) columnCountFromStorage(reader *statsReader, blockID, colID int6
 	return rows[0].GetMyDecimal(0).ToInt()
 }
 
-func (h *Handle) statsMetaByTableIDFromStorage(blockID int64, historyStatsExec sqlexec.RestrictedALLEGROSQLExecutor) (version uint64, modifyCount, count int64, err error) {
-	selALLEGROSQL := fmt.Sprintf("SELECT version, modify_count, count from allegrosql.stats_meta where block_id = %d order by version", blockID)
+func (h *Handle) statsMetaByTableIDFromStorage(blockID int64, historyStatsInterDirc sqlexec.RestrictedALLEGROSQLInterlockingDirectorate) (version uint64, modifyCount, count int64, err error) {
+	selALLEGROSQL := fmt.Sprintf("SELECT version, modify_count, count from allegrosql.stats_spacetime where block_id = %d order by version", blockID)
 	var rows []chunk.Row
-	if historyStatsExec == nil {
-		rows, _, err = h.restrictedExec.ExecRestrictedALLEGROSQL(selALLEGROSQL)
+	if historyStatsInterDirc == nil {
+		rows, _, err = h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(selALLEGROSQL)
 	} else {
-		rows, _, err = historyStatsExec.ExecRestrictedALLEGROSQLWithSnapshot(selALLEGROSQL)
+		rows, _, err = historyStatsInterDirc.InterDircRestrictedALLEGROSQLWithSnapshot(selALLEGROSQL)
 	}
 	if err != nil || len(rows) == 0 {
 		return
@@ -818,14 +818,14 @@ func (h *Handle) statsMetaByTableIDFromStorage(blockID int64, historyStatsExec s
 // but requires the same transactions.
 type statsReader struct {
 	ctx     stochastikctx.Context
-	history sqlexec.RestrictedALLEGROSQLExecutor
+	history sqlexec.RestrictedALLEGROSQLInterlockingDirectorate
 }
 
 func (sr *statsReader) read(allegrosql string) (rows []chunk.Row, fields []*ast.ResultField, err error) {
 	if sr.history != nil {
-		return sr.history.ExecRestrictedALLEGROSQLWithSnapshot(allegrosql)
+		return sr.history.InterDircRestrictedALLEGROSQLWithSnapshot(allegrosql)
 	}
-	rc, err := sr.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	rc, err := sr.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rc) > 0 {
 		defer terror.Call(rc[0].Close)
 	}
@@ -852,7 +852,7 @@ func (sr *statsReader) isHistory() bool {
 	return sr.history != nil
 }
 
-func (h *Handle) getStatsReader(history sqlexec.RestrictedALLEGROSQLExecutor) (*statsReader, error) {
+func (h *Handle) getStatsReader(history sqlexec.RestrictedALLEGROSQLInterlockingDirectorate) (*statsReader, error) {
 	failpoint.Inject("mockGetStatsReaderFail", func(val failpoint.Value) {
 		if val.(bool) {
 			failpoint.Return(nil, errors.New("gofail genStatsReader error"))
@@ -862,7 +862,7 @@ func (h *Handle) getStatsReader(history sqlexec.RestrictedALLEGROSQLExecutor) (*
 		return &statsReader{history: history}, nil
 	}
 	h.mu.Lock()
-	_, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), "begin")
+	_, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), "begin")
 	if err != nil {
 		return nil, err
 	}
@@ -873,7 +873,7 @@ func (h *Handle) releaseStatsReader(reader *statsReader) error {
 	if reader.history != nil {
 		return nil
 	}
-	_, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), "commit")
+	_, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), "commit")
 	h.mu.Unlock()
 	return err
 }
@@ -887,7 +887,7 @@ const (
 	StatsStatusDeleted
 )
 
-// InsertExtendedStats inserts a record into allegrosql.stats_extended and uFIDelate version in allegrosql.stats_meta.
+// InsertExtendedStats inserts a record into allegrosql.stats_extended and uFIDelate version in allegrosql.stats_spacetime.
 func (h *Handle) InsertExtendedStats(statsName, EDB string, colIDs []int64, tp int, blockID int64, ifNotExists bool) (err error) {
 	bytes, err := json.Marshal(colIDs)
 	if err != nil {
@@ -897,8 +897,8 @@ func (h *Handle) InsertExtendedStats(statsName, EDB string, colIDs []int64, tp i
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin pessimistic")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin pessimistic")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -911,7 +911,7 @@ func (h *Handle) InsertExtendedStats(statsName, EDB string, colIDs []int64, tp i
 	}
 	version := txn.StartTS()
 	allegrosql := fmt.Sprintf("INSERT INTO allegrosql.stats_extended(stats_name, EDB, type, block_id, column_ids, version, status) VALUES ('%s', '%s', %d, %d, '%s', %d, %d)", statsName, EDB, tp, blockID, strDefCausIDs, version, StatsStatusInited)
-	_, err = exec.Execute(ctx, allegrosql)
+	_, err = exec.InterDircute(ctx, allegrosql)
 	// Key exists, but `if not exists` is specified, so we ignore this error.
 	if ekv.ErrKeyExists.Equal(err) && ifNotExists {
 		err = nil
@@ -919,11 +919,11 @@ func (h *Handle) InsertExtendedStats(statsName, EDB string, colIDs []int64, tp i
 	return
 }
 
-// MarkExtendedStatsDeleted uFIDelate the status of allegrosql.stats_extended to be `deleted` and the version of allegrosql.stats_meta.
+// MarkExtendedStatsDeleted uFIDelate the status of allegrosql.stats_extended to be `deleted` and the version of allegrosql.stats_spacetime.
 func (h *Handle) MarkExtendedStatsDeleted(statsName, EDB string, blockID int64) (err error) {
 	if blockID < 0 {
 		allegrosql := fmt.Sprintf("SELECT block_id FROM allegrosql.stats_extended WHERE stats_name = '%s' and EDB = '%s'", statsName, EDB)
-		rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+		rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -935,8 +935,8 @@ func (h *Handle) MarkExtendedStatsDeleted(statsName, EDB string, blockID int64) 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin pessimistic")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin pessimistic")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -950,7 +950,7 @@ func (h *Handle) MarkExtendedStatsDeleted(statsName, EDB string, blockID int64) 
 	version := txn.StartTS()
 	sqls := make([]string, 2)
 	sqls[0] = fmt.Sprintf("UFIDelATE allegrosql.stats_extended SET version = %d, status = %d WHERE stats_name = '%s' and EDB = '%s'", version, StatsStatusDeleted, statsName, EDB)
-	sqls[1] = fmt.Sprintf("UFIDelATE allegrosql.stats_meta SET version = %d WHERE block_id = %d", version, blockID)
+	sqls[1] = fmt.Sprintf("UFIDelATE allegrosql.stats_spacetime SET version = %d WHERE block_id = %d", version, blockID)
 	return execALLEGROSQLs(ctx, exec, sqls)
 }
 
@@ -981,7 +981,7 @@ func (h *Handle) ReloadExtendedStatistics() error {
 // BuildExtendedStats build extended stats for column groups if needed based on the column samples.
 func (h *Handle) BuildExtendedStats(blockID int64, defcaus []*perceptron.DeferredCausetInfo, collectors []*statistics.SampleDefCauslector) (*statistics.ExtendedStatsDefCausl, error) {
 	allegrosql := fmt.Sprintf("SELECT stats_name, EDB, type, column_ids FROM allegrosql.stats_extended WHERE block_id = %d and status in (%d, %d)", blockID, StatsStatusAnalyzed, StatsStatusInited)
-	rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -1083,7 +1083,7 @@ func (h *Handle) fillExtStatsCorrVals(item *statistics.ExtendedStatsItem, defcau
 	return item
 }
 
-// SaveExtendedStatsToStorage writes extended stats of a block into allegrosql.stats_extended.
+// SaveExtendedStatsToStorage writes extended stats of a causet into allegrosql.stats_extended.
 func (h *Handle) SaveExtendedStatsToStorage(blockID int64, extStats *statistics.ExtendedStatsDefCausl, isLoad bool) (err error) {
 	if extStats == nil || len(extStats.Stats) == 0 {
 		return nil
@@ -1091,8 +1091,8 @@ func (h *Handle) SaveExtendedStatsToStorage(blockID int64, extStats *statistics.
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin pessimistic")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin pessimistic")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -1120,7 +1120,7 @@ func (h *Handle) SaveExtendedStatsToStorage(blockID int64, extStats *statistics.
 		}
 	}
 	if !isLoad {
-		sqls = append(sqls, fmt.Sprintf("UFIDelATE allegrosql.stats_meta SET version = %d WHERE block_id = %d", version, blockID))
+		sqls = append(sqls, fmt.Sprintf("UFIDelATE allegrosql.stats_spacetime SET version = %d WHERE block_id = %d", version, blockID))
 	}
 	return execALLEGROSQLs(ctx, exec, sqls)
 }

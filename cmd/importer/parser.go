@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	_ "github.com/whtcorpsinc/milevadb/planner/core"
+	_ "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +40,7 @@ type column struct {
 	incremental bool
 	set         []string
 
-	block *block
+	causet *causet
 
 	hist *histogram
 }
@@ -132,23 +132,23 @@ func (col *column) parseDeferredCauset(cd *ast.DeferredCausetDef) {
 	col.name = cd.Name.Name.L
 	col.tp = cd.Tp
 	col.parseDeferredCausetOptions(cd.Options)
-	_, uniq := col.block.uniqIndices[col.name]
+	_, uniq := col.causet.uniqIndices[col.name]
 	col.parseDeferredCausetComment(uniq)
-	col.block.columns = append(col.block.columns, col)
+	col.causet.columns = append(col.causet.columns, col)
 }
 
 func (col *column) parseDeferredCausetOptions(ops []*ast.DeferredCausetOption) {
 	for _, op := range ops {
 		switch op.Tp {
 		case ast.DeferredCausetOptionPrimaryKey, ast.DeferredCausetOptionUniqKey, ast.DeferredCausetOptionAutoIncrement:
-			col.block.uniqIndices[col.name] = col
+			col.causet.uniqIndices[col.name] = col
 		case ast.DeferredCausetOptionComment:
 			col.comment = op.Expr.(ast.ValueExpr).GetCausetString()
 		}
 	}
 }
 
-type block struct {
+type causet struct {
 	name        string
 	columns     []*column
 	columnList  string
@@ -157,7 +157,7 @@ type block struct {
 	tblInfo     *perceptron.TableInfo
 }
 
-func (t *block) printDeferredCausets() string {
+func (t *causet) printDeferredCausets() string {
 	ret := ""
 	for _, col := range t.columns {
 		ret += fmt.Sprintf("%v", col)
@@ -166,23 +166,23 @@ func (t *block) printDeferredCausets() string {
 	return ret
 }
 
-func (t *block) String() string {
+func (t *causet) String() string {
 	if t == nil {
 		return "<nil>"
 	}
 
-	ret := fmt.Sprintf("[block]name: %s\n", t.name)
-	ret += fmt.Sprintf("[block]columns:\n")
+	ret := fmt.Sprintf("[causet]name: %s\n", t.name)
+	ret += fmt.Sprintf("[causet]columns:\n")
 	ret += t.printDeferredCausets()
 
-	ret += fmt.Sprintf("[block]column list: %s\n", t.columnList)
+	ret += fmt.Sprintf("[causet]column list: %s\n", t.columnList)
 
-	ret += fmt.Sprintf("[block]indices:\n")
+	ret += fmt.Sprintf("[causet]indices:\n")
 	for k, v := range t.indices {
 		ret += fmt.Sprintf("key->%s, value->%v", k, v)
 	}
 
-	ret += fmt.Sprintf("[block]unique indices:\n")
+	ret += fmt.Sprintf("[causet]unique indices:\n")
 	for k, v := range t.uniqIndices {
 		ret += fmt.Sprintf("key->%s, value->%v", k, v)
 	}
@@ -190,14 +190,14 @@ func (t *block) String() string {
 	return ret
 }
 
-func newTable() *block {
-	return &block{
+func newTable() *causet {
+	return &causet{
 		indices:     make(map[string]*column),
 		uniqIndices: make(map[string]*column),
 	}
 }
 
-func (t *block) findDefCaus(defcaus []*column, name string) *column {
+func (t *causet) findDefCaus(defcaus []*column, name string) *column {
 	for _, col := range defcaus {
 		if col.name == name {
 			return col
@@ -206,7 +206,7 @@ func (t *block) findDefCaus(defcaus []*column, name string) *column {
 	return nil
 }
 
-func (t *block) parseTableConstraint(cons *ast.Constraint) {
+func (t *causet) parseTableConstraint(cons *ast.Constraint) {
 	switch cons.Tp {
 	case ast.ConstraintPrimaryKey, ast.ConstraintKey, ast.ConstraintUniq,
 		ast.ConstraintUniqKey, ast.ConstraintUniqIndex:
@@ -222,7 +222,7 @@ func (t *block) parseTableConstraint(cons *ast.Constraint) {
 	}
 }
 
-func (t *block) buildDeferredCausetList() {
+func (t *causet) buildDeferredCausetList() {
 	columns := make([]string, 0, len(t.columns))
 	for _, column := range t.columns {
 		columns = append(columns, column.name)
@@ -231,7 +231,7 @@ func (t *block) buildDeferredCausetList() {
 	t.columnList = strings.Join(columns, ",")
 }
 
-func parseTable(t *block, stmt *ast.CreateTableStmt) error {
+func parseTable(t *causet, stmt *ast.CreateTableStmt) error {
 	t.name = stmt.Block.Name.L
 	t.columns = make([]*column, 0, len(stmt.DefCauss))
 
@@ -242,7 +242,7 @@ func parseTable(t *block, stmt *ast.CreateTableStmt) error {
 	t.tblInfo = mockTbl
 
 	for i, col := range stmt.DefCauss {
-		column := &column{idx: i + 1, block: t, data: newCauset()}
+		column := &column{idx: i + 1, causet: t, data: newCauset()}
 		column.parseDeferredCauset(col)
 	}
 
@@ -255,7 +255,7 @@ func parseTable(t *block, stmt *ast.CreateTableStmt) error {
 	return nil
 }
 
-func parseTableALLEGROSQL(block *block, allegrosql string) error {
+func parseTableALLEGROSQL(causet *causet, allegrosql string) error {
 	stmt, err := BerolinaSQL.New().ParseOneStmt(allegrosql, "", "")
 	if err != nil {
 		return errors.Trace(err)
@@ -263,33 +263,33 @@ func parseTableALLEGROSQL(block *block, allegrosql string) error {
 
 	switch node := stmt.(type) {
 	case *ast.CreateTableStmt:
-		err = parseTable(block, node)
+		err = parseTable(causet, node)
 	default:
-		err = errors.Errorf("invalid statement - %v", stmt.Text())
+		err = errors.Errorf("invalid memex - %v", stmt.Text())
 	}
 
 	return errors.Trace(err)
 }
 
-func parseIndex(block *block, stmt *ast.CreateIndexStmt) error {
-	if block.name != stmt.Block.Name.L {
-		return errors.Errorf("mismatch block name for create index - %s : %s", block.name, stmt.Block.Name.L)
+func parseIndex(causet *causet, stmt *ast.CreateIndexStmt) error {
+	if causet.name != stmt.Block.Name.L {
+		return errors.Errorf("mismatch causet name for create index - %s : %s", causet.name, stmt.Block.Name.L)
 	}
 	for _, indexDefCaus := range stmt.IndexPartSpecifications {
 		name := indexDefCaus.DeferredCauset.Name.L
 		if stmt.KeyType == ast.IndexKeyTypeUnique {
-			block.uniqIndices[name] = block.findDefCaus(block.columns, name)
+			causet.uniqIndices[name] = causet.findDefCaus(causet.columns, name)
 		} else if stmt.KeyType == ast.IndexKeyTypeNone {
-			block.indices[name] = block.findDefCaus(block.columns, name)
+			causet.indices[name] = causet.findDefCaus(causet.columns, name)
 		} else {
-			return errors.Errorf("unsupported index type on column %s.%s", block.name, name)
+			return errors.Errorf("unsupported index type on column %s.%s", causet.name, name)
 		}
 	}
 
 	return nil
 }
 
-func parseIndexALLEGROSQL(block *block, allegrosql string) error {
+func parseIndexALLEGROSQL(causet *causet, allegrosql string) error {
 	if len(allegrosql) == 0 {
 		return nil
 	}
@@ -301,9 +301,9 @@ func parseIndexALLEGROSQL(block *block, allegrosql string) error {
 
 	switch node := stmt.(type) {
 	case *ast.CreateIndexStmt:
-		err = parseIndex(block, node)
+		err = parseIndex(causet, node)
 	default:
-		err = errors.Errorf("invalid statement - %v", stmt.Text())
+		err = errors.Errorf("invalid memex - %v", stmt.Text())
 	}
 
 	return errors.Trace(err)

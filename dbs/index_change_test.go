@@ -22,9 +22,9 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
@@ -42,7 +42,7 @@ func (s *testIndexChangeSuite) SetUpSuite(c *C) {
 		ID:   1,
 	}
 	err := ekv.RunInNewTxn(s.causetstore, true, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		return errors.Trace(t.CreateDatabase(s.dbInfo))
 	})
 	c.Check(err, IsNil, Commentf("err %v", errors.ErrorStack(err)))
@@ -60,7 +60,7 @@ func (s *testIndexChangeSuite) TestIndexChange(c *C) {
 		WithLease(testLease),
 	)
 	defer d.Stop()
-	// create block t (c1 int primary key, c2 int);
+	// create causet t (c1 int primary key, c2 int);
 	tblInfo := testBlockInfo(c, d, "t", 2)
 	tblInfo.DeferredCausets[0].Flag = allegrosql.PriKeyFlag | allegrosql.NotNullFlag
 	tblInfo.PKIsHandle = true
@@ -88,9 +88,9 @@ func (s *testIndexChangeSuite) TestIndexChange(c *C) {
 	prevState := perceptron.StateNone
 	addIndexDone := false
 	var (
-		deleteOnlyBlock block.Block
-		writeOnlyBlock  block.Block
-		publicBlock     block.Block
+		deleteOnlyBlock causet.Block
+		writeOnlyBlock  causet.Block
+		publicBlock     causet.Block
 		checkErr        error
 	)
 	tc.onJobUFIDelated = func(job *perceptron.Job) {
@@ -147,7 +147,7 @@ func (s *testIndexChangeSuite) TestIndexChange(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(txn.Commit(context.Background()), IsNil)
 	prevState = perceptron.StateNone
-	var noneBlock block.Block
+	var noneBlock causet.Block
 	tc.onJobUFIDelated = func(job *perceptron.Job) {
 		if job.SchemaState == prevState {
 			return
@@ -188,7 +188,7 @@ func (s *testIndexChangeSuite) TestIndexChange(c *C) {
 	c.Check(errors.ErrorStack(checkErr), Equals, "")
 }
 
-func checHoTTexExists(ctx stochastikctx.Context, tbl block.Block, indexValue interface{}, handle int64, exists bool) error {
+func checHoTTexExists(ctx stochastikctx.Context, tbl causet.Block, indexValue interface{}, handle int64, exists bool) error {
 	idx := tbl.Indices()[0]
 	txn, err := ctx.Txn(true)
 	if err != nil {
@@ -207,7 +207,7 @@ func checHoTTexExists(ctx stochastikctx.Context, tbl block.Block, indexValue int
 	return nil
 }
 
-func (s *testIndexChangeSuite) checkAddWriteOnly(d *dbs, ctx stochastikctx.Context, delOnlyTbl, writeOnlyTbl block.Block) error {
+func (s *testIndexChangeSuite) checkAddWriteOnly(d *dbs, ctx stochastikctx.Context, delOnlyTbl, writeOnlyTbl causet.Block) error {
 	// DeleteOnlyBlock: insert t values (4, 4);
 	err := ctx.NewTxn(context.Background())
 	if err != nil {
@@ -280,7 +280,7 @@ func (s *testIndexChangeSuite) checkAddWriteOnly(d *dbs, ctx stochastikctx.Conte
 	return nil
 }
 
-func (s *testIndexChangeSuite) checkAddPublic(d *dbs, ctx stochastikctx.Context, writeTbl, publicTbl block.Block) error {
+func (s *testIndexChangeSuite) checkAddPublic(d *dbs, ctx stochastikctx.Context, writeTbl, publicTbl causet.Block) error {
 	// WriteOnlyBlock: insert t values (6, 6)
 	err := ctx.NewTxn(context.Background())
 	if err != nil {
@@ -329,12 +329,12 @@ func (s *testIndexChangeSuite) checkAddPublic(d *dbs, ctx stochastikctx.Context,
 
 	var rows [][]types.Causet
 	publicTbl.IterRecords(ctx, publicTbl.FirstKey(), publicTbl.DefCauss(),
-		func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+		func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 			rows = append(rows, data)
 			return true, nil
 		})
 	if len(rows) == 0 {
-		return errors.New("block is empty")
+		return errors.New("causet is empty")
 	}
 	for _, event := range rows {
 		idxVal := event[1].GetInt64()
@@ -351,7 +351,7 @@ func (s *testIndexChangeSuite) checkAddPublic(d *dbs, ctx stochastikctx.Context,
 	return txn.Commit(context.Background())
 }
 
-func (s *testIndexChangeSuite) checkDropWriteOnly(d *dbs, ctx stochastikctx.Context, publicTbl, writeTbl block.Block) error {
+func (s *testIndexChangeSuite) checkDropWriteOnly(d *dbs, ctx stochastikctx.Context, publicTbl, writeTbl causet.Block) error {
 	// WriteOnlyBlock insert t values (8, 8)
 	err := ctx.NewTxn(context.Background())
 	if err != nil {
@@ -395,7 +395,7 @@ func (s *testIndexChangeSuite) checkDropWriteOnly(d *dbs, ctx stochastikctx.Cont
 	return txn.Commit(context.Background())
 }
 
-func (s *testIndexChangeSuite) checkDroFIDeleleteOnly(d *dbs, ctx stochastikctx.Context, writeTbl, delTbl block.Block) error {
+func (s *testIndexChangeSuite) checkDroFIDeleleteOnly(d *dbs, ctx stochastikctx.Context, writeTbl, delTbl causet.Block) error {
 	// WriteOnlyBlock insert t values (9, 9)
 	err := ctx.NewTxn(context.Background())
 	if err != nil {

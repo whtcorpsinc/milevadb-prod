@@ -36,8 +36,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
@@ -113,7 +113,7 @@ func (s *testBinlogSuite) SetUpSuite(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	s.petri, err = stochastik.BootstrapStochastik(causetstore)
 	c.Assert(err, IsNil)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	stochastikPetri := petri.GetPetri(tk.Se.(stochastikctx.Context))
 	s.dbs = stochastikPetri.DBS()
 
@@ -131,13 +131,13 @@ func (s *testBinlogSuite) TearDownSuite(c *C) {
 
 func (s *testBinlogSuite) TestBinlog(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	tk.Se.GetStochastikVars().BinlogClient = s.client
 	pump := s.pump
-	tk.MustExec("drop block if exists local_binlog")
-	dbsQuery := "create block local_binlog (id int unique key, name varchar(10)) shard_row_id_bits=1"
-	binlogDBSQuery := "create block local_binlog (id int unique key, name varchar(10)) /*T! shard_row_id_bits=1 */"
-	tk.MustExec(dbsQuery)
+	tk.MustInterDirc("drop causet if exists local_binlog")
+	dbsQuery := "create causet local_binlog (id int unique key, name varchar(10)) shard_row_id_bits=1"
+	binlogDBSQuery := "create causet local_binlog (id int unique key, name varchar(10)) /*T! shard_row_id_bits=1 */"
+	tk.MustInterDirc(dbsQuery)
 	var matched bool // got matched pre DBS and commit DBS
 	for i := 0; i < 10; i++ {
 		preDBS, commitDBS, _ := getLatestDBSBinlog(c, pump, binlogDBSQuery)
@@ -153,7 +153,7 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	}
 	c.Assert(matched, IsTrue)
 
-	tk.MustExec("insert local_binlog values (1, 'abc'), (2, 'cde')")
+	tk.MustInterDirc("insert local_binlog values (1, 'abc'), (2, 'cde')")
 	prewriteVal := getLatestBinlogPrewriteValue(c, pump)
 	c.Assert(prewriteVal.SchemaVersion, Greater, int64(0))
 	c.Assert(prewriteVal.Mutations[0].BlockId, Greater, int64(0))
@@ -164,7 +164,7 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	gotRows := mutationRowsToRows(c, prewriteVal.Mutations[0].InsertedRows, 2, 4)
 	c.Assert(gotRows, DeepEquals, expected)
 
-	tk.MustExec("uFIDelate local_binlog set name = 'xyz' where id = 2")
+	tk.MustInterDirc("uFIDelate local_binlog set name = 'xyz' where id = 2")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	oldRow := [][]types.Causet{
 		{types.NewIntCauset(2), types.NewDefCauslationStringCauset("cde", allegrosql.DefaultDefCauslationName, defCauslate.DefaultLen)},
@@ -178,7 +178,7 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	gotRows = mutationRowsToRows(c, prewriteVal.Mutations[0].UFIDelatedRows, 7, 9)
 	c.Assert(gotRows, DeepEquals, newRow)
 
-	tk.MustExec("delete from local_binlog where id = 1")
+	tk.MustInterDirc("delete from local_binlog where id = 1")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	gotRows = mutationRowsToRows(c, prewriteVal.Mutations[0].DeletedRows, 1, 3)
 	expected = [][]types.Causet{
@@ -186,11 +186,11 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	}
 	c.Assert(gotRows, DeepEquals, expected)
 
-	// Test block primary key is not integer.
-	tk.MustExec("set @@milevadb_enable_clustered_index=0;")
-	tk.MustExec("create block local_binlog2 (name varchar(64) primary key, age int)")
-	tk.MustExec("insert local_binlog2 values ('abc', 16), ('def', 18)")
-	tk.MustExec("delete from local_binlog2 where name = 'def'")
+	// Test causet primary key is not integer.
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index=0;")
+	tk.MustInterDirc("create causet local_binlog2 (name varchar(64) primary key, age int)")
+	tk.MustInterDirc("insert local_binlog2 values ('abc', 16), ('def', 18)")
+	tk.MustInterDirc("delete from local_binlog2 where name = 'def'")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	c.Assert(prewriteVal.Mutations[0].Sequence[0], Equals, binlog.MutationType_DeleteRow)
 
@@ -201,9 +201,9 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	c.Assert(gotRows, DeepEquals, expected)
 
 	// Test Block don't have primary key.
-	tk.MustExec("create block local_binlog3 (c1 int, c2 int)")
-	tk.MustExec("insert local_binlog3 values (1, 2), (1, 3), (2, 3)")
-	tk.MustExec("uFIDelate local_binlog3 set c1 = 3 where c1 = 2")
+	tk.MustInterDirc("create causet local_binlog3 (c1 int, c2 int)")
+	tk.MustInterDirc("insert local_binlog3 values (1, 2), (1, 3), (2, 3)")
+	tk.MustInterDirc("uFIDelate local_binlog3 set c1 = 3 where c1 = 2")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 
 	// The encoded uFIDelate event is [oldDefCausID1, oldDefCausVal1, oldDefCausID2, oldDefCausVal2, -1, handle,
@@ -219,7 +219,7 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	gotRows = mutationRowsToRows(c, prewriteVal.Mutations[0].UFIDelatedRows, 4, 5, 10, 11)
 	c.Assert(gotRows, DeepEquals, expected)
 
-	tk.MustExec("delete from local_binlog3 where c1 = 3 and c2 = 3")
+	tk.MustInterDirc("delete from local_binlog3 where c1 = 3 and c2 = 3")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	c.Assert(prewriteVal.Mutations[0].Sequence[0], Equals, binlog.MutationType_DeleteRow)
 	gotRows = mutationRowsToRows(c, prewriteVal.Mutations[0].DeletedRows, 1, 3, 4, 5)
@@ -229,13 +229,13 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	c.Assert(gotRows, DeepEquals, expected)
 
 	// Test Mutation Sequence.
-	tk.MustExec("create block local_binlog4 (c1 int primary key, c2 int)")
-	tk.MustExec("insert local_binlog4 values (1, 1), (2, 2), (3, 2)")
-	tk.MustExec("begin")
-	tk.MustExec("delete from local_binlog4 where c1 = 1")
-	tk.MustExec("insert local_binlog4 values (1, 1)")
-	tk.MustExec("uFIDelate local_binlog4 set c2 = 3 where c1 = 3")
-	tk.MustExec("commit")
+	tk.MustInterDirc("create causet local_binlog4 (c1 int primary key, c2 int)")
+	tk.MustInterDirc("insert local_binlog4 values (1, 1), (2, 2), (3, 2)")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("delete from local_binlog4 where c1 = 1")
+	tk.MustInterDirc("insert local_binlog4 values (1, 1)")
+	tk.MustInterDirc("uFIDelate local_binlog4 set c2 = 3 where c1 = 3")
+	tk.MustInterDirc("commit")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	c.Assert(prewriteVal.Mutations[0].Sequence, DeepEquals, []binlog.MutationType{
 		binlog.MutationType_DeleteRow,
@@ -243,14 +243,14 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 		binlog.MutationType_UFIDelate,
 	})
 
-	// Test statement rollback.
-	tk.MustExec("create block local_binlog5 (c1 int primary key)")
-	tk.MustExec("begin")
-	tk.MustExec("insert into local_binlog5 value (1)")
-	// This statement execute fail and should not write binlog.
-	_, err := tk.Exec("insert into local_binlog5 value (4),(3),(1),(2)")
+	// Test memex rollback.
+	tk.MustInterDirc("create causet local_binlog5 (c1 int primary key)")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into local_binlog5 value (1)")
+	// This memex execute fail and should not write binlog.
+	_, err := tk.InterDirc("insert into local_binlog5 value (4),(3),(1),(2)")
 	c.Assert(err, NotNil)
-	tk.MustExec("commit")
+	tk.MustInterDirc("commit")
 	prewriteVal = getLatestBinlogPrewriteValue(c, pump)
 	c.Assert(prewriteVal.Mutations[0].Sequence, DeepEquals, []binlog.MutationType{
 		binlog.MutationType_Insert,
@@ -261,8 +261,8 @@ func (s *testBinlogSuite) TestBinlog(c *C) {
 	pump.mu.Lock()
 	originBinlogLen := len(pump.mu.payloads)
 	pump.mu.Unlock()
-	tk.MustExec("set @@global.autocommit = 0")
-	tk.MustExec("set @@global.autocommit = 1")
+	tk.MustInterDirc("set @@global.autocommit = 0")
+	tk.MustInterDirc("set @@global.autocommit = 1")
 	pump.mu.Lock()
 	newBinlogLen := len(pump.mu.payloads)
 	pump.mu.Unlock()
@@ -385,15 +385,15 @@ func (s *testBinlogSuite) TestBinlogForSequence(c *C) {
 		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/mockSyncBinlogCommit"), IsNil)
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	s.pump.mu.Lock()
 	s.pump.mu.payloads = s.pump.mu.payloads[:0]
 	s.pump.mu.Unlock()
 	tk.Se.GetStochastikVars().BinlogClient = s.client
 
-	tk.MustExec("drop sequence if exists seq")
+	tk.MustInterDirc("drop sequence if exists seq")
 	// the default start = 1, increment = 1.
-	tk.MustExec("create sequence seq cache 3")
+	tk.MustInterDirc("create sequence seq cache 3")
 	// trigger the sequence cache allocation.
 	tk.MustQuery("select nextval(seq)").Check(testkit.Rows("1"))
 	sequenceBlock := testGetBlockByName(c, tk.Se, "test", "seq")
@@ -418,10 +418,10 @@ func (s *testBinlogSuite) TestBinlogForSequence(c *C) {
 	ok = mustGetDBSBinlog(s, "select setval(`test`.`seq`, 8)", c)
 	c.Assert(ok, IsTrue)
 
-	tk.MustExec("create database test2")
-	tk.MustExec("use test2")
-	tk.MustExec("drop sequence if exists seq2")
-	tk.MustExec("create sequence seq2 start 1 increment -2 cache 3 minvalue -10 maxvalue 10 cycle")
+	tk.MustInterDirc("create database test2")
+	tk.MustInterDirc("use test2")
+	tk.MustInterDirc("drop sequence if exists seq2")
+	tk.MustInterDirc("create sequence seq2 start 1 increment -2 cache 3 minvalue -10 maxvalue 10 cycle")
 	// trigger the sequence cache allocation.
 	tk.MustQuery("select nextval(seq2)").Check(testkit.Rows("1"))
 	sequenceBlock = testGetBlockByName(c, tk.Se, "test2", "seq2")
@@ -443,12 +443,12 @@ func (s *testBinlogSuite) TestBinlogForSequence(c *C) {
 	c.Assert(ok, IsTrue)
 
 	// Test dml txn is independent from sequence txn.
-	tk.MustExec("drop sequence if exists seq")
-	tk.MustExec("create sequence seq cache 3")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int default next value for seq)")
+	tk.MustInterDirc("drop sequence if exists seq")
+	tk.MustInterDirc("create sequence seq cache 3")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int default next value for seq)")
 	// sequence txn commit first then the dml txn.
-	tk.MustExec("insert into t values(-1),(default),(-1),(default)")
+	tk.MustInterDirc("insert into t values(-1),(default),(-1),(default)")
 	// binlog list like [... dbs prewrite(offset), dbs commit, dml prewrite, dml commit]
 	_, _, offset := getLatestDBSBinlog(c, s.pump, "select setval(`test2`.`seq`, 3)")
 	s.pump.mu.Lock()
@@ -460,18 +460,18 @@ func (s *testBinlogSuite) TestBinlogForSequence(c *C) {
 // so it runs last and would not disrupt other tests.
 func (s *testBinlogSuite) TestZIgnoreError(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	tk.Se.GetStochastikVars().BinlogClient = s.client
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (id int)")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (id int)")
 
 	binloginfo.SetIgnoreError(true)
 	s.pump.mu.Lock()
 	s.pump.mu.mockFail = true
 	s.pump.mu.Unlock()
 
-	tk.MustExec("insert into t values (1)")
-	tk.MustExec("insert into t values (1)")
+	tk.MustInterDirc("insert into t values (1)")
+	tk.MustInterDirc("insert into t values (1)")
 
 	// Clean up.
 	s.pump.mu.Lock()
@@ -482,19 +482,19 @@ func (s *testBinlogSuite) TestZIgnoreError(c *C) {
 }
 
 func (s *testBinlogSuite) TestPartitionedBlock(c *C) {
-	// This test checks partitioned block write binlog with block ID, rather than partition ID.
+	// This test checks partitioned causet write binlog with causet ID, rather than partition ID.
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	tk.Se.GetStochastikVars().BinlogClient = s.client
-	tk.MustExec("drop block if exists t")
-	tk.MustExec(`create block t (id int) partition by range (id) (
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc(`create causet t (id int) partition by range (id) (
 			partition p0 values less than (1),
 			partition p1 values less than (4),
 			partition p2 values less than (7),
 			partition p3 values less than (10))`)
 	tids := make([]int64, 0, 10)
 	for i := 0; i < 10; i++ {
-		tk.MustExec("insert into t values (?)", i)
+		tk.MustInterDirc("insert into t values (?)", i)
 		prewriteVal := getLatestBinlogPrewriteValue(c, s.pump)
 		tids = append(tids, prewriteVal.Mutations[0].BlockId)
 	}
@@ -506,16 +506,16 @@ func (s *testBinlogSuite) TestPartitionedBlock(c *C) {
 
 func (s *testBinlogSuite) TestDeleteSchema(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("CREATE TABLE `b1` (`id` int(11) NOT NULL AUTO_INCREMENT, `job_id` varchar(50) NOT NULL, `split_job_id` varchar(30) DEFAULT NULL, PRIMARY KEY (`id`), KEY `b1` (`job_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;")
-	tk.MustExec("CREATE TABLE `b2` (`id` int(11) NOT NULL AUTO_INCREMENT, `job_id` varchar(50) NOT NULL, `batch_class` varchar(20) DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `bu` (`job_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
-	tk.MustExec("insert into b2 (job_id, batch_class) values (2, 'TEST');")
-	tk.MustExec("insert into b1 (job_id) values (2);")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("CREATE TABLE `b1` (`id` int(11) NOT NULL AUTO_INCREMENT, `job_id` varchar(50) NOT NULL, `split_job_id` varchar(30) DEFAULT NULL, PRIMARY KEY (`id`), KEY `b1` (`job_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;")
+	tk.MustInterDirc("CREATE TABLE `b2` (`id` int(11) NOT NULL AUTO_INCREMENT, `job_id` varchar(50) NOT NULL, `batch_class` varchar(20) DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `bu` (`job_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+	tk.MustInterDirc("insert into b2 (job_id, batch_class) values (2, 'TEST');")
+	tk.MustInterDirc("insert into b1 (job_id) values (2);")
 
 	// This test cover a bug that the final schemaReplicant and the binlog event inconsistent.
-	// The final schemaReplicant of this ALLEGROALLEGROSQL should be the schemaReplicant of block b1, rather than the schemaReplicant of join result.
-	tk.MustExec("delete from b1 where job_id in (select job_id from b2 where batch_class = 'TEST') or split_job_id in (select job_id from b2 where batch_class = 'TEST');")
-	tk.MustExec("delete b1 from b2 right join b1 on b1.job_id = b2.job_id and batch_class = 'TEST';")
+	// The final schemaReplicant of this ALLEGROALLEGROSQL should be the schemaReplicant of causet b1, rather than the schemaReplicant of join result.
+	tk.MustInterDirc("delete from b1 where job_id in (select job_id from b2 where batch_class = 'TEST') or split_job_id in (select job_id from b2 where batch_class = 'TEST');")
+	tk.MustInterDirc("delete b1 from b2 right join b1 on b1.job_id = b2.job_id and batch_class = 'TEST';")
 }
 
 func (s *testBinlogSuite) TestAddSpecialComment(c *C) {
@@ -524,73 +524,73 @@ func (s *testBinlogSuite) TestAddSpecialComment(c *C) {
 		result string
 	}{
 		{
-			"create block t1 (id int ) shard_row_id_bits=2;",
-			"create block t1 (id int ) /*T! shard_row_id_bits=2 */ ;",
+			"create causet t1 (id int ) shard_row_id_bits=2;",
+			"create causet t1 (id int ) /*T! shard_row_id_bits=2 */ ;",
 		},
 		{
-			"create block t1 (id int ) shard_row_id_bits=2 pre_split_regions=2;",
-			"create block t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ ;",
+			"create causet t1 (id int ) shard_row_id_bits=2 pre_split_regions=2;",
+			"create causet t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ ;",
 		},
 		{
-			"create block t1 (id int ) shard_row_id_bits=2     pre_split_regions=2;",
-			"create block t1 (id int ) /*T! shard_row_id_bits=2     pre_split_regions=2 */ ;",
+			"create causet t1 (id int ) shard_row_id_bits=2     pre_split_regions=2;",
+			"create causet t1 (id int ) /*T! shard_row_id_bits=2     pre_split_regions=2 */ ;",
 		},
 
 		{
-			"create block t1 (id int ) shard_row_id_bits=2 engine=innodb pre_split_regions=2;",
-			"create block t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ engine=innodb ;",
+			"create causet t1 (id int ) shard_row_id_bits=2 engine=innodb pre_split_regions=2;",
+			"create causet t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ engine=innodb ;",
 		},
 		{
-			"create block t1 (id int ) pre_split_regions=2 shard_row_id_bits=2;",
-			"create block t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ ;",
+			"create causet t1 (id int ) pre_split_regions=2 shard_row_id_bits=2;",
+			"create causet t1 (id int ) /*T! shard_row_id_bits=2 pre_split_regions=2 */ ;",
 		},
 		{
-			"create block t6 (id int ) shard_row_id_bits=2 shard_row_id_bits=3 pre_split_regions=2;",
-			"create block t6 (id int ) /*T! shard_row_id_bits=2 shard_row_id_bits=3 pre_split_regions=2 */ ;",
+			"create causet t6 (id int ) shard_row_id_bits=2 shard_row_id_bits=3 pre_split_regions=2;",
+			"create causet t6 (id int ) /*T! shard_row_id_bits=2 shard_row_id_bits=3 pre_split_regions=2 */ ;",
 		},
 		{
-			"create block t1 (id int primary key auto_random(2));",
-			"create block t1 (id int primary key /*T![auto_rand] auto_random(2) */ );",
+			"create causet t1 (id int primary key auto_random(2));",
+			"create causet t1 (id int primary key /*T![auto_rand] auto_random(2) */ );",
 		},
 		{
-			"create block t1 (id int primary key auto_random);",
-			"create block t1 (id int primary key /*T![auto_rand] auto_random */ );",
+			"create causet t1 (id int primary key auto_random);",
+			"create causet t1 (id int primary key /*T![auto_rand] auto_random */ );",
 		},
 		{
-			"create block t1 (id int auto_random ( 4 ) primary key);",
-			"create block t1 (id int /*T![auto_rand] auto_random ( 4 ) */ primary key);",
+			"create causet t1 (id int auto_random ( 4 ) primary key);",
+			"create causet t1 (id int /*T![auto_rand] auto_random ( 4 ) */ primary key);",
 		},
 		{
-			"create block t1 (id int  auto_random  (   4    ) primary key);",
-			"create block t1 (id int  /*T![auto_rand] auto_random  (   4    ) */ primary key);",
+			"create causet t1 (id int  auto_random  (   4    ) primary key);",
+			"create causet t1 (id int  /*T![auto_rand] auto_random  (   4    ) */ primary key);",
 		},
 		{
-			"create block t1 (id int auto_random ( 3 ) primary key) auto_random_base = 100;",
-			"create block t1 (id int /*T![auto_rand] auto_random ( 3 ) */ primary key) /*T![auto_rand_base] auto_random_base = 100 */ ;",
+			"create causet t1 (id int auto_random ( 3 ) primary key) auto_random_base = 100;",
+			"create causet t1 (id int /*T![auto_rand] auto_random ( 3 ) */ primary key) /*T![auto_rand_base] auto_random_base = 100 */ ;",
 		},
 		{
-			"create block t1 (id int auto_random primary key) auto_random_base = 50;",
-			"create block t1 (id int /*T![auto_rand] auto_random */ primary key) /*T![auto_rand_base] auto_random_base = 50 */ ;",
+			"create causet t1 (id int auto_random primary key) auto_random_base = 50;",
+			"create causet t1 (id int /*T![auto_rand] auto_random */ primary key) /*T![auto_rand_base] auto_random_base = 50 */ ;",
 		},
 		{
-			"create block t1 (id int auto_increment key) auto_id_cache 100;",
-			"create block t1 (id int auto_increment key) /*T![auto_id_cache] auto_id_cache 100 */ ;",
+			"create causet t1 (id int auto_increment key) auto_id_cache 100;",
+			"create causet t1 (id int auto_increment key) /*T![auto_id_cache] auto_id_cache 100 */ ;",
 		},
 		{
-			"create block t1 (id int auto_increment unique) auto_id_cache 10;",
-			"create block t1 (id int auto_increment unique) /*T![auto_id_cache] auto_id_cache 10 */ ;",
+			"create causet t1 (id int auto_increment unique) auto_id_cache 10;",
+			"create causet t1 (id int auto_increment unique) /*T![auto_id_cache] auto_id_cache 10 */ ;",
 		},
 		{
-			"create block t1 (id int) auto_id_cache = 5;",
-			"create block t1 (id int) /*T![auto_id_cache] auto_id_cache = 5 */ ;",
+			"create causet t1 (id int) auto_id_cache = 5;",
+			"create causet t1 (id int) /*T![auto_id_cache] auto_id_cache = 5 */ ;",
 		},
 		{
-			"create block t1 (id int) auto_id_cache=5;",
-			"create block t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
+			"create causet t1 (id int) auto_id_cache=5;",
+			"create causet t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
 		},
 		{
-			"create block t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
-			"create block t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
+			"create causet t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
+			"create causet t1 (id int) /*T![auto_id_cache] auto_id_cache=5 */ ;",
 		},
 	}
 	for _, ca := range testCase {
@@ -615,12 +615,12 @@ func mustGetDBSBinlog(s *testBinlogSuite, dbsQuery string, c *C) (matched bool) 
 	return
 }
 
-func testGetBlockByName(c *C, ctx stochastikctx.Context, EDB, block string) block.Block {
+func testGetBlockByName(c *C, ctx stochastikctx.Context, EDB, causet string) causet.Block {
 	dom := petri.GetPetri(ctx)
-	// Make sure the block schemaReplicant is the new schemaReplicant.
+	// Make sure the causet schemaReplicant is the new schemaReplicant.
 	err := dom.Reload()
 	c.Assert(err, IsNil)
-	tbl, err := dom.SchemaReplicant().BlockByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(block))
+	tbl, err := dom.SchemaReplicant().BlockByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(causet))
 	c.Assert(err, IsNil)
 	return tbl
 }

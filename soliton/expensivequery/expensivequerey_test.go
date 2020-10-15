@@ -45,7 +45,7 @@ func (s *testSuite) TestLogFormat(c *C) {
 		User:          "WHTCORPS INC",
 		Host:          "127.0.0.1",
 		EDB:            "Database",
-		Info:          "select * from block where a > 1",
+		Info:          "select * from causet where a > 1",
 		CurTxnStartTS: 23333,
 		StatsInfo: func(interface{}) map[string]uint64 {
 			return nil
@@ -70,5 +70,5 @@ func (s *testSuite) TestLogFormat(c *C) {
 	c.Assert(logFields[5].Key, Equals, "mem_max")
 	c.Assert(logFields[5].String, Equals, "2013265920 Bytes (1.875 GB)")
 	c.Assert(logFields[6].Key, Equals, "allegrosql")
-	c.Assert(logFields[6].String, Equals, "select * from block where a > 1")
+	c.Assert(logFields[6].String, Equals, "select * from causet where a > 1")
 }

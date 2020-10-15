@@ -39,37 +39,37 @@ const (
 	separatorStr   = "\t"
 )
 
-var decoderPool = sync.Pool{
+var causetDecoderPool = sync.Pool{
 	New: func() interface{} {
-		return &planDecoder{}
+		return &planCausetDecoder{}
 	},
 }
 
-// DecodePlan use to decode the string to plan tree.
-func DecodePlan(planString string) (string, error) {
+// DecodeCauset use to decode the string to plan tree.
+func DecodeCauset(planString string) (string, error) {
 	if len(planString) == 0 {
 		return "", nil
 	}
-	fidel := decoderPool.Get().(*planDecoder)
-	defer decoderPool.Put(fidel)
+	fidel := causetDecoderPool.Get().(*planCausetDecoder)
+	defer causetDecoderPool.Put(fidel)
 	fidel.buf.Reset()
 	fidel.addHeader = true
 	return fidel.decode(planString)
 }
 
-// DecodeNormalizedPlan decodes the string to plan tree.
-func DecodeNormalizedPlan(planString string) (string, error) {
+// DecodeNormalizedCauset decodes the string to plan tree.
+func DecodeNormalizedCauset(planString string) (string, error) {
 	if len(planString) == 0 {
 		return "", nil
 	}
-	fidel := decoderPool.Get().(*planDecoder)
-	defer decoderPool.Put(fidel)
+	fidel := causetDecoderPool.Get().(*planCausetDecoder)
+	defer causetDecoderPool.Put(fidel)
 	fidel.buf.Reset()
 	fidel.addHeader = false
-	return fidel.buildPlanTree(planString)
+	return fidel.buildCausetTree(planString)
 }
 
-type planDecoder struct {
+type planCausetDecoder struct {
 	buf              bytes.Buffer
 	depths           []int
 	indents          [][]rune
@@ -83,15 +83,15 @@ type planInfo struct {
 	fields []string
 }
 
-func (fidel *planDecoder) decode(planString string) (string, error) {
+func (fidel *planCausetDecoder) decode(planString string) (string, error) {
 	str, err := decompress(planString)
 	if err != nil {
 		return "", err
 	}
-	return fidel.buildPlanTree(str)
+	return fidel.buildCausetTree(str)
 }
 
-func (fidel *planDecoder) buildPlanTree(planString string) (string, error) {
+func (fidel *planCausetDecoder) buildCausetTree(planString string) (string, error) {
 	nodes := strings.Split(planString, lineBreakerStr)
 	if len(fidel.depths) < len(nodes) {
 		fidel.depths = make([]int, 0, len(nodes))
@@ -101,7 +101,7 @@ func (fidel *planDecoder) buildPlanTree(planString string) (string, error) {
 	fidel.depths = fidel.depths[:0]
 	fidel.planInfos = fidel.planInfos[:0]
 	for _, node := range nodes {
-		p, err := decodePlanInfo(node)
+		p, err := decodeCausetInfo(node)
 		if err != nil {
 			return "", err
 		}
@@ -113,11 +113,11 @@ func (fidel *planDecoder) buildPlanTree(planString string) (string, error) {
 	}
 
 	if fidel.addHeader {
-		fidel.addPlanHeader()
+		fidel.addCausetHeader()
 	}
 
 	// Calculated indentation of plans.
-	fidel.initPlanTreeIndents()
+	fidel.initCausetTreeIndents()
 	fidel.cacheParentIdent = make(map[int]int)
 	for i := 1; i < len(fidel.depths); i++ {
 		parentIndex := fidel.findParentIndex(i)
@@ -144,7 +144,7 @@ func (fidel *planDecoder) buildPlanTree(planString string) (string, error) {
 	return fidel.buf.String(), nil
 }
 
-func (fidel *planDecoder) addPlanHeader() {
+func (fidel *planCausetDecoder) addCausetHeader() {
 	if len(fidel.planInfos) == 0 {
 		return
 	}
@@ -166,7 +166,7 @@ func (fidel *planDecoder) addPlanHeader() {
 	fidel.depths = depths
 }
 
-func (fidel *planDecoder) initPlanTreeIndents() {
+func (fidel *planCausetDecoder) initCausetTreeIndents() {
 	fidel.indents = fidel.indents[:0]
 	for i := 0; i < len(fidel.depths); i++ {
 		indent := make([]rune, 2*fidel.depths[i])
@@ -182,7 +182,7 @@ func (fidel *planDecoder) initPlanTreeIndents() {
 	}
 }
 
-func (fidel *planDecoder) findParentIndex(childIndex int) int {
+func (fidel *planCausetDecoder) findParentIndex(childIndex int) int {
 	fidel.cacheParentIdent[fidel.depths[childIndex]] = childIndex
 	parentDepth := fidel.depths[childIndex] - 1
 	if parentIdx, ok := fidel.cacheParentIdent[parentDepth]; ok {
@@ -197,7 +197,7 @@ func (fidel *planDecoder) findParentIndex(childIndex int) int {
 	return 0
 }
 
-func (fidel *planDecoder) fillIndent(parentIndex, childIndex int) {
+func (fidel *planCausetDecoder) fillIndent(parentIndex, childIndex int) {
 	depth := fidel.depths[childIndex]
 	if depth == 0 {
 		return
@@ -212,7 +212,7 @@ func (fidel *planDecoder) fillIndent(parentIndex, childIndex int) {
 	}
 }
 
-func (fidel *planDecoder) alignFields() {
+func (fidel *planCausetDecoder) alignFields() {
 	if len(fidel.planInfos) == 0 {
 		return
 	}
@@ -236,7 +236,7 @@ func (fidel *planDecoder) alignFields() {
 	for defCausIdx := 0; defCausIdx < fieldsLen; defCausIdx++ {
 		maxFieldLen := fidel.getMaxFieldLength(defCausIdx)
 		for rowIdx, p := range fidel.planInfos {
-			fillLen := maxFieldLen - fidel.getPlanFieldLen(rowIdx, defCausIdx, p)
+			fillLen := maxFieldLen - fidel.getCausetFieldLen(rowIdx, defCausIdx, p)
 			for len(buf) < fillLen {
 				buf = append(buf, ' ')
 			}
@@ -246,10 +246,10 @@ func (fidel *planDecoder) alignFields() {
 	}
 }
 
-func (fidel *planDecoder) getMaxFieldLength(idx int) int {
+func (fidel *planCausetDecoder) getMaxFieldLength(idx int) int {
 	maxLength := -1
 	for rowIdx, p := range fidel.planInfos {
-		l := fidel.getPlanFieldLen(rowIdx, idx, p)
+		l := fidel.getCausetFieldLen(rowIdx, idx, p)
 		if l > maxLength {
 			maxLength = l
 		}
@@ -257,14 +257,14 @@ func (fidel *planDecoder) getMaxFieldLength(idx int) int {
 	return maxLength
 }
 
-func (fidel *planDecoder) getPlanFieldLen(rowIdx, defCausIdx int, p *planInfo) int {
+func (fidel *planCausetDecoder) getCausetFieldLen(rowIdx, defCausIdx int, p *planInfo) int {
 	if defCausIdx == 0 {
 		return len(p.fields[0]) + len(fidel.indents[rowIdx])
 	}
 	return len(p.fields[defCausIdx])
 }
 
-func decodePlanInfo(str string) (*planInfo, error) {
+func decodeCausetInfo(str string) (*planInfo, error) {
 	values := strings.Split(str, separatorStr)
 	if len(values) < 2 {
 		return nil, nil
@@ -311,8 +311,8 @@ func decodePlanInfo(str string) (*planInfo, error) {
 	return p, nil
 }
 
-// EncodePlanNode is used to encode the plan to a string.
-func EncodePlanNode(depth, pid int, planType string, rowCount float64,
+// EncodeCausetNode is used to encode the plan to a string.
+func EncodeCausetNode(depth, pid int, planType string, rowCount float64,
 	taskTypeInfo, explainInfo, actRows, analyzeInfo, memoryInfo, diskInfo string, buf *bytes.Buffer) {
 	buf.WriteString(strconv.Itoa(depth))
 	buf.WriteByte(separator)
@@ -337,8 +337,8 @@ func EncodePlanNode(depth, pid int, planType string, rowCount float64,
 	buf.WriteByte(lineBreaker)
 }
 
-// NormalizePlanNode is used to normalize the plan to a string.
-func NormalizePlanNode(depth int, planType string, taskTypeInfo string, explainInfo string, buf *bytes.Buffer) {
+// NormalizeCausetNode is used to normalize the plan to a string.
+func NormalizeCausetNode(depth int, planType string, taskTypeInfo string, explainInfo string, buf *bytes.Buffer) {
 	buf.WriteString(strconv.Itoa(depth))
 	buf.WriteByte(separator)
 	planID := TypeStringToPhysicalID(planType)
@@ -378,7 +378,7 @@ func decodeTaskType(str string) (string, error) {
 	if segs[0] == rootTaskType {
 		return "root", nil
 	}
-	if len(segs) == 1 { // be compatible to `NormalizePlanNode`, which doesn't encode storeType in task field.
+	if len(segs) == 1 { // be compatible to `NormalizeCausetNode`, which doesn't encode storeType in task field.
 		return "cop", nil
 	}
 	storeType, err := strconv.Atoi(segs[1])

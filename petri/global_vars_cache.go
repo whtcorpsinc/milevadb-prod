@@ -119,8 +119,8 @@ func checkEnableServerGlobalVar(rows []chunk.Event) {
 			err = stmtsummary.StmtSummaryByDigestMap.SetMaxStmtCount(sVal, false)
 		case variable.MilevaDBStmtSummaryMaxALLEGROSQLLength:
 			err = stmtsummary.StmtSummaryByDigestMap.SetMaxALLEGROSQLLength(sVal, false)
-		case variable.MilevaDBCapturePlanBaseline:
-			variable.CapturePlanBaseline.Set(sVal, false)
+		case variable.MilevaDBCaptureCausetBaseline:
+			variable.CaptureCausetBaseline.Set(sVal, false)
 		}
 		if err != nil {
 			logutil.BgLogger().Error(fmt.Sprintf("load global variable %s error", event.GetString(0)), zap.Error(err))

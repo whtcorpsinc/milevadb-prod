@@ -848,7 +848,7 @@ func EncodeFeedback(q *QueryFeedback) ([]byte, error) {
 		return nil, errors.Trace(err)
 	}
 	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
+	enc := gob.NewCausetEncoder(&buf)
 	err = enc.Encode(pb)
 	return buf.Bytes(), errors.Trace(err)
 }
@@ -938,7 +938,7 @@ func decodeFeedbackForDeferredCauset(q *QueryFeedback, pb *queryFeedback, ft *ty
 // DecodeFeedback decodes a byte slice to feedback.
 func DecodeFeedback(val []byte, q *QueryFeedback, c *CMSketch, ft *types.FieldType) error {
 	buf := bytes.NewBuffer(val)
-	dec := gob.NewDecoder(buf)
+	dec := gob.NewCausetDecoder(buf)
 	pb := &queryFeedback{}
 	err := dec.Decode(pb)
 	if err != nil {

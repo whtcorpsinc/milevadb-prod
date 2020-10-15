@@ -139,38 +139,38 @@ func decodeRow(fd *os.File) (*comparableRow, error) {
 }
 
 func encodeMeta(b []byte, scale int, keySize int, valSize int) []byte {
-	meta := make([]byte, 8)
+	spacetime := make([]byte, 8)
 
-	binary.BigEndian.PutUint64(meta, uint64(scale))
-	b = append(b, meta...)
-	binary.BigEndian.PutUint64(meta, uint64(keySize))
-	b = append(b, meta...)
-	binary.BigEndian.PutUint64(meta, uint64(valSize))
-	b = append(b, meta...)
+	binary.BigEndian.PutUint64(spacetime, uint64(scale))
+	b = append(b, spacetime...)
+	binary.BigEndian.PutUint64(spacetime, uint64(keySize))
+	b = append(b, spacetime...)
+	binary.BigEndian.PutUint64(spacetime, uint64(valSize))
+	b = append(b, spacetime...)
 
 	return b
 }
 
 func decodeMeta(fd *os.File) error {
-	meta := make([]byte, 24)
-	if n, err := fd.Read(meta); err != nil || n != 24 {
+	spacetime := make([]byte, 24)
+	if n, err := fd.Read(spacetime); err != nil || n != 24 {
 		if n != 24 {
-			return errors.New("incorrect meta data")
+			return errors.New("incorrect spacetime data")
 		}
 		return errors.Trace(err)
 	}
 
-	scale = int(binary.BigEndian.Uint64(meta[:8]))
+	scale = int(binary.BigEndian.Uint64(spacetime[:8]))
 	if scale <= 0 {
 		return errors.New("number of rows must be positive")
 	}
 
-	keySize = int(binary.BigEndian.Uint64(meta[8:16]))
+	keySize = int(binary.BigEndian.Uint64(spacetime[8:16]))
 	if keySize <= 0 {
 		return errors.New("key size must be positive")
 	}
 
-	valSize = int(binary.BigEndian.Uint64(meta[16:]))
+	valSize = int(binary.BigEndian.Uint64(spacetime[16:]))
 	if valSize <= 0 {
 		return errors.New("value size must be positive")
 	}

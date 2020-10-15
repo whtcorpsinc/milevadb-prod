@@ -19,7 +19,7 @@ import (
 	"time"
 
 	us "github.com/ngaut/entangledstore/einsteindb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 )
@@ -32,7 +32,7 @@ type delayKey struct {
 var _ cluster.Cluster = new(Cluster)
 
 // Cluster simulates a EinsteinDB cluster. It focuses on management and the change of
-// meta data. A Cluster mainly includes following 3 HoTTs of meta data:
+// spacetime data. A Cluster mainly includes following 3 HoTTs of spacetime data:
 // 1) Region: A Region is a fragment of EinsteinDB's data whose range is [start, end).
 //    The data of a Region is duplicated to multiple Peers and distributed in
 //    multiple Stores.
@@ -77,7 +77,7 @@ func (c *Cluster) handleDelay(startTS, regionID uint64) {
 }
 
 // SplitRaw splits region for raw KV.
-func (c *Cluster) SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *metapb.Region {
+func (c *Cluster) SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *spacetimepb.Region {
 	encodedKey := codec.EncodeBytes(nil, rawKey)
 	return c.MockRegionManager.SplitRaw(regionID, newRegionID, encodedKey, peerIDs, leaderPeerID)
 }
@@ -85,16 +85,16 @@ func (c *Cluster) SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs 
 // BootstrapWithSingleStore initializes a Cluster with 1 Region and 1 CausetStore.
 func BootstrapWithSingleStore(cluster *Cluster) (storeID, peerID, regionID uint64) {
 	storeID, regionID, peerID = cluster.AllocID(), cluster.AllocID(), cluster.AllocID()
-	causetstore := &metapb.CausetStore{
+	causetstore := &spacetimepb.CausetStore{
 		Id:      storeID,
 		Address: fmt.Sprintf("causetstore%d", storeID),
 	}
-	region := &metapb.Region{
+	region := &spacetimepb.Region{
 		Id:          regionID,
-		RegionEpoch: &metapb.RegionEpoch{ConfVer: 1, Version: 1},
-		Peers:       []*metapb.Peer{{Id: peerID, StoreId: storeID}},
+		RegionEpoch: &spacetimepb.RegionEpoch{ConfVer: 1, Version: 1},
+		Peers:       []*spacetimepb.Peer{{Id: peerID, StoreId: storeID}},
 	}
-	if err := cluster.Bootstrap([]*metapb.CausetStore{causetstore}, region); err != nil {
+	if err := cluster.Bootstrap([]*spacetimepb.CausetStore{causetstore}, region); err != nil {
 		panic(err)
 	}
 	return
@@ -106,23 +106,23 @@ func BootstrapWithMultiStores(cluster *Cluster, n int) (storeIDs, peerIDs []uint
 	peerIDs = cluster.AllocIDs(n)
 	leaderPeer = peerIDs[0]
 	regionID = cluster.AllocID()
-	stores := make([]*metapb.CausetStore, n)
+	stores := make([]*spacetimepb.CausetStore, n)
 	for i, storeID := range storeIDs {
-		stores[i] = &metapb.CausetStore{
+		stores[i] = &spacetimepb.CausetStore{
 			Id:      storeID,
 			Address: fmt.Sprintf("causetstore%d", storeID),
 		}
 	}
-	peers := make([]*metapb.Peer, n)
+	peers := make([]*spacetimepb.Peer, n)
 	for i, peerID := range peerIDs {
-		peers[i] = &metapb.Peer{
+		peers[i] = &spacetimepb.Peer{
 			Id:      peerID,
 			StoreId: storeIDs[i],
 		}
 	}
-	region := &metapb.Region{
+	region := &spacetimepb.Region{
 		Id:          regionID,
-		RegionEpoch: &metapb.RegionEpoch{ConfVer: 1, Version: 1},
+		RegionEpoch: &spacetimepb.RegionEpoch{ConfVer: 1, Version: 1},
 		Peers:       peers,
 	}
 	if err := cluster.Bootstrap(stores, region); err != nil {

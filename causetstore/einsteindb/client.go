@@ -326,9 +326,9 @@ func (c *rpcClient) SendRequest(ctx context.Context, addr string, req *einsteind
 
 	start := time.Now()
 	defer func() {
-		stmtExec := ctx.Value(execdetails.StmtExecDetailKey)
-		if stmtExec != nil {
-			detail := stmtExec.(*execdetails.StmtExecDetails)
+		stmtInterDirc := ctx.Value(execdetails.StmtInterDircDetailKey)
+		if stmtInterDirc != nil {
+			detail := stmtInterDirc.(*execdetails.StmtInterDircDetails)
 			atomic.AddInt64(&detail.WaitKVResFIDeluration, int64(time.Since(start)))
 		}
 		c.uFIDelateEinsteinDBSendReqHistogram(req, start)

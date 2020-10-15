@@ -152,9 +152,9 @@ func (s *testStatisticsSuite) TestCMSketch(c *C) {
 func (s *testStatisticsSuite) TestCMSketchCoding(c *C) {
 	lSketch := NewCMSketch(5, 2048)
 	lSketch.count = 2048 * math.MaxUint32
-	for i := range lSketch.block {
-		for j := range lSketch.block[i] {
-			lSketch.block[i][j] = math.MaxUint32
+	for i := range lSketch.causet {
+		for j := range lSketch.causet[i] {
+			lSketch.causet[i][j] = math.MaxUint32
 		}
 	}
 	bytes, err := EncodeCMSketchWithoutTopN(lSketch)
@@ -277,9 +277,9 @@ func (s *testStatisticsSuite) TestCMSketchTopNUniqueData(c *C) {
 func (s *testStatisticsSuite) TestCMSketchCodingTopN(c *C) {
 	lSketch := NewCMSketch(5, 2048)
 	lSketch.count = 2048 * (math.MaxUint32)
-	for i := range lSketch.block {
-		for j := range lSketch.block[i] {
-			lSketch.block[i][j] = math.MaxUint32
+	for i := range lSketch.causet {
+		for j := range lSketch.causet[i] {
+			lSketch.causet[i][j] = math.MaxUint32
 		}
 	}
 	lSketch.topN = make(map[uint64][]*TopNMeta)

@@ -42,25 +42,25 @@ func TestT(t *testing.T) {
 
 func cleanEnv(c *C, causetstore ekv.CausetStorage, do *petri.Petri) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	r := tk.MustQuery("show blocks")
 	for _, tb := range r.Rows() {
 		blockName := tb[0]
-		tk.MustExec(fmt.Sprintf("drop block %v", blockName))
+		tk.MustInterDirc(fmt.Sprintf("drop causet %v", blockName))
 	}
-	tk.MustExec("delete from allegrosql.stats_meta")
-	tk.MustExec("delete from allegrosql.stats_histograms")
-	tk.MustExec("delete from allegrosql.stats_buckets")
-	tk.MustExec("delete from allegrosql.stats_extended")
+	tk.MustInterDirc("delete from allegrosql.stats_spacetime")
+	tk.MustInterDirc("delete from allegrosql.stats_histograms")
+	tk.MustInterDirc("delete from allegrosql.stats_buckets")
+	tk.MustInterDirc("delete from allegrosql.stats_extended")
 	do.StatsHandle().Clear()
 }
 
 func (s *testStatsSuite) TestStatsCache(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
-	testKit.MustExec("insert into t values(1, 2)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
+	testKit.MustInterDirc("insert into t values(1, 2)")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -68,10 +68,10 @@ func (s *testStatsSuite) TestStatsCache(c *C) {
 	blockInfo := tbl.Meta()
 	statsTbl := do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsTrue)
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
-	testKit.MustExec("create index idx_t on t(c1)")
+	testKit.MustInterDirc("create index idx_t on t(c1)")
 	do.SchemaReplicant()
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	// If index is build, but stats is not uFIDelated. statsTbl can also work.
@@ -79,19 +79,19 @@ func (s *testStatsSuite) TestStatsCache(c *C) {
 	// But the added index will not work.
 	c.Assert(statsTbl.Indices[int64(1)], IsNil)
 
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
-	// If the new schemaReplicant drop a column, the block stats can still work.
-	testKit.MustExec("alter block t drop column c2")
+	// If the new schemaReplicant drop a column, the causet stats can still work.
+	testKit.MustInterDirc("alter causet t drop column c2")
 	is = do.SchemaReplicant()
 	do.StatsHandle().Clear()
 	do.StatsHandle().UFIDelate(is)
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	// If the new schemaReplicant add a column, the block stats can still work.
-	testKit.MustExec("alter block t add column c10 int")
+	// If the new schemaReplicant add a column, the causet stats can still work.
+	testKit.MustInterDirc("alter causet t add column c10 int")
 	is = do.SchemaReplicant()
 
 	do.StatsHandle().Clear()
@@ -103,9 +103,9 @@ func (s *testStatsSuite) TestStatsCache(c *C) {
 func (s *testStatsSuite) TestStatsCacheMemTracker(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int,c3 int)")
-	testKit.MustExec("insert into t values(1, 2, 3)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int,c3 int)")
+	testKit.MustInterDirc("insert into t values(1, 2, 3)")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -113,7 +113,7 @@ func (s *testStatsSuite) TestStatsCacheMemTracker(c *C) {
 	blockInfo := tbl.Meta()
 	statsTbl := do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsTrue)
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.MemoryUsage() > 0, IsTrue)
@@ -122,7 +122,7 @@ func (s *testStatsSuite) TestStatsCacheMemTracker(c *C) {
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 
 	c.Assert(statsTbl.Pseudo, IsFalse)
-	testKit.MustExec("create index idx_t on t(c1)")
+	testKit.MustInterDirc("create index idx_t on t(c1)")
 	do.SchemaReplicant()
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 
@@ -131,13 +131,13 @@ func (s *testStatsSuite) TestStatsCacheMemTracker(c *C) {
 	// But the added index will not work.
 	c.Assert(statsTbl.Indices[int64(1)], IsNil)
 
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	// If the new schemaReplicant drop a column, the block stats can still work.
-	testKit.MustExec("alter block t drop column c2")
+	// If the new schemaReplicant drop a column, the causet stats can still work.
+	testKit.MustInterDirc("alter causet t drop column c2")
 	is = do.SchemaReplicant()
 	do.StatsHandle().Clear()
 	do.StatsHandle().UFIDelate(is)
@@ -147,8 +147,8 @@ func (s *testStatsSuite) TestStatsCacheMemTracker(c *C) {
 	c.Assert(do.StatsHandle().GetAllTableStatsMemUsage(), Equals, do.StatsHandle().GetMemConsumed())
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	// If the new schemaReplicant add a column, the block stats can still work.
-	testKit.MustExec("alter block t add column c10 int")
+	// If the new schemaReplicant add a column, the causet stats can still work.
+	testKit.MustInterDirc("alter causet t add column c10 int")
 	is = do.SchemaReplicant()
 
 	do.StatsHandle().Clear()
@@ -185,20 +185,20 @@ func assertTableEqual(c *C, a *statistics.Block, b *statistics.Block) {
 func (s *testStatsSuite) TestStatsStoreAndLoad(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
 	recordCount := 1000
 	for i := 0; i < recordCount; i++ {
-		testKit.MustExec("insert into t values (?, ?)", i, i+1)
+		testKit.MustInterDirc("insert into t values (?, ?)", i, i+1)
 	}
-	testKit.MustExec("create index idx_t on t(c2)")
+	testKit.MustInterDirc("create index idx_t on t(c2)")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 	blockInfo := tbl.Meta()
 
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl1 := do.StatsHandle().GetTableStats(blockInfo)
 
 	do.StatsHandle().Clear()
@@ -212,9 +212,9 @@ func (s *testStatsSuite) TestStatsStoreAndLoad(c *C) {
 func (s *testStatsSuite) TestEmptyTable(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int, key cc1(c1), key cc2(c2))")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int, key cc1(c1), key cc2(c2))")
+	testKit.MustInterDirc("analyze causet t")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -229,10 +229,10 @@ func (s *testStatsSuite) TestEmptyTable(c *C) {
 func (s *testStatsSuite) TestDeferredCausetIDs(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
-	testKit.MustExec("insert into t values(1, 2)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
+	testKit.MustInterDirc("insert into t values(1, 2)")
+	testKit.MustInterDirc("analyze causet t")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -244,7 +244,7 @@ func (s *testStatsSuite) TestDeferredCausetIDs(c *C) {
 	c.Assert(count, Equals, float64(1))
 
 	// Drop a column and the offset changed,
-	testKit.MustExec("alter block t drop column c1")
+	testKit.MustInterDirc("alter causet t drop column c1")
 	is = do.SchemaReplicant()
 	do.StatsHandle().Clear()
 	do.StatsHandle().UFIDelate(is)
@@ -260,10 +260,10 @@ func (s *testStatsSuite) TestDeferredCausetIDs(c *C) {
 func (s *testStatsSuite) TestAvgDefCausLen(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 varchar(100), c3 float, c4 datetime, c5 varchar(100))")
-	testKit.MustExec("insert into t values(1, '1234567', 12.3, '2020-03-07 19:00:57', NULL)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 varchar(100), c3 float, c4 datetime, c5 varchar(100))")
+	testKit.MustInterDirc("insert into t values(1, '1234567', 12.3, '2020-03-07 19:00:57', NULL)")
+	testKit.MustInterDirc("analyze causet t")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -286,8 +286,8 @@ func (s *testStatsSuite) TestAvgDefCausLen(c *C) {
 	c.Assert(statsTbl.DeferredCausets[blockInfo.DeferredCausets[3].ID].AvgDefCausSizeChunkFormat(statsTbl.Count), Equals, float64(unsafe.Sizeof(types.ZeroTime)))
 	c.Assert(statsTbl.DeferredCausets[blockInfo.DeferredCausets[4].ID].AvgDefCausSizeChunkFormat(statsTbl.Count), Equals, 8.0)
 	c.Assert(statsTbl.DeferredCausets[blockInfo.DeferredCausets[4].ID].AvgDefCausSizeListInDisk(statsTbl.Count), Equals, 0.0)
-	testKit.MustExec("insert into t values(132, '123456789112', 1232.3, '2020-03-07 19:17:29', NULL)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("insert into t values(132, '123456789112', 1232.3, '2020-03-07 19:17:29', NULL)")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.DeferredCausets[blockInfo.DeferredCausets[0].ID].AvgDefCausSize(statsTbl.Count, false), Equals, 1.5)
 	c.Assert(statsTbl.DeferredCausets[blockInfo.DeferredCausets[1].ID].AvgDefCausSize(statsTbl.Count, false), Equals, 10.5)
@@ -316,9 +316,9 @@ func (s *testStatsSuite) TestDurationToTS(c *C) {
 func (s *testStatsSuite) TestVersion(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t1 (c1 int, c2 int)")
-	testKit.MustExec("analyze block t1")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t1 (c1 int, c2 int)")
+	testKit.MustInterDirc("analyze causet t1")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl1, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t1"))
@@ -326,56 +326,56 @@ func (s *testStatsSuite) TestVersion(c *C) {
 	blockInfo1 := tbl1.Meta()
 	h := handle.NewHandle(testKit.Se, time.Millisecond)
 	unit := oracle.ComposeTS(1, 0)
-	testKit.MustExec("uFIDelate allegrosql.stats_meta set version = ? where block_id = ?", 2*unit, blockInfo1.ID)
+	testKit.MustInterDirc("uFIDelate allegrosql.stats_spacetime set version = ? where block_id = ?", 2*unit, blockInfo1.ID)
 
 	c.Assert(h.UFIDelate(is), IsNil)
 	c.Assert(h.LastUFIDelateVersion(), Equals, 2*unit)
 	statsTbl1 := h.GetTableStats(blockInfo1)
 	c.Assert(statsTbl1.Pseudo, IsFalse)
 
-	testKit.MustExec("create block t2 (c1 int, c2 int)")
-	testKit.MustExec("analyze block t2")
+	testKit.MustInterDirc("create causet t2 (c1 int, c2 int)")
+	testKit.MustInterDirc("analyze causet t2")
 	is = do.SchemaReplicant()
 	tbl2, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t2"))
 	c.Assert(err, IsNil)
 	blockInfo2 := tbl2.Meta()
 	// A smaller version write, and we can still read it.
-	testKit.MustExec("uFIDelate allegrosql.stats_meta set version = ? where block_id = ?", unit, blockInfo2.ID)
+	testKit.MustInterDirc("uFIDelate allegrosql.stats_spacetime set version = ? where block_id = ?", unit, blockInfo2.ID)
 	c.Assert(h.UFIDelate(is), IsNil)
 	c.Assert(h.LastUFIDelateVersion(), Equals, 2*unit)
 	statsTbl2 := h.GetTableStats(blockInfo2)
 	c.Assert(statsTbl2.Pseudo, IsFalse)
 
-	testKit.MustExec("insert t1 values(1,2)")
-	testKit.MustExec("analyze block t1")
+	testKit.MustInterDirc("insert t1 values(1,2)")
+	testKit.MustInterDirc("analyze causet t1")
 	offset := 3 * unit
-	testKit.MustExec("uFIDelate allegrosql.stats_meta set version = ? where block_id = ?", offset+4, blockInfo1.ID)
+	testKit.MustInterDirc("uFIDelate allegrosql.stats_spacetime set version = ? where block_id = ?", offset+4, blockInfo1.ID)
 	c.Assert(h.UFIDelate(is), IsNil)
 	c.Assert(h.LastUFIDelateVersion(), Equals, offset+uint64(4))
 	statsTbl1 = h.GetTableStats(blockInfo1)
 	c.Assert(statsTbl1.Count, Equals, int64(1))
 
-	testKit.MustExec("insert t2 values(1,2)")
-	testKit.MustExec("analyze block t2")
+	testKit.MustInterDirc("insert t2 values(1,2)")
+	testKit.MustInterDirc("analyze causet t2")
 	// A smaller version write, and we can still read it.
-	testKit.MustExec("uFIDelate allegrosql.stats_meta set version = ? where block_id = ?", offset+3, blockInfo2.ID)
+	testKit.MustInterDirc("uFIDelate allegrosql.stats_spacetime set version = ? where block_id = ?", offset+3, blockInfo2.ID)
 	c.Assert(h.UFIDelate(is), IsNil)
 	c.Assert(h.LastUFIDelateVersion(), Equals, offset+uint64(4))
 	statsTbl2 = h.GetTableStats(blockInfo2)
 	c.Assert(statsTbl2.Count, Equals, int64(1))
 
-	testKit.MustExec("insert t2 values(1,2)")
-	testKit.MustExec("analyze block t2")
+	testKit.MustInterDirc("insert t2 values(1,2)")
+	testKit.MustInterDirc("analyze causet t2")
 	// A smaller version write, and we cannot read it. Because at this time, lastThree Version is 4.
-	testKit.MustExec("uFIDelate allegrosql.stats_meta set version = 1 where block_id = ?", blockInfo2.ID)
+	testKit.MustInterDirc("uFIDelate allegrosql.stats_spacetime set version = 1 where block_id = ?", blockInfo2.ID)
 	c.Assert(h.UFIDelate(is), IsNil)
 	c.Assert(h.LastUFIDelateVersion(), Equals, offset+uint64(4))
 	statsTbl2 = h.GetTableStats(blockInfo2)
 	c.Assert(statsTbl2.Count, Equals, int64(1))
 
 	// We add an index and analyze it, but DBS doesn't load.
-	testKit.MustExec("alter block t2 add column c3 int")
-	testKit.MustExec("analyze block t2")
+	testKit.MustInterDirc("alter causet t2 add column c3 int")
+	testKit.MustInterDirc("analyze causet t2")
 	// load it with old schemaReplicant.
 	c.Assert(h.UFIDelate(is), IsNil)
 	statsTbl2 = h.GetTableStats(blockInfo2)
@@ -393,29 +393,29 @@ func (s *testStatsSuite) TestVersion(c *C) {
 func (s *testStatsSuite) TestLoadHist(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 varchar(12), c2 char(12))")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 varchar(12), c2 char(12))")
 	do := s.do
 	h := do.StatsHandle()
 	err := h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	rowCount := 10
 	for i := 0; i < rowCount; i++ {
-		testKit.MustExec("insert into t values('a','ddd')")
+		testKit.MustInterDirc("insert into t values('a','ddd')")
 	}
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 	blockInfo := tbl.Meta()
 	oldStatsTbl := h.GetTableStats(blockInfo)
 	for i := 0; i < rowCount; i++ {
-		testKit.MustExec("insert into t values('bb','sdfga')")
+		testKit.MustInterDirc("insert into t values('bb','sdfga')")
 	}
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
 	h.UFIDelate(do.SchemaReplicant())
 	newStatsTbl := h.GetTableStats(blockInfo)
-	// The stats block is uFIDelated.
+	// The stats causet is uFIDelated.
 	c.Assert(oldStatsTbl == newStatsTbl, IsFalse)
 	// Only the TotDefCausSize of histograms is uFIDelated.
 	for id, hist := range oldStatsTbl.DeferredCausets {
@@ -431,7 +431,7 @@ func (s *testStatsSuite) TestLoadHist(c *C) {
 		c.Assert(hist.Info, Equals, newStatsTbl.DeferredCausets[id].Info)
 	}
 	// Add column c3, we only uFIDelate c3.
-	testKit.MustExec("alter block t add column c3 int")
+	testKit.MustInterDirc("alter causet t add column c3 int")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -451,10 +451,10 @@ func (s *testStatsSuite) TestLoadHist(c *C) {
 func (s *testStatsSuite) TestInitStats(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t(a int, b int, c int, primary key(a), key idx(b))")
-	testKit.MustExec("insert into t values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,7,8)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, primary key(a), key idx(b))")
+	testKit.MustInterDirc("insert into t values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,7,8)")
+	testKit.MustInterDirc("analyze causet t")
 	h := s.do.StatsHandle()
 	is := s.do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -480,16 +480,16 @@ func (s *testStatsSuite) TestInitStats(c *C) {
 func (s *testStatsSuite) TestLoadStats(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t(a int, b int, c int, primary key(a), key idx(b))")
-	testKit.MustExec("insert into t values (1,1,1),(2,2,2),(3,3,3)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, primary key(a), key idx(b))")
+	testKit.MustInterDirc("insert into t values (1,1,1),(2,2,2),(3,3,3)")
 
 	oriLease := s.do.StatsHandle().Lease()
 	s.do.StatsHandle().SetLease(1)
 	defer func() {
 		s.do.StatsHandle().SetLease(oriLease)
 	}()
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 
 	is := s.do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -538,66 +538,66 @@ func newStoreWithBootstrap() (ekv.CausetStorage, *petri.Petri, error) {
 func (s *testStatsSuite) TestCorrelation(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t(c1 int primary key, c2 int)")
-	testKit.MustExec("insert into t values(1,1),(3,12),(4,20),(2,7),(5,21)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t(c1 int primary key, c2 int)")
+	testKit.MustInterDirc("insert into t values(1,1),(3,12),(4,20),(2,7),(5,21)")
+	testKit.MustInterDirc("analyze causet t")
 	result := testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0")
 	c.Assert(result.Rows()[1][9], Equals, "1")
-	testKit.MustExec("insert into t values(8,18)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("insert into t values(8,18)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0")
 	c.Assert(result.Rows()[1][9], Equals, "0.828571")
 
-	testKit.MustExec("truncate block t")
+	testKit.MustInterDirc("truncate causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 0)
-	testKit.MustExec("insert into t values(1,21),(3,12),(4,7),(2,20),(5,1)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("insert into t values(1,21),(3,12),(4,7),(2,20),(5,1)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0")
 	c.Assert(result.Rows()[1][9], Equals, "-1")
-	testKit.MustExec("insert into t values(8,4)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("insert into t values(8,4)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0")
 	c.Assert(result.Rows()[1][9], Equals, "-0.942857")
 
-	testKit.MustExec("truncate block t")
-	testKit.MustExec("insert into t values (1,1),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1),(9,1),(10,1),(11,1),(12,1),(13,1),(14,1),(15,1),(16,1),(17,1),(18,1),(19,1),(20,2),(21,2),(22,2),(23,2),(24,2),(25,2)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("truncate causet t")
+	testKit.MustInterDirc("insert into t values (1,1),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1),(9,1),(10,1),(11,1),(12,1),(13,1),(14,1),(15,1),(16,1),(17,1),(18,1),(19,1),(20,2),(21,2),(22,2),(23,2),(24,2),(25,2)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0")
 	c.Assert(result.Rows()[1][9], Equals, "1")
 
-	testKit.MustExec("drop block t")
-	testKit.MustExec("create block t(c1 int, c2 int)")
-	testKit.MustExec("insert into t values(1,1),(2,7),(3,12),(4,20),(5,21),(8,18)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("drop causet t")
+	testKit.MustInterDirc("create causet t(c1 int, c2 int)")
+	testKit.MustInterDirc("insert into t values(1,1),(2,7),(3,12),(4,20),(5,21),(8,18)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "1")
 	c.Assert(result.Rows()[1][9], Equals, "0.828571")
 
-	testKit.MustExec("truncate block t")
-	testKit.MustExec("insert into t values(1,1),(2,7),(3,12),(8,18),(4,20),(5,21)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("truncate causet t")
+	testKit.MustInterDirc("insert into t values(1,1),(2,7),(3,12),(8,18),(4,20),(5,21)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't'").Sort()
 	c.Assert(len(result.Rows()), Equals, 2)
 	c.Assert(result.Rows()[0][9], Equals, "0.828571")
 	c.Assert(result.Rows()[1][9], Equals, "1")
 
-	testKit.MustExec("drop block t")
-	testKit.MustExec("create block t(c1 int primary key, c2 int, c3 int, key idx_c2(c2))")
-	testKit.MustExec("insert into t values(1,1,1),(2,2,2),(3,3,3)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("drop causet t")
+	testKit.MustInterDirc("create causet t(c1 int primary key, c2 int, c3 int, key idx_c2(c2))")
+	testKit.MustInterDirc("insert into t values(1,1,1),(2,2,2),(3,3,3)")
+	testKit.MustInterDirc("analyze causet t")
 	result = testKit.MustQuery("show stats_histograms where Table_name = 't' and Is_index = 0").Sort()
 	c.Assert(len(result.Rows()), Equals, 3)
 	c.Assert(result.Rows()[0][9], Equals, "0")
@@ -611,28 +611,28 @@ func (s *testStatsSuite) TestCorrelation(c *C) {
 func (s *testStatsSuite) TestExtendedStatsOps(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	err := tk.ExecToErr("drop statistics s1")
-	c.Assert(err.Error(), Equals, "[planner:1046]No database selected")
-	tk.MustExec("use test")
-	tk.MustExec("create block t(a int primary key, b int, c int, d int)")
-	tk.MustExec("insert into t values(1,1,5,1),(2,2,4,2),(3,3,3,3),(4,4,2,4),(5,5,1,5)")
-	tk.MustExec("analyze block t")
-	err = tk.ExecToErr("create statistics s1(correlation) on not_exist_db.t(b,c)")
+	err := tk.InterDircToErr("drop statistics s1")
+	c.Assert(err.Error(), Equals, "[causet:1046]No database selected")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t(a int primary key, b int, c int, d int)")
+	tk.MustInterDirc("insert into t values(1,1,5,1),(2,2,4,2),(3,3,3,3),(4,4,2,4),(5,5,1,5)")
+	tk.MustInterDirc("analyze causet t")
+	err = tk.InterDircToErr("create statistics s1(correlation) on not_exist_db.t(b,c)")
 	c.Assert(err.Error(), Equals, "[schemaReplicant:1146]Block 'not_exist_db.t' doesn't exist")
-	err = tk.ExecToErr("create statistics s1(correlation) on not_exist_tbl(b,c)")
+	err = tk.InterDircToErr("create statistics s1(correlation) on not_exist_tbl(b,c)")
 	c.Assert(err.Error(), Equals, "[schemaReplicant:1146]Block 'test.not_exist_tbl' doesn't exist")
-	err = tk.ExecToErr("create statistics s1(correlation) on t(b,e)")
+	err = tk.InterDircToErr("create statistics s1(correlation) on t(b,e)")
 	c.Assert(err.Error(), Equals, "[dbs:1072]column does not exist: e")
-	tk.MustExec("create statistics s1(correlation) on t(a,b)")
+	tk.MustInterDirc("create statistics s1(correlation) on t(a,b)")
 	tk.MustQuery("show warnings").Check(testkit.Rows(
 		"Warning 1105 No need to create correlation statistics on the integer primary key column",
 	))
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'").Check(testkit.Rows())
-	err = tk.ExecToErr("create statistics s1(correlation) on t(b,c,d)")
-	c.Assert(err.Error(), Equals, "[planner:1815]Only support Correlation and Dependency statistics types on 2 columns")
+	err = tk.InterDircToErr("create statistics s1(correlation) on t(b,c,d)")
+	c.Assert(err.Error(), Equals, "[causet:1815]Only support Correlation and Dependency statistics types on 2 columns")
 
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'").Check(testkit.Rows())
-	tk.MustExec("create statistics s1(correlation) on t(b,c)")
+	tk.MustInterDirc("create statistics s1(correlation) on t(b,c)")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'").Check(testkit.Rows(
 		"2 [2,3] <nil> <nil> 0",
 	))
@@ -647,7 +647,7 @@ func (s *testStatsSuite) TestExtendedStatsOps(c *C) {
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 0)
 
-	tk.MustExec("uFIDelate allegrosql.stats_extended set status = 1 where stats_name = 's1' and EDB = 'test'")
+	tk.MustInterDirc("uFIDelate allegrosql.stats_extended set status = 1 where stats_name = 's1' and EDB = 'test'")
 	do.StatsHandle().Clear()
 	do.StatsHandle().UFIDelate(is)
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
@@ -655,7 +655,7 @@ func (s *testStatsSuite) TestExtendedStatsOps(c *C) {
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 1)
 
-	tk.MustExec("drop statistics s1")
+	tk.MustInterDirc("drop statistics s1")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'").Check(testkit.Rows(
 		"2 [2,3] <nil> <nil> 2",
 	))
@@ -668,11 +668,11 @@ func (s *testStatsSuite) TestExtendedStatsOps(c *C) {
 func (s *testStatsSuite) TestAdminReloadStatistics(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t(a int primary key, b int, c int, d int)")
-	tk.MustExec("insert into t values(1,1,5,1),(2,2,4,2),(3,3,3,3),(4,4,2,4),(5,5,1,5)")
-	tk.MustExec("analyze block t")
-	tk.MustExec("create statistics s1(correlation) on t(b,c)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t(a int primary key, b int, c int, d int)")
+	tk.MustInterDirc("insert into t values(1,1,5,1),(2,2,4,2),(3,3,3,3),(4,4,2,4),(5,5,1,5)")
+	tk.MustInterDirc("analyze causet t")
+	tk.MustInterDirc("create statistics s1(correlation) on t(b,c)")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'").Check(testkit.Rows(
 		"2 [2,3] <nil> <nil> 0",
 	))
@@ -687,7 +687,7 @@ func (s *testStatsSuite) TestAdminReloadStatistics(c *C) {
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 0)
 
-	tk.MustExec("uFIDelate allegrosql.stats_extended set status = 1 where stats_name = 's1' and EDB = 'test'")
+	tk.MustInterDirc("uFIDelate allegrosql.stats_extended set status = 1 where stats_name = 's1' and EDB = 'test'")
 	do.StatsHandle().Clear()
 	do.StatsHandle().UFIDelate(is)
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
@@ -695,13 +695,13 @@ func (s *testStatsSuite) TestAdminReloadStatistics(c *C) {
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 1)
 
-	tk.MustExec("delete from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'")
+	tk.MustInterDirc("delete from allegrosql.stats_extended where stats_name = 's1' and EDB = 'test'")
 	do.StatsHandle().UFIDelate(is)
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 1)
 
-	tk.MustExec("admin reload statistics")
+	tk.MustInterDirc("admin reload statistics")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 0)
@@ -710,13 +710,13 @@ func (s *testStatsSuite) TestAdminReloadStatistics(c *C) {
 func (s *testStatsSuite) TestCorrelationStatsCompute(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t(a int, b int, c int)")
-	tk.MustExec("insert into t values(1,1,5),(2,2,4),(3,3,3),(4,4,2),(5,5,1)")
-	tk.MustExec("analyze block t")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t(a int, b int, c int)")
+	tk.MustInterDirc("insert into t values(1,1,5),(2,2,4),(3,3,3),(4,4,2),(5,5,1)")
+	tk.MustInterDirc("analyze causet t")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended").Check(testkit.Rows())
-	tk.MustExec("create statistics s1(correlation) on t(a,b)")
-	tk.MustExec("create statistics s2(correlation) on t(a,c)")
+	tk.MustInterDirc("create statistics s1(correlation) on t(a,b)")
+	tk.MustInterDirc("create statistics s2(correlation) on t(a,c)")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended").Sort().Check(testkit.Rows(
 		"2 [1,2] <nil> <nil> 0",
 		"2 [1,3] <nil> <nil> 0",
@@ -732,7 +732,7 @@ func (s *testStatsSuite) TestCorrelationStatsCompute(c *C) {
 	c.Assert(statsTbl.ExtendedStats, NotNil)
 	c.Assert(len(statsTbl.ExtendedStats.Stats), Equals, 0)
 
-	tk.MustExec("analyze block t")
+	tk.MustInterDirc("analyze causet t")
 	tk.MustQuery("select type, column_ids, scalar_stats, blob_stats, status from allegrosql.stats_extended").Sort().Check(testkit.Rows(
 		"2 [1,2] 1 <nil> 1",
 		"2 [1,3] -1 <nil> 1",

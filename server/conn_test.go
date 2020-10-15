@@ -25,7 +25,7 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
@@ -274,7 +274,7 @@ func (ts *ConnTestSuite) TestDispatch(c *C) {
 			},
 		},
 		{
-			com: allegrosql.ComStmtExecute,
+			com: allegrosql.ComStmtInterDircute,
 			in:  []byte{0x1, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x1, 0x0},
 			err: nil,
 			out: []byte{
@@ -394,7 +394,7 @@ func (ts *ConnTestSuite) TestDispatchClientProtodefCaus41(c *C) {
 			},
 		},
 		{
-			com: allegrosql.ComStmtExecute,
+			com: allegrosql.ComStmtInterDircute,
 			in:  []byte{0x1, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x1, 0x0},
 			err: nil,
 			out: []byte{
@@ -481,9 +481,9 @@ func (ts *ConnTestSuite) testDispatch(c *C, inputs []dispatchInput, capability u
 		Stochastik: se,
 		stmts:   make(map[int]*MilevaDBStatement),
 	}
-	_, err = se.Execute(context.Background(), "create block test.t(a int)")
+	_, err = se.InterDircute(context.Background(), "create causet test.t(a int)")
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "insert into test.t values (1)")
+	_, err = se.InterDircute(context.Background(), "insert into test.t values (1)")
 	c.Assert(err, IsNil)
 
 	var outBuffer bytes.Buffer
@@ -556,7 +556,7 @@ func mapBelong(m1, m2 map[string]string) bool {
 	return true
 }
 
-func (ts *ConnTestSuite) TestConnExecutionTimeout(c *C) {
+func (ts *ConnTestSuite) TestConnInterDircutionTimeout(c *C) {
 	//There is no underlying netCon, use failpoint to avoid panic
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/server/FakeClientConn", "return(1)"), IsNil)
 
@@ -586,37 +586,37 @@ func (ts *ConnTestSuite) TestConnExecutionTimeout(c *C) {
 	handle := ts.dom.ExpensiveQueryHandle().SetStochastikManager(srv)
 	go handle.Run()
 
-	_, err = se.Execute(context.Background(), "use test;")
+	_, err = se.InterDircute(context.Background(), "use test;")
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "CREATE TABLE testBlock2 (id bigint PRIMARY KEY,  age int)")
+	_, err = se.InterDircute(context.Background(), "CREATE TABLE testBlock2 (id bigint PRIMARY KEY,  age int)")
 	c.Assert(err, IsNil)
 	for i := 0; i < 10; i++ {
 		str := fmt.Sprintf("insert into testBlock2 values(%d, %d)", i, i%80)
-		_, err = se.Execute(context.Background(), str)
+		_, err = se.InterDircute(context.Background(), str)
 		c.Assert(err, IsNil)
 	}
 
-	_, err = se.Execute(context.Background(), "select SLEEP(1);")
+	_, err = se.InterDircute(context.Background(), "select SLEEP(1);")
 	c.Assert(err, IsNil)
 
-	_, err = se.Execute(context.Background(), "set @@max_execution_time = 500;")
+	_, err = se.InterDircute(context.Background(), "set @@max_execution_time = 500;")
 	c.Assert(err, IsNil)
 
 	err = cc.handleQuery(context.Background(), "select * FROM testBlock2 WHERE SLEEP(1);")
 	c.Assert(err, IsNil)
 
-	_, err = se.Execute(context.Background(), "set @@max_execution_time = 1500;")
+	_, err = se.InterDircute(context.Background(), "set @@max_execution_time = 1500;")
 	c.Assert(err, IsNil)
 
-	_, err = se.Execute(context.Background(), "set @@milevadb_expensive_query_time_threshold = 1;")
+	_, err = se.InterDircute(context.Background(), "set @@milevadb_expensive_query_time_threshold = 1;")
 	c.Assert(err, IsNil)
 
-	records, err := se.Execute(context.Background(), "select SLEEP(2);")
+	records, err := se.InterDircute(context.Background(), "select SLEEP(2);")
 	c.Assert(err, IsNil)
 	tk := testkit.NewTestKit(c, ts.causetstore)
 	tk.ResultSetToResult(records[0], Commentf("%v", records[0])).Check(testkit.Rows("1"))
 
-	_, err = se.Execute(context.Background(), "set @@max_execution_time = 0;")
+	_, err = se.InterDircute(context.Background(), "set @@max_execution_time = 0;")
 	c.Assert(err, IsNil)
 
 	err = cc.handleQuery(context.Background(), "select * FROM testBlock2 WHERE SLEEP(1);")
@@ -637,7 +637,7 @@ func (ts *ConnTestSuite) TestShutDown(c *C) {
 	cc.status = connStatusShutdown
 	// assert ErrQueryInterrupted
 	err = cc.handleQuery(context.Background(), "select 1")
-	c.Assert(err, Equals, executor.ErrQueryInterrupted)
+	c.Assert(err, Equals, interlock.ErrQueryInterrupted)
 }
 
 func (ts *ConnTestSuite) TestShutdownOrNotify(c *C) {
@@ -675,11 +675,11 @@ func (ts *ConnTestSuite) TestPrefetchPointKeys(c *C) {
 	tk := testkit.NewTestKitWithInit(c, ts.causetstore)
 	cc.ctx = &MilevaDBContext{Stochastik: tk.Se}
 	ctx := context.Background()
-	tk.MustExec("set @@milevadb_enable_clustered_index=0")
-	tk.MustExec("create block prefetch (a int, b int, c int, primary key (a, b))")
-	tk.MustExec("insert prefetch values (1, 1, 1), (2, 2, 2), (3, 3, 3)")
-	tk.MustExec("begin optimistic")
-	tk.MustExec("uFIDelate prefetch set c = c + 1 where a = 2 and b = 2")
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index=0")
+	tk.MustInterDirc("create causet prefetch (a int, b int, c int, primary key (a, b))")
+	tk.MustInterDirc("insert prefetch values (1, 1, 1), (2, 2, 2), (3, 3, 3)")
+	tk.MustInterDirc("begin optimistic")
+	tk.MustInterDirc("uFIDelate prefetch set c = c + 1 where a = 2 and b = 2")
 	query := "uFIDelate prefetch set c = c + 1 where a = 1 and b = 1;" +
 		"uFIDelate prefetch set c = c + 1 where a = 2 and b = 2;" +
 		"uFIDelate prefetch set c = c + 1 where a = 3 and b = 3;"
@@ -690,11 +690,11 @@ func (ts *ConnTestSuite) TestPrefetchPointKeys(c *C) {
 	c.Assert(txn.Valid(), IsTrue)
 	snap := txn.GetSnapshot()
 	c.Assert(einsteindb.SnapCacheHitCount(snap), Equals, 4)
-	tk.MustExec("commit")
+	tk.MustInterDirc("commit")
 	tk.MustQuery("select * from prefetch").Check(testkit.Rows("1 1 2", "2 2 4", "3 3 4"))
 
-	tk.MustExec("begin pessimistic")
-	tk.MustExec("uFIDelate prefetch set c = c + 1 where a = 2 and b = 2")
+	tk.MustInterDirc("begin pessimistic")
+	tk.MustInterDirc("uFIDelate prefetch set c = c + 1 where a = 2 and b = 2")
 	c.Assert(tk.Se.GetStochastikVars().TxnCtx.PessimisticCacheHit, Equals, 1)
 	err = cc.handleQuery(ctx, query)
 	c.Assert(err, IsNil)
@@ -702,6 +702,6 @@ func (ts *ConnTestSuite) TestPrefetchPointKeys(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(txn.Valid(), IsTrue)
 	c.Assert(tk.Se.GetStochastikVars().TxnCtx.PessimisticCacheHit, Equals, 5)
-	tk.MustExec("commit")
+	tk.MustInterDirc("commit")
 	tk.MustQuery("select * from prefetch").Check(testkit.Rows("1 1 3", "2 2 6", "3 3 5"))
 }

@@ -36,10 +36,10 @@ import (
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/plugin"
 	"github.com/whtcorpsinc/milevadb/privilege/privileges"
 	"github.com/whtcorpsinc/milevadb/server"
@@ -130,7 +130,7 @@ var (
 	pluginLoad       = flag.String(nmPluginLoad, "", "wait load plugin name(separated by comma)")
 	affinityCPU      = flag.String(nmAffinityCPU, "", "affinity cpu (cpu-no. separated by comma, e.g. 1,2,3)")
 	repairMode       = flagBoolean(nmRepairMode, false, "enable admin repair mode")
-	repairList       = flag.String(nmRepairList, "", "admin repair block list")
+	repairList       = flag.String(nmRepairList, "", "admin repair causet list")
 	requireTLS       = flag.Bool(nmRequireSecureTransport, false, "require client use secure transport")
 
 	// Log
@@ -373,10 +373,10 @@ func reloadConfig(nc, c *config.Config) {
 	// These config items will become available naturally after the global config pointer
 	// is uFIDelated in function ReloadGlobalConfig.
 	if nc.Performance.ServerMemoryQuota != c.Performance.ServerMemoryQuota {
-		plannercore.PreparedPlanCacheMaxMemory.CausetStore(nc.Performance.ServerMemoryQuota)
+		causetcore.PreparedCausetCacheMaxMemory.CausetStore(nc.Performance.ServerMemoryQuota)
 	}
 	if nc.Performance.CrossJoin != c.Performance.CrossJoin {
-		plannercore.AllowCartesianProduct.CausetStore(nc.Performance.CrossJoin)
+		causetcore.AllowCartesianProduct.CausetStore(nc.Performance.CrossJoin)
 	}
 	if nc.Performance.FeedbackProbability != c.Performance.FeedbackProbability {
 		statistics.FeedbackProbability.CausetStore(nc.Performance.FeedbackProbability)
@@ -395,8 +395,8 @@ func reloadConfig(nc, c *config.Config) {
 		storeutil.StoreLimit.CausetStore(nc.EinsteinDBClient.StoreLimit)
 	}
 
-	if nc.PreparedPlanCache.Enabled != c.PreparedPlanCache.Enabled {
-		plannercore.SetPreparedPlanCache(nc.PreparedPlanCache.Enabled)
+	if nc.PreparedCausetCache.Enabled != c.PreparedCausetCache.Enabled {
+		causetcore.SetPreparedCausetCache(nc.PreparedCausetCache.Enabled)
 	}
 	if nc.Log.Level != c.Log.Level {
 		if err := logutil.SetLevel(nc.Log.Level); err != nil {
@@ -542,7 +542,7 @@ func setGlobalVars() {
 	if cfg.SplitTable {
 		atomic.StoreUint32(&dbs.EnableSplitTableRegion, 1)
 	}
-	plannercore.AllowCartesianProduct.CausetStore(cfg.Performance.CrossJoin)
+	causetcore.AllowCartesianProduct.CausetStore(cfg.Performance.CrossJoin)
 	privileges.SkipWithGrant = cfg.Security.SkipGrantTable
 	ekv.TxnTotalSizeLimit = cfg.Performance.TxnTotalSizeLimit
 	if cfg.Performance.TxnEntrySizeLimit > 120*1024*1024 {
@@ -566,18 +566,18 @@ func setGlobalVars() {
 	variable.SysVars[variable.MilevaDBIsolationReadEngines].Value = strings.Join(cfg.IsolationRead.Engines, ", ")
 
 	// For CI environment we default enable prepare-plan-cache.
-	plannercore.SetPreparedPlanCache(config.CheckTableBeforeDrop || cfg.PreparedPlanCache.Enabled)
-	if plannercore.PreparedPlanCacheEnabled() {
-		plannercore.PreparedPlanCacheCapacity = cfg.PreparedPlanCache.Capacity
-		plannercore.PreparedPlanCacheMemoryGuardRatio = cfg.PreparedPlanCache.MemoryGuardRatio
-		if plannercore.PreparedPlanCacheMemoryGuardRatio < 0.0 || plannercore.PreparedPlanCacheMemoryGuardRatio > 1.0 {
-			plannercore.PreparedPlanCacheMemoryGuardRatio = 0.1
+	causetcore.SetPreparedCausetCache(config.CheckTableBeforeDrop || cfg.PreparedCausetCache.Enabled)
+	if causetcore.PreparedCausetCacheEnabled() {
+		causetcore.PreparedCausetCacheCapacity = cfg.PreparedCausetCache.Capacity
+		causetcore.PreparedCausetCacheMemoryGuardRatio = cfg.PreparedCausetCache.MemoryGuardRatio
+		if causetcore.PreparedCausetCacheMemoryGuardRatio < 0.0 || causetcore.PreparedCausetCacheMemoryGuardRatio > 1.0 {
+			causetcore.PreparedCausetCacheMemoryGuardRatio = 0.1
 		}
-		plannercore.PreparedPlanCacheMaxMemory.CausetStore(cfg.Performance.ServerMemoryQuota)
+		causetcore.PreparedCausetCacheMaxMemory.CausetStore(cfg.Performance.ServerMemoryQuota)
 		total, err := memory.MemTotal()
 		terror.MustNil(err)
-		if plannercore.PreparedPlanCacheMaxMemory.Load() > total || plannercore.PreparedPlanCacheMaxMemory.Load() <= 0 {
-			plannercore.PreparedPlanCacheMaxMemory.CausetStore(total)
+		if causetcore.PreparedCausetCacheMaxMemory.Load() > total || causetcore.PreparedCausetCacheMaxMemory.Load() <= 0 {
+			causetcore.PreparedCausetCacheMaxMemory.CausetStore(total)
 		}
 	}
 
@@ -586,14 +586,14 @@ func setGlobalVars() {
 	petriutil.RepairInfo.SetRepairMode(cfg.RepairMode)
 	petriutil.RepairInfo.SetRepairTableList(cfg.RepairTableList)
 	c := config.GetGlobalConfig()
-	executor.GlobalDiskUsageTracker.SetBytesLimit(c.TempStorageQuota)
+	interlock.GlobalDiskUsageTracker.SetBytesLimit(c.TempStorageQuota)
 	if c.Performance.ServerMemoryQuota < 1 {
 		// If MaxMemory equals 0, it means unlimited
-		executor.GlobalMemoryUsageTracker.SetBytesLimit(-1)
+		interlock.GlobalMemoryUsageTracker.SetBytesLimit(-1)
 	} else {
-		executor.GlobalMemoryUsageTracker.SetBytesLimit(int64(c.Performance.ServerMemoryQuota))
+		interlock.GlobalMemoryUsageTracker.SetBytesLimit(int64(c.Performance.ServerMemoryQuota))
 	}
-	kvcache.GlobalLRUMemUsageTracker.AttachToGlobalTracker(executor.GlobalMemoryUsageTracker)
+	kvcache.GlobalLRUMemUsageTracker.AttachToGlobalTracker(interlock.GlobalMemoryUsageTracker)
 
 	t, err := time.ParseDuration(cfg.EinsteinDBClient.StoreLivenessTimeout)
 	if err != nil {

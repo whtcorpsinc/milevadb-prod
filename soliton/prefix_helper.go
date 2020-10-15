@@ -24,7 +24,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/ekv"
 )
 
-// ScanMetaWithPrefix scans metadata with the prefix.
+// ScanMetaWithPrefix scans spacetimedata with the prefix.
 func ScanMetaWithPrefix(retriever ekv.Retriever, prefix ekv.Key, filter func(ekv.Key, []byte) bool) error {
 	iter, err := retriever.Iter(prefix, prefix.PrefixNext())
 	if err != nil {

@@ -26,10 +26,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
@@ -50,7 +50,7 @@ func (s *testDeferredCausetChangeSuite) SetUpSuite(c *C) {
 		ID:   1,
 	}
 	err := ekv.RunInNewTxn(s.causetstore, true, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		return errors.Trace(t.CreateDatabase(s.dbInfo))
 	})
 	c.Check(err, IsNil)
@@ -68,7 +68,7 @@ func (s *testDeferredCausetChangeSuite) TestDeferredCausetChange(c *C) {
 		WithLease(testLease),
 	)
 	defer d.Stop()
-	// create block t (c1 int, c2 int);
+	// create causet t (c1 int, c2 int);
 	tblInfo := testBlockInfo(c, d, "t", 2)
 	ctx := testNewContext(d)
 	err := ctx.NewTxn(context.Background())
@@ -89,9 +89,9 @@ func (s *testDeferredCausetChangeSuite) TestDeferredCausetChange(c *C) {
 	// set up hook
 	prevState := perceptron.StateNone
 	var (
-		deleteOnlyBlock block.Block
-		writeOnlyBlock  block.Block
-		publicBlock     block.Block
+		deleteOnlyBlock causet.Block
+		writeOnlyBlock  causet.Block
+		publicBlock     causet.Block
 	)
 	var checkErr error
 	tc.onJobUFIDelated = func(job *perceptron.Job) {
@@ -188,7 +188,7 @@ func (s *testDeferredCausetChangeSuite) TestModifyAutoRandDeferredCausetWithMeta
 		if atomic.LoadInt32(&errCount) > 0 && job.Type == perceptron.CausetActionModifyDeferredCauset {
 			atomic.AddInt32(&errCount, -1)
 			genAutoRandErr = ekv.RunInNewTxn(s.causetstore, false, func(txn ekv.Transaction) error {
-				t := meta.NewMeta(txn)
+				t := spacetime.NewMeta(txn)
 				_, err1 := t.GenAutoRandomID(s.dbInfo.ID, blockID, 1)
 				return err1
 			})
@@ -211,7 +211,7 @@ func (s *testDeferredCausetChangeSuite) TestModifyAutoRandDeferredCausetWithMeta
 	testCheckJobDone(c, d, job, true)
 	var newTbInfo *perceptron.BlockInfo
 	err = ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err error
 		newTbInfo, err = t.GetBlock(s.dbInfo.ID, blockID)
 		if err != nil {
@@ -228,7 +228,7 @@ func (s *testDeferredCausetChangeSuite) testAddDeferredCausetNoDefault(c *C, ctx
 	// set up hook
 	prevState := perceptron.StateNone
 	var checkErr error
-	var writeOnlyBlock block.Block
+	var writeOnlyBlock causet.Block
 	tc.onJobUFIDelated = func(job *perceptron.Job) {
 		if job.SchemaState == prevState {
 			return
@@ -271,7 +271,7 @@ func (s *testDeferredCausetChangeSuite) testAddDeferredCausetNoDefault(c *C, ctx
 	testCheckJobDone(c, d, job, true)
 }
 
-func (s *testDeferredCausetChangeSuite) testDeferredCausetDrop(c *C, ctx stochastikctx.Context, d *dbs, tbl block.Block) {
+func (s *testDeferredCausetChangeSuite) testDeferredCausetDrop(c *C, ctx stochastikctx.Context, d *dbs, tbl causet.Block) {
 	dropDefCaus := tbl.DefCauss()[2]
 	tc := &TestDBSCallback{}
 	// set up hook
@@ -297,7 +297,7 @@ func (s *testDeferredCausetChangeSuite) testDeferredCausetDrop(c *C, ctx stochas
 	testDropDeferredCauset(c, ctx, d, s.dbInfo, tbl.Meta(), dropDefCaus.Name.L, false)
 }
 
-func (s *testDeferredCausetChangeSuite) checkAddWriteOnly(ctx stochastikctx.Context, d *dbs, deleteOnlyBlock, writeOnlyBlock block.Block, h ekv.Handle) error {
+func (s *testDeferredCausetChangeSuite) checkAddWriteOnly(ctx stochastikctx.Context, d *dbs, deleteOnlyBlock, writeOnlyBlock causet.Block, h ekv.Handle) error {
 	// WriteOnlyBlock: insert t values (2, 3)
 	err := ctx.NewTxn(context.Background())
 	if err != nil {
@@ -358,12 +358,12 @@ func (s *testDeferredCausetChangeSuite) checkAddWriteOnly(ctx stochastikctx.Cont
 	if err != nil {
 		return errors.Trace(err)
 	}
-	// After delete block has deleted the first event, check the WriteOnly block records.
+	// After delete causet has deleted the first event, check the WriteOnly causet records.
 	err = checkResult(ctx, writeOnlyBlock, writeOnlyBlock.WriblockDefCauss(), solitonutil.RowsWithSep(" ", "2 3 3"))
 	return errors.Trace(err)
 }
 
-func touchedSlice(t block.Block) []bool {
+func touchedSlice(t causet.Block) []bool {
 	touched := make([]bool, 0, len(t.WriblockDefCauss()))
 	for range t.WriblockDefCauss() {
 		touched = append(touched, true)
@@ -371,7 +371,7 @@ func touchedSlice(t block.Block) []bool {
 	return touched
 }
 
-func (s *testDeferredCausetChangeSuite) checkAddPublic(sctx stochastikctx.Context, d *dbs, writeOnlyBlock, publicBlock block.Block) error {
+func (s *testDeferredCausetChangeSuite) checkAddPublic(sctx stochastikctx.Context, d *dbs, writeOnlyBlock, publicBlock causet.Block) error {
 	ctx := context.TODO()
 	// publicBlock Insert t values (4, 4, 4)
 	err := sctx.NewTxn(ctx)
@@ -411,10 +411,10 @@ func (s *testDeferredCausetChangeSuite) checkAddPublic(sctx stochastikctx.Contex
 	return nil
 }
 
-func getCurrentBlock(d *dbs, schemaID, blockID int64) (block.Block, error) {
+func getCurrentBlock(d *dbs, schemaID, blockID int64) (causet.Block, error) {
 	var tblInfo *perceptron.BlockInfo
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err error
 		tblInfo, err = t.GetBlock(schemaID, blockID)
 		if err != nil {
@@ -426,16 +426,16 @@ func getCurrentBlock(d *dbs, schemaID, blockID int64) (block.Block, error) {
 		return nil, errors.Trace(err)
 	}
 	alloc := autoid.NewSlabPredictor(d.causetstore, schemaID, false, autoid.RowIDAllocType)
-	tbl, err := block.BlockFromMeta(autoid.NewSlabPredictors(alloc), tblInfo)
+	tbl, err := causet.BlockFromMeta(autoid.NewSlabPredictors(alloc), tblInfo)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	return tbl, err
 }
 
-func checkResult(ctx stochastikctx.Context, t block.Block, defcaus []*block.DeferredCauset, rows [][]interface{}) error {
+func checkResult(ctx stochastikctx.Context, t causet.Block, defcaus []*causet.DeferredCauset, rows [][]interface{}) error {
 	var gotRows [][]interface{}
-	err := t.IterRecords(ctx, t.FirstKey(), defcaus, func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err := t.IterRecords(ctx, t.FirstKey(), defcaus, func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		gotRows = append(gotRows, datumsToInterfaces(data))
 		return true, nil
 	})

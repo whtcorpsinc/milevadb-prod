@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -60,7 +60,7 @@ func (rs *batchCopResponse) GetStartKey() ekv.Key {
 	return rs.startKey
 }
 
-// GetExecDetails is unavailable currently, because TiFlash has not collected exec details for batch cop.
+// GetInterDircDetails is unavailable currently, because TiFlash has not collected exec details for batch cop.
 // TODO: Will fix in near future.
 func (rs *batchCopResponse) GetCopRuntimeStats() *CopRuntimeStats {
 	return rs.detail
@@ -75,7 +75,7 @@ func (rs *batchCopResponse) MemSize() int64 {
 	// ignore rs.err
 	rs.respSize += int64(cap(rs.startKey))
 	if rs.detail != nil {
-		rs.respSize += int64(sizeofExecDetails)
+		rs.respSize += int64(sizeofInterDircDetails)
 	}
 	if rs.pbResp != nil {
 		// Using a approximate size since it's hard to get a accurate value.
@@ -327,7 +327,7 @@ func (b *batchCopIterator) handleTaskOnce(ctx context.Context, bo *Backoffer, ta
 	for _, task := range task.CausetTasks {
 		regionInfos = append(regionInfos, &interlock.RegionInfo{
 			RegionId: task.task.region.id,
-			RegionEpoch: &metapb.RegionEpoch{
+			RegionEpoch: &spacetimepb.RegionEpoch{
 				ConfVer: task.task.region.confVer,
 				Version: task.task.region.ver,
 			},

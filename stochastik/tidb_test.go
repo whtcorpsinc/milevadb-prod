@@ -26,7 +26,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/planner/core"
+	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -83,7 +83,7 @@ func (s *testMainSuite) TestSysStochastikPoolGoroutineLeak(c *C) {
 	wg.Add(count)
 	for i := 0; i < count; i++ {
 		go func(se *stochastik) {
-			_, _, err := se.ExecRestrictedALLEGROSQL("select * from allegrosql.user limit 1")
+			_, _, err := se.InterDircRestrictedALLEGROSQL("select * from allegrosql.user limit 1")
 			c.Assert(err, IsNil)
 			wg.Done()
 		}(se)
@@ -125,8 +125,8 @@ func newStochastik(c *C, causetstore ekv.CausetStorage, dbName string) Stochasti
 	se.SetConnectionID(id)
 	c.Assert(err, IsNil)
 	se.Auth(&auth.UserIdentity{Username: "root", Hostname: `%`}, nil, []byte("012345678901234567890"))
-	mustExecALLEGROSQL(c, se, "create database if not exists "+dbName)
-	mustExecALLEGROSQL(c, se, "use "+dbName)
+	mustInterDircALLEGROSQL(c, se, "create database if not exists "+dbName)
+	mustInterDircALLEGROSQL(c, se, "use "+dbName)
 	return se
 }
 
@@ -137,7 +137,7 @@ func removeStore(c *C, dbPath string) {
 func exec(se Stochastik, allegrosql string, args ...interface{}) (sqlexec.RecordSet, error) {
 	ctx := context.Background()
 	if len(args) == 0 {
-		rs, err := se.Execute(ctx, allegrosql)
+		rs, err := se.InterDircute(ctx, allegrosql)
 		if err == nil && len(rs) > 0 {
 			return rs[0], nil
 		}
@@ -151,14 +151,14 @@ func exec(se Stochastik, allegrosql string, args ...interface{}) (sqlexec.Record
 	for i := 0; i < len(params); i++ {
 		params[i] = types.NewCauset(args[i])
 	}
-	rs, err := se.ExecutePreparedStmt(ctx, stmtID, params)
+	rs, err := se.InterDircutePreparedStmt(ctx, stmtID, params)
 	if err != nil {
 		return nil, err
 	}
 	return rs, nil
 }
 
-func mustExecALLEGROSQL(c *C, se Stochastik, allegrosql string, args ...interface{}) sqlexec.RecordSet {
+func mustInterDircALLEGROSQL(c *C, se Stochastik, allegrosql string, args ...interface{}) sqlexec.RecordSet {
 	rs, err := exec(se, allegrosql, args...)
 	c.Assert(err, IsNil)
 	return rs

@@ -52,17 +52,17 @@ const latchListCount = 5
 func (scheduler *LatchesScheduler) run() {
 	var counter int
 	wakeupList := make([]*Lock, 0)
-	for lock := range scheduler.unlockCh {
-		wakeupList = scheduler.latches.release(lock, wakeupList)
+	for dagger := range scheduler.unlockCh {
+		wakeupList = scheduler.latches.release(dagger, wakeupList)
 		if len(wakeupList) > 0 {
 			scheduler.wakeup(wakeupList)
 		}
 
-		if lock.commitTS > lock.startTS {
-			currentTS := lock.commitTS
+		if dagger.commitTS > dagger.startTS {
+			currentTS := dagger.commitTS
 			elapsed := tsoSub(currentTS, scheduler.lastRecycleTime)
 			if elapsed > checkInterval || counter > checkCounter {
-				go scheduler.latches.recycle(lock.commitTS)
+				go scheduler.latches.recycle(dagger.commitTS)
 				scheduler.lastRecycleTime = currentTS
 				counter = 0
 			}
@@ -72,9 +72,9 @@ func (scheduler *LatchesScheduler) run() {
 }
 
 func (scheduler *LatchesScheduler) wakeup(wakeupList []*Lock) {
-	for _, lock := range wakeupList {
-		if scheduler.latches.acquire(lock) != acquireLocked {
-			lock.wg.Done()
+	for _, dagger := range wakeupList {
+		if scheduler.latches.acquire(dagger) != acquireLocked {
+			dagger.wg.Done()
 		}
 	}
 }
@@ -89,27 +89,27 @@ func (scheduler *LatchesScheduler) Close() {
 	}
 }
 
-// Lock acquire the lock for transaction with startTS and keys. The caller goroutine
-// would be blocked if the lock can't be obtained now. When this function returns,
-// the lock state would be either success or stale(call lock.IsStale)
+// Lock acquire the dagger for transaction with startTS and keys. The caller goroutine
+// would be blocked if the dagger can't be obtained now. When this function returns,
+// the dagger state would be either success or stale(call dagger.IsStale)
 func (scheduler *LatchesScheduler) Lock(startTS uint64, keys [][]byte) *Lock {
-	lock := scheduler.latches.genLock(startTS, keys)
-	lock.wg.Add(1)
-	if scheduler.latches.acquire(lock) == acquireLocked {
-		lock.wg.Wait()
+	dagger := scheduler.latches.genLock(startTS, keys)
+	dagger.wg.Add(1)
+	if scheduler.latches.acquire(dagger) == acquireLocked {
+		dagger.wg.Wait()
 	}
-	if lock.isLocked() {
+	if dagger.isLocked() {
 		panic("should never run here")
 	}
-	return lock
+	return dagger
 }
 
-// UnLock unlocks a lock.
-func (scheduler *LatchesScheduler) UnLock(lock *Lock) {
+// UnLock unlocks a dagger.
+func (scheduler *LatchesScheduler) UnLock(dagger *Lock) {
 	scheduler.RLock()
 	defer scheduler.RUnlock()
 	if !scheduler.closed {
-		scheduler.unlockCh <- lock
+		scheduler.unlockCh <- dagger
 	}
 }
 

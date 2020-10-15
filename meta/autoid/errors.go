@@ -29,8 +29,8 @@ var (
 )
 
 const (
-	// AutoRandomPKisNotHandleErrMsg indicates the auto_random defCausumn attribute is defined on a non-primary key defCausumn, or the block's primary key is not a single integer defCausumn.
-	AutoRandomPKisNotHandleErrMsg = "defCausumn %s is not the integer primary key, or block is created with alter-primary-key enabled"
+	// AutoRandomPKisNotHandleErrMsg indicates the auto_random defCausumn attribute is defined on a non-primary key defCausumn, or the causet's primary key is not a single integer defCausumn.
+	AutoRandomPKisNotHandleErrMsg = "defCausumn %s is not the integer primary key, or causet is created with alter-primary-key enabled"
 	// AutoRandomIncompatibleWithAutoIncErrMsg is reported when auto_random and auto_increment are specified on the same defCausumn.
 	AutoRandomIncompatibleWithAutoIncErrMsg = "auto_random is incompatible with auto_increment"
 	// AutoRandomIncompatibleWithDefaultValueErrMsg is reported when auto_random and default are specified on the same defCausumn.
@@ -45,14 +45,14 @@ const (
 	AutoRandomDecreaseBitErrMsg = "decreasing auto_random shard bits is not supported"
 	// AutoRandomNonPositive is reported then a user specifies a non-positive value for auto_random.
 	AutoRandomNonPositive = "the value of auto_random should be positive"
-	// AutoRandomAvailableAllocTimesNote is reported when a block containing auto_random is created.
+	// AutoRandomAvailableAllocTimesNote is reported when a causet containing auto_random is created.
 	AutoRandomAvailableAllocTimesNote = "Available implicit allocation times: %d"
 	// AutoRandomExplicitInsertDisabledErrMsg is reported when auto_random defCausumn value is explicitly specified, but the stochastik var 'allow_auto_random_explicit_insert' is false.
 	AutoRandomExplicitInsertDisabledErrMsg = "Explicit insertion on auto_random defCausumn is disabled. Try to set @@allow_auto_random_explicit_insert = true."
 	// AutoRandomOnNonBigIntDeferredCauset is reported when define auto random to non bigint defCausumn
 	AutoRandomOnNonBigIntDeferredCauset = "auto_random option must be defined on `bigint` defCausumn, but not on `%s` defCausumn"
-	// AutoRandomRebaseNotApplicable is reported when alter auto_random base on a non auto_random block.
-	AutoRandomRebaseNotApplicable = "alter auto_random_base of a non auto_random block"
+	// AutoRandomRebaseNotApplicable is reported when alter auto_random base on a non auto_random causet.
+	AutoRandomRebaseNotApplicable = "alter auto_random_base of a non auto_random causet"
 	// AutoRandomRebaseOverflow is reported when alter auto_random_base to a value that overflows the incremental bits.
 	AutoRandomRebaseOverflow = "alter auto_random_base to %d overflows the incremental bits, max allowed base is %d"
 	// AutoRandomAlterAddDeferredCauset is reported when adding an auto_random defCausumn.

@@ -34,11 +34,11 @@ import (
 	"github.com/whtcorpsinc/milevadb/petri"
 	tmysql "github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
@@ -48,9 +48,9 @@ import (
 
 func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists tp;")
-	tk.MustExec(`CREATE TABLE tp (a int) PARTITION BY RANGE(a) (
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists tp;")
+	tk.MustInterDirc(`CREATE TABLE tp (a int) PARTITION BY RANGE(a) (
 	PARTITION p0 VALUES LESS THAN (10),
 	PARTITION p1 VALUES LESS THAN (20),
 	PARTITION p2 VALUES LESS THAN (MAXVALUE)
@@ -74,8 +74,8 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	c.Assert(part.Definitions[2].LessThan[0], Equals, "MAXVALUE")
 	c.Assert(part.Definitions[2].Name.L, Equals, "p2")
 
-	tk.MustExec("drop block if exists employees;")
-	sql1 := `create block employees (
+	tk.MustInterDirc("drop causet if exists employees;")
+	sql1 := `create causet employees (
 	id int not null,
 	hired int not null
 	)
@@ -86,7 +86,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql1, tmysql.ErrSameNamePartition)
 
-	sql2 := `create block employees (
+	sql2 := `create causet employees (
 	id int not null,
 	hired int not null
 	)
@@ -97,7 +97,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql2, tmysql.ErrRangeNotIncreasing)
 
-	sql3 := `create block employees (
+	sql3 := `create causet employees (
 	id int not null,
 	hired int not null
 	)
@@ -108,7 +108,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql3, tmysql.ErrPartitionMaxvalue)
 
-	sql4 := `create block t4 (
+	sql4 := `create causet t4 (
 	a int not null,
 	b int not null
 	)
@@ -119,7 +119,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql4, tmysql.ErrPartitionMaxvalue)
 
-	_, err = tk.Exec(`CREATE TABLE rc (
+	_, err = tk.InterDirc(`CREATE TABLE rc (
 		a INT NOT NULL,
 		b INT NOT NULL,
 		c INT NOT NULL
@@ -132,7 +132,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`)
 	c.Assert(err, IsNil)
 
-	sql6 := `create block employees (
+	sql6 := `create causet employees (
 	id int not null,
 	hired int not null
 	)
@@ -141,7 +141,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql6, tmysql.ErrTooManyValues)
 
-	sql7 := `create block t7 (
+	sql7 := `create causet t7 (
 	a int not null,
 	b int not null
 	)
@@ -154,7 +154,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql7, tmysql.ErrPartitionMaxvalue)
 
-	sql18 := `create block t8 (
+	sql18 := `create causet t8 (
 	a int not null,
 	b int not null
 	)
@@ -173,7 +173,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`
 	tk.MustGetErrCode(sql9, tmysql.ErrPartitionFunctionIsNotAllowed)
 
-	_, err = tk.Exec(`CREATE TABLE t9 (
+	_, err = tk.InterDirc(`CREATE TABLE t9 (
 		a INT NOT NULL,
 		b INT NOT NULL,
 		c INT NOT NULL
@@ -187,19 +187,19 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 
 	tk.MustGetErrCode(`create TABLE t10 (c1 int,c2 int) partition by range(c1 / c2 ) (partition p0 values less than (2));`, tmysql.ErrPartitionFunctionIsNotAllowed)
 
-	tk.MustExec(`create TABLE t11 (c1 int,c2 int) partition by range(c1 div c2 ) (partition p0 values less than (2));`)
-	tk.MustExec(`create TABLE t12 (c1 int,c2 int) partition by range(c1 + c2 ) (partition p0 values less than (2));`)
-	tk.MustExec(`create TABLE t13 (c1 int,c2 int) partition by range(c1 - c2 ) (partition p0 values less than (2));`)
-	tk.MustExec(`create TABLE t14 (c1 int,c2 int) partition by range(c1 * c2 ) (partition p0 values less than (2));`)
-	tk.MustExec(`create TABLE t15 (c1 int,c2 int) partition by range( abs(c1) ) (partition p0 values less than (2));`)
-	tk.MustExec(`create TABLE t16 (c1 int) partition by range( c1) (partition p0 values less than (10));`)
+	tk.MustInterDirc(`create TABLE t11 (c1 int,c2 int) partition by range(c1 div c2 ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t12 (c1 int,c2 int) partition by range(c1 + c2 ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t13 (c1 int,c2 int) partition by range(c1 - c2 ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t14 (c1 int,c2 int) partition by range(c1 * c2 ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t15 (c1 int,c2 int) partition by range( abs(c1) ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t16 (c1 int) partition by range( c1) (partition p0 values less than (10));`)
 
 	tk.MustGetErrCode(`create TABLE t17 (c1 int,c2 float) partition by range(c1 + c2 ) (partition p0 values less than (2));`, tmysql.ErrPartitionFuncNotAllowed)
 	tk.MustGetErrCode(`create TABLE t18 (c1 int,c2 float) partition by range( floor(c2) ) (partition p0 values less than (2));`, tmysql.ErrPartitionFuncNotAllowed)
-	tk.MustExec(`create TABLE t19 (c1 int,c2 float) partition by range( floor(c1) ) (partition p0 values less than (2));`)
+	tk.MustInterDirc(`create TABLE t19 (c1 int,c2 float) partition by range( floor(c1) ) (partition p0 values less than (2));`)
 
-	tk.MustExec(`create TABLE t20 (c1 int,c2 bit(10)) partition by range(c2) (partition p0 values less than (10));`)
-	tk.MustExec(`create TABLE t21 (c1 int,c2 year) partition by range( c2 ) (partition p0 values less than (2000));`)
+	tk.MustInterDirc(`create TABLE t20 (c1 int,c2 bit(10)) partition by range(c2) (partition p0 values less than (10));`)
+	tk.MustInterDirc(`create TABLE t21 (c1 int,c2 year) partition by range( c2 ) (partition p0 values less than (2000));`)
 
 	tk.MustGetErrCode(`create TABLE t24 (c1 float) partition by range( c1 ) (partition p0 values less than (2000));`, tmysql.ErrFieldTypeNotAllowedAsPartitionField)
 
@@ -207,17 +207,17 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	tk.MustGetErrCode(`create TABLE t25 (c1 float) partition by range( c1 ) (partition p1 values less than maxvalue,partition p0 values less than (2000));`, tmysql.ErrPartitionMaxvalue)
 
 	// Fix issue 7362.
-	tk.MustExec("create block test_partition(id bigint, name varchar(255), primary key(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 PARTITION BY RANGE  COLUMNS(id) (PARTITION p1 VALUES LESS THAN (10) ENGINE = InnoDB);")
+	tk.MustInterDirc("create causet test_partition(id bigint, name varchar(255), primary key(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 PARTITION BY RANGE  COLUMNS(id) (PARTITION p1 VALUES LESS THAN (10) ENGINE = InnoDB);")
 
-	// 'Less than' in partition expression could be a constant expression, notice that
+	// 'Less than' in partition memex could be a constant memex, notice that
 	// the SHOW result changed.
-	tk.MustExec(`create block t26 (a date)
+	tk.MustInterDirc(`create causet t26 (a date)
 			  partition by range(to_seconds(a))(
 			  partition p0 values less than (to_seconds('2004-01-01')),
 			  partition p1 values less than (to_seconds('2005-01-01')));`)
-	tk.MustQuery("show create block t26").Check(
+	tk.MustQuery("show create causet t26").Check(
 		testkit.Rows("t26 CREATE TABLE `t26` (\n  `a` date DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin\nPARTITION BY RANGE ( TO_SECONDS(`a`) ) (\n  PARTITION `p0` VALUES LESS THAN (63240134400),\n  PARTITION `p1` VALUES LESS THAN (63271756800)\n)"))
-	tk.MustExec(`create block t27 (a bigint unsigned not null)
+	tk.MustInterDirc(`create causet t27 (a bigint unsigned not null)
 		  partition by range(a) (
 		  partition p0 values less than (10),
 		  partition p1 values less than (100),
@@ -225,7 +225,7 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 		  partition p3 values less than (18446744073709551000),
 		  partition p4 values less than (18446744073709551614)
 		);`)
-	tk.MustExec(`create block t28 (a bigint unsigned not null)
+	tk.MustInterDirc(`create causet t28 (a bigint unsigned not null)
 		  partition by range(a) (
 		  partition p0 values less than (10),
 		  partition p1 values less than (100),
@@ -234,24 +234,24 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 		  partition p4 values less than (18446744073709551000 + 10)
 		);`)
 
-	tk.MustExec("set @@milevadb_enable_block_partition = 1")
-	tk.MustExec("set @@milevadb_enable_block_partition = 1")
-	tk.MustExec(`create block t30 (
+	tk.MustInterDirc("set @@milevadb_enable_block_partition = 1")
+	tk.MustInterDirc("set @@milevadb_enable_block_partition = 1")
+	tk.MustInterDirc(`create causet t30 (
 		  a int,
 		  b float,
 		  c varchar(30))
 		  partition by range defCausumns (a, b)
 		  (partition p0 values less than (10, 10.0))`)
-	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 8200 Unsupported partition type, treat as normal block"))
+	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 8200 Unsupported partition type, treat as normal causet"))
 
-	tk.MustGetErrCode(`create block t31 (a int not null) partition by range( a );`, tmysql.ErrPartitionsMustBeDefined)
-	tk.MustGetErrCode(`create block t32 (a int not null) partition by range defCausumns( a );`, tmysql.ErrPartitionsMustBeDefined)
-	tk.MustGetErrCode(`create block t33 (a int, b int) partition by hash(a) partitions 0;`, tmysql.ErrNoParts)
-	tk.MustGetErrCode(`create block t33 (a timestamp, b int) partition by hash(a) partitions 30;`, tmysql.ErrFieldTypeNotAllowedAsPartitionField)
+	tk.MustGetErrCode(`create causet t31 (a int not null) partition by range( a );`, tmysql.ErrPartitionsMustBeDefined)
+	tk.MustGetErrCode(`create causet t32 (a int not null) partition by range defCausumns( a );`, tmysql.ErrPartitionsMustBeDefined)
+	tk.MustGetErrCode(`create causet t33 (a int, b int) partition by hash(a) partitions 0;`, tmysql.ErrNoParts)
+	tk.MustGetErrCode(`create causet t33 (a timestamp, b int) partition by hash(a) partitions 30;`, tmysql.ErrFieldTypeNotAllowedAsPartitionField)
 	tk.MustGetErrCode(`CREATE TABLE t34 (c0 INT) PARTITION BY HASH((CASE WHEN 0 THEN 0 ELSE c0 END )) PARTITIONS 1;`, tmysql.ErrPartitionFunctionIsNotAllowed)
 	tk.MustGetErrCode(`CREATE TABLE t0(c0 INT) PARTITION BY HASH((c0<CURRENT_USER())) PARTITIONS 1;`, tmysql.ErrPartitionFunctionIsNotAllowed)
 	// TODO: fix this one
-	// tk.MustGetErrCode(`create block t33 (a timestamp, b int) partition by hash(unix_timestamp(a)) partitions 30;`, tmysql.ErrPartitionFuncNotAllowed)
+	// tk.MustGetErrCode(`create causet t33 (a timestamp, b int) partition by hash(unix_timestamp(a)) partitions 30;`, tmysql.ErrPartitionFuncNotAllowed)
 
 	// Fix issue 8647
 	tk.MustGetErrCode(`CREATE TABLE trb8 (
@@ -267,33 +267,33 @@ func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
 	);`, tmysql.ErrBadField)
 
 	// Fix a timezone dependent check bug introduced in https://github.com/whtcorpsinc/milevadb/pull/10655
-	tk.MustExec(`create block t34 (dt timestamp(3)) partition by range (floor(unix_timestamp(dt))) (
+	tk.MustInterDirc(`create causet t34 (dt timestamp(3)) partition by range (floor(unix_timestamp(dt))) (
 		partition p0 values less than (unix_timestamp('2020-04-04 00:00:00')),
 		partition p1 values less than (unix_timestamp('2020-04-05 00:00:00')));`)
 
-	tk.MustGetErrCode(`create block t34 (dt timestamp(3)) partition by range (unix_timestamp(date(dt))) (
+	tk.MustGetErrCode(`create causet t34 (dt timestamp(3)) partition by range (unix_timestamp(date(dt))) (
 		partition p0 values less than (unix_timestamp('2020-04-04 00:00:00')),
 		partition p1 values less than (unix_timestamp('2020-04-05 00:00:00')));`, tmysql.ErrWrongExprInPartitionFunc)
 
-	tk.MustGetErrCode(`create block t34 (dt datetime) partition by range (unix_timestamp(dt)) (
+	tk.MustGetErrCode(`create causet t34 (dt datetime) partition by range (unix_timestamp(dt)) (
 		partition p0 values less than (unix_timestamp('2020-04-04 00:00:00')),
 		partition p1 values less than (unix_timestamp('2020-04-05 00:00:00')));`, tmysql.ErrWrongExprInPartitionFunc)
 
 	// Fix https://github.com/whtcorpsinc/milevadb/issues/16333
-	tk.MustExec(`create block t35 (dt timestamp) partition by range (unix_timestamp(dt))
+	tk.MustInterDirc(`create causet t35 (dt timestamp) partition by range (unix_timestamp(dt))
 (partition p0 values less than (unix_timestamp('2020-04-15 00:00:00')));`)
 
-	tk.MustExec(`drop block if exists too_long_identifier`)
-	tk.MustGetErrCode(`create block too_long_identifier(a int)
+	tk.MustInterDirc(`drop causet if exists too_long_identifier`)
+	tk.MustGetErrCode(`create causet too_long_identifier(a int)
 partition by range (a)
 (partition p0pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp values less than (10));`, tmysql.ErrTooLongIdent)
 
-	tk.MustExec(`drop block if exists too_long_identifier`)
-	tk.MustExec("create block too_long_identifier(a int) partition by range(a) (partition p0 values less than(10))")
-	tk.MustGetErrCode("alter block too_long_identifier add partition "+
+	tk.MustInterDirc(`drop causet if exists too_long_identifier`)
+	tk.MustInterDirc("create causet too_long_identifier(a int) partition by range(a) (partition p0 values less than(10))")
+	tk.MustGetErrCode("alter causet too_long_identifier add partition "+
 		"(partition p0pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp values less than(20))", tmysql.ErrTooLongIdent)
 
-	tk.MustExec(`create block t36 (a date, b datetime) partition by range (EXTRACT(YEAR_MONTH FROM a)) (
+	tk.MustInterDirc(`create causet t36 (a date, b datetime) partition by range (EXTRACT(YEAR_MONTH FROM a)) (
     partition p0 values less than (200),
     partition p1 values less than (300),
     partition p2 values less than maxvalue)`)
@@ -301,11 +301,11 @@ partition by range (a)
 
 func (s *testIntegrationSuite2) TestCreateBlockWithHashPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists employees;")
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1")
-	tk.MustExec(`
-	create block employees (
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists employees;")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1")
+	tk.MustInterDirc(`
+	create causet employees (
 		id int not null,
 		fname varchar(30),
 		lname varchar(30),
@@ -316,9 +316,9 @@ func (s *testIntegrationSuite2) TestCreateBlockWithHashPartition(c *C) {
 	)
 	partition by hash(store_id) partitions 4;`)
 
-	tk.MustExec("drop block if exists employees;")
-	tk.MustExec(`
-	create block employees (
+	tk.MustInterDirc("drop causet if exists employees;")
+	tk.MustInterDirc(`
+	create causet employees (
 		id int not null,
 		fname varchar(30),
 		lname varchar(30),
@@ -340,27 +340,27 @@ func (s *testIntegrationSuite2) TestCreateBlockWithHashPartition(c *C) {
     store_id INT
 ) PARTITION BY HASH(store_id) PARTITIONS 102400000000;`, tmysql.ErrTooManyPartitions)
 
-	tk.MustExec("CREATE TABLE t_linear (a int, b varchar(128)) PARTITION BY LINEAR HASH(a) PARTITIONS 4")
+	tk.MustInterDirc("CREATE TABLE t_linear (a int, b varchar(128)) PARTITION BY LINEAR HASH(a) PARTITIONS 4")
 	tk.MustGetErrCode("select * from t_linear partition (p0)", tmysql.ErrPartitionClauseOnNonpartitioned)
 
-	tk.MustExec(`CREATE TABLE t_sub (a int, b varchar(128)) PARTITION BY RANGE( a ) SUBPARTITION BY HASH( a )
+	tk.MustInterDirc(`CREATE TABLE t_sub (a int, b varchar(128)) PARTITION BY RANGE( a ) SUBPARTITION BY HASH( a )
                                    SUBPARTITIONS 2 (
                                        PARTITION p0 VALUES LESS THAN (100),
                                        PARTITION p1 VALUES LESS THAN (200),
                                        PARTITION p2 VALUES LESS THAN MAXVALUE)`)
 	tk.MustGetErrCode("select * from t_sub partition (p0)", tmysql.ErrPartitionClauseOnNonpartitioned)
 
-	// Fix create partition block using extract() function as partition key.
-	tk.MustExec("create block t2 (a date, b datetime) partition by hash (EXTRACT(YEAR_MONTH FROM a)) partitions 7")
+	// Fix create partition causet using extract() function as partition key.
+	tk.MustInterDirc("create causet t2 (a date, b datetime) partition by hash (EXTRACT(YEAR_MONTH FROM a)) partitions 7")
 }
 
 func (s *testIntegrationSuite1) TestCreateBlockWithRangeDeferredCausetPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists log_message_1;")
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1")
-	tk.MustExec(`
-create block log_message_1 (
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists log_message_1;")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1")
+	tk.MustInterDirc(`
+create causet log_message_1 (
     add_time datetime not null default '2000-01-01 00:00:00',
     log_level int unsigned not null default '0',
     log_host varchar(32) not null,
@@ -376,9 +376,9 @@ create block log_message_1 (
     partition p201409 values less than ('2020-10-01'),
     partition p201410 values less than ('2020-11-01')
 )`)
-	tk.MustExec("drop block if exists log_message_1;")
-	tk.MustExec(`
-	create block log_message_1 (
+	tk.MustInterDirc("drop causet if exists log_message_1;")
+	tk.MustInterDirc(`
+	create causet log_message_1 (
 		id int not null,
 		fname varchar(30),
 		lname varchar(30),
@@ -389,7 +389,7 @@ create block log_message_1 (
 	)
 	partition by hash( year(hired) ) partitions 4;`)
 
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("drop causet if exists t")
 
 	type testCase struct {
 		allegrosql string
@@ -398,27 +398,27 @@ create block log_message_1 (
 
 	cases := []testCase{
 		{
-			"create block t (id int) partition by range defCausumns (id);",
+			"create causet t (id int) partition by range defCausumns (id);",
 			ast.ErrPartitionsMustBeDefined,
 		},
 		{
-			"create block t (id int) partition by range defCausumns (id) (partition p0 values less than (1, 2));",
+			"create causet t (id int) partition by range defCausumns (id) (partition p0 values less than (1, 2));",
 			ast.ErrPartitionDeferredCausetList,
 		},
 		{
-			"create block t (a int) partition by range defCausumns (b) (partition p0 values less than (1, 2));",
+			"create causet t (a int) partition by range defCausumns (b) (partition p0 values less than (1, 2));",
 			ast.ErrPartitionDeferredCausetList,
 		},
 		{
-			"create block t (a int) partition by range defCausumns (b) (partition p0 values less than (1));",
+			"create causet t (a int) partition by range defCausumns (b) (partition p0 values less than (1));",
 			dbs.ErrFieldNotFoundPart,
 		},
 		{
-			"create block t (id timestamp) partition by range defCausumns (id) (partition p0 values less than ('2020-01-09 11:23:34'));",
+			"create causet t (id timestamp) partition by range defCausumns (id) (partition p0 values less than ('2020-01-09 11:23:34'));",
 			dbs.ErrNotAllowedTypeInPartition,
 		},
 		{
-			`create block t29 (
+			`create causet t29 (
 				a decimal
 			)
 			partition by range defCausumns (a)
@@ -426,50 +426,50 @@ create block log_message_1 (
 			dbs.ErrNotAllowedTypeInPartition,
 		},
 		{
-			"create block t (id text) partition by range defCausumns (id) (partition p0 values less than ('abc'));",
+			"create causet t (id text) partition by range defCausumns (id) (partition p0 values less than ('abc'));",
 			dbs.ErrNotAllowedTypeInPartition,
 		},
-		// create as normal block, warning.
+		// create as normal causet, warning.
 		//	{
-		//		"create block t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
+		//		"create causet t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
 		//			"partition p0 values less than (1, 'a')," +
 		//			"partition p1 values less than (1, 'a'))",
 		//		dbs.ErrRangeNotIncreasing,
 		//	},
 		{
-			"create block t (a int, b varchar(64)) partition by range defCausumns ( b) (" +
+			"create causet t (a int, b varchar(64)) partition by range defCausumns ( b) (" +
 				"partition p0 values less than ( 'a')," +
 				"partition p1 values less than ('a'))",
 			dbs.ErrRangeNotIncreasing,
 		},
-		// create as normal block, warning.
+		// create as normal causet, warning.
 		//	{
-		//		"create block t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
+		//		"create causet t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
 		//			"partition p0 values less than (1, 'b')," +
 		//			"partition p1 values less than (1, 'a'))",
 		//		dbs.ErrRangeNotIncreasing,
 		//	},
 		{
-			"create block t (a int, b varchar(64)) partition by range defCausumns (b) (" +
+			"create causet t (a int, b varchar(64)) partition by range defCausumns (b) (" +
 				"partition p0 values less than ('b')," +
 				"partition p1 values less than ('a'))",
 			dbs.ErrRangeNotIncreasing,
 		},
-		// create as normal block, warning.
+		// create as normal causet, warning.
 		//		{
-		//			"create block t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
+		//			"create causet t (a int, b varchar(64)) partition by range defCausumns (a, b) (" +
 		//				"partition p0 values less than (1, maxvalue)," +
 		//				"partition p1 values less than (1, 'a'))",
 		//			dbs.ErrRangeNotIncreasing,
 		//		},
 		{
-			"create block t (a int, b varchar(64)) partition by range defCausumns ( b) (" +
+			"create causet t (a int, b varchar(64)) partition by range defCausumns ( b) (" +
 				"partition p0 values less than (  maxvalue)," +
 				"partition p1 values less than ('a'))",
 			dbs.ErrRangeNotIncreasing,
 		},
 		{
-			"create block t (defCaus datetime not null default '2000-01-01')" +
+			"create causet t (defCaus datetime not null default '2000-01-01')" +
 				"partition by range defCausumns (defCaus) (" +
 				"PARTITION p0 VALUES LESS THAN (20190905)," +
 				"PARTITION p1 VALUES LESS THAN (20190906));",
@@ -477,41 +477,41 @@ create block log_message_1 (
 		},
 	}
 	for i, t := range cases {
-		_, err := tk.Exec(t.allegrosql)
+		_, err := tk.InterDirc(t.allegrosql)
 		c.Assert(t.err.Equal(err), IsTrue, Commentf(
 			"case %d fail, allegrosql = `%s`\nexpected error = `%v`\n  actual error = `%v`",
 			i, t.allegrosql, t.err, err,
 		))
 	}
 
-	tk.MustExec("create block t1 (a int, b char(3)) partition by range defCausumns (a, b) (" +
+	tk.MustInterDirc("create causet t1 (a int, b char(3)) partition by range defCausumns (a, b) (" +
 		"partition p0 values less than (1, 'a')," +
 		"partition p1 values less than (2, maxvalue))")
 
-	tk.MustExec("create block t2 (a int, b char(3)) partition by range defCausumns (b) (" +
+	tk.MustInterDirc("create causet t2 (a int, b char(3)) partition by range defCausumns (b) (" +
 		"partition p0 values less than ( 'a')," +
 		"partition p1 values less than (maxvalue))")
 }
 
 func (s *testIntegrationSuite3) TestCreateBlockWithKeyPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists tm1;")
-	tk.MustExec(`create block tm1
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists tm1;")
+	tk.MustInterDirc(`create causet tm1
 	(
 		s1 char(32) primary key
 	)
 	partition by key(s1) partitions 10;`)
 
-	tk.MustExec(`drop block if exists tm2`)
-	tk.MustExec(`create block tm2 (a char(5), unique key(a(5))) partition by key() partitions 5;`)
+	tk.MustInterDirc(`drop causet if exists tm2`)
+	tk.MustInterDirc(`create causet tm2 (a char(5), unique key(a(5))) partition by key() partitions 5;`)
 }
 
 func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists employees;")
-	tk.MustExec(`create block employees (
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists employees;")
+	tk.MustInterDirc(`create causet employees (
 	id int not null,
 	hired date not null
 	)
@@ -520,7 +520,7 @@ func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 		partition p2 values less than (1996),
 		partition p3 values less than (2001)
 	);`)
-	tk.MustExec(`alter block employees add partition (
+	tk.MustInterDirc(`alter causet employees add partition (
     partition p4 values less than (2010),
     partition p5 values less than MAXVALUE
 	);`)
@@ -546,14 +546,14 @@ func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 	c.Assert(part.Definitions[4].LessThan[0], Equals, "MAXVALUE")
 	c.Assert(part.Definitions[4].Name, Equals, perceptron.NewCIStr("p5"))
 
-	tk.MustExec("drop block if exists block1;")
-	tk.MustExec("create block block1(a int)")
-	sql1 := `alter block block1 add partition (
+	tk.MustInterDirc("drop causet if exists block1;")
+	tk.MustInterDirc("create causet block1(a int)")
+	sql1 := `alter causet block1 add partition (
 		partition p1 values less than (2010),
 		partition p2 values less than maxvalue
 	);`
 	tk.MustGetErrCode(sql1, tmysql.ErrPartitionMgmtOnNonpartitioned)
-	tk.MustExec(`create block block_MustBeDefined (
+	tk.MustInterDirc(`create causet block_MustBeDefined (
 	id int not null,
 	hired date not null
 	)
@@ -562,10 +562,10 @@ func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 		partition p2 values less than (1996),
 		partition p3 values less than (2001)
 	);`)
-	sql2 := "alter block block_MustBeDefined add partition"
+	sql2 := "alter causet block_MustBeDefined add partition"
 	tk.MustGetErrCode(sql2, tmysql.ErrPartitionsMustBeDefined)
-	tk.MustExec("drop block if exists block2;")
-	tk.MustExec(`create block block2 (
+	tk.MustInterDirc("drop causet if exists block2;")
+	tk.MustInterDirc(`create causet block2 (
 
 	id int not null,
 	hired date not null
@@ -575,13 +575,13 @@ func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 	partition p2 values less than maxvalue
 	);`)
 
-	sql3 := `alter block block2 add partition (
+	sql3 := `alter causet block2 add partition (
 		partition p3 values less than (2010)
 	);`
 	tk.MustGetErrCode(sql3, tmysql.ErrPartitionMaxvalue)
 
-	tk.MustExec("drop block if exists block3;")
-	tk.MustExec(`create block block3 (
+	tk.MustInterDirc("drop causet if exists block3;")
+	tk.MustInterDirc(`create causet block3 (
 	id int not null,
 	hired date not null
 	)
@@ -590,74 +590,74 @@ func (s *testIntegrationSuite5) TestAlterBlockAddPartition(c *C) {
 	partition p2 values less than (2001)
 	);`)
 
-	sql4 := `alter block block3 add partition (
+	sql4 := `alter causet block3 add partition (
 		partition p3 values less than (1993)
 	);`
 	tk.MustGetErrCode(sql4, tmysql.ErrRangeNotIncreasing)
 
-	sql5 := `alter block block3 add partition (
+	sql5 := `alter causet block3 add partition (
 		partition p1 values less than (1993)
 	);`
 	tk.MustGetErrCode(sql5, tmysql.ErrSameNamePartition)
 
-	sql6 := `alter block block3 add partition (
+	sql6 := `alter causet block3 add partition (
 		partition p1 values less than (1993),
 		partition p1 values less than (1995)
 	);`
 	tk.MustGetErrCode(sql6, tmysql.ErrSameNamePartition)
 
-	sql7 := `alter block block3 add partition (
+	sql7 := `alter causet block3 add partition (
 		partition p4 values less than (1993),
 		partition p1 values less than (1995),
 		partition p5 values less than maxvalue
 	);`
 	tk.MustGetErrCode(sql7, tmysql.ErrSameNamePartition)
 
-	sql8 := "alter block block3 add partition (partition p6);"
+	sql8 := "alter causet block3 add partition (partition p6);"
 	tk.MustGetErrCode(sql8, tmysql.ErrPartitionRequiresValues)
 
-	sql9 := "alter block block3 add partition (partition p7 values in (2020));"
+	sql9 := "alter causet block3 add partition (partition p7 values in (2020));"
 	tk.MustGetErrCode(sql9, tmysql.ErrPartitionWrongValues)
 
-	sql10 := "alter block block3 add partition partitions 4;"
+	sql10 := "alter causet block3 add partition partitions 4;"
 	tk.MustGetErrCode(sql10, tmysql.ErrPartitionsMustBeDefined)
 
-	tk.MustExec("alter block block3 add partition (partition p3 values less than (2001 + 10))")
+	tk.MustInterDirc("alter causet block3 add partition (partition p3 values less than (2001 + 10))")
 
-	// less than value can be negative or expression.
-	tk.MustExec(`CREATE TABLE tt5 (
+	// less than value can be negative or memex.
+	tk.MustInterDirc(`CREATE TABLE tt5 (
 		c3 bigint(20) NOT NULL
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
 	PARTITION BY RANGE ( c3 ) (
 		PARTITION p0 VALUES LESS THAN (-3),
 		PARTITION p1 VALUES LESS THAN (-2)
 	);`)
-	tk.MustExec(`ALTER TABLE tt5 add partition ( partition p2 values less than (-1) );`)
-	tk.MustExec(`ALTER TABLE tt5 add partition ( partition p3 values less than (5-1) );`)
+	tk.MustInterDirc(`ALTER TABLE tt5 add partition ( partition p2 values less than (-1) );`)
+	tk.MustInterDirc(`ALTER TABLE tt5 add partition ( partition p3 values less than (5-1) );`)
 
-	// Test add partition for the block partition by range defCausumns.
-	tk.MustExec("drop block if exists t;")
-	tk.MustExec("create block t (a datetime) partition by range defCausumns (a) (partition p1 values less than ('2020-06-01'), partition p2 values less than ('2020-07-01'));")
-	allegrosql := "alter block t add partition ( partition p3 values less than ('2020-07-01'));"
+	// Test add partition for the causet partition by range defCausumns.
+	tk.MustInterDirc("drop causet if exists t;")
+	tk.MustInterDirc("create causet t (a datetime) partition by range defCausumns (a) (partition p1 values less than ('2020-06-01'), partition p2 values less than ('2020-07-01'));")
+	allegrosql := "alter causet t add partition ( partition p3 values less than ('2020-07-01'));"
 	tk.MustGetErrCode(allegrosql, tmysql.ErrRangeNotIncreasing)
-	tk.MustExec("alter block t add partition ( partition p3 values less than ('2020-08-01'));")
+	tk.MustInterDirc("alter causet t add partition ( partition p3 values less than ('2020-08-01'));")
 
 	// Add partition value's type should be the same with the defCausumn's type.
-	tk.MustExec("drop block if exists t;")
-	tk.MustExec(`create block t (
+	tk.MustInterDirc("drop causet if exists t;")
+	tk.MustInterDirc(`create causet t (
 		defCaus date not null default '2000-01-01')
                 partition by range defCausumns (defCaus) (
 		PARTITION p0 VALUES LESS THAN ('20190905'),
 		PARTITION p1 VALUES LESS THAN ('20190906'));`)
-	allegrosql = "alter block t add partition (partition p2 values less than (20190907));"
+	allegrosql = "alter causet t add partition (partition p2 values less than (20190907));"
 	tk.MustGetErrCode(allegrosql, tmysql.ErrWrongTypeDeferredCausetValue)
 }
 
 func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists employees")
-	tk.MustExec(`create block employees (
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists employees")
+	tk.MustInterDirc(`create causet employees (
 	id int not null,
 	hired int not null
 	)
@@ -667,7 +667,7 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 		partition p3 values less than (2001)
 	);`)
 
-	tk.MustExec("alter block employees drop partition p3;")
+	tk.MustInterDirc("alter causet employees drop partition p3;")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("employees"))
@@ -682,13 +682,13 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 	c.Assert(part.Definitions[1].LessThan[0], Equals, "1996")
 	c.Assert(part.Definitions[1].Name, Equals, perceptron.NewCIStr("p2"))
 
-	tk.MustExec("drop block if exists block1;")
-	tk.MustExec("create block block1 (a int);")
-	sql1 := "alter block block1 drop partition p10;"
+	tk.MustInterDirc("drop causet if exists block1;")
+	tk.MustInterDirc("create causet block1 (a int);")
+	sql1 := "alter causet block1 drop partition p10;"
 	tk.MustGetErrCode(sql1, tmysql.ErrPartitionMgmtOnNonpartitioned)
 
-	tk.MustExec("drop block if exists block2;")
-	tk.MustExec(`create block block2 (
+	tk.MustInterDirc("drop causet if exists block2;")
+	tk.MustInterDirc(`create causet block2 (
 	id int not null,
 	hired date not null
 	)
@@ -697,21 +697,21 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 		partition p2 values less than (1996),
 		partition p3 values less than (2001)
 	);`)
-	sql2 := "alter block block2 drop partition p10;"
+	sql2 := "alter causet block2 drop partition p10;"
 	tk.MustGetErrCode(sql2, tmysql.ErrDropPartitionNonExistent)
 
-	tk.MustExec("drop block if exists block3;")
-	tk.MustExec(`create block block3 (
+	tk.MustInterDirc("drop causet if exists block3;")
+	tk.MustInterDirc(`create causet block3 (
 	id int not null
 	)
 	partition by range( id ) (
 		partition p1 values less than (1991)
 	);`)
-	sql3 := "alter block block3 drop partition p1;"
+	sql3 := "alter causet block3 drop partition p1;"
 	tk.MustGetErrCode(sql3, tmysql.ErrDropLastPartition)
 
-	tk.MustExec("drop block if exists block4;")
-	tk.MustExec(`create block block4 (
+	tk.MustInterDirc("drop causet if exists block4;")
+	tk.MustInterDirc(`create causet block4 (
 	id int not null
 	)
 	partition by range( id ) (
@@ -720,7 +720,7 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 		partition p3 values less than MAXVALUE
 	);`)
 
-	tk.MustExec("alter block block4 drop partition p2;")
+	tk.MustInterDirc("alter causet block4 drop partition p2;")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err = is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("block4"))
 	c.Assert(err, IsNil)
@@ -734,8 +734,8 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 	c.Assert(part.Definitions[1].LessThan[0], Equals, "MAXVALUE")
 	c.Assert(part.Definitions[1].Name, Equals, perceptron.NewCIStr("p3"))
 
-	tk.MustExec("drop block if exists tr;")
-	tk.MustExec(` create block tr(
+	tk.MustInterDirc("drop causet if exists tr;")
+	tk.MustInterDirc(` create causet tr(
 		id int, name varchar(50),
 		purchased date
 	)
@@ -747,7 +747,7 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
     	partition p4 values less than (2010),
     	partition p5 values less than (2020)
    	);`)
-	tk.MustExec(`INSERT INTO tr VALUES
+	tk.MustInterDirc(`INSERT INTO tr VALUES
 	(1, 'desk organiser', '2003-10-15'),
 	(2, 'alarm clock', '1997-11-05'),
 	(3, 'chair', '2009-03-10'),
@@ -760,22 +760,22 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 	(10, 'lava lamp', '1998-12-25');`)
 	result := tk.MustQuery("select * from tr where purchased between '1995-01-01' and '1999-12-31';")
 	result.Check(testkit.Rows(`2 alarm clock 1997-11-05`, `10 lava lamp 1998-12-25`))
-	tk.MustExec("alter block tr drop partition p2;")
+	tk.MustInterDirc("alter causet tr drop partition p2;")
 	result = tk.MustQuery("select * from tr where purchased between '1995-01-01' and '1999-12-31';")
 	result.Check(testkit.Rows())
 
 	result = tk.MustQuery("select * from tr where purchased between '2010-01-01' and '2020-12-31';")
 	result.Check(testkit.Rows(`5 exercise bike 2020-05-09`, `7 espresso maker 2011-11-22`))
-	tk.MustExec("alter block tr drop partition p5;")
+	tk.MustInterDirc("alter causet tr drop partition p5;")
 	result = tk.MustQuery("select * from tr where purchased between '2010-01-01' and '2020-12-31';")
 	result.Check(testkit.Rows())
 
-	tk.MustExec("alter block tr drop partition p4;")
+	tk.MustInterDirc("alter causet tr drop partition p4;")
 	result = tk.MustQuery("select * from tr where purchased between '2005-01-01' and '2009-12-31';")
 	result.Check(testkit.Rows())
 
-	tk.MustExec("drop block if exists block4;")
-	tk.MustExec(`create block block4 (
+	tk.MustInterDirc("drop causet if exists block4;")
+	tk.MustInterDirc(`create causet block4 (
 		id int not null
 	)
 	partition by range( id ) (
@@ -784,20 +784,20 @@ func (s *testIntegrationSuite5) TestAlterBlockDropPartition(c *C) {
 		partition Par3 values less than (1995),
 		partition PaR5 values less than (1996)
 	);`)
-	tk.MustExec("alter block block4 drop partition Par2;")
-	tk.MustExec("alter block block4 drop partition PAR5;")
-	sql4 := "alter block block4 drop partition PAR0;"
+	tk.MustInterDirc("alter causet block4 drop partition Par2;")
+	tk.MustInterDirc("alter causet block4 drop partition PAR5;")
+	sql4 := "alter causet block4 drop partition PAR0;"
 	tk.MustGetErrCode(sql4, tmysql.ErrDropPartitionNonExistent)
 
-	tk.MustExec("CREATE TABLE t1 (a int(11), b varchar(64)) PARTITION BY HASH(a) PARTITIONS 3")
-	tk.MustGetErrCode("alter block t1 drop partition p2", tmysql.ErrOnlyOnRangeListPartition)
+	tk.MustInterDirc("CREATE TABLE t1 (a int(11), b varchar(64)) PARTITION BY HASH(a) PARTITIONS 3")
+	tk.MustGetErrCode("alter causet t1 drop partition p2", tmysql.ErrOnlyOnRangeListPartition)
 }
 
 func (s *testIntegrationSuite5) TestMultiPartitionDropAndTruncate(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists employees")
-	tk.MustExec(`create block employees (
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists employees")
+	tk.MustInterDirc(`create causet employees (
 	hired int not null
 	)
 	partition by range( hired ) (
@@ -807,23 +807,23 @@ func (s *testIntegrationSuite5) TestMultiPartitionDropAndTruncate(c *C) {
 		partition p4 values less than (2006),
 		partition p5 values less than (2011)
 	);`)
-	tk.MustExec(`INSERT INTO employees VALUES (1990), (1995), (2000), (2005), (2010)`)
+	tk.MustInterDirc(`INSERT INTO employees VALUES (1990), (1995), (2000), (2005), (2010)`)
 
-	tk.MustExec("alter block employees drop partition p1, p2;")
+	tk.MustInterDirc("alter causet employees drop partition p1, p2;")
 	result := tk.MustQuery("select * from employees;")
 	result.Sort().Check(testkit.Rows(`2000`, `2005`, `2010`))
 
-	tk.MustExec("alter block employees truncate partition p3, p4")
+	tk.MustInterDirc("alter causet employees truncate partition p3, p4")
 	result = tk.MustQuery("select * from employees;")
 	result.Check(testkit.Rows(`2010`))
 }
 
 func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists e")
-	tk.MustExec("drop block if exists e2")
-	tk.MustExec(`CREATE TABLE e (
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists e")
+	tk.MustInterDirc("drop causet if exists e2")
+	tk.MustInterDirc(`CREATE TABLE e (
 		id INT NOT NULL
 	)
     PARTITION BY RANGE (id) (
@@ -832,11 +832,11 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
         PARTITION p2 VALUES LESS THAN (150),
         PARTITION p3 VALUES LESS THAN (MAXVALUE)
 	);`)
-	tk.MustExec(`CREATE TABLE e2 (
+	tk.MustInterDirc(`CREATE TABLE e2 (
 		id INT NOT NULL
 	);`)
-	tk.MustExec(`INSERT INTO e VALUES (1669),(337),(16),(2005)`)
-	tk.MustExec("ALTER TABLE e EXCHANGE PARTITION p0 WITH TABLE e2")
+	tk.MustInterDirc(`INSERT INTO e VALUES (1669),(337),(16),(2005)`)
+	tk.MustInterDirc("ALTER TABLE e EXCHANGE PARTITION p0 WITH TABLE e2")
 	tk.MustQuery("select * from e2").Check(testkit.Rows("16"))
 	tk.MustQuery("select * from e").Check(testkit.Rows("1669", "337", "2005"))
 	// validation test for range partition
@@ -844,17 +844,17 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	tk.MustGetErrCode("ALTER TABLE e EXCHANGE PARTITION p2 WITH TABLE e2", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e EXCHANGE PARTITION p3 WITH TABLE e2", tmysql.ErrRowDoesNotMatchPartition)
 
-	tk.MustExec("drop block if exists e3")
+	tk.MustInterDirc("drop causet if exists e3")
 
-	tk.MustExec(`CREATE TABLE e3 (
+	tk.MustInterDirc(`CREATE TABLE e3 (
 		id int not null
 	) PARTITION BY HASH (id)
 	PARTITIONS 4;`)
 	tk.MustGetErrCode("ALTER TABLE e EXCHANGE PARTITION p1 WITH TABLE e3;", tmysql.ErrPartitionExchangePartBlock)
-	tk.MustExec("truncate block e2")
-	tk.MustExec(`INSERT INTO e3 VALUES (1),(5)`)
+	tk.MustInterDirc("truncate causet e2")
+	tk.MustInterDirc(`INSERT INTO e3 VALUES (1),(5)`)
 
-	tk.MustExec("ALTER TABLE e3 EXCHANGE PARTITION p1 WITH TABLE e2;")
+	tk.MustInterDirc("ALTER TABLE e3 EXCHANGE PARTITION p1 WITH TABLE e2;")
 	tk.MustQuery("select * from e3 partition(p0)").Check(testkit.Rows())
 	tk.MustQuery("select * from e2").Check(testkit.Rows("1", "5"))
 
@@ -864,113 +864,113 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	tk.MustGetErrCode("ALTER TABLE e3 EXCHANGE PARTITION p3 WITH TABLE e2", tmysql.ErrRowDoesNotMatchPartition)
 
 	// without validation test
-	tk.MustExec("ALTER TABLE e3 EXCHANGE PARTITION p0 with TABLE e2 WITHOUT VALIDATION")
+	tk.MustInterDirc("ALTER TABLE e3 EXCHANGE PARTITION p0 with TABLE e2 WITHOUT VALIDATION")
 
 	tk.MustQuery("select * from e3 partition(p0)").Check(testkit.Rows("1", "5"))
 	tk.MustQuery("select * from e2").Check(testkit.Rows())
 
 	// more boundary test of range partition
 	// for partition p0
-	tk.MustExec(`create block e4 (a int) partition by range(a) (
+	tk.MustInterDirc(`create causet e4 (a int) partition by range(a) (
 		partition p0 values less than (3),
 		partition p1 values less than (6),
         PARTITION p2 VALUES LESS THAN (9),
         PARTITION p3 VALUES LESS THAN (MAXVALUE)
 		);`)
-	tk.MustExec(`create block e5(a int);`)
+	tk.MustInterDirc(`create causet e5(a int);`)
 
-	tk.MustExec("insert into e5 values (1)")
+	tk.MustInterDirc("insert into e5 values (1)")
 
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p1 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p2 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p3 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
-	tk.MustExec("ALTER TABLE e4 EXCHANGE PARTITION p0 with TABLE e5")
+	tk.MustInterDirc("ALTER TABLE e4 EXCHANGE PARTITION p0 with TABLE e5")
 	tk.MustQuery("select * from e4 partition(p0)").Check(testkit.Rows("1"))
 
 	// for partition p1
-	tk.MustExec("insert into e5 values (3)")
+	tk.MustInterDirc("insert into e5 values (3)")
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p0 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p2 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p3 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
-	tk.MustExec("ALTER TABLE e4 EXCHANGE PARTITION p1 with TABLE e5")
+	tk.MustInterDirc("ALTER TABLE e4 EXCHANGE PARTITION p1 with TABLE e5")
 	tk.MustQuery("select * from e4 partition(p1)").Check(testkit.Rows("3"))
 
 	// for partition p2
-	tk.MustExec("insert into e5 values (6)")
+	tk.MustInterDirc("insert into e5 values (6)")
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p0 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p1 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p3 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
-	tk.MustExec("ALTER TABLE e4 EXCHANGE PARTITION p2 with TABLE e5")
+	tk.MustInterDirc("ALTER TABLE e4 EXCHANGE PARTITION p2 with TABLE e5")
 	tk.MustQuery("select * from e4 partition(p2)").Check(testkit.Rows("6"))
 
 	// for partition p3
-	tk.MustExec("insert into e5 values (9)")
+	tk.MustInterDirc("insert into e5 values (9)")
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p0 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
 	tk.MustGetErrCode("ALTER TABLE e4 EXCHANGE PARTITION p1 WITH TABLE e5", tmysql.ErrRowDoesNotMatchPartition)
-	tk.MustGetErrCode("alter block e4 exchange partition p2 with block e5", tmysql.ErrRowDoesNotMatchPartition)
-	tk.MustExec("ALTER TABLE e4 EXCHANGE PARTITION p3 with TABLE e5")
+	tk.MustGetErrCode("alter causet e4 exchange partition p2 with causet e5", tmysql.ErrRowDoesNotMatchPartition)
+	tk.MustInterDirc("ALTER TABLE e4 EXCHANGE PARTITION p3 with TABLE e5")
 	tk.MustQuery("select * from e4 partition(p3)").Check(testkit.Rows("9"))
 
 	// for defCausumns range partition
-	tk.MustExec(`create block e6 (a varchar(3)) partition by range defCausumns (a) (
+	tk.MustInterDirc(`create causet e6 (a varchar(3)) partition by range defCausumns (a) (
 		partition p0 values less than ('3'),
 		partition p1 values less than ('6')
 	);`)
-	tk.MustExec(`create block e7 (a varchar(3));`)
-	tk.MustExec(`insert into e6 values ('1');`)
-	tk.MustExec(`insert into e7 values ('2');`)
-	tk.MustExec("alter block e6 exchange partition p0 with block e7")
+	tk.MustInterDirc(`create causet e7 (a varchar(3));`)
+	tk.MustInterDirc(`insert into e6 values ('1');`)
+	tk.MustInterDirc(`insert into e7 values ('2');`)
+	tk.MustInterDirc("alter causet e6 exchange partition p0 with causet e7")
 
 	tk.MustQuery("select * from e6 partition(p0)").Check(testkit.Rows("2"))
 	tk.MustQuery("select * from e7").Check(testkit.Rows("1"))
-	tk.MustGetErrCode("alter block e6 exchange partition p1 with block e7", tmysql.ErrRowDoesNotMatchPartition)
+	tk.MustGetErrCode("alter causet e6 exchange partition p1 with causet e7", tmysql.ErrRowDoesNotMatchPartition)
 
 	// test exchange partition from different databases
-	tk.MustExec("create block e8 (a int) partition by hash(a) partitions 2;")
-	tk.MustExec("create database if not exists exchange_partition")
-	tk.MustExec("insert into e8 values (1), (3), (5)")
-	tk.MustExec("use exchange_partition;")
-	tk.MustExec("create block e9 (a int);")
-	tk.MustExec("insert into e9 values (7), (9)")
-	tk.MustExec("alter block test.e8 exchange partition p1 with block e9")
+	tk.MustInterDirc("create causet e8 (a int) partition by hash(a) partitions 2;")
+	tk.MustInterDirc("create database if not exists exchange_partition")
+	tk.MustInterDirc("insert into e8 values (1), (3), (5)")
+	tk.MustInterDirc("use exchange_partition;")
+	tk.MustInterDirc("create causet e9 (a int);")
+	tk.MustInterDirc("insert into e9 values (7), (9)")
+	tk.MustInterDirc("alter causet test.e8 exchange partition p1 with causet e9")
 
-	tk.MustExec("insert into e9 values (11)")
+	tk.MustInterDirc("insert into e9 values (11)")
 	tk.MustQuery("select * from e9").Check(testkit.Rows("1", "3", "5", "11"))
-	tk.MustExec("insert into test.e8 values (11)")
+	tk.MustInterDirc("insert into test.e8 values (11)")
 	tk.MustQuery("select * from test.e8").Check(testkit.Rows("7", "9", "11"))
 
-	tk.MustExec("use test")
-	tk.MustExec("create block e10 (a int) partition by hash(a) partitions 2")
-	tk.MustExec("insert into e10 values (0), (2), (4)")
-	tk.MustExec("create block e11 (a int)")
-	tk.MustExec("insert into e11 values (1), (3)")
-	tk.MustExec("alter block e10 exchange partition p1 with block e11")
-	tk.MustExec("insert into e11 values (5)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet e10 (a int) partition by hash(a) partitions 2")
+	tk.MustInterDirc("insert into e10 values (0), (2), (4)")
+	tk.MustInterDirc("create causet e11 (a int)")
+	tk.MustInterDirc("insert into e11 values (1), (3)")
+	tk.MustInterDirc("alter causet e10 exchange partition p1 with causet e11")
+	tk.MustInterDirc("insert into e11 values (5)")
 	tk.MustQuery("select * from e11").Check(testkit.Rows("5"))
-	tk.MustExec("insert into e10 values (5), (6)")
+	tk.MustInterDirc("insert into e10 values (5), (6)")
 	tk.MustQuery("select * from e10 partition(p0)").Check(testkit.Rows("0", "2", "4", "6"))
 	tk.MustQuery("select * from e10 partition(p1)").Check(testkit.Rows("1", "3", "5"))
 
 	// test for defCausumn id
-	tk.MustExec("create block e12 (a int(1), b int, index (a)) partition by hash(a) partitions 3")
-	tk.MustExec("create block e13 (a int(8), b int, index (a));")
-	tk.MustExec("alter block e13 drop defCausumn b")
-	tk.MustExec("alter block e13 add defCausumn b int")
-	tk.MustGetErrCode("alter block e12 exchange partition p0 with block e13", tmysql.ErrPartitionExchangeDifferentOption)
+	tk.MustInterDirc("create causet e12 (a int(1), b int, index (a)) partition by hash(a) partitions 3")
+	tk.MustInterDirc("create causet e13 (a int(8), b int, index (a));")
+	tk.MustInterDirc("alter causet e13 drop defCausumn b")
+	tk.MustInterDirc("alter causet e13 add defCausumn b int")
+	tk.MustGetErrCode("alter causet e12 exchange partition p0 with causet e13", tmysql.ErrPartitionExchangeDifferentOption)
 	// test for index id
-	tk.MustExec("create block e14 (a int, b int, index(a));")
-	tk.MustExec("alter block e12 drop index a")
-	tk.MustExec("alter block e12 add index (a);")
-	tk.MustGetErrCode("alter block e12 exchange partition p0 with block e14", tmysql.ErrPartitionExchangeDifferentOption)
+	tk.MustInterDirc("create causet e14 (a int, b int, index(a));")
+	tk.MustInterDirc("alter causet e12 drop index a")
+	tk.MustInterDirc("alter causet e12 add index (a);")
+	tk.MustGetErrCode("alter causet e12 exchange partition p0 with causet e14", tmysql.ErrPartitionExchangeDifferentOption)
 
 	// test for tiflash replica
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount", `return(true)`), IsNil)
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
-	tk.MustExec("create block e15 (a int) partition by hash(a) partitions 1;")
-	tk.MustExec("create block e16 (a int)")
-	tk.MustExec("alter block e15 set tiflash replica 1;")
-	tk.MustExec("alter block e16 set tiflash replica 2;")
+	tk.MustInterDirc("create causet e15 (a int) partition by hash(a) partitions 1;")
+	tk.MustInterDirc("create causet e16 (a int)")
+	tk.MustInterDirc("alter causet e15 set tiflash replica 1;")
+	tk.MustInterDirc("alter causet e16 set tiflash replica 2;")
 
 	e15 := testGetBlockByName(c, s.ctx, "test", "e15")
 	partition := e15.Meta().Partition
@@ -982,13 +982,13 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, e16.Meta().ID, true)
 	c.Assert(err, IsNil)
 
-	tk.MustGetErrCode("alter block e15 exchange partition p0 with block e16", tmysql.ErrBlocksDifferentMetadata)
-	tk.MustExec("drop block e15, e16")
+	tk.MustGetErrCode("alter causet e15 exchange partition p0 with causet e16", tmysql.ErrBlocksDifferentMetadata)
+	tk.MustInterDirc("drop causet e15, e16")
 
-	tk.MustExec("create block e15 (a int) partition by hash(a) partitions 1;")
-	tk.MustExec("create block e16 (a int)")
-	tk.MustExec("alter block e15 set tiflash replica 1;")
-	tk.MustExec("alter block e16 set tiflash replica 1;")
+	tk.MustInterDirc("create causet e15 (a int) partition by hash(a) partitions 1;")
+	tk.MustInterDirc("create causet e16 (a int)")
+	tk.MustInterDirc("alter causet e15 set tiflash replica 1;")
+	tk.MustInterDirc("alter causet e16 set tiflash replica 1;")
 
 	e15 = testGetBlockByName(c, s.ctx, "test", "e15")
 	partition = e15.Meta().Partition
@@ -1000,7 +1000,7 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, e16.Meta().ID, true)
 	c.Assert(err, IsNil)
 
-	tk.MustExec("alter block e15 exchange partition p0 with block e16")
+	tk.MustInterDirc("alter causet e15 exchange partition p0 with causet e16")
 
 	e15 = testGetBlockByName(c, s.ctx, "test", "e15")
 
@@ -1014,16 +1014,16 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	c.Assert(e16.Meta().TiFlashReplica, NotNil)
 	c.Assert(e16.Meta().TiFlashReplica.Available, IsTrue)
 
-	tk.MustExec("drop block e15, e16")
-	tk.MustExec("create block e15 (a int) partition by hash(a) partitions 1;")
-	tk.MustExec("create block e16 (a int)")
-	tk.MustExec("alter block e16 set tiflash replica 1;")
+	tk.MustInterDirc("drop causet e15, e16")
+	tk.MustInterDirc("create causet e15 (a int) partition by hash(a) partitions 1;")
+	tk.MustInterDirc("create causet e16 (a int)")
+	tk.MustInterDirc("alter causet e16 set tiflash replica 1;")
 
-	tk.MustExec("alter block e15 set tiflash replica 1 location labels 'a', 'b';")
+	tk.MustInterDirc("alter causet e15 set tiflash replica 1 location labels 'a', 'b';")
 
-	tk.MustGetErrCode("alter block e15 exchange partition p0 with block e16", tmysql.ErrBlocksDifferentMetadata)
+	tk.MustGetErrCode("alter causet e15 exchange partition p0 with causet e16", tmysql.ErrBlocksDifferentMetadata)
 
-	tk.MustExec("alter block e16 set tiflash replica 1 location labels 'a', 'b';")
+	tk.MustInterDirc("alter causet e16 set tiflash replica 1 location labels 'a', 'b';")
 
 	e15 = testGetBlockByName(c, s.ctx, "test", "e15")
 	partition = e15.Meta().Partition
@@ -1035,7 +1035,7 @@ func (s *testIntegrationSuite7) TestAlterBlockExchangePartition(c *C) {
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, e16.Meta().ID, true)
 	c.Assert(err, IsNil)
 
-	tk.MustExec("alter block e15 exchange partition p0 with block e16")
+	tk.MustInterDirc("alter causet e15 exchange partition p0 with causet e16")
 }
 
 func (s *testIntegrationSuite4) TestExchangePartitionBlockCompatiable(c *C) {
@@ -1047,233 +1047,233 @@ func (s *testIntegrationSuite4) TestExchangePartitionBlockCompatiable(c *C) {
 	}
 	cases := []testCase{
 		{
-			"create block pt (id int not null) partition by hash (id) partitions 4;",
-			"create block nt (id int(1) not null);",
-			"alter block pt exchange partition p0 with block nt;",
+			"create causet pt (id int not null) partition by hash (id) partitions 4;",
+			"create causet nt (id int(1) not null);",
+			"alter causet pt exchange partition p0 with causet nt;",
 			nil,
 		},
 		{
-			"create block pt1 (id int not null, fname varchar(3)) partition by hash (id) partitions 4;",
-			"create block nt1 (id int not null, fname varchar(4));",
-			"alter block pt1 exchange partition p0 with block nt1;",
+			"create causet pt1 (id int not null, fname varchar(3)) partition by hash (id) partitions 4;",
+			"create causet nt1 (id int not null, fname varchar(4));",
+			"alter causet pt1 exchange partition p0 with causet nt1;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt2 (id int not null, salary decimal) partition by hash(id) partitions 4;",
-			"create block nt2 (id int not null, salary decimal(3,2));",
-			"alter block pt2 exchange partition p0 with block nt2;",
+			"create causet pt2 (id int not null, salary decimal) partition by hash(id) partitions 4;",
+			"create causet nt2 (id int not null, salary decimal(3,2));",
+			"alter causet pt2 exchange partition p0 with causet nt2;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt3 (id int not null, salary decimal) partition by hash(id) partitions 1;",
-			"create block nt3 (id int not null, salary decimal(10, 1));",
-			"alter block pt3 exchange partition p0 with block nt3",
+			"create causet pt3 (id int not null, salary decimal) partition by hash(id) partitions 1;",
+			"create causet nt3 (id int not null, salary decimal(10, 1));",
+			"alter causet pt3 exchange partition p0 with causet nt3",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt4 (id int not null) partition by hash(id) partitions 1;",
-			"create block nt4 (id1 int not null);",
-			"alter block pt4 exchange partition p0 with block nt4;",
+			"create causet pt4 (id int not null) partition by hash(id) partitions 1;",
+			"create causet nt4 (id1 int not null);",
+			"alter causet pt4 exchange partition p0 with causet nt4;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt5 (id int not null, primary key (id)) partition by hash(id) partitions 1;",
-			"create block nt5 (id int not null);",
-			"alter block pt5 exchange partition p0 with block nt5;",
+			"create causet pt5 (id int not null, primary key (id)) partition by hash(id) partitions 1;",
+			"create causet nt5 (id int not null);",
+			"alter causet pt5 exchange partition p0 with causet nt5;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt6 (id int not null, salary decimal, index idx (id, salary)) partition by hash(id) partitions 1;",
-			"create block nt6 (id int not null, salary decimal, index idx (salary, id));",
-			"alter block pt6 exchange partition p0 with block nt6;",
+			"create causet pt6 (id int not null, salary decimal, index idx (id, salary)) partition by hash(id) partitions 1;",
+			"create causet nt6 (id int not null, salary decimal, index idx (salary, id));",
+			"alter causet pt6 exchange partition p0 with causet nt6;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt7 (id int not null, index idx (id) invisible) partition by hash(id) partitions 1;",
-			"create block nt7 (id int not null, index idx (id));",
-			"alter block pt7 exchange partition p0 with block nt7;",
+			"create causet pt7 (id int not null, index idx (id) invisible) partition by hash(id) partitions 1;",
+			"create causet nt7 (id int not null, index idx (id));",
+			"alter causet pt7 exchange partition p0 with causet nt7;",
 			nil,
 		},
 		{
-			"create block pt8 (id int not null, index idx (id)) partition by hash(id) partitions 1;",
-			"create block nt8 (id int not null, index id_idx (id));",
-			"alter block pt8 exchange partition p0 with block nt8;",
+			"create causet pt8 (id int not null, index idx (id)) partition by hash(id) partitions 1;",
+			"create causet nt8 (id int not null, index id_idx (id));",
+			"alter causet pt8 exchange partition p0 with causet nt8;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
 			// foreign key test
-			// Partition block doesn't support to add foreign keys in allegrosql
-			"create block pt9 (id int not null primary key auto_increment,t_id int not null) partition by hash(id) partitions 1;",
-			"create block nt9 (id int not null primary key auto_increment, t_id int not null,foreign key fk_id (t_id) references pt5(id));",
-			"alter block pt9 exchange partition p0 with block nt9;",
+			// Partition causet doesn't support to add foreign keys in allegrosql
+			"create causet pt9 (id int not null primary key auto_increment,t_id int not null) partition by hash(id) partitions 1;",
+			"create causet nt9 (id int not null primary key auto_increment, t_id int not null,foreign key fk_id (t_id) references pt5(id));",
+			"alter causet pt9 exchange partition p0 with causet nt9;",
 			dbs.ErrPartitionExchangeForeignKey,
 		},
 		{
 			// Generated defCausumn (virtual)
-			"create block pt10 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname,' ')) virtual) partition by hash(id) partitions 1;",
-			"create block nt10 (id int not null, lname varchar(30), fname varchar(100));",
-			"alter block pt10 exchange partition p0 with block nt10;",
+			"create causet pt10 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname,' ')) virtual) partition by hash(id) partitions 1;",
+			"create causet nt10 (id int not null, lname varchar(30), fname varchar(100));",
+			"alter causet pt10 exchange partition p0 with causet nt10;",
 			dbs.ErrUnsupportedOnGeneratedDeferredCauset,
 		},
 		{
-			"create block pt11 (id int not null, lname varchar(30), fname varchar(100)) partition by hash(id) partitions 1;",
-			"create block nt11 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
-			"alter block pt11 exchange partition p0 with block nt11;",
+			"create causet pt11 (id int not null, lname varchar(30), fname varchar(100)) partition by hash(id) partitions 1;",
+			"create causet nt11 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
+			"alter causet pt11 exchange partition p0 with causet nt11;",
 			dbs.ErrUnsupportedOnGeneratedDeferredCauset,
 		},
 		{
 
-			"create block pt12 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname,' ')) stored) partition by hash(id) partitions 1;",
-			"create block nt12 (id int not null, lname varchar(30), fname varchar(100));",
-			"alter block pt12 exchange partition p0 with block nt12;",
+			"create causet pt12 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname,' ')) stored) partition by hash(id) partitions 1;",
+			"create causet nt12 (id int not null, lname varchar(30), fname varchar(100));",
+			"alter causet pt12 exchange partition p0 with causet nt12;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt13 (id int not null, lname varchar(30), fname varchar(100)) partition by hash(id) partitions 1;",
-			"create block nt13 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) stored);",
-			"alter block pt13 exchange partition p0 with block nt13;",
+			"create causet pt13 (id int not null, lname varchar(30), fname varchar(100)) partition by hash(id) partitions 1;",
+			"create causet nt13 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) stored);",
+			"alter causet pt13 exchange partition p0 with causet nt13;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt14 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual) partition by hash(id) partitions 1;",
-			"create block nt14 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
-			"alter block pt14 exchange partition p0 with block nt14;",
+			"create causet pt14 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual) partition by hash(id) partitions 1;",
+			"create causet nt14 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
+			"alter causet pt14 exchange partition p0 with causet nt14;",
 			nil,
 		},
 		{
 			// unique index
-			"create block pt15 (id int not null, unique index uk_id (id)) partition by hash(id) partitions 1;",
-			"create block nt15 (id int not null, index uk_id (id));",
-			"alter block pt15 exchange partition p0 with block nt15",
+			"create causet pt15 (id int not null, unique index uk_id (id)) partition by hash(id) partitions 1;",
+			"create causet nt15 (id int not null, index uk_id (id));",
+			"alter causet pt15 exchange partition p0 with causet nt15",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
 			// auto_increment
-			"create block pt16 (id int not null primary key auto_increment) partition by hash(id) partitions 1;",
-			"create block nt16 (id int not null primary key);",
-			"alter block pt16 exchange partition p0 with block nt16;",
+			"create causet pt16 (id int not null primary key auto_increment) partition by hash(id) partitions 1;",
+			"create causet nt16 (id int not null primary key);",
+			"alter causet pt16 exchange partition p0 with causet nt16;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
 			// default
-			"create block pt17 (id int not null default 1) partition by hash(id) partitions 1;",
-			"create block nt17 (id int not null);",
-			"alter block pt17 exchange partition p0 with block nt17;",
+			"create causet pt17 (id int not null default 1) partition by hash(id) partitions 1;",
+			"create causet nt17 (id int not null);",
+			"alter causet pt17 exchange partition p0 with causet nt17;",
 			nil,
 		},
 		{
 			// view test
-			"create block pt18 (id int not null) partition by hash(id) partitions 1;",
+			"create causet pt18 (id int not null) partition by hash(id) partitions 1;",
 			"create view nt18 as select id from nt17;",
-			"alter block pt18 exchange partition p0 with block nt18",
+			"alter causet pt18 exchange partition p0 with causet nt18",
 			dbs.ErrCheckNoSuchBlock,
 		},
 		{
-			"create block pt19 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) stored) partition by hash(id) partitions 1;",
-			"create block nt19 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
-			"alter block pt19 exchange partition p0 with block nt19;",
+			"create causet pt19 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) stored) partition by hash(id) partitions 1;",
+			"create causet nt19 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual);",
+			"alter causet pt19 exchange partition p0 with causet nt19;",
 			dbs.ErrUnsupportedOnGeneratedDeferredCauset,
 		},
 		{
-			"create block pt20 (id int not null) partition by hash(id) partitions 1;",
-			"create block nt20 (id int default null);",
-			"alter block pt20 exchange partition p0 with block nt20;",
+			"create causet pt20 (id int not null) partition by hash(id) partitions 1;",
+			"create causet nt20 (id int default null);",
+			"alter causet pt20 exchange partition p0 with causet nt20;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
 			// unsigned
-			"create block pt21 (id int unsigned) partition by hash(id) partitions 1;",
-			"create block nt21 (id int);",
-			"alter block pt21 exchange partition p0 with block nt21;",
+			"create causet pt21 (id int unsigned) partition by hash(id) partitions 1;",
+			"create causet nt21 (id int);",
+			"alter causet pt21 exchange partition p0 with causet nt21;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
 			// zerofill
-			"create block pt22 (id int) partition by hash(id) partitions 1;",
-			"create block nt22 (id int zerofill);",
-			"alter block pt22 exchange partition p0 with block nt22;",
+			"create causet pt22 (id int) partition by hash(id) partitions 1;",
+			"create causet nt22 (id int zerofill);",
+			"alter causet pt22 exchange partition p0 with causet nt22;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt23 (id int, lname varchar(10) charset binary) partition by hash(id) partitions 1;",
-			"create block nt23 (id int, lname varchar(10));",
-			"alter block pt23 exchange partition p0 with block nt23;",
+			"create causet pt23 (id int, lname varchar(10) charset binary) partition by hash(id) partitions 1;",
+			"create causet nt23 (id int, lname varchar(10));",
+			"alter causet pt23 exchange partition p0 with causet nt23;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt25 (id int, a datetime on uFIDelate current_timestamp) partition by hash(id) partitions 1;",
-			"create block nt25 (id int, a datetime);",
-			"alter block pt25 exchange partition p0 with block nt25;",
+			"create causet pt25 (id int, a datetime on uFIDelate current_timestamp) partition by hash(id) partitions 1;",
+			"create causet nt25 (id int, a datetime);",
+			"alter causet pt25 exchange partition p0 with causet nt25;",
 			nil,
 		},
 		{
-			"create block pt26 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual) partition by hash(id) partitions 1;",
-			"create block nt26 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(id, ' ')) virtual);",
-			"alter block pt26 exchange partition p0 with block nt26;",
+			"create causet pt26 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(lname, ' ')) virtual) partition by hash(id) partitions 1;",
+			"create causet nt26 (id int not null, lname varchar(30), fname varchar(100) generated always as (concat(id, ' ')) virtual);",
+			"alter causet pt26 exchange partition p0 with causet nt26;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 		{
-			"create block pt27 (a int key, b int, index(a)) partition by hash(a) partitions 1;",
-			"create block nt27 (a int not null, b int, index(a));",
-			"alter block pt27 exchange partition p0 with block nt27;",
+			"create causet pt27 (a int key, b int, index(a)) partition by hash(a) partitions 1;",
+			"create causet nt27 (a int not null, b int, index(a));",
+			"alter causet pt27 exchange partition p0 with causet nt27;",
 			dbs.ErrBlocksDifferentMetadata,
 		},
 	}
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	for i, t := range cases {
-		tk.MustExec(t.ptALLEGROSQL)
-		tk.MustExec(t.ntALLEGROSQL)
+		tk.MustInterDirc(t.ptALLEGROSQL)
+		tk.MustInterDirc(t.ntALLEGROSQL)
 		if t.err != nil {
-			_, err := tk.Exec(t.exchangeALLEGROSQL)
+			_, err := tk.InterDirc(t.exchangeALLEGROSQL)
 			c.Assert(terror.ErrorEqual(err, t.err), IsTrue, Commentf(
 				"case %d fail, allegrosql = `%s`\nexpected error = `%v`\n  actual error = `%v`",
 				i, t.exchangeALLEGROSQL, t.err, err,
 			))
 		} else {
-			tk.MustExec(t.exchangeALLEGROSQL)
+			tk.MustInterDirc(t.exchangeALLEGROSQL)
 		}
 	}
 }
 
 func (s *testIntegrationSuite7) TestExchangePartitionExpressIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists pt1;")
-	tk.MustExec("create block pt1(a int, b int, c int) PARTITION BY hash (a) partitions 1;")
-	tk.MustExec("alter block pt1 add index idx((a+c));")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists pt1;")
+	tk.MustInterDirc("create causet pt1(a int, b int, c int) PARTITION BY hash (a) partitions 1;")
+	tk.MustInterDirc("alter causet pt1 add index idx((a+c));")
 
-	tk.MustExec("drop block if exists nt1;")
-	tk.MustExec("create block nt1(a int, b int, c int);")
-	tk.MustGetErrCode("alter block pt1 exchange partition p0 with block nt1;", tmysql.ErrBlocksDifferentMetadata)
+	tk.MustInterDirc("drop causet if exists nt1;")
+	tk.MustInterDirc("create causet nt1(a int, b int, c int);")
+	tk.MustGetErrCode("alter causet pt1 exchange partition p0 with causet nt1;", tmysql.ErrBlocksDifferentMetadata)
 
-	tk.MustExec("alter block nt1 add defCausumn (`_V$_idx_0` bigint(20) generated always as (a+b) virtual);")
-	tk.MustGetErrCode("alter block pt1 exchange partition p0 with block nt1;", tmysql.ErrBlocksDifferentMetadata)
+	tk.MustInterDirc("alter causet nt1 add defCausumn (`_V$_idx_0` bigint(20) generated always as (a+b) virtual);")
+	tk.MustGetErrCode("alter causet pt1 exchange partition p0 with causet nt1;", tmysql.ErrBlocksDifferentMetadata)
 
-	// test different expression index when expression returns same field type
-	tk.MustExec("alter block nt1 drop defCausumn `_V$_idx_0`;")
-	tk.MustExec("alter block nt1 add index idx((b-c));")
-	tk.MustGetErrCode("alter block pt1 exchange partition p0 with block nt1;", tmysql.ErrBlocksDifferentMetadata)
+	// test different memex index when memex returns same field type
+	tk.MustInterDirc("alter causet nt1 drop defCausumn `_V$_idx_0`;")
+	tk.MustInterDirc("alter causet nt1 add index idx((b-c));")
+	tk.MustGetErrCode("alter causet pt1 exchange partition p0 with causet nt1;", tmysql.ErrBlocksDifferentMetadata)
 
-	// test different expression index when expression returns different field type
-	tk.MustExec("alter block nt1 drop index idx;")
-	tk.MustExec("alter block nt1 add index idx((concat(a, b)));")
-	tk.MustGetErrCode("alter block pt1 exchange partition p0 with block nt1;", tmysql.ErrBlocksDifferentMetadata)
+	// test different memex index when memex returns different field type
+	tk.MustInterDirc("alter causet nt1 drop index idx;")
+	tk.MustInterDirc("alter causet nt1 add index idx((concat(a, b)));")
+	tk.MustGetErrCode("alter causet pt1 exchange partition p0 with causet nt1;", tmysql.ErrBlocksDifferentMetadata)
 
-	tk.MustExec("drop block if exists nt2;")
-	tk.MustExec("create block nt2 (a int, b int, c int)")
-	tk.MustExec("alter block nt2 add index idx((a+c))")
-	tk.MustExec("alter block pt1 exchange partition p0 with block nt2")
+	tk.MustInterDirc("drop causet if exists nt2;")
+	tk.MustInterDirc("create causet nt2 (a int, b int, c int)")
+	tk.MustInterDirc("alter causet nt2 add index idx((a+c))")
+	tk.MustInterDirc("alter causet pt1 exchange partition p0 with causet nt2")
 
 }
 
 func (s *testIntegrationSuite4) TestAddPartitionTooManyPartitions(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	count := dbs.PartitionCountLimit
-	tk.MustExec("drop block if exists p1;")
-	sql1 := `create block p1 (
+	tk.MustInterDirc("drop causet if exists p1;")
+	sql1 := `create causet p1 (
 		id int not null
 	)
 	partition by range( id ) (`
@@ -1283,8 +1283,8 @@ func (s *testIntegrationSuite4) TestAddPartitionTooManyPartitions(c *C) {
 	sql1 += "partition p8193 values less than (8193) );"
 	tk.MustGetErrCode(sql1, tmysql.ErrTooManyPartitions)
 
-	tk.MustExec("drop block if exists p2;")
-	sql2 := `create block p2 (
+	tk.MustInterDirc("drop causet if exists p2;")
+	sql2 := `create causet p2 (
 		id int not null
 	)
 	partition by range( id ) (`
@@ -1293,8 +1293,8 @@ func (s *testIntegrationSuite4) TestAddPartitionTooManyPartitions(c *C) {
 	}
 	sql2 += "partition p8192 values less than (8192) );"
 
-	tk.MustExec(sql2)
-	sql3 := `alter block p2 add partition (
+	tk.MustInterDirc(sql2)
+	sql3 := `alter causet p2 add partition (
 	partition p8193 values less than (8193)
 	);`
 	tk.MustGetErrCode(sql3, tmysql.ErrTooManyPartitions)
@@ -1327,33 +1327,33 @@ func checkPartitionDelRangeDone(c *C, s *testIntegrationSuite, partitionPrefix e
 
 func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	// Test truncate common block.
-	tk.MustExec("drop block if exists t1;")
-	tk.MustExec("create block t1 (id int(11));")
+	tk.MustInterDirc("use test;")
+	// Test truncate common causet.
+	tk.MustInterDirc("drop causet if exists t1;")
+	tk.MustInterDirc("create causet t1 (id int(11));")
 	for i := 0; i < 100; i++ {
-		tk.MustExec("insert into t1 values (?)", i)
+		tk.MustInterDirc("insert into t1 values (?)", i)
 	}
 	result := tk.MustQuery("select count(*) from t1;")
 	result.Check(testkit.Rows("100"))
-	tk.MustExec("truncate block t1;")
+	tk.MustInterDirc("truncate causet t1;")
 	result = tk.MustQuery("select count(*) from t1")
 	result.Check(testkit.Rows("0"))
 
-	// Test drop common block.
-	tk.MustExec("drop block if exists t2;")
-	tk.MustExec("create block t2 (id int(11));")
+	// Test drop common causet.
+	tk.MustInterDirc("drop causet if exists t2;")
+	tk.MustInterDirc("create causet t2 (id int(11));")
 	for i := 0; i < 100; i++ {
-		tk.MustExec("insert into t2 values (?)", i)
+		tk.MustInterDirc("insert into t2 values (?)", i)
 	}
 	result = tk.MustQuery("select count(*) from t2;")
 	result.Check(testkit.Rows("100"))
-	tk.MustExec("drop block t2;")
+	tk.MustInterDirc("drop causet t2;")
 	tk.MustGetErrCode("select * from t2;", tmysql.ErrNoSuchBlock)
 
-	// Test truncate block partition.
-	tk.MustExec("drop block if exists t3;")
-	tk.MustExec(`create block t3(
+	// Test truncate causet partition.
+	tk.MustInterDirc("drop causet if exists t3;")
+	tk.MustInterDirc(`create causet t3(
 		id int, name varchar(50),
 		purchased date
 	)
@@ -1365,7 +1365,7 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
     	partition p4 values less than (2010),
     	partition p5 values less than (2020)
    	);`)
-	tk.MustExec(`insert into t3 values
+	tk.MustInterDirc(`insert into t3 values
 	(1, 'desk organiser', '2003-10-15'),
 	(2, 'alarm clock', '1997-11-05'),
 	(3, 'chair', '2009-03-10'),
@@ -1384,14 +1384,14 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 	c.Assert(err, IsNil)
 	// Only one partition id test is taken here.
 	oldPID := oldTblInfo.Meta().Partition.Definitions[0].ID
-	tk.MustExec("truncate block t3;")
+	tk.MustInterDirc("truncate causet t3;")
 	partitionPrefix := blockcodec.EncodeBlockPrefix(oldPID)
 	hasOldPartitionData := checkPartitionDelRangeDone(c, s.testIntegrationSuite, partitionPrefix)
 	c.Assert(hasOldPartitionData, IsFalse)
 
-	// Test drop block partition.
-	tk.MustExec("drop block if exists t4;")
-	tk.MustExec(`create block t4(
+	// Test drop causet partition.
+	tk.MustInterDirc("drop causet if exists t4;")
+	tk.MustInterDirc(`create causet t4(
 		id int, name varchar(50),
 		purchased date
 	)
@@ -1403,7 +1403,7 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
     	partition p4 values less than (2010),
     	partition p5 values less than (2020)
    	);`)
-	tk.MustExec(`insert into t4 values
+	tk.MustInterDirc(`insert into t4 values
 	(1, 'desk organiser', '2003-10-15'),
 	(2, 'alarm clock', '1997-11-05'),
 	(3, 'chair', '2009-03-10'),
@@ -1421,16 +1421,16 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 	c.Assert(err, IsNil)
 	// Only one partition id test is taken here.
 	oldPID = oldTblInfo.Meta().Partition.Definitions[1].ID
-	tk.MustExec("drop block t4;")
+	tk.MustInterDirc("drop causet t4;")
 	partitionPrefix = blockcodec.EncodeBlockPrefix(oldPID)
 	hasOldPartitionData = checkPartitionDelRangeDone(c, s.testIntegrationSuite, partitionPrefix)
 	c.Assert(hasOldPartitionData, IsFalse)
 	tk.MustGetErrCode("select * from t4;", tmysql.ErrNoSuchBlock)
 
-	// Test truncate block partition reassigns new partitionIDs.
-	tk.MustExec("drop block if exists t5;")
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition=1;")
-	tk.MustExec(`create block t5(
+	// Test truncate causet partition reassigns new partitionIDs.
+	tk.MustInterDirc("drop causet if exists t5;")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition=1;")
+	tk.MustInterDirc(`create causet t5(
 		id int, name varchar(50),
 		purchased date
 	)
@@ -1447,16 +1447,16 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 	c.Assert(err, IsNil)
 	oldPID = oldTblInfo.Meta().Partition.Definitions[0].ID
 
-	tk.MustExec("truncate block t5;")
+	tk.MustInterDirc("truncate causet t5;")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	newTblInfo, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t5"))
 	c.Assert(err, IsNil)
 	newPID := newTblInfo.Meta().Partition.Definitions[0].ID
 	c.Assert(oldPID != newPID, IsTrue)
 
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1;")
-	tk.MustExec("drop block if exists clients;")
-	tk.MustExec(`create block clients (
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1;")
+	tk.MustInterDirc("drop causet if exists clients;")
+	tk.MustInterDirc(`create causet clients (
 		id int,
 		fname varchar(30),
 		lname varchar(30),
@@ -1469,8 +1469,8 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 	c.Assert(err, IsNil)
 	oldDefs := oldTblInfo.Meta().Partition.Definitions
 
-	// Test truncate `hash partitioned block` reassigns new partitionIDs.
-	tk.MustExec("truncate block clients;")
+	// Test truncate `hash partitioned causet` reassigns new partitionIDs.
+	tk.MustInterDirc("truncate causet clients;")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	newTblInfo, err = is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("clients"))
 	c.Assert(err, IsNil)
@@ -1482,9 +1482,9 @@ func (s *testIntegrationSuite4) TestTruncatePartitionAndDropBlock(c *C) {
 
 func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists part1;")
-	tk.MustExec(`create block part1 (
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists part1;")
+	tk.MustInterDirc(`create causet part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1496,8 +1496,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	partition p2 values less than (15)
 	);`)
 
-	tk.MustExec("drop block if exists part2;")
-	tk.MustExec(`create block part2 (
+	tk.MustInterDirc("drop causet if exists part2;")
+	tk.MustInterDirc(`create causet part2 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1510,8 +1510,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	partition p2 values less than (15)
 	);`)
 
-	tk.MustExec("drop block if exists part3;")
-	tk.MustExec(`create block part3 (
+	tk.MustInterDirc("drop causet if exists part3;")
+	tk.MustInterDirc(`create causet part3 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1523,8 +1523,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	partition p2 values less than (15)
 	);`)
 
-	tk.MustExec("drop block if exists part4;")
-	tk.MustExec(`create block part4 (
+	tk.MustInterDirc("drop causet if exists part4;")
+	tk.MustInterDirc(`create causet part4 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1537,8 +1537,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	partition p2 values less than (15)
 	);`)
 
-	tk.MustExec("drop block if exists part5;")
-	tk.MustExec(`create block part5 (
+	tk.MustInterDirc("drop causet if exists part5;")
+	tk.MustInterDirc(`create causet part5 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1551,8 +1551,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	partition p2 values less than (15)
 	);`)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql1 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql1 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1565,8 +1565,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql1, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql2 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql2 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1580,8 +1580,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql2, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql3 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql3 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1595,8 +1595,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql3, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql4 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql4 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1610,8 +1610,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql4, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql5 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql5 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1624,8 +1624,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql5, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql6 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql6 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1639,8 +1639,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql6, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists Part1;")
-	sql7 := `create block Part1 (
+	tk.MustInterDirc("drop causet if exists Part1;")
+	sql7 := `create causet Part1 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1654,8 +1654,8 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql7, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	tk.MustExec("drop block if exists part6;")
-	sql8 := `create block part6 (
+	tk.MustInterDirc("drop causet if exists part6;")
+	sql8 := `create causet part6 (
 		defCaus1 int not null,
 		defCaus2 date not null,
 		defCaus3 int not null,
@@ -1670,7 +1670,7 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	);`
 	tk.MustGetErrCode(sql8, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	sql9 := `create block part7 (
+	sql9 := `create causet part7 (
 		defCaus1 int not null,
 		defCaus2 int not null,
 		defCaus3 int not null unique,
@@ -1682,7 +1682,7 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
 	)`
 	tk.MustGetErrCode(sql9, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	sql10 := `create block part8 (
+	sql10 := `create causet part8 (
                  a int not null,
                  b int not null,
                  c int default null,
@@ -1698,7 +1698,7 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
         )`
 	tk.MustGetErrCode(sql10, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	sql11 := `create block part9 (
+	sql11 := `create causet part9 (
                  a int not null,
                  b int not null,
                  c int default null,
@@ -1714,43 +1714,43 @@ func (s *testIntegrationSuite5) TestPartitionUniqueKeyNeedAllFieldsInPf(c *C) {
         )`
 	tk.MustGetErrCode(sql11, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
 
-	sql12 := `create block part12 (a varchar(20), b binary, unique index (a(5))) partition by range defCausumns (a) (
+	sql12 := `create causet part12 (a varchar(20), b binary, unique index (a(5))) partition by range defCausumns (a) (
 			partition p0 values less than ('aaaaa'),
 			partition p1 values less than ('bbbbb'),
 			partition p2 values less than ('ccccc'))`
 	tk.MustGetErrCode(sql12, tmysql.ErrUniqueKeyNeedAllFieldsInPf)
-	tk.MustExec(`create block part12 (a varchar(20), b binary) partition by range defCausumns (a) (
+	tk.MustInterDirc(`create causet part12 (a varchar(20), b binary) partition by range defCausumns (a) (
 			partition p0 values less than ('aaaaa'),
 			partition p1 values less than ('bbbbb'),
 			partition p2 values less than ('ccccc'))`)
-	tk.MustGetErrCode("alter block part12 add unique index (a(5))", tmysql.ErrUniqueKeyNeedAllFieldsInPf)
-	sql13 := `create block part13 (a varchar(20), b varchar(10), unique index (a(5),b)) partition by range defCausumns (b) (
+	tk.MustGetErrCode("alter causet part12 add unique index (a(5))", tmysql.ErrUniqueKeyNeedAllFieldsInPf)
+	sql13 := `create causet part13 (a varchar(20), b varchar(10), unique index (a(5),b)) partition by range defCausumns (b) (
 			partition p0 values less than ('aaaaa'),
 			partition p1 values less than ('bbbbb'),
 			partition p2 values less than ('ccccc'))`
-	tk.MustExec(sql13)
+	tk.MustInterDirc(sql13)
 }
 
 func (s *testIntegrationSuite2) TestPartitionDropPrimaryKey(c *C) {
 	idxName := "primary"
-	addIdxALLEGROSQL := "alter block partition_drop_idx add primary key idx1 (c1);"
-	dropIdxALLEGROSQL := "alter block partition_drop_idx drop primary key;"
+	addIdxALLEGROSQL := "alter causet partition_drop_idx add primary key idx1 (c1);"
+	dropIdxALLEGROSQL := "alter causet partition_drop_idx drop primary key;"
 	testPartitionDropIndex(c, s.causetstore, s.lease, idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL)
 }
 
 func (s *testIntegrationSuite3) TestPartitionDropIndex(c *C) {
 	idxName := "idx1"
-	addIdxALLEGROSQL := "alter block partition_drop_idx add index idx1 (c1);"
-	dropIdxALLEGROSQL := "alter block partition_drop_idx drop index idx1;"
+	addIdxALLEGROSQL := "alter causet partition_drop_idx add index idx1 (c1);"
+	dropIdxALLEGROSQL := "alter causet partition_drop_idx drop index idx1;"
 	testPartitionDropIndex(c, s.causetstore, s.lease, idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL)
 }
 
 func testPartitionDropIndex(c *C, causetstore ekv.CausetStorage, lease time.Duration, idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL string) {
 	tk := testkit.NewTestKit(c, causetstore)
 	done := make(chan error, 1)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists partition_drop_idx;")
-	tk.MustExec(`create block partition_drop_idx (
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists partition_drop_idx;")
+	tk.MustInterDirc(`create causet partition_drop_idx (
 		c1 int, c2 int, c3 int
 	)
 	partition by range( c1 ) (
@@ -1765,16 +1765,16 @@ func testPartitionDropIndex(c *C, causetstore ekv.CausetStorage, lease time.Dura
 
 	num := 20
 	for i := 0; i < num; i++ {
-		tk.MustExec("insert into partition_drop_idx values (?, ?, ?)", i, i, i)
+		tk.MustInterDirc("insert into partition_drop_idx values (?, ?, ?)", i, i, i)
 	}
-	tk.MustExec(addIdxALLEGROSQL)
+	tk.MustInterDirc(addIdxALLEGROSQL)
 
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	t, err := is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("partition_drop_idx"))
 	c.Assert(err, IsNil)
 
-	var idx1 block.Index
+	var idx1 causet.Index
 	for _, pidx := range t.Indices() {
 		if pidx.Meta().Name.L == idxName {
 			idx1 = pidx
@@ -1783,7 +1783,7 @@ func testPartitionDropIndex(c *C, causetstore ekv.CausetStorage, lease time.Dura
 	}
 	c.Assert(idx1, NotNil)
 
-	solitonutil.StochastikExecInGoroutine(c, causetstore, dropIdxALLEGROSQL, done)
+	solitonutil.StochastikInterDircInGoroutine(c, causetstore, dropIdxALLEGROSQL, done)
 	ticker := time.NewTicker(lease / 2)
 	defer ticker.Stop()
 LOOP:
@@ -1799,8 +1799,8 @@ LOOP:
 			rand.Seed(time.Now().Unix())
 			for i := num; i < num+step; i++ {
 				n := rand.Intn(num)
-				tk.MustExec("uFIDelate partition_drop_idx set c2 = 1 where c1 = ?", n)
-				tk.MustExec("insert into partition_drop_idx values (?, ?, ?)", i, i, i)
+				tk.MustInterDirc("uFIDelate partition_drop_idx set c2 = 1 where c1 = ?", n)
+				tk.MustInterDirc("insert into partition_drop_idx values (?, ?, ?)", i, i, i)
 			}
 			num += step
 		}
@@ -1811,7 +1811,7 @@ LOOP:
 	c.Assert(err, IsNil)
 	// Only one partition id test is taken here.
 	pid := t.Meta().Partition.Definitions[0].ID
-	var idxn block.Index
+	var idxn causet.Index
 	t.Indices()
 	for _, idx := range t.Indices() {
 		if idx.Meta().Name.L == idxName {
@@ -1822,12 +1822,12 @@ LOOP:
 	c.Assert(idxn, IsNil)
 	idx := blocks.NewIndex(pid, t.Meta(), idx1.Meta())
 	checkDelRangeDone(c, ctx, idx)
-	tk.MustExec("drop block partition_drop_idx;")
+	tk.MustInterDirc("drop causet partition_drop_idx;")
 }
 
 func (s *testIntegrationSuite2) TestPartitionCancelAddPrimaryKey(c *C) {
 	idxName := "primary"
-	addIdxALLEGROSQL := "alter block t1 add primary key c3_index (c1);"
+	addIdxALLEGROSQL := "alter causet t1 add primary key c3_index (c1);"
 	testPartitionCancelAddIndex(c, s.causetstore, s.dom.DBS(), s.lease, idxName, addIdxALLEGROSQL)
 }
 
@@ -1840,9 +1840,9 @@ func (s *testIntegrationSuite4) TestPartitionCancelAddIndex(c *C) {
 func testPartitionCancelAddIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, lease time.Duration, idxName, addIdxALLEGROSQL string) {
 	tk := testkit.NewTestKit(c, causetstore)
 
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t1;")
-	tk.MustExec(`create block t1 (
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t1;")
+	tk.MustInterDirc(`create causet t1 (
 		c1 int, c2 int, c3 int
 	)
 	partition by range( c1 ) (
@@ -1863,15 +1863,15 @@ func testPartitionCancelAddIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS,
 	hook := &dbs.TestDBSCallback{}
 	originBatchSize := tk.MustQuery("select @@global.milevadb_dbs_reorg_batch_size")
 	// Set batch size to lower try to slow down add-index reorganization, This if for hook to cancel this dbs job.
-	tk.MustExec("set @@global.milevadb_dbs_reorg_batch_size = 32")
+	tk.MustInterDirc("set @@global.milevadb_dbs_reorg_batch_size = 32")
 	ctx := tk.Se.(stochastikctx.Context)
-	defer tk.MustExec(fmt.Sprintf("set @@global.milevadb_dbs_reorg_batch_size = %v", originBatchSize.Rows()[0][0]))
-	hook.OnJobUFIDelatedExported, c3IdxInfo, checkErr = backgroundExecOnJobUFIDelatedExported(c, causetstore, ctx, hook, idxName)
+	defer tk.MustInterDirc(fmt.Sprintf("set @@global.milevadb_dbs_reorg_batch_size = %v", originBatchSize.Rows()[0][0]))
+	hook.OnJobUFIDelatedExported, c3IdxInfo, checkErr = backgroundInterDircOnJobUFIDelatedExported(c, causetstore, ctx, hook, idxName)
 	originHook := d.GetHook()
 	defer d.(dbs.DBSForTest).SetHook(originHook)
 	d.(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
-	go backgroundExec(causetstore, addIdxALLEGROSQL, done)
+	go backgroundInterDirc(causetstore, addIdxALLEGROSQL, done)
 
 	times := 0
 	ticker := time.NewTicker(lease / 2)
@@ -1893,8 +1893,8 @@ LOOP:
 			// delete some rows, and add some data
 			for i := count; i < count+step; i++ {
 				n := rand.Intn(count)
-				tk.MustExec("delete from t1 where c1 = ?", n)
-				tk.MustExec("insert into t1 values (?, ?, ?)", i+10, i, i)
+				tk.MustInterDirc("delete from t1 where c1 = ?", n)
+				tk.MustInterDirc("insert into t1 values (?, ?, ?)", i+10, i, i)
 			}
 			count += step
 			times++
@@ -1911,10 +1911,10 @@ LOOP:
 	idx := blocks.NewIndex(pid, t.Meta(), c3IdxInfo)
 	checkDelRangeDone(c, ctx, idx)
 
-	tk.MustExec("drop block t1")
+	tk.MustInterDirc("drop causet t1")
 }
 
-func backgroundExecOnJobUFIDelatedExported(c *C, causetstore ekv.CausetStorage, ctx stochastikctx.Context, hook *dbs.TestDBSCallback, idxName string) (
+func backgroundInterDircOnJobUFIDelatedExported(c *C, causetstore ekv.CausetStorage, ctx stochastikctx.Context, hook *dbs.TestDBSCallback, idxName string) (
 	func(*perceptron.Job), *perceptron.IndexInfo, error) {
 	var checkErr error
 	first := true
@@ -1925,7 +1925,7 @@ func backgroundExecOnJobUFIDelatedExported(c *C, causetstore ekv.CausetStorage, 
 		// If the action is adding index and the state is writing reorganization, it want to test the case of cancelling the job when backfilling indexes.
 		// When the job satisfies this case of addIndexNotFirstReorg, the worker will start to backfill indexes.
 		if !addIndexNotFirstReorg {
-			// Get the index's meta.
+			// Get the index's spacetime.
 			if c3IdxInfo != nil {
 				return
 			}
@@ -1992,8 +1992,8 @@ func (s *testIntegrationSuite1) TestPartitionAddIndex(c *C) {
 }
 
 func testPartitionAddIndexOrPK(c *C, tk *testkit.TestKit, key string) {
-	tk.MustExec("use test")
-	tk.MustExec(`create block partition_add_idx (
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc(`create causet partition_add_idx (
 	id int not null,
 	hired date not null
 	)
@@ -2007,30 +2007,30 @@ func testPartitionAddIndexOrPK(c *C, tk *testkit.TestKit, key string) {
 	);`)
 	testPartitionAddIndex(tk, c, key)
 
-	// test hash partition block.
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = '1';")
-	tk.MustExec("drop block if exists partition_add_idx")
-	tk.MustExec(`create block partition_add_idx (
+	// test hash partition causet.
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = '1';")
+	tk.MustInterDirc("drop causet if exists partition_add_idx")
+	tk.MustInterDirc(`create causet partition_add_idx (
 	id int not null,
 	hired date not null
 	) partition by hash( year(hired) ) partitions 4;`)
 	testPartitionAddIndex(tk, c, key)
 
 	// Test hash partition for pr 10475.
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = '1';")
-	tk.MustExec("create block t1 (a int, b int, unique key(a)) partition by hash(a) partitions 5;")
-	tk.MustExec("insert into t1 values (0,0),(1,1),(2,2),(3,3);")
-	tk.MustExec(fmt.Sprintf("alter block t1 add %s idx(a)", key))
-	tk.MustExec("admin check block t1;")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = '1';")
+	tk.MustInterDirc("create causet t1 (a int, b int, unique key(a)) partition by hash(a) partitions 5;")
+	tk.MustInterDirc("insert into t1 values (0,0),(1,1),(2,2),(3,3);")
+	tk.MustInterDirc(fmt.Sprintf("alter causet t1 add %s idx(a)", key))
+	tk.MustInterDirc("admin check causet t1;")
 
 	// Test range partition for pr 10475.
-	tk.MustExec("drop block t1")
-	tk.MustExec("create block t1 (a int, b int, unique key(a)) partition by range (a) (partition p0 values less than (10), partition p1 values less than (20));")
-	tk.MustExec("insert into t1 values (0,0);")
-	tk.MustExec(fmt.Sprintf("alter block t1 add %s idx(a)", key))
-	tk.MustExec("admin check block t1;")
+	tk.MustInterDirc("drop causet t1")
+	tk.MustInterDirc("create causet t1 (a int, b int, unique key(a)) partition by range (a) (partition p0 values less than (10), partition p1 values less than (20));")
+	tk.MustInterDirc("insert into t1 values (0,0);")
+	tk.MustInterDirc(fmt.Sprintf("alter causet t1 add %s idx(a)", key))
+	tk.MustInterDirc("admin check causet t1;")
 }
 
 func testPartitionAddIndex(tk *testkit.TestKit, c *C, key string) {
@@ -2058,15 +2058,15 @@ func testPartitionAddIndex(tk *testkit.TestKit, c *C, key string) {
 	} else {
 		dml = f(500, false)
 	}
-	tk.MustExec(dml)
+	tk.MustInterDirc(dml)
 
-	tk.MustExec(fmt.Sprintf("alter block partition_add_idx add %s idx1 (hired)", key))
-	tk.MustExec("alter block partition_add_idx add index idx2 (id, hired)")
+	tk.MustInterDirc(fmt.Sprintf("alter causet partition_add_idx add %s idx1 (hired)", key))
+	tk.MustInterDirc("alter causet partition_add_idx add index idx2 (id, hired)")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	t, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("partition_add_idx"))
 	c.Assert(err, IsNil)
-	var idx1 block.Index
+	var idx1 causet.Index
 	for _, idx := range t.Indices() {
 		if idx.Meta().Name.L == idxName1 {
 			idx1 = idx
@@ -2078,32 +2078,32 @@ func testPartitionAddIndex(tk *testkit.TestKit, c *C, key string) {
 	tk.MustQuery(fmt.Sprintf("select count(hired) from partition_add_idx use index(%s)", idxName1)).Check(testkit.Rows("500"))
 	tk.MustQuery("select count(id) from partition_add_idx use index(idx2)").Check(testkit.Rows("500"))
 
-	tk.MustExec("admin check block partition_add_idx")
-	tk.MustExec("drop block partition_add_idx")
+	tk.MustInterDirc("admin check causet partition_add_idx")
+	tk.MustInterDirc("drop causet partition_add_idx")
 }
 
 func (s *testIntegrationSuite5) TestDropSchemaWithPartitionBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("drop database if exists test_db_with_partition")
-	tk.MustExec("create database test_db_with_partition")
-	tk.MustExec("use test_db_with_partition")
-	tk.MustExec(`create block t_part (a int key)
+	tk.MustInterDirc("drop database if exists test_db_with_partition")
+	tk.MustInterDirc("create database test_db_with_partition")
+	tk.MustInterDirc("use test_db_with_partition")
+	tk.MustInterDirc(`create causet t_part (a int key)
 		partition by range(a) (
 		partition p0 values less than (10),
 		partition p1 values less than (20)
 		);`)
-	tk.MustExec("insert into t_part values (1),(2),(11),(12);")
+	tk.MustInterDirc("insert into t_part values (1),(2),(11),(12);")
 	ctx := s.ctx
 	tbl := testGetBlockByName(c, ctx, "test_db_with_partition", "t_part")
 
 	// check records num before drop database.
-	recordsNum := getPartitionBlockRecordsNum(c, ctx, tbl.(block.PartitionedBlock))
+	recordsNum := getPartitionBlockRecordsNum(c, ctx, tbl.(causet.PartitionedBlock))
 	c.Assert(recordsNum, Equals, 4)
 
-	tk.MustExec("drop database if exists test_db_with_partition")
+	tk.MustInterDirc("drop database if exists test_db_with_partition")
 
 	// check job args.
-	rs, err := tk.Exec("admin show dbs jobs")
+	rs, err := tk.InterDirc("admin show dbs jobs")
 	c.Assert(err, IsNil)
 	rows, err := stochastik.GetRows4Test(context.Background(), tk.Se, rs)
 	c.Assert(err, IsNil)
@@ -2111,7 +2111,7 @@ func (s *testIntegrationSuite5) TestDropSchemaWithPartitionBlock(c *C) {
 	c.Assert(event.GetString(3), Equals, "drop schemaReplicant")
 	jobID := event.GetInt64(0)
 	ekv.RunInNewTxn(s.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		historyJob, err := t.GetHistoryDBSJob(jobID)
 		c.Assert(err, IsNil)
 		var blockIDs []int64
@@ -2124,7 +2124,7 @@ func (s *testIntegrationSuite5) TestDropSchemaWithPartitionBlock(c *C) {
 
 	// check records num after drop database.
 	for i := 0; i < waitForCleanDataRound; i++ {
-		recordsNum = getPartitionBlockRecordsNum(c, ctx, tbl.(block.PartitionedBlock))
+		recordsNum = getPartitionBlockRecordsNum(c, ctx, tbl.(causet.PartitionedBlock))
 		if recordsNum != 0 {
 			time.Sleep(waitForCleanDataInterval)
 		} else {
@@ -2134,16 +2134,16 @@ func (s *testIntegrationSuite5) TestDropSchemaWithPartitionBlock(c *C) {
 	c.Assert(recordsNum, Equals, 0)
 }
 
-func getPartitionBlockRecordsNum(c *C, ctx stochastikctx.Context, tbl block.PartitionedBlock) int {
+func getPartitionBlockRecordsNum(c *C, ctx stochastikctx.Context, tbl causet.PartitionedBlock) int {
 	num := 0
 	info := tbl.Meta().GetPartitionInfo()
 	for _, def := range info.Definitions {
 		pid := def.ID
-		partition := tbl.(block.PartitionedBlock).GetPartition(pid)
+		partition := tbl.(causet.PartitionedBlock).GetPartition(pid)
 		startKey := partition.RecordKey(ekv.IntHandle(math.MinInt64))
 		c.Assert(ctx.NewTxn(context.Background()), IsNil)
 		err := partition.IterRecords(ctx, startKey, partition.DefCauss(),
-			func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+			func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 				num++
 				return true, nil
 			})
@@ -2155,11 +2155,11 @@ func getPartitionBlockRecordsNum(c *C, ctx stochastikctx.Context, tbl block.Part
 func (s *testIntegrationSuite3) TestPartitionErrorCode(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	// add partition
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1")
-	tk.MustExec("drop database if exists test_db_with_partition")
-	tk.MustExec("create database test_db_with_partition")
-	tk.MustExec("use test_db_with_partition")
-	tk.MustExec(`create block employees (
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1")
+	tk.MustInterDirc("drop database if exists test_db_with_partition")
+	tk.MustInterDirc("create database test_db_with_partition")
+	tk.MustInterDirc("use test_db_with_partition")
+	tk.MustInterDirc(`create causet employees (
 		id int not null,
 		fname varchar(30),
 		lname varchar(30),
@@ -2170,14 +2170,14 @@ func (s *testIntegrationSuite3) TestPartitionErrorCode(c *C) {
 	)
 	partition by hash(store_id)
 	partitions 4;`)
-	_, err := tk.Exec("alter block employees add partition partitions 8;")
+	_, err := tk.InterDirc("alter causet employees add partition partitions 8;")
 	c.Assert(dbs.ErrUnsupportedAddPartition.Equal(err), IsTrue)
 
-	_, err = tk.Exec("alter block employees add partition (partition p5 values less than (42));")
+	_, err = tk.InterDirc("alter causet employees add partition (partition p5 values less than (42));")
 	c.Assert(dbs.ErrUnsupportedAddPartition.Equal(err), IsTrue)
 
 	// coalesce partition
-	tk.MustExec(`create block clients (
+	tk.MustInterDirc(`create causet clients (
 		id int,
 		fname varchar(30),
 		lname varchar(30),
@@ -2185,109 +2185,109 @@ func (s *testIntegrationSuite3) TestPartitionErrorCode(c *C) {
 	)
 	partition by hash( month(signed) )
 	partitions 12;`)
-	_, err = tk.Exec("alter block clients coalesce partition 4;")
+	_, err = tk.InterDirc("alter causet clients coalesce partition 4;")
 	c.Assert(dbs.ErrUnsupportedCoalescePartition.Equal(err), IsTrue)
 
-	tk.MustExec(`create block t_part (a int key)
+	tk.MustInterDirc(`create causet t_part (a int key)
 		partition by range(a) (
 		partition p0 values less than (10),
 		partition p1 values less than (20)
 		);`)
-	_, err = tk.Exec("alter block t_part coalesce partition 4;")
+	_, err = tk.InterDirc("alter causet t_part coalesce partition 4;")
 	c.Assert(dbs.ErrCoalesceOnlyOnHashPartition.Equal(err), IsTrue)
 
-	tk.MustGetErrCode(`alter block t_part reorganize partition p0, p1 into (
+	tk.MustGetErrCode(`alter causet t_part reorganize partition p0, p1 into (
 			partition p0 values less than (1980));`, tmysql.ErrUnsupportedDBSOperation)
 
-	tk.MustGetErrCode("alter block t_part check partition p0, p1;", tmysql.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t_part optimize partition p0,p1;", tmysql.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t_part rebuild partition p0,p1;", tmysql.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t_part remove partitioning;", tmysql.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t_part repair partition p1;", tmysql.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t_part check partition p0, p1;", tmysql.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t_part optimize partition p0,p1;", tmysql.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t_part rebuild partition p0,p1;", tmysql.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t_part remove partitioning;", tmysql.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t_part repair partition p1;", tmysql.ErrUnsupportedDBSOperation)
 }
 
 func (s *testIntegrationSuite5) TestConstAndTimezoneDepent(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	// add partition
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1")
-	tk.MustExec("drop database if exists test_db_with_partition_const")
-	tk.MustExec("create database test_db_with_partition_const")
-	tk.MustExec("use test_db_with_partition_const")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1")
+	tk.MustInterDirc("drop database if exists test_db_with_partition_const")
+	tk.MustInterDirc("create database test_db_with_partition_const")
+	tk.MustInterDirc("use test_db_with_partition_const")
 
-	sql1 := `create block t1 ( id int )
+	sql1 := `create causet t1 ( id int )
 		partition by range(4) (
 		partition p1 values less than (10)
 		);`
 	tk.MustGetErrCode(sql1, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql2 := `create block t2 ( time_recorded timestamp )
+	sql2 := `create causet t2 ( time_recorded timestamp )
 		partition by range(TO_DAYS(time_recorded)) (
 		partition p1 values less than (1559192604)
 		);`
 	tk.MustGetErrCode(sql2, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql3 := `create block t3 ( id int )
+	sql3 := `create causet t3 ( id int )
 		partition by range(DAY(id)) (
 		partition p1 values less than (1)
 		);`
 	tk.MustGetErrCode(sql3, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql4 := `create block t4 ( id int )
+	sql4 := `create causet t4 ( id int )
 		partition by hash(4) partitions 4
 		;`
 	tk.MustGetErrCode(sql4, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql5 := `create block t5 ( time_recorded timestamp )
+	sql5 := `create causet t5 ( time_recorded timestamp )
 		partition by range(to_seconds(time_recorded)) (
 		partition p1 values less than (1559192604)
 		);`
 	tk.MustGetErrCode(sql5, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql6 := `create block t6 ( id int )
+	sql6 := `create causet t6 ( id int )
 		partition by range(to_seconds(id)) (
 		partition p1 values less than (1559192604)
 		);`
 	tk.MustGetErrCode(sql6, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql7 := `create block t7 ( time_recorded timestamp )
+	sql7 := `create causet t7 ( time_recorded timestamp )
 		partition by range(abs(time_recorded)) (
 		partition p1 values less than (1559192604)
 		);`
 	tk.MustGetErrCode(sql7, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql8 := `create block t2332 ( time_recorded time )
+	sql8 := `create causet t2332 ( time_recorded time )
          partition by range(TO_DAYS(time_recorded)) (
   		 partition p0 values less than (1)
 		);`
 	tk.MustGetErrCode(sql8, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql9 := `create block t1 ( id int )
+	sql9 := `create causet t1 ( id int )
 		partition by hash(4) partitions 4;`
 	tk.MustGetErrCode(sql9, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql10 := `create block t1 ( id int )
+	sql10 := `create causet t1 ( id int )
 		partition by hash(ed) partitions 4;`
 	tk.MustGetErrCode(sql10, tmysql.ErrBadField)
 
-	sql11 := `create block t2332 ( time_recorded time )
+	sql11 := `create causet t2332 ( time_recorded time )
          partition by range(TO_SECONDS(time_recorded)) (
   		 partition p0 values less than (1)
 		);`
 	tk.MustGetErrCode(sql11, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql12 := `create block t2332 ( time_recorded time )
+	sql12 := `create causet t2332 ( time_recorded time )
          partition by range(TO_SECONDS(time_recorded)) (
   		 partition p0 values less than (1)
 		);`
 	tk.MustGetErrCode(sql12, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql13 := `create block t2332 ( time_recorded time )
+	sql13 := `create causet t2332 ( time_recorded time )
          partition by range(day(time_recorded)) (
   		 partition p0 values less than (1)
 		);`
 	tk.MustGetErrCode(sql13, tmysql.ErrWrongExprInPartitionFunc)
 
-	sql14 := `create block t2332 ( time_recorded timestamp )
+	sql14 := `create causet t2332 ( time_recorded timestamp )
          partition by range(day(time_recorded)) (
   		 partition p0 values less than (1)
 		);`
@@ -2297,28 +2297,28 @@ func (s *testIntegrationSuite5) TestConstAndTimezoneDepent(c *C) {
 func (s *testIntegrationSuite5) TestConstAndTimezoneDepent2(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	// add partition
-	tk.MustExec("set @@stochastik.milevadb_enable_block_partition = 1")
-	tk.MustExec("drop database if exists test_db_with_partition_const")
-	tk.MustExec("create database test_db_with_partition_const")
-	tk.MustExec("use test_db_with_partition_const")
+	tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = 1")
+	tk.MustInterDirc("drop database if exists test_db_with_partition_const")
+	tk.MustInterDirc("create database test_db_with_partition_const")
+	tk.MustInterDirc("use test_db_with_partition_const")
 
-	tk.MustExec(`create block t1 ( time_recorded datetime )
+	tk.MustInterDirc(`create causet t1 ( time_recorded datetime )
 	partition by range(TO_DAYS(time_recorded)) (
 	partition p0 values less than (1));`)
 
-	tk.MustExec(`create block t2 ( time_recorded date )
+	tk.MustInterDirc(`create causet t2 ( time_recorded date )
 	partition by range(TO_DAYS(time_recorded)) (
 	partition p0 values less than (1));`)
 
-	tk.MustExec(`create block t3 ( time_recorded date )
+	tk.MustInterDirc(`create causet t3 ( time_recorded date )
 	partition by range(TO_SECONDS(time_recorded)) (
 	partition p0 values less than (1));`)
 
-	tk.MustExec(`create block t4 ( time_recorded date )
+	tk.MustInterDirc(`create causet t4 ( time_recorded date )
 	partition by range(TO_SECONDS(time_recorded)) (
 	partition p0 values less than (1));`)
 
-	tk.MustExec(`create block t5 ( time_recorded timestamp )
+	tk.MustInterDirc(`create causet t5 ( time_recorded timestamp )
 	partition by range(unix_timestamp(time_recorded)) (
 		partition p1 values less than (1559192604)
 	);`)
@@ -2326,10 +2326,10 @@ func (s *testIntegrationSuite5) TestConstAndTimezoneDepent2(c *C) {
 
 func (s *testIntegrationSuite3) TestUnsupportedPartitionManagementDBSs(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists test_1465;")
-	tk.MustExec(`
-		create block test_1465 (a int)
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists test_1465;")
+	tk.MustInterDirc(`
+		create causet test_1465 (a int)
 		partition by range(a) (
 			partition p1 values less than (10),
 			partition p2 values less than (20),
@@ -2337,69 +2337,69 @@ func (s *testIntegrationSuite3) TestUnsupportedPartitionManagementDBSs(c *C) {
 		);
 	`)
 
-	_, err := tk.Exec("alter block test_1465 partition by hash(a)")
-	c.Assert(err, ErrorMatches, ".*alter block partition is unsupported")
+	_, err := tk.InterDirc("alter causet test_1465 partition by hash(a)")
+	c.Assert(err, ErrorMatches, ".*alter causet partition is unsupported")
 }
 
 func (s *testIntegrationSuite7) TestCommitWhenSchemaChange(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec(`create block schema_change (a int, b timestamp)
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc(`create causet schema_change (a int, b timestamp)
 			partition by range(a) (
 			    partition p0 values less than (4),
 			    partition p1 values less than (7),
 			    partition p2 values less than (11)
 			)`)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test")
+	tk2.MustInterDirc("use test")
 
-	tk.MustExec("begin")
-	tk.MustExec("insert into schema_change values (1, '2020-12-25 13:27:42')")
-	tk.MustExec("insert into schema_change values (3, '2020-12-25 13:27:43')")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into schema_change values (1, '2020-12-25 13:27:42')")
+	tk.MustInterDirc("insert into schema_change values (3, '2020-12-25 13:27:43')")
 
-	tk2.MustExec("alter block schema_change add index idx(b)")
+	tk2.MustInterDirc("alter causet schema_change add index idx(b)")
 
-	tk.MustExec("insert into schema_change values (5, '2020-12-25 13:27:43')")
-	tk.MustExec("insert into schema_change values (9, '2020-12-25 13:27:44')")
+	tk.MustInterDirc("insert into schema_change values (5, '2020-12-25 13:27:43')")
+	tk.MustInterDirc("insert into schema_change values (9, '2020-12-25 13:27:44')")
 	atomic.StoreUint32(&stochastik.SchemaChangedWithoutRetry, 1)
 	defer func() {
 		atomic.StoreUint32(&stochastik.SchemaChangedWithoutRetry, 0)
 	}()
-	_, err := tk.Se.Execute(context.Background(), "commit")
+	_, err := tk.Se.InterDircute(context.Background(), "commit")
 	c.Assert(petri.ErrSchemaReplicantChanged.Equal(err), IsTrue)
 
 	// Cover a bug that schemaReplicant validator does not prevent transaction commit when
-	// the schemaReplicant has changed on the partitioned block.
+	// the schemaReplicant has changed on the partitioned causet.
 	// That bug will cause data and index inconsistency!
-	tk.MustExec("admin check block schema_change")
+	tk.MustInterDirc("admin check causet schema_change")
 	tk.MustQuery("select * from schema_change").Check(testkit.Rows())
 
 	// Check inconsistency when exchanging partition
-	tk.MustExec(`drop block if exists pt, nt;`)
-	tk.MustExec(`create block pt (a int) partition by hash(a) partitions 2;`)
-	tk.MustExec(`create block nt (a int);`)
+	tk.MustInterDirc(`drop causet if exists pt, nt;`)
+	tk.MustInterDirc(`create causet pt (a int) partition by hash(a) partitions 2;`)
+	tk.MustInterDirc(`create causet nt (a int);`)
 
-	tk.MustExec("begin")
-	tk.MustExec("insert into nt values (1), (3), (5);")
-	tk2.MustExec("alter block pt exchange partition p1 with block nt;")
-	tk.MustExec("insert into nt values (7), (9);")
-	_, err = tk.Se.Execute(context.Background(), "commit")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into nt values (1), (3), (5);")
+	tk2.MustInterDirc("alter causet pt exchange partition p1 with causet nt;")
+	tk.MustInterDirc("insert into nt values (7), (9);")
+	_, err = tk.Se.InterDircute(context.Background(), "commit")
 	c.Assert(petri.ErrSchemaReplicantChanged.Equal(err), IsTrue)
 
-	tk.MustExec("admin check block pt")
+	tk.MustInterDirc("admin check causet pt")
 	tk.MustQuery("select * from pt").Check(testkit.Rows())
-	tk.MustExec("admin check block nt")
+	tk.MustInterDirc("admin check causet nt")
 	tk.MustQuery("select * from nt").Check(testkit.Rows())
 
-	tk.MustExec("begin")
-	tk.MustExec("insert into pt values (1), (3), (5);")
-	tk2.MustExec("alter block pt exchange partition p1 with block nt;")
-	tk.MustExec("insert into pt values (7), (9);")
-	_, err = tk.Se.Execute(context.Background(), "commit")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into pt values (1), (3), (5);")
+	tk2.MustInterDirc("alter causet pt exchange partition p1 with causet nt;")
+	tk.MustInterDirc("insert into pt values (7), (9);")
+	_, err = tk.Se.InterDircute(context.Background(), "commit")
 	c.Assert(petri.ErrSchemaReplicantChanged.Equal(err), IsTrue)
 
-	tk.MustExec("admin check block pt")
+	tk.MustInterDirc("admin check causet pt")
 	tk.MustQuery("select * from pt").Check(testkit.Rows())
-	tk.MustExec("admin check block nt")
+	tk.MustInterDirc("admin check causet nt")
 	tk.MustQuery("select * from nt").Check(testkit.Rows())
 }

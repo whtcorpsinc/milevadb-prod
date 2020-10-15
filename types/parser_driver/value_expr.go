@@ -62,7 +62,7 @@ var (
 	_ ast.ValueExpr       = &ValueExpr{}
 )
 
-// ValueExpr is the simple value expression.
+// ValueExpr is the simple value memex.
 type ValueExpr struct {
 	ast.TexprNode
 	types.Causet
@@ -200,13 +200,13 @@ func (n *ValueExpr) Accept(v ast.Visitor) (ast.Node, bool) {
 	return v.Leave(n)
 }
 
-// ParamMarkerExpr expression holds a place for another expression.
-// Used in parsing prepare statement.
+// ParamMarkerExpr memex holds a place for another memex.
+// Used in parsing prepare memex.
 type ParamMarkerExpr struct {
 	ValueExpr
 	Offset    int
 	Order     int
-	InExecute bool
+	InInterDircute bool
 }
 
 // Restore implements Node interface.

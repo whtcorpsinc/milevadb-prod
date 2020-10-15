@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -212,12 +212,12 @@ func appendRanges2PointRanges(pointRanges []*Range, ranges []*Range) []*Range {
 	return newRanges
 }
 
-// points2BlockRanges build ranges for block scan from range points.
+// points2BlockRanges build ranges for causet scan from range points.
 // It will remove the nil and convert MinNotNull and MaxValue to MinInt64 or MinUint64 and MaxInt64 or MaxUint64.
 func points2BlockRanges(sc *stmtctx.StatementContext, rangePoints []point, tp *types.FieldType) ([]*Range, error) {
 	ranges := make([]*Range, 0, len(rangePoints)/2)
 	var minValueCauset, maxValueCauset types.Causet
-	// Currently, block's ekv range cannot accept encoded value of MaxValueCauset. we need to convert it.
+	// Currently, causet's ekv range cannot accept encoded value of MaxValueCauset. we need to convert it.
 	if allegrosql.HasUnsignedFlag(tp.Flag) {
 		minValueCauset.SetUint64(0)
 		maxValueCauset.SetUint64(math.MaxUint64)
@@ -264,7 +264,7 @@ func points2BlockRanges(sc *stmtctx.StatementContext, rangePoints []point, tp *t
 }
 
 // buildDeferredCausetRange builds range from CNF conditions.
-func buildDeferredCausetRange(accessConditions []expression.Expression, sc *stmtctx.StatementContext, tp *types.FieldType, blockRange bool, defCausLen int) (ranges []*Range, err error) {
+func buildDeferredCausetRange(accessConditions []memex.Expression, sc *stmtctx.StatementContext, tp *types.FieldType, blockRange bool, defCausLen int) (ranges []*Range, err error) {
 	rb := builder{sc: sc}
 	rangePoints := fullRange
 	for _, cond := range accessConditions {
@@ -300,12 +300,12 @@ func buildDeferredCausetRange(accessConditions []expression.Expression, sc *stmt
 }
 
 // BuildBlockRange builds range of PK defCausumn for PhysicalBlockScan.
-func BuildBlockRange(accessConditions []expression.Expression, sc *stmtctx.StatementContext, tp *types.FieldType) ([]*Range, error) {
+func BuildBlockRange(accessConditions []memex.Expression, sc *stmtctx.StatementContext, tp *types.FieldType) ([]*Range, error) {
 	return buildDeferredCausetRange(accessConditions, sc, tp, true, types.UnspecifiedLength)
 }
 
 // BuildDeferredCausetRange builds range from access conditions for general defCausumns.
-func BuildDeferredCausetRange(conds []expression.Expression, sc *stmtctx.StatementContext, tp *types.FieldType, defCausLen int) ([]*Range, error) {
+func BuildDeferredCausetRange(conds []memex.Expression, sc *stmtctx.StatementContext, tp *types.FieldType, defCausLen int) ([]*Range, error) {
 	if len(conds) == 0 {
 		return []*Range{{LowVal: []types.Causet{{}}, HighVal: []types.Causet{types.MaxValueCauset()}}}, nil
 	}
@@ -314,7 +314,7 @@ func BuildDeferredCausetRange(conds []expression.Expression, sc *stmtctx.Stateme
 
 // buildCNFIndexRange builds the range for index where the top layer is CNF.
 func (d *rangeDetacher) buildCNFIndexRange(newTp []*types.FieldType,
-	eqAndInCount int, accessCondition []expression.Expression) ([]*Range, error) {
+	eqAndInCount int, accessCondition []memex.Expression) ([]*Range, error) {
 	sc := d.sctx.GetStochastikVars().StmtCtx
 	rb := builder{sc: sc}
 	var (
@@ -522,23 +522,23 @@ func newFieldType(tp *types.FieldType) *types.FieldType {
 // NOTE:
 // 1. 'expr' must be either 'EQUAL' or 'IN' function.
 // 2. 'points' should not be empty.
-func points2EqOrInCond(ctx stochastikctx.Context, points []point, expr expression.Expression) expression.Expression {
+func points2EqOrInCond(ctx stochastikctx.Context, points []point, expr memex.Expression) memex.Expression {
 	// len(points) cannot be 0 here, since we impose early termination in ExtractEqAndInCondition
-	sf, _ := expr.(*expression.ScalarFunction)
+	sf, _ := expr.(*memex.ScalarFunction)
 	// Constant and DeferredCauset args should have same RetType, simply get from first arg
 	retType := sf.GetArgs()[0].GetType()
-	args := make([]expression.Expression, 0, len(points)/2)
+	args := make([]memex.Expression, 0, len(points)/2)
 	if sf.FuncName.L == ast.EQ {
-		if c, ok := sf.GetArgs()[0].(*expression.DeferredCauset); ok {
+		if c, ok := sf.GetArgs()[0].(*memex.DeferredCauset); ok {
 			args = append(args, c)
-		} else if c, ok := sf.GetArgs()[1].(*expression.DeferredCauset); ok {
+		} else if c, ok := sf.GetArgs()[1].(*memex.DeferredCauset); ok {
 			args = append(args, c)
 		}
 	} else {
 		args = append(args, sf.GetArgs()[0])
 	}
 	for i := 0; i < len(points); i = i + 2 {
-		value := &expression.Constant{
+		value := &memex.Constant{
 			Value:   points[i].value,
 			RetType: retType,
 		}
@@ -548,12 +548,12 @@ func points2EqOrInCond(ctx stochastikctx.Context, points []point, expr expressio
 	if len(args) > 2 {
 		funcName = ast.In
 	}
-	return expression.NewFunctionInternal(ctx, funcName, sf.GetType(), args...)
+	return memex.NewFunctionInternal(ctx, funcName, sf.GetType(), args...)
 }
 
-// DetachCondAndBuildRangeForPartition will detach the index filters from block filters.
+// DetachCondAndBuildRangeForPartition will detach the index filters from causet filters.
 // The returned values are encapsulated into a struct DetachRangeResult, see its comments for explanation.
-func DetachCondAndBuildRangeForPartition(sctx stochastikctx.Context, conditions []expression.Expression, defcaus []*expression.DeferredCauset,
+func DetachCondAndBuildRangeForPartition(sctx stochastikctx.Context, conditions []memex.Expression, defcaus []*memex.DeferredCauset,
 	lengths []int) (*DetachRangeResult, error) {
 	d := &rangeDetacher{
 		sctx:             sctx,

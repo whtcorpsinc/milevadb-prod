@@ -30,8 +30,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -272,8 +272,8 @@ func (s *testIndexSuite) TestCombineIndexSeek(c *C) {
 }
 
 func (s *testIndexSuite) TestSingleDeferredCausetCommonHandle(c *C) {
-	tblInfo := buildBlockInfo(c, "create block t (a varchar(255) primary key, u int unique, nu int, index nu (nu))")
-	var idxUnique, idxNonUnique block.Index
+	tblInfo := buildBlockInfo(c, "create causet t (a varchar(255) primary key, u int unique, nu int, index nu (nu))")
+	var idxUnique, idxNonUnique causet.Index
 	for _, idxInfo := range tblInfo.Indices {
 		idx := blocks.NewIndex(tblInfo.ID, tblInfo, idxInfo)
 		if idxInfo.Name.L == "u" {
@@ -295,7 +295,7 @@ func (s *testIndexSuite) TestSingleDeferredCausetCommonHandle(c *C) {
 	commonHandle, err := ekv.NewCommonHandle(encodedHandle)
 	c.Assert(err, IsNil)
 
-	for _, idx := range []block.Index{idxUnique, idxNonUnique} {
+	for _, idx := range []causet.Index{idxUnique, idxNonUnique} {
 		key, _, err := idx.GenIndexKey(sc, idxDefCausVals, commonHandle, nil)
 		c.Assert(err, IsNil)
 		_, err = idx.Create(mockCtx, txn.GetUnionStore(), idxDefCausVals, commonHandle)
@@ -328,8 +328,8 @@ func (s *testIndexSuite) TestSingleDeferredCausetCommonHandle(c *C) {
 func (s *testIndexSuite) TestMultiDeferredCausetCommonHandle(c *C) {
 	defCauslate.SetNewDefCauslationEnabledForTest(true)
 	defer defCauslate.SetNewDefCauslationEnabledForTest(false)
-	tblInfo := buildBlockInfo(c, "create block t (a int, b int, u varchar(64) unique, nu varchar(64), primary key (a, b), index nu (nu))")
-	var idxUnique, idxNonUnique block.Index
+	tblInfo := buildBlockInfo(c, "create causet t (a int, b int, u varchar(64) unique, nu varchar(64), primary key (a, b), index nu (nu))")
+	var idxUnique, idxNonUnique causet.Index
 	for _, idxInfo := range tblInfo.Indices {
 		idx := blocks.NewIndex(tblInfo.ID, tblInfo, idxInfo)
 		if idxInfo.Name.L == "u" {
@@ -351,7 +351,7 @@ func (s *testIndexSuite) TestMultiDeferredCausetCommonHandle(c *C) {
 	commonHandle, err := ekv.NewCommonHandle(encodedHandle)
 	c.Assert(err, IsNil)
 	_ = idxNonUnique
-	for _, idx := range []block.Index{idxUnique, idxNonUnique} {
+	for _, idx := range []causet.Index{idxUnique, idxNonUnique} {
 		key, _, err := idx.GenIndexKey(sc, idxDefCausVals, commonHandle, nil)
 		c.Assert(err, IsNil)
 		_, err = idx.Create(mockCtx, txn.GetUnionStore(), idxDefCausVals, commonHandle)
@@ -386,13 +386,13 @@ func buildBlockInfo(c *C, allegrosql string) *perceptron.BlockInfo {
 	return tblInfo
 }
 
-func createRowcodecDefCausInfo(block *perceptron.BlockInfo, index *perceptron.IndexInfo) []rowcodec.DefCausInfo {
+func createRowcodecDefCausInfo(causet *perceptron.BlockInfo, index *perceptron.IndexInfo) []rowcodec.DefCausInfo {
 	defCausInfos := make([]rowcodec.DefCausInfo, 0, len(index.DeferredCausets))
 	for _, idxDefCaus := range index.DeferredCausets {
-		defCaus := block.DeferredCausets[idxDefCaus.Offset]
+		defCaus := causet.DeferredCausets[idxDefCaus.Offset]
 		defCausInfos = append(defCausInfos, rowcodec.DefCausInfo{
 			ID:         defCaus.ID,
-			IsPKHandle: block.PKIsHandle && allegrosql.HasPriKeyFlag(defCaus.Flag),
+			IsPKHandle: causet.PKIsHandle && allegrosql.HasPriKeyFlag(defCaus.Flag),
 			Ft:         rowcodec.FieldTypeFromPerceptronDeferredCauset(defCaus),
 		})
 	}

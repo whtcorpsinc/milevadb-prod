@@ -86,7 +86,7 @@ BerolinaSQL:
 dev: checklist check test
 
 # Install the check tools.
-check-setup:tools/bin/revive tools/bin/goword tools/bin/gometalinter tools/bin/gosec
+check-setup:tools/bin/revive tools/bin/goword tools/bin/gospacetimelinter tools/bin/gosec
 
 check: fmt errcheck unconvert lint tidy testSuite check-static vet staticcheck
 
@@ -110,8 +110,8 @@ check-static: tools/bin/golangci-lint
 	  --enable=ineffassign \
 	  $$($(PACKAGE_DIRECTORIES))
 
-check-slow:tools/bin/gometalinter tools/bin/gosec
-	tools/bin/gometalinter --disable-all \
+check-slow:tools/bin/gospacetimelinter tools/bin/gosec
+	tools/bin/gospacetimelinter --disable-all \
 	  --enable errcheck \
 	  $$($(PACKAGE_DIRECTORIES))
 
@@ -282,9 +282,9 @@ tools/bin/goword: tools/check/go.mod
 	cd tools/check; \
 	$(GO) build -o ../bin/goword github.com/chzchzchz/goword
 
-tools/bin/gometalinter: tools/check/go.mod
+tools/bin/gospacetimelinter: tools/check/go.mod
 	cd tools/check; \
-	$(GO) build -o ../bin/gometalinter gopkg.in/alecthomas/gometalinter.v3
+	$(GO) build -o ../bin/gospacetimelinter gopkg.in/alecthomas/gospacetimelinter.v3
 
 tools/bin/gosec: tools/check/go.mod
 	cd tools/check; \
@@ -308,7 +308,7 @@ tools/bin/golangci-lint:
 #
 # 	$ make vectorized-bench VB_FILE=Time VB_FUNC=builtinCurrentDateSig
 vectorized-bench:
-	cd ./expression && \
+	cd ./memex && \
 		go test -v -timeout=0 -benchmem \
 			-bench=BenchmarkVectorizedBuiltin$(VB_FILE)Func \
 			-run=BenchmarkVectorizedBuiltin$(VB_FILE)Func \

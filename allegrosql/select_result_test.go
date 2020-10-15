@@ -29,23 +29,23 @@ func (s *testSuite) TestUFIDelateCopRuntimeStats(c *C) {
 	ctx.GetStochastikVars().StmtCtx = new(stmtctx.StatementContext)
 	sr := selectResult{ctx: ctx}
 	c.Assert(ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl, IsNil)
-	sr.rootPlanID = 1234
-	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{ExecDetails: execdetails.ExecDetails{CalleeAddress: "a"}}, 0)
+	sr.rootCausetID = 1234
+	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{InterDircDetails: execdetails.InterDircDetails{CalleeAddress: "a"}}, 0)
 
 	ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl = execdetails.NewRuntimeStatsDefCausl()
 	t := uint64(1)
 	sr.selectResp = &fidelpb.SelectResponse{
-		ExecutionSummaries: []*fidelpb.ExecutorExecutionSummary{
+		InterDircutionSummaries: []*fidelpb.InterlockingDirectorateInterDircutionSummary{
 			{TimeProcessedNs: &t, NumProducedRows: &t, NumIterations: &t},
 		},
 	}
-	c.Assert(len(sr.selectResp.GetExecutionSummaries()) != len(sr.copPlanIDs), IsTrue)
-	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{ExecDetails: execdetails.ExecDetails{CalleeAddress: "callee"}}, 0)
+	c.Assert(len(sr.selectResp.GetInterDircutionSummaries()) != len(sr.copCausetIDs), IsTrue)
+	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{InterDircDetails: execdetails.InterDircDetails{CalleeAddress: "callee"}}, 0)
 	c.Assert(ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl.ExistsCopStats(1234), IsFalse)
 
-	sr.copPlanIDs = []int{sr.rootPlanID}
+	sr.copCausetIDs = []int{sr.rootCausetID}
 	c.Assert(ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl, NotNil)
-	c.Assert(len(sr.selectResp.GetExecutionSummaries()), Equals, len(sr.copPlanIDs))
-	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{ExecDetails: execdetails.ExecDetails{CalleeAddress: "callee"}}, 0)
+	c.Assert(len(sr.selectResp.GetInterDircutionSummaries()), Equals, len(sr.copCausetIDs))
+	sr.uFIDelateCopRuntimeStats(context.Background(), &einsteindb.CopRuntimeStats{InterDircDetails: execdetails.InterDircDetails{CalleeAddress: "callee"}}, 0)
 	c.Assert(ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl.GetCopStats(1234).String(), Equals, "time:1ns, loops:1")
 }

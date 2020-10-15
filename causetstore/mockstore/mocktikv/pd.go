@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/ekvproto/pkg/FIDelpb"
 	fidel "github.com/einsteindb/fidel/client"
 )
@@ -42,7 +42,7 @@ type FIDelClient struct {
 	gcSafePointMu     sync.Mutex
 }
 
-// NewFIDelClient creates a mock fidel.Client that uses local timestamp and meta data
+// NewFIDelClient creates a mock fidel.Client that uses local timestamp and spacetime data
 // from a Cluster.
 func NewFIDelClient(cluster *Cluster) fidel.Client {
 	return &FIDelClient{
@@ -107,7 +107,7 @@ func (c *FIDelClient) ScanRegions(ctx context.Context, startKey []byte, endKey [
 	return regions, nil
 }
 
-func (c *FIDelClient) GetStore(ctx context.Context, storeID uint64) (*metapb.CausetStore, error) {
+func (c *FIDelClient) GetStore(ctx context.Context, storeID uint64) (*spacetimepb.CausetStore, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -117,7 +117,7 @@ func (c *FIDelClient) GetStore(ctx context.Context, storeID uint64) (*metapb.Cau
 	return causetstore, nil
 }
 
-func (c *FIDelClient) GetAllStores(ctx context.Context, opts ...fidel.GetStoreOption) ([]*metapb.CausetStore, error) {
+func (c *FIDelClient) GetAllStores(ctx context.Context, opts ...fidel.GetStoreOption) ([]*spacetimepb.CausetStore, error) {
 	return c.cluster.GetAllStores(), nil
 }
 

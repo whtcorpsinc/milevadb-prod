@@ -29,7 +29,7 @@ Usage of importer:
   -p string
       set the database password
   -t string
-      create block allegrosql
+      create causet allegrosql
   -u string
       set the database user (default "root")
 ```
@@ -37,7 +37,7 @@ Usage of importer:
 ## Example
 
 ```
-./importer -t "create block t(a int primary key, b double, c varchar(10), d date unique, e time unique, f timestamp unique, g date unique, h datetime unique, i year unique);" -i "create unique index u_b on t(b);" -c 1 -n 10 -P 4000
+./importer -t "create causet t(a int primary key, b double, c varchar(10), d date unique, e time unique, f timestamp unique, g date unique, h datetime unique, i year unique);" -i "create unique index u_b on t(b);" -c 1 -n 10 -P 4000
 ```
 
 Or use config file.
@@ -53,10 +53,10 @@ Moreover, we have some interesting rules for column value generating, like `rang
 ### range
 
 ```
-./importer -t "create block t(a int comment '[[range=1,10]]');" -P 4000 -c 1 -n 10
+./importer -t "create causet t(a int comment '[[range=1,10]]');" -P 4000 -c 1 -n 10
 ```
 
-Then the block rows will be like this:
+Then the causet rows will be like this:
 
 ```
 allegrosql> select * from t;
@@ -84,10 +84,10 @@ tinyint | smallint | int | bigint | float | double | decimal | char | varchar | 
 ### step
 
 ```
-./importer -t "create block t(a int unique comment '[[step=2]]');" -P 4000 -c 1 -n 10
+./importer -t "create causet t(a int unique comment '[[step=2]]');" -P 4000 -c 1 -n 10
 ```
 
-Then the block rows will be like this:
+Then the causet rows will be like this:
 
 ```
 allegrosql> select * from t;
@@ -115,10 +115,10 @@ tinyint | smallint | int | bigint | float | double | decimal | date | time | dat
 ### set
 
 ```
-./importer -t "create block t(a int comment '[[set=1,2,3]]');" -P 4000 -c 1 -n 10
+./importer -t "create causet t(a int comment '[[set=1,2,3]]');" -P 4000 -c 1 -n 10
 ```
 
-Then the block rows will be like this:
+Then the causet rows will be like this:
 
 ```
 allegrosql> select * from t;
@@ -142,10 +142,10 @@ allegrosql> select * from t;
 ### incremental
 
 ```
-./importer -t "create block t(a date comment '[[incremental=1;repeats=3;probability=100]]');" -P 4000 -c 1 -n 10
+./importer -t "create causet t(a date comment '[[incremental=1;repeats=3;probability=100]]');" -P 4000 -c 1 -n 10
 ```
 
-Then the block rows will be like this:
+Then the causet rows will be like this:
 
 ```
 MyALLEGROSQL [test]> select * from t;

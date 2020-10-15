@@ -28,10 +28,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -41,30 +41,30 @@ import (
 	"go.uber.org/zap"
 )
 
-// Both partition and partitionedBlock implement the block.Block interface.
-var _ block.Block = &partition{}
-var _ block.Block = &partitionedBlock{}
+// Both partition and partitionedBlock implement the causet.Block interface.
+var _ causet.Block = &partition{}
+var _ causet.Block = &partitionedBlock{}
 
-// partitionedBlock implements the block.PartitionedBlock interface.
-var _ block.PartitionedBlock = &partitionedBlock{}
+// partitionedBlock implements the causet.PartitionedBlock interface.
+var _ causet.PartitionedBlock = &partitionedBlock{}
 
 // partition is a feature from MyALLEGROSQL:
 // See https://dev.allegrosql.com/doc/refman/8.0/en/partitioning.html
-// A partition block may contain many partitions, each partition has a unique partition
-// id. The underlying representation of a partition and a normal block (a block with no
+// A partition causet may contain many partitions, each partition has a unique partition
+// id. The underlying representation of a partition and a normal causet (a causet with no
 // partitions) is basically the same.
-// partition also implements the block.Block interface.
+// partition also implements the causet.Block interface.
 type partition struct {
 	BlockCommon
 }
 
-// GetPhysicalID implements block.Block GetPhysicalID interface.
+// GetPhysicalID implements causet.Block GetPhysicalID interface.
 func (p *partition) GetPhysicalID() int64 {
 	return p.physicalBlockID
 }
 
-// partitionedBlock implements the block.PartitionedBlock interface.
-// partitionedBlock is a block, it contains many Partitions.
+// partitionedBlock implements the causet.PartitionedBlock interface.
+// partitionedBlock is a causet, it contains many Partitions.
 type partitionedBlock struct {
 	BlockCommon
 	partitionExpr   *PartitionExpr
@@ -73,7 +73,7 @@ type partitionedBlock struct {
 	evalBufferPool  sync.Pool
 }
 
-func newPartitionedBlock(tbl *BlockCommon, tblInfo *perceptron.BlockInfo) (block.Block, error) {
+func newPartitionedBlock(tbl *BlockCommon, tblInfo *perceptron.BlockInfo) (causet.Block, error) {
 	ret := &partitionedBlock{BlockCommon: *tbl}
 	partitionExpr, err := newPartitionExpr(tblInfo)
 	if err != nil {
@@ -106,7 +106,7 @@ func newPartitionedBlock(tbl *BlockCommon, tblInfo *perceptron.BlockInfo) (block
 func newPartitionExpr(tblInfo *perceptron.BlockInfo) (*PartitionExpr, error) {
 	ctx := mock.NewContext()
 	dbName := perceptron.NewCIStr(ctx.GetStochastikVars().CurrentDB)
-	defCausumns, names, err := expression.DeferredCausetInfos2DeferredCausetsAndNames(ctx, dbName, tblInfo.Name, tblInfo.DefCauss(), tblInfo)
+	defCausumns, names, err := memex.DeferredCausetInfos2DeferredCausetsAndNames(ctx, dbName, tblInfo.Name, tblInfo.DefCauss(), tblInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +120,14 @@ func newPartitionExpr(tblInfo *perceptron.BlockInfo) (*PartitionExpr, error) {
 	panic("cannot reach here")
 }
 
-// PartitionExpr is the partition definition expressions.
+// PartitionExpr is the partition definition memexs.
 type PartitionExpr struct {
 	// UpperBounds: (x < y1); (x < y2); (x < y3), used by locatePartition.
-	UpperBounds []expression.Expression
-	// OrigExpr is the partition expression ast used in point get.
+	UpperBounds []memex.Expression
+	// OrigExpr is the partition memex ast used in point get.
 	OrigExpr ast.ExprNode
-	// Expr is the hash partition expression.
-	Expr expression.Expression
+	// Expr is the hash partition memex.
+	Expr memex.Expression
 	// Used in the range pruning process.
 	*ForRangePruning
 	// Used in the range defCausumn pruning process.
@@ -158,13 +158,13 @@ func initEvalBuffer(t *partitionedBlock) *chunk.MutRow {
 
 // ForRangeDeferredCausetsPruning is used for range partition pruning.
 type ForRangeDeferredCausetsPruning struct {
-	LessThan []expression.Expression
+	LessThan []memex.Expression
 	MaxValue bool
 }
 
-func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, schemaReplicant *expression.Schema, names []*types.FieldName, p *BerolinaSQL.BerolinaSQL) (*ForRangeDeferredCausetsPruning, error) {
+func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, schemaReplicant *memex.Schema, names []*types.FieldName, p *BerolinaSQL.BerolinaSQL) (*ForRangeDeferredCausetsPruning, error) {
 	var res ForRangeDeferredCausetsPruning
-	res.LessThan = make([]expression.Expression, len(pi.Definitions))
+	res.LessThan = make([]memex.Expression, len(pi.Definitions))
 	for i := 0; i < len(pi.Definitions); i++ {
 		if strings.EqualFold(pi.Definitions[i].LessThan[0], "MAXVALUE") {
 			// Use a bool flag instead of math.MaxInt64 to avoid the corner cases.
@@ -180,14 +180,14 @@ func dataForRangeDeferredCausetsPruning(ctx stochastikctx.Context, pi *perceptro
 	return &res, nil
 }
 
-// parseSimpleExprWithNames parses simple expression string to Expression.
-// The expression string must only reference the defCausumn in the given NameSlice.
-func parseSimpleExprWithNames(p *BerolinaSQL.BerolinaSQL, ctx stochastikctx.Context, exprStr string, schemaReplicant *expression.Schema, names types.NameSlice) (expression.Expression, error) {
+// parseSimpleExprWithNames parses simple memex string to Expression.
+// The memex string must only reference the defCausumn in the given NameSlice.
+func parseSimpleExprWithNames(p *BerolinaSQL.BerolinaSQL, ctx stochastikctx.Context, exprStr string, schemaReplicant *memex.Schema, names types.NameSlice) (memex.Expression, error) {
 	exprNode, err := parseExpr(p, exprStr)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return expression.RewriteSimpleExprWithNames(ctx, exprNode, schemaReplicant, names)
+	return memex.RewriteSimpleExprWithNames(ctx, exprNode, schemaReplicant, names)
 }
 
 // ForRangePruning is used for range partition pruning.
@@ -235,7 +235,7 @@ func dataForRangePruning(sctx stochastikctx.Context, pi *perceptron.PartitionInf
 
 func fixOldVersionPartitionInfo(sctx stochastikctx.Context, str string) (int64, bool) {
 	// less than value should be calculate to integer before persistent.
-	// Old version MilevaDB may not do it and causetstore the raw expression.
+	// Old version MilevaDB may not do it and causetstore the raw memex.
 	tmp, err := parseSimpleExprWithNames(BerolinaSQL.New(), sctx, str, nil, nil)
 	if err != nil {
 		return 0, false
@@ -260,16 +260,16 @@ func rangePartitionString(pi *perceptron.PartitionInfo) string {
 	}
 
 	// partition by range defCausumns (c1, c2, ...)
-	panic("create block assert len(defCausumns) = 1")
+	panic("create causet assert len(defCausumns) = 1")
 }
 
 func generateRangePartitionExpr(ctx stochastikctx.Context, pi *perceptron.PartitionInfo,
-	defCausumns []*expression.DeferredCauset, names types.NameSlice) (*PartitionExpr, error) {
+	defCausumns []*memex.DeferredCauset, names types.NameSlice) (*PartitionExpr, error) {
 	// The caller should assure partition info is not nil.
-	locateExprs := make([]expression.Expression, 0, len(pi.Definitions))
+	locateExprs := make([]memex.Expression, 0, len(pi.Definitions))
 	var buf bytes.Buffer
 	p := BerolinaSQL.New()
-	schemaReplicant := expression.NewSchema(defCausumns...)
+	schemaReplicant := memex.NewSchema(defCausumns...)
 	partStr := rangePartitionString(pi)
 	for i := 0; i < len(pi.Definitions); i++ {
 		if strings.EqualFold(pi.Definitions[i].LessThan[0], "MAXVALUE") {
@@ -282,7 +282,7 @@ func generateRangePartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partit
 		expr, err := parseSimpleExprWithNames(p, ctx, buf.String(), schemaReplicant, names)
 		if err != nil {
 			// If it got an error here, dbs may hang forever, so this error log is important.
-			logutil.BgLogger().Error("wrong block partition expression", zap.String("expression", buf.String()), zap.Error(err))
+			logutil.BgLogger().Error("wrong causet partition memex", zap.String("memex", buf.String()), zap.Error(err))
 			return nil, errors.Trace(err)
 		}
 		locateExprs = append(locateExprs, expr)
@@ -317,9 +317,9 @@ func generateRangePartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partit
 }
 
 func generateHashPartitionExpr(ctx stochastikctx.Context, pi *perceptron.PartitionInfo,
-	defCausumns []*expression.DeferredCauset, names types.NameSlice) (*PartitionExpr, error) {
+	defCausumns []*memex.DeferredCauset, names types.NameSlice) (*PartitionExpr, error) {
 	// The caller should assure partition info is not nil.
-	schemaReplicant := expression.NewSchema(defCausumns...)
+	schemaReplicant := memex.NewSchema(defCausumns...)
 	origExpr, err := parseExpr(BerolinaSQL.New(), pi.Expr)
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func generateHashPartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partiti
 	exprs, err := rewritePartitionExpr(ctx, origExpr, schemaReplicant, names)
 	if err != nil {
 		// If it got an error here, dbs may hang forever, so this error log is important.
-		logutil.BgLogger().Error("wrong block partition expression", zap.String("expression", pi.Expr), zap.Error(err))
+		logutil.BgLogger().Error("wrong causet partition memex", zap.String("memex", pi.Expr), zap.Error(err))
 		return nil, errors.Trace(err)
 	}
 	exprs.HashCode(ctx.GetStochastikVars().StmtCtx)
@@ -337,7 +337,7 @@ func generateHashPartitionExpr(ctx stochastikctx.Context, pi *perceptron.Partiti
 	}, nil
 }
 
-// PartitionExpr returns the partition expression.
+// PartitionExpr returns the partition memex.
 func (t *partitionedBlock) PartitionExpr() (*PartitionExpr, error) {
 	return t.partitionExpr, nil
 }
@@ -352,7 +352,7 @@ func PartitionRecordKey(pid int64, handle int64) ekv.Key {
 func (t *partitionedBlock) locatePartition(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, r []types.Causet) (int64, error) {
 	var err error
 	var idx int
-	switch t.meta.Partition.Type {
+	switch t.spacetime.Partition.Type {
 	case perceptron.PartitionTypeRange:
 		if len(pi.DeferredCausets) == 0 {
 			idx, err = t.locateRangePartition(ctx, pi, r)
@@ -394,10 +394,10 @@ func (t *partitionedBlock) locateRangeDeferredCausetPartition(ctx stochastikctx.
 		idx = 0
 	}
 	if idx < 0 || idx >= len(partitionExprs) {
-		// The data does not belong to any of the partition returns `block has no partition for value %s`.
+		// The data does not belong to any of the partition returns `causet has no partition for value %s`.
 		var valueMsg string
 		if pi.Expr != "" {
-			e, err := expression.ParseSimpleExprWithBlockInfo(ctx, pi.Expr, t.meta)
+			e, err := memex.ParseSimpleExprWithBlockInfo(ctx, pi.Expr, t.spacetime)
 			if err == nil {
 				val, _, err := e.EvalInt(ctx, chunk.MutRowFromCausets(r).ToRow())
 				if err == nil {
@@ -405,10 +405,10 @@ func (t *partitionedBlock) locateRangeDeferredCausetPartition(ctx stochastikctx.
 				}
 			}
 		} else {
-			// When the block is partitioned by range defCausumns.
+			// When the causet is partitioned by range defCausumns.
 			valueMsg = "from defCausumn_list"
 		}
-		return 0, block.ErrNoPartitionForGivenValue.GenWithStackByArgs(valueMsg)
+		return 0, causet.ErrNoPartitionForGivenValue.GenWithStackByArgs(valueMsg)
 	}
 	return idx, nil
 }
@@ -420,7 +420,7 @@ func (t *partitionedBlock) locateRangePartition(ctx stochastikctx.Context, pi *p
 		isNull bool
 		err    error
 	)
-	if defCaus, ok := t.partitionExpr.Expr.(*expression.DeferredCauset); ok {
+	if defCaus, ok := t.partitionExpr.Expr.(*memex.DeferredCauset); ok {
 		if r[defCaus.Index].IsNull() {
 			isNull = true
 		}
@@ -448,10 +448,10 @@ func (t *partitionedBlock) locateRangePartition(ctx stochastikctx.Context, pi *p
 		pos = 0
 	}
 	if pos < 0 || pos >= length {
-		// The data does not belong to any of the partition returns `block has no partition for value %s`.
+		// The data does not belong to any of the partition returns `causet has no partition for value %s`.
 		var valueMsg string
 		if pi.Expr != "" {
-			e, err := expression.ParseSimpleExprWithBlockInfo(ctx, pi.Expr, t.meta)
+			e, err := memex.ParseSimpleExprWithBlockInfo(ctx, pi.Expr, t.spacetime)
 			if err == nil {
 				val, _, err := e.EvalInt(ctx, chunk.MutRowFromCausets(r).ToRow())
 				if err == nil {
@@ -459,19 +459,19 @@ func (t *partitionedBlock) locateRangePartition(ctx stochastikctx.Context, pi *p
 				}
 			}
 		} else {
-			// When the block is partitioned by range defCausumns.
+			// When the causet is partitioned by range defCausumns.
 			valueMsg = "from defCausumn_list"
 		}
-		return 0, block.ErrNoPartitionForGivenValue.GenWithStackByArgs(valueMsg)
+		return 0, causet.ErrNoPartitionForGivenValue.GenWithStackByArgs(valueMsg)
 	}
 	return pos, nil
 }
 
 // TODO: supports linear hashing
 func (t *partitionedBlock) locateHashPartition(ctx stochastikctx.Context, pi *perceptron.PartitionInfo, r []types.Causet) (int, error) {
-	if defCaus, ok := t.partitionExpr.Expr.(*expression.DeferredCauset); ok {
+	if defCaus, ok := t.partitionExpr.Expr.(*memex.DeferredCauset); ok {
 		ret := r[defCaus.Index].GetInt64()
-		ret = ret % int64(t.meta.Partition.Num)
+		ret = ret % int64(t.spacetime.Partition.Num)
 		if ret < 0 {
 			ret = -ret
 		}
@@ -487,7 +487,7 @@ func (t *partitionedBlock) locateHashPartition(ctx stochastikctx.Context, pi *pe
 	if isNull {
 		return 0, nil
 	}
-	ret = ret % int64(t.meta.Partition.Num)
+	ret = ret % int64(t.spacetime.Partition.Num)
 	if ret < 0 {
 		ret = -ret
 	}
@@ -495,9 +495,9 @@ func (t *partitionedBlock) locateHashPartition(ctx stochastikctx.Context, pi *pe
 }
 
 // GetPartition returns a Block, which is actually a partition.
-func (t *partitionedBlock) GetPartition(pid int64) block.PhysicalBlock {
+func (t *partitionedBlock) GetPartition(pid int64) causet.PhysicalBlock {
 	// Attention, can't simply use `return t.partitions[pid]` here.
-	// Because A nil of type *partition is a HoTT of `block.PhysicalBlock`
+	// Because A nil of type *partition is a HoTT of `causet.PhysicalBlock`
 	p, ok := t.partitions[pid]
 	if !ok {
 		return nil
@@ -506,7 +506,7 @@ func (t *partitionedBlock) GetPartition(pid int64) block.PhysicalBlock {
 }
 
 // GetPartitionByRow returns a Block, which is actually a Partition.
-func (t *partitionedBlock) GetPartitionByRow(ctx stochastikctx.Context, r []types.Causet) (block.PhysicalBlock, error) {
+func (t *partitionedBlock) GetPartitionByRow(ctx stochastikctx.Context, r []types.Causet) (causet.PhysicalBlock, error) {
 	pid, err := t.locatePartition(ctx, t.Meta().GetPartitionInfo(), r)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -514,13 +514,13 @@ func (t *partitionedBlock) GetPartitionByRow(ctx stochastikctx.Context, r []type
 	return t.partitions[pid], nil
 }
 
-// AddRecord implements the AddRecord method for the block.Block interface.
-func (t *partitionedBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...block.AddRecordOption) (recordID ekv.Handle, err error) {
+// AddRecord implements the AddRecord method for the causet.Block interface.
+func (t *partitionedBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...causet.AddRecordOption) (recordID ekv.Handle, err error) {
 	return partitionedBlockAddRecord(ctx, t, r, nil, opts)
 }
 
-func partitionedBlockAddRecord(ctx stochastikctx.Context, t *partitionedBlock, r []types.Causet, partitionSelection map[int64]struct{}, opts []block.AddRecordOption) (recordID ekv.Handle, err error) {
-	partitionInfo := t.meta.GetPartitionInfo()
+func partitionedBlockAddRecord(ctx stochastikctx.Context, t *partitionedBlock, r []types.Causet, partitionSelection map[int64]struct{}, opts []causet.AddRecordOption) (recordID ekv.Handle, err error) {
+	partitionInfo := t.spacetime.GetPartitionInfo()
 	pid, err := t.locatePartition(ctx, partitionInfo, r)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -528,7 +528,7 @@ func partitionedBlockAddRecord(ctx stochastikctx.Context, t *partitionedBlock, r
 
 	if partitionSelection != nil {
 		if _, ok := partitionSelection[pid]; !ok {
-			return nil, errors.WithStack(block.ErrRowDoesNotMatchGivenPartitionSet)
+			return nil, errors.WithStack(causet.ErrRowDoesNotMatchGivenPartitionSet)
 		}
 	}
 	tbl := t.GetPartition(pid)
@@ -543,8 +543,8 @@ type partitionBlockWithGivenSets struct {
 	partitions map[int64]struct{}
 }
 
-// NewPartitionBlockithGivenSets creates a new partition block from a partition block.
-func NewPartitionBlockithGivenSets(tbl block.PartitionedBlock, partitions map[int64]struct{}) block.PartitionedBlock {
+// NewPartitionBlockithGivenSets creates a new partition causet from a partition causet.
+func NewPartitionBlockithGivenSets(tbl causet.PartitionedBlock, partitions map[int64]struct{}) causet.PartitionedBlock {
 	if raw, ok := tbl.(*partitionedBlock); ok {
 		return &partitionBlockWithGivenSets{
 			partitionedBlock: raw,
@@ -554,14 +554,14 @@ func NewPartitionBlockithGivenSets(tbl block.PartitionedBlock, partitions map[in
 	return tbl
 }
 
-// AddRecord implements the AddRecord method for the block.Block interface.
-func (t *partitionBlockWithGivenSets) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...block.AddRecordOption) (recordID ekv.Handle, err error) {
+// AddRecord implements the AddRecord method for the causet.Block interface.
+func (t *partitionBlockWithGivenSets) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...causet.AddRecordOption) (recordID ekv.Handle, err error) {
 	return partitionedBlockAddRecord(ctx, t.partitionedBlock, r, t.partitions, opts)
 }
 
-// RemoveRecord implements block.Block RemoveRecord interface.
+// RemoveRecord implements causet.Block RemoveRecord interface.
 func (t *partitionedBlock) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []types.Causet) error {
-	partitionInfo := t.meta.GetPartitionInfo()
+	partitionInfo := t.spacetime.GetPartitionInfo()
 	pid, err := t.locatePartition(ctx, partitionInfo, r)
 	if err != nil {
 		return errors.Trace(err)
@@ -571,7 +571,7 @@ func (t *partitionedBlock) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle,
 	return tbl.RemoveRecord(ctx, h, r)
 }
 
-// UFIDelateRecord implements block.Block UFIDelateRecord interface.
+// UFIDelateRecord implements causet.Block UFIDelateRecord interface.
 // `touched` means which defCausumns are really modified, used for secondary indices.
 // Length of `oldData` and `newData` equals to length of `t.WriblockDefCauss()`.
 func (t *partitionedBlock) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Context, h ekv.Handle, currData, newData []types.Causet, touched []bool) error {
@@ -583,7 +583,7 @@ func (t *partitionBlockWithGivenSets) UFIDelateRecord(ctx context.Context, sctx 
 }
 
 func partitionedBlockUFIDelateRecord(gctx context.Context, ctx stochastikctx.Context, t *partitionedBlock, h ekv.Handle, currData, newData []types.Causet, touched []bool, partitionSelection map[int64]struct{}) error {
-	partitionInfo := t.meta.GetPartitionInfo()
+	partitionInfo := t.spacetime.GetPartitionInfo()
 	from, err := t.locatePartition(ctx, partitionInfo, currData)
 	if err != nil {
 		return errors.Trace(err)
@@ -594,7 +594,7 @@ func partitionedBlockUFIDelateRecord(gctx context.Context, ctx stochastikctx.Con
 	}
 	if partitionSelection != nil {
 		if _, ok := partitionSelection[to]; !ok {
-			return errors.WithStack(block.ErrRowDoesNotMatchGivenPartitionSet)
+			return errors.WithStack(causet.ErrRowDoesNotMatchGivenPartitionSet)
 		}
 	}
 
@@ -623,16 +623,16 @@ func partitionedBlockUFIDelateRecord(gctx context.Context, ctx stochastikctx.Con
 	return tbl.UFIDelateRecord(gctx, ctx, h, currData, newData, touched)
 }
 
-// FindPartitionByName finds partition in block meta by name.
-func FindPartitionByName(meta *perceptron.BlockInfo, parName string) (int64, error) {
-	// Hash partition block use p0, p1, p2, p3 as partition names automatically.
+// FindPartitionByName finds partition in causet spacetime by name.
+func FindPartitionByName(spacetime *perceptron.BlockInfo, parName string) (int64, error) {
+	// Hash partition causet use p0, p1, p2, p3 as partition names automatically.
 	parName = strings.ToLower(parName)
-	for _, def := range meta.Partition.Definitions {
+	for _, def := range spacetime.Partition.Definitions {
 		if strings.EqualFold(def.Name.L, parName) {
 			return def.ID, nil
 		}
 	}
-	return -1, errors.Trace(block.ErrUnknownPartition.GenWithStackByArgs(parName, meta.Name.O))
+	return -1, errors.Trace(causet.ErrUnknownPartition.GenWithStackByArgs(parName, spacetime.Name.O))
 }
 
 func parseExpr(p *BerolinaSQL.BerolinaSQL, exprStr string) (ast.ExprNode, error) {
@@ -645,8 +645,8 @@ func parseExpr(p *BerolinaSQL.BerolinaSQL, exprStr string) (ast.ExprNode, error)
 	return fields[0].Expr, nil
 }
 
-func rewritePartitionExpr(ctx stochastikctx.Context, field ast.ExprNode, schemaReplicant *expression.Schema, names types.NameSlice) (expression.Expression, error) {
-	expr, err := expression.RewriteSimpleExprWithNames(ctx, field, schemaReplicant, names)
+func rewritePartitionExpr(ctx stochastikctx.Context, field ast.ExprNode, schemaReplicant *memex.Schema, names types.NameSlice) (memex.Expression, error) {
+	expr, err := memex.RewriteSimpleExprWithNames(ctx, field, schemaReplicant, names)
 	return expr, err
 }
 

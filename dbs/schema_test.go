@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 )
@@ -81,7 +81,7 @@ func testDropSchema(c *C, ctx stochastikctx.Context, d *dbs, dbInfo *perceptron.
 	return job, ver
 }
 
-func isDBSJobDone(c *C, t *meta.Meta) bool {
+func isDBSJobDone(c *C, t *spacetime.Meta) bool {
 	job, err := t.GetDBSJobByIdx(0)
 	c.Assert(err, IsNil)
 	if job == nil {
@@ -97,7 +97,7 @@ func testCheckSchemaState(c *C, d *dbs, dbInfo *perceptron.DBInfo, state percept
 
 	for {
 		ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-			t := meta.NewMeta(txn)
+			t := spacetime.NewMeta(txn)
 			info, err := t.GetDatabase(dbInfo.ID)
 			c.Assert(err, IsNil)
 
@@ -140,7 +140,7 @@ func (s *testSchemaSuite) TestSchema(c *C) {
 	testCheckJobDone(c, d, job, true)
 
 	/*** to drop the schemaReplicant with two blocks. ***/
-	// create block t with 100 records.
+	// create causet t with 100 records.
 	tblInfo1 := testBlockInfo(c, d, "t", 3)
 	tJob1 := testCreateBlock(c, ctx, d, dbInfo, tblInfo1)
 	testCheckBlockState(c, d, dbInfo, tblInfo1, perceptron.StatePublic)
@@ -150,7 +150,7 @@ func (s *testSchemaSuite) TestSchema(c *C) {
 		_, err := tbl1.AddRecord(ctx, types.MakeCausets(i, i, i))
 		c.Assert(err, IsNil)
 	}
-	// create block t1 with 1034 records.
+	// create causet t1 with 1034 records.
 	tblInfo2 := testBlockInfo(c, d, "t1", 3)
 	tJob2 := testCreateBlock(c, ctx, d, dbInfo, tblInfo2)
 	testCheckBlockState(c, d, dbInfo, tblInfo2, perceptron.StatePublic)
@@ -176,7 +176,7 @@ func (s *testSchemaSuite) TestSchema(c *C) {
 	err := d.doDBSJob(ctx, job)
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrDatabaseDropExists), IsTrue, Commentf("err %v", err))
 
-	// Drop a database without a block.
+	// Drop a database without a causet.
 	dbInfo1 := testSchemaInfo(c, d, "test1")
 	job = testCreateSchema(c, ctx, d, dbInfo1)
 	testCheckSchemaState(c, d, dbInfo1, perceptron.StatePublic)
@@ -198,7 +198,7 @@ func (s *testSchemaSuite) TestSchemaWaitJob(c *C) {
 	)
 	defer d1.Stop()
 
-	testCheckOwner(c, d1, true)
+	testCheckTenant(c, d1, true)
 
 	d2 := testNewDBSAndStart(
 		context.Background(),
@@ -209,15 +209,15 @@ func (s *testSchemaSuite) TestSchemaWaitJob(c *C) {
 	defer d2.Stop()
 	ctx := testNewContext(d2)
 
-	// d2 must not be owner.
-	d2.ownerManager.RetireOwner()
+	// d2 must not be tenant.
+	d2.tenantManager.RetireTenant()
 
 	dbInfo := testSchemaInfo(c, d2, "test")
 	testCreateSchema(c, ctx, d2, dbInfo)
 	testCheckSchemaState(c, d2, dbInfo, perceptron.StatePublic)
 
-	// d2 must not be owner.
-	c.Assert(d2.ownerManager.IsOwner(), IsFalse)
+	// d2 must not be tenant.
+	c.Assert(d2.tenantManager.IsTenant(), IsFalse)
 
 	genIDs, err := d2.genGlobalIDs(1)
 	c.Assert(err, IsNil)
@@ -228,7 +228,7 @@ func (s *testSchemaSuite) TestSchemaWaitJob(c *C) {
 func testGetSchemaInfoWithError(d *dbs, schemaID int64) (*perceptron.DBInfo, error) {
 	var dbInfo *perceptron.DBInfo
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err1 error
 		dbInfo, err1 = t.GetDatabase(schemaID)
 		if err1 != nil {

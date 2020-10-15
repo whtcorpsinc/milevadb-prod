@@ -42,10 +42,10 @@ func (s *testDBSBlockSplitSuite) TestBlockSplit(c *C) {
 	dom, err := stochastik.BootstrapStochastik(causetstore)
 	c.Assert(err, IsNil)
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test")
-	// Synced split block region.
-	tk.MustExec("set global milevadb_scatter_region = 1")
-	tk.MustExec(`create block t_part (a int key) partition by range(a) (
+	tk.MustInterDirc("use test")
+	// Synced split causet region.
+	tk.MustInterDirc("set global milevadb_scatter_region = 1")
+	tk.MustInterDirc(`create causet t_part (a int key) partition by range(a) (
 		partition p0 values less than (10),
 		partition p1 values less than (20)
 	)`)

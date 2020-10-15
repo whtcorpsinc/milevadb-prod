@@ -1,5 +1,5 @@
-drop block if exists t;
-create block t (a int primary key, b int, c int, d int, e int, f int);
+drop causet if exists t;
+create causet t (a int primary key, b int, c int, d int, e int, f int);
 create index tb on t (b);
 create index tc on t (c);
 create index td on t (d);

@@ -739,7 +739,7 @@ func (ts *milevadbTestSuite) TestCreateBlockFlen(c *C) {
 	// issue #4540
 	qctx, err := ts.milevadbdrv.OpenCtx(uint64(0), 0, uint8(tmysql.DefaultDefCauslationID), "test", nil)
 	c.Assert(err, IsNil)
-	_, err = Execute(context.Background(), qctx, "use test;")
+	_, err = InterDircute(context.Background(), qctx, "use test;")
 	c.Assert(err, IsNil)
 
 	ctx := context.Background()
@@ -772,9 +772,9 @@ func (ts *milevadbTestSuite) TestCreateBlockFlen(c *C) {
 		"`z` decimal(20, 4)," +
 		"PRIMARY KEY (`a`)" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin"
-	_, err = Execute(ctx, qctx, testALLEGROSQL)
+	_, err = InterDircute(ctx, qctx, testALLEGROSQL)
 	c.Assert(err, IsNil)
-	rs, err := Execute(ctx, qctx, "show create block t1")
+	rs, err := InterDircute(ctx, qctx, "show create causet t1")
 	c.Assert(err, IsNil)
 	req := rs.NewChunk()
 	err = rs.Next(ctx, req)
@@ -786,7 +786,7 @@ func (ts *milevadbTestSuite) TestCreateBlockFlen(c *C) {
 	c.Assert(int(defcaus[1].DeferredCausetLength), Equals, len(req.GetRow(0).GetString(1))*tmysql.MaxBytesOfCharacter)
 
 	// for issue#5246
-	rs, err = Execute(ctx, qctx, "select y, z from t1")
+	rs, err = InterDircute(ctx, qctx, "select y, z from t1")
 	c.Assert(err, IsNil)
 	defcaus = rs.DeferredCausets()
 	c.Assert(len(defcaus), Equals, 2)
@@ -794,28 +794,28 @@ func (ts *milevadbTestSuite) TestCreateBlockFlen(c *C) {
 	c.Assert(int(defcaus[1].DeferredCausetLength), Equals, 22)
 }
 
-func Execute(ctx context.Context, qc *MilevaDBContext, allegrosql string) (ResultSet, error) {
+func InterDircute(ctx context.Context, qc *MilevaDBContext, allegrosql string) (ResultSet, error) {
 	stmts, err := qc.Parse(ctx, allegrosql)
 	if err != nil {
 		return nil, err
 	}
 	if len(stmts) != 1 {
-		panic("wrong input for Execute: " + allegrosql)
+		panic("wrong input for InterDircute: " + allegrosql)
 	}
-	return qc.ExecuteStmt(ctx, stmts[0])
+	return qc.InterDircuteStmt(ctx, stmts[0])
 }
 
 func (ts *milevadbTestSuite) TestShowBlocksFlen(c *C) {
 	qctx, err := ts.milevadbdrv.OpenCtx(uint64(0), 0, uint8(tmysql.DefaultDefCauslationID), "test", nil)
 	c.Assert(err, IsNil)
 	ctx := context.Background()
-	_, err = Execute(ctx, qctx, "use test;")
+	_, err = InterDircute(ctx, qctx, "use test;")
 	c.Assert(err, IsNil)
 
-	testALLEGROSQL := "create block abcdefghijklmnopqrstuvwxyz (i int)"
-	_, err = Execute(ctx, qctx, testALLEGROSQL)
+	testALLEGROSQL := "create causet abcdefghijklmnopqrstuvwxyz (i int)"
+	_, err = InterDircute(ctx, qctx, testALLEGROSQL)
 	c.Assert(err, IsNil)
-	rs, err := Execute(ctx, qctx, "show blocks")
+	rs, err := InterDircute(ctx, qctx, "show blocks")
 	c.Assert(err, IsNil)
 	req := rs.NewChunk()
 	err = rs.Next(ctx, req)
@@ -836,11 +836,11 @@ func checkDefCausNames(c *C, defCausumns []*DeferredCausetInfo, names ...string)
 func (ts *milevadbTestSuite) TestFieldList(c *C) {
 	qctx, err := ts.milevadbdrv.OpenCtx(uint64(0), 0, uint8(tmysql.DefaultDefCauslationID), "test", nil)
 	c.Assert(err, IsNil)
-	_, err = Execute(context.Background(), qctx, "use test;")
+	_, err = InterDircute(context.Background(), qctx, "use test;")
 	c.Assert(err, IsNil)
 
 	ctx := context.Background()
-	testALLEGROSQL := `create block t (
+	testALLEGROSQL := `create causet t (
 		c_bit bit(10),
 		c_int_d int,
 		c_bigint_d bigint,
@@ -861,7 +861,7 @@ func (ts *milevadbTestSuite) TestFieldList(c *C) {
 		c_json JSON,
 		c_year year
 	)`
-	_, err = Execute(ctx, qctx, testALLEGROSQL)
+	_, err = InterDircute(ctx, qctx, testALLEGROSQL)
 	c.Assert(err, IsNil)
 	defCausInfos, err := qctx.FieldList("t")
 	c.Assert(err, IsNil)
@@ -899,13 +899,13 @@ func (ts *milevadbTestSuite) TestFieldList(c *C) {
 	tooLongDeferredCausetAsName := "COALESCE(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)"
 	defCausumnAsName := tooLongDeferredCausetAsName[:tmysql.MaxAliasIdentifierLen]
 
-	rs, err := Execute(ctx, qctx, "select "+tooLongDeferredCausetAsName)
+	rs, err := InterDircute(ctx, qctx, "select "+tooLongDeferredCausetAsName)
 	c.Assert(err, IsNil)
 	defcaus := rs.DeferredCausets()
 	c.Assert(defcaus[0].OrgName, Equals, tooLongDeferredCausetAsName)
 	c.Assert(defcaus[0].Name, Equals, defCausumnAsName)
 
-	rs, err = Execute(ctx, qctx, "select c_bit as '"+tooLongDeferredCausetAsName+"' from t")
+	rs, err = InterDircute(ctx, qctx, "select c_bit as '"+tooLongDeferredCausetAsName+"' from t")
 	c.Assert(err, IsNil)
 	defcaus = rs.DeferredCausets()
 	c.Assert(defcaus[0].OrgName, Equals, "c_bit")
@@ -923,7 +923,7 @@ func (ts *milevadbTestSuite) TestNullFlag(c *C) {
 	c.Assert(err, IsNil)
 
 	ctx := context.Background()
-	rs, err := Execute(ctx, qctx, "select 1")
+	rs, err := InterDircute(ctx, qctx, "select 1")
 	c.Assert(err, IsNil)
 	defcaus := rs.DeferredCausets()
 	c.Assert(len(defcaus), Equals, 1)

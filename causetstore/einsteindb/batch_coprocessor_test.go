@@ -20,7 +20,7 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
@@ -29,7 +29,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/mockeinsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
@@ -49,7 +49,7 @@ func newStoreWithBootstrap(tiflashNum int) (ekv.CausetStorage, *petri.Petri, err
 				peer2 := c.AllocID()
 				addr2 := fmt.Sprintf("tiflash%d", tiflashIdx)
 				mockCluster.AddStore(store2, addr2)
-				mockCluster.UFIDelateStoreAddr(store2, addr2, &metapb.StoreLabel{Key: "engine", Value: "tiflash"})
+				mockCluster.UFIDelateStoreAddr(store2, addr2, &spacetimepb.StoreLabel{Key: "engine", Value: "tiflash"})
 				mockCluster.AddPeer(region1, store2, peer2)
 				tiflashIdx++
 			}
@@ -73,12 +73,12 @@ func newStoreWithBootstrap(tiflashNum int) (ekv.CausetStorage, *petri.Petri, err
 	return causetstore, dom, errors.Trace(err)
 }
 
-func testGetTableByName(c *C, ctx stochastikctx.Context, EDB, block string) block.Block {
+func testGetTableByName(c *C, ctx stochastikctx.Context, EDB, causet string) causet.Block {
 	dom := petri.GetPetri(ctx)
-	// Make sure the block schemaReplicant is the new schemaReplicant.
+	// Make sure the causet schemaReplicant is the new schemaReplicant.
 	err := dom.Reload()
 	c.Assert(err, IsNil)
-	tbl, err := dom.SchemaReplicant().TableByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(block))
+	tbl, err := dom.SchemaReplicant().TableByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(causet))
 	c.Assert(err, IsNil)
 	return tbl
 }
@@ -95,14 +95,14 @@ func (s *testBatchCopSuite) TestStoreErr(c *C) {
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t(a int not null, b int not null)")
-	tk.MustExec("alter block t set tiflash replica 1")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t(a int not null, b int not null)")
+	tk.MustInterDirc("alter causet t set tiflash replica 1")
 	tb := testGetTableByName(c, tk.Se, "test", "t")
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateTableReplicaInfo(tk.Se, tb.Meta().ID, true)
 	c.Assert(err, IsNil)
-	tk.MustExec("insert into t values(1,0)")
-	tk.MustExec("set @@stochastik.milevadb_isolation_read_engines=\"tiflash\"")
+	tk.MustInterDirc("insert into t values(1,0)")
+	tk.MustInterDirc("set @@stochastik.milevadb_isolation_read_engines=\"tiflash\"")
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causetstore/mockstore/mockeinsteindb/BatchCopCancelled", "1*return(true)"), IsNil)
 
@@ -130,14 +130,14 @@ func (s *testBatchCopSuite) TestStoreSwitchPeer(c *C) {
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t(a int not null, b int not null)")
-	tk.MustExec("alter block t set tiflash replica 1")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t(a int not null, b int not null)")
+	tk.MustInterDirc("alter causet t set tiflash replica 1")
 	tb := testGetTableByName(c, tk.Se, "test", "t")
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateTableReplicaInfo(tk.Se, tb.Meta().ID, true)
 	c.Assert(err, IsNil)
-	tk.MustExec("insert into t values(1,0)")
-	tk.MustExec("set @@stochastik.milevadb_isolation_read_engines=\"tiflash\"")
+	tk.MustInterDirc("insert into t values(1,0)")
+	tk.MustInterDirc("set @@stochastik.milevadb_isolation_read_engines=\"tiflash\"")
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causetstore/mockstore/mockeinsteindb/BatchCopRpcErrtiflash0", "return(\"tiflash0\")"), IsNil)
 

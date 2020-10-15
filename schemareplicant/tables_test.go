@@ -36,8 +36,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/server"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/helper"
@@ -87,11 +87,11 @@ func (s *testBlockSuiteBase) newTestKitWithRoot(c *C) *testkit.TestKit {
 	return tk
 }
 
-func (s *testBlockSuiteBase) newTestKitWithPlanCache(c *C) *testkit.TestKit {
+func (s *testBlockSuiteBase) newTestKitWithCausetCache(c *C) *testkit.TestKit {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	var err error
 	tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-		PreparedPlanCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+		PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 	})
 	c.Assert(err, IsNil)
 	tk.GetConnectionID()
@@ -213,12 +213,12 @@ func (s *testClusterBlockSuite) TearDownSuite(c *C) {
 
 func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists numschema, timeschema")
-	tk.MustExec("create block numschema(i int(2), f float(4,2), d decimal(4,3))")
-	tk.MustExec("create block timeschema(d date, dt datetime(3), ts timestamp(3), t time(4), y year(4))")
-	tk.MustExec("create block strschema(c char(3), c2 varchar(3), b blob(3), t text(3))")
-	tk.MustExec("create block floatschema(a float, b double(7, 3))")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists numschema, timeschema")
+	tk.MustInterDirc("create causet numschema(i int(2), f float(4,2), d decimal(4,3))")
+	tk.MustInterDirc("create causet timeschema(d date, dt datetime(3), ts timestamp(3), t time(4), y year(4))")
+	tk.MustInterDirc("create causet strschema(c char(3), c2 varchar(3), b blob(3), t text(3))")
+	tk.MustInterDirc("create causet floatschema(a float, b double(7, 3))")
 
 	tk.MustQuery("select CHARACTER_MAXIMUM_LENGTH,CHARACTER_OCTET_LENGTH,NUMERIC_PRECISION,NUMERIC_SCALE,DATETIME_PRECISION from information_schema.COLUMNS where block_name='numschema'").
 		Check(testkit.Rows("<nil> <nil> 2 0 <nil>", "<nil> <nil> 4 2 <nil>", "<nil> <nil> 4 3 <nil>")) // FIXME: for allegrosql first one will be "<nil> <nil> 10 0 <nil>"
@@ -230,15 +230,15 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 		Check(testkit.Rows("<nil>", "3"))
 
 	// Test for auto increment ID.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (c int auto_increment primary key, d int)")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (c int auto_increment primary key, d int)")
 	tk.MustQuery("select auto_increment from information_schema.blocks where block_name='t'").Check(
 		testkit.Rows("1"))
-	tk.MustExec("insert into t(c, d) values(1, 1)")
+	tk.MustInterDirc("insert into t(c, d) values(1, 1)")
 	tk.MustQuery("select auto_increment from information_schema.blocks where block_name='t'").Check(
 		testkit.Rows("2"))
 
-	tk.MustQuery("show create block t").Check(
+	tk.MustQuery("show create causet t").Check(
 		testkit.Rows("" +
 			"t CREATE TABLE `t` (\n" +
 			"  `c` int(11) NOT NULL AUTO_INCREMENT,\n" +
@@ -246,17 +246,17 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 			"  PRIMARY KEY (`c`)\n" +
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin AUTO_INCREMENT=30002"))
 
-	// Test auto_increment for block without auto_increment defCausumn
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (d int)")
+	// Test auto_increment for causet without auto_increment defCausumn
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (d int)")
 	tk.MustQuery("select auto_increment from information_schema.blocks where block_name='t'").Check(
 		testkit.Rows("<nil>"))
 
-	tk.MustExec("create user xxx")
+	tk.MustInterDirc("create user xxx")
 
 	// Test for length of enum and set
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t ( s set('a','bc','def','ghij') default NULL, e1 enum('a', 'ab', 'cdef'), s2 SET('1','2','3','4','1585','ONE','TWO','Y','N','THREE'))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t ( s set('a','bc','def','ghij') default NULL, e1 enum('a', 'ab', 'cdef'), s2 SET('1','2','3','4','1585','ONE','TWO','Y','N','THREE'))")
 	tk.MustQuery("select defCausumn_name, character_maximum_length from information_schema.defCausumns where block_schema=Database() and block_name = 't' and defCausumn_name = 's'").Check(
 		testkit.Rows("s 13"))
 	tk.MustQuery("select defCausumn_name, character_maximum_length from information_schema.defCausumns where block_schema=Database() and block_name = 't' and defCausumn_name = 's2'").Check(
@@ -265,7 +265,7 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 		testkit.Rows("e1 4"))
 
 	tk1 := testkit.NewTestKit(c, s.causetstore)
-	tk1.MustExec("use test")
+	tk1.MustInterDirc("use test")
 	c.Assert(tk1.Se.Auth(&auth.UserIdentity{
 		Username: "xxx",
 		Hostname: "127.0.0.1",
@@ -289,8 +289,8 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 	rows1 := tk.MustQuery("select count(*) from information_schema.blocks where block_schema in ('INFORMATION_SCHEMA','PERFORMANCE_SCHEMA','METRICS_SCHEMA');").Rows()
 	rows2 := tk.MustQuery("select count(*) from information_schema.blocks where block_schema in ('INFORMATION_SCHEMA','PERFORMANCE_SCHEMA','METRICS_SCHEMA') and  block_type = 'SYSTEM VIEW';").Rows()
 	c.Assert(rows1, DeepEquals, rows2)
-	// Test for system block default value
-	tk.MustQuery("show create block information_schema.PROCESSLIST").Check(
+	// Test for system causet default value
+	tk.MustQuery("show create causet information_schema.PROCESSLIST").Check(
 		testkit.Rows("" +
 			"PROCESSLIST CREATE TABLE `PROCESSLIST` (\n" +
 			"  `ID` bigint(21) unsigned NOT NULL DEFAULT 0,\n" +
@@ -305,7 +305,7 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 			"  `MEM` bigint(21) unsigned DEFAULT NULL,\n" +
 			"  `TxnStart` varchar(64) NOT NULL DEFAULT ''\n" +
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustQuery("show create block information_schema.cluster_log").Check(
+	tk.MustQuery("show create causet information_schema.cluster_log").Check(
 		testkit.Rows("" +
 			"CLUSTER_LOG CREATE TABLE `CLUSTER_LOG` (\n" +
 			"  `TIME` varchar(32) DEFAULT NULL,\n" +
@@ -319,12 +319,12 @@ func (s *testBlockSuite) TestschemaReplicantFieldValue(c *C) {
 func (s *testBlockSuite) TestCharacterSetDefCauslations(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	// Test charset/defCauslation in information_schema.COLUMNS block.
-	tk.MustExec("DROP DATABASE IF EXISTS charset_defCauslate_test")
-	tk.MustExec("CREATE DATABASE charset_defCauslate_test; USE charset_defCauslate_test")
+	// Test charset/defCauslation in information_schema.COLUMNS causet.
+	tk.MustInterDirc("DROP DATABASE IF EXISTS charset_defCauslate_test")
+	tk.MustInterDirc("CREATE DATABASE charset_defCauslate_test; USE charset_defCauslate_test")
 
 	// TODO: Specifying the charset for national char/varchar should not be supported.
-	tk.MustExec(`CREATE TABLE charset_defCauslate_defCaus_test(
+	tk.MustInterDirc(`CREATE TABLE charset_defCauslate_defCaus_test(
 		c_int int,
 		c_float float,
 		c_bit bit,
@@ -385,16 +385,16 @@ func (s *testBlockSuite) TestCharacterSetDefCauslations(c *C) {
 		"c_varchar ascii ascii_bin",
 		"c_year <nil> <nil>",
 	))
-	tk.MustExec("DROP DATABASE charset_defCauslate_test")
+	tk.MustInterDirc("DROP DATABASE charset_defCauslate_test")
 }
 
 func (s *testBlockSuite) TestCurrentTimestampAsDefault(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("DROP DATABASE IF EXISTS default_time_test")
-	tk.MustExec("CREATE DATABASE default_time_test; USE default_time_test")
+	tk.MustInterDirc("DROP DATABASE IF EXISTS default_time_test")
+	tk.MustInterDirc("CREATE DATABASE default_time_test; USE default_time_test")
 
-	tk.MustExec(`CREATE TABLE default_time_block(
+	tk.MustInterDirc(`CREATE TABLE default_time_block(
 					c_datetime datetime,
 					c_datetime_default datetime default current_timestamp,
 					c_datetime_default_2 datetime(2) default current_timestamp(2),
@@ -425,7 +425,7 @@ func (s *testBlockSuite) TestCurrentTimestampAsDefault(c *C) {
 		"c_varchar_default_on_uFIDelate_fsp CURRENT_TIMESTAMP(3) DEFAULT_GENERATED on uFIDelate CURRENT_TIMESTAMP(3)",
 		"c_varchar_default_with_case cUrrent_tImestamp ",
 	))
-	tk.MustExec("DROP DATABASE default_time_test")
+	tk.MustInterDirc("DROP DATABASE default_time_test")
 }
 
 type mockStochastikManager struct {
@@ -546,7 +546,7 @@ func prepareSlowLogfile(c *C, slowLogFileName string) {
 # Txn_start_ts: 406315658548871171
 # User@Host: root[root] @ localhost [127.0.0.1]
 # Conn_ID: 6
-# Exec_retry_time: 0.12 Exec_retry_count: 57
+# InterDirc_retry_time: 0.12 InterDirc_retry_count: 57
 # Query_time: 4.895492
 # Parse_time: 0.4
 # Compile_time: 0.2
@@ -565,10 +565,10 @@ func prepareSlowLogfile(c *C, slowLogFileName string) {
 # Cop_wait_avg: 0.05 Cop_wait_p90: 0.6 Cop_wait_max: 0.8 Cop_wait_addr: 0.0.0.0:20160
 # Mem_max: 70724
 # Disk_max: 65536
-# Plan_from_cache: true
+# Causet_from_cache: true
 # Succ: true
-# Plan: abcd
-# Plan_digest: 60e9378c746d9a2be1c791047e008967cf252eb6de9167ad3aa6098fa2d523f4
+# Causet: abcd
+# Causet_digest: 60e9378c746d9a2be1c791047e008967cf252eb6de9167ad3aa6098fa2d523f4
 # Prev_stmt: uFIDelate t set i = 2;
 select * from t_slim;`))
 	c.Assert(f.Close(), IsNil)
@@ -577,8 +577,8 @@ select * from t_slim;`))
 
 func (s *testBlockSuite) TestBlockRowIDShardingInfo(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("DROP DATABASE IF EXISTS `sharding_info_test_db`")
-	tk.MustExec("CREATE DATABASE `sharding_info_test_db`")
+	tk.MustInterDirc("DROP DATABASE IF EXISTS `sharding_info_test_db`")
+	tk.MustInterDirc("CREATE DATABASE `sharding_info_test_db`")
 
 	assertShardingInfo := func(blockName string, expectInfo interface{}) {
 		queryALLEGROSQL := fmt.Sprintf("select milevadb_row_id_sharding_info from information_schema.blocks where block_schema = 'sharding_info_test_db' and block_name = '%s'", blockName)
@@ -589,16 +589,16 @@ func (s *testBlockSuite) TestBlockRowIDShardingInfo(c *C) {
 			c.Assert(info, Equals, expectInfo)
 		}
 	}
-	tk.MustExec("CREATE TABLE `sharding_info_test_db`.`t1` (a int)")
+	tk.MustInterDirc("CREATE TABLE `sharding_info_test_db`.`t1` (a int)")
 	assertShardingInfo("t1", "NOT_SHARDED")
 
-	tk.MustExec("CREATE TABLE `sharding_info_test_db`.`t2` (a int key)")
+	tk.MustInterDirc("CREATE TABLE `sharding_info_test_db`.`t2` (a int key)")
 	assertShardingInfo("t2", "NOT_SHARDED(PK_IS_HANDLE)")
 
-	tk.MustExec("CREATE TABLE `sharding_info_test_db`.`t3` (a int) SHARD_ROW_ID_BITS=4")
+	tk.MustInterDirc("CREATE TABLE `sharding_info_test_db`.`t3` (a int) SHARD_ROW_ID_BITS=4")
 	assertShardingInfo("t3", "SHARD_BITS=4")
 
-	tk.MustExec("CREATE VIEW `sharding_info_test_db`.`tv` AS select 1")
+	tk.MustInterDirc("CREATE VIEW `sharding_info_test_db`.`tv` AS select 1")
 	assertShardingInfo("tv", nil)
 
 	testFunc := func(dbName string, expectInfo interface{}) {
@@ -617,13 +617,13 @@ func (s *testBlockSuite) TestBlockRowIDShardingInfo(c *C) {
 	solitonutil.ConfigTestUtils.SetupAutoRandomTestConfig()
 	defer solitonutil.ConfigTestUtils.RestoreAutoRandomTestConfig()
 
-	tk.MustExec("CREATE TABLE `sharding_info_test_db`.`t4` (a bigint key auto_random)")
+	tk.MustInterDirc("CREATE TABLE `sharding_info_test_db`.`t4` (a bigint key auto_random)")
 	assertShardingInfo("t4", "PK_AUTO_RANDOM_BITS=5")
 
-	tk.MustExec("CREATE TABLE `sharding_info_test_db`.`t5` (a bigint key auto_random(1))")
+	tk.MustInterDirc("CREATE TABLE `sharding_info_test_db`.`t5` (a bigint key auto_random(1))")
 	assertShardingInfo("t5", "PK_AUTO_RANDOM_BITS=1")
 
-	tk.MustExec("DROP DATABASE `sharding_info_test_db`")
+	tk.MustInterDirc("DROP DATABASE `sharding_info_test_db`")
 }
 
 func (s *testBlockSuite) TestSlowQuery(c *C) {
@@ -633,12 +633,12 @@ func (s *testBlockSuite) TestSlowQuery(c *C) {
 	prepareSlowLogfile(c, slowLogFileName)
 	defer os.Remove(slowLogFileName)
 
-	tk.MustExec(fmt.Sprintf("set @@milevadb_slow_query_file='%v'", slowLogFileName))
-	tk.MustExec("set time_zone = '+08:00';")
+	tk.MustInterDirc(fmt.Sprintf("set @@milevadb_slow_query_file='%v'", slowLogFileName))
+	tk.MustInterDirc("set time_zone = '+08:00';")
 	re := tk.MustQuery("select * from information_schema.slow_query")
 	re.Check(solitonutil.RowsWithSep("|",
 		"2020-02-12 19:33:56.571953|406315658548871171|root|localhost|6|57|0.12|4.895492|0.4|0.2|0.000000003|2|0.000000002|0.00000001|0.000000003|0.19|0.21|0.01|0|0.18|[txnLock]|0.03|0|15|480|1|8|0.3824278|0.161|0.101|0.092|1.71|1|100001|100000|test||0|42a1c8aae6f133e934d4bf0147491709a8812ea05ff8819ec522780fe657b772|t1:1,t2:2|0.1|0.2|0.03|127.0.0.1:20160|0.05|0.6|0.8|0.0.0.0:20160|70724|65536|1|1|abcd|60e9378c746d9a2be1c791047e008967cf252eb6de9167ad3aa6098fa2d523f4|uFIDelate t set i = 2;|select * from t_slim;"))
-	tk.MustExec("set time_zone = '+00:00';")
+	tk.MustInterDirc("set time_zone = '+00:00';")
 	re = tk.MustQuery("select * from information_schema.slow_query")
 	re.Check(solitonutil.RowsWithSep("|", "2020-02-12 11:33:56.571953|406315658548871171|root|localhost|6|57|0.12|4.895492|0.4|0.2|0.000000003|2|0.000000002|0.00000001|0.000000003|0.19|0.21|0.01|0|0.18|[txnLock]|0.03|0|15|480|1|8|0.3824278|0.161|0.101|0.092|1.71|1|100001|100000|test||0|42a1c8aae6f133e934d4bf0147491709a8812ea05ff8819ec522780fe657b772|t1:1,t2:2|0.1|0.2|0.03|127.0.0.1:20160|0.05|0.6|0.8|0.0.0.0:20160|70724|65536|1|1|abcd|60e9378c746d9a2be1c791047e008967cf252eb6de9167ad3aa6098fa2d523f4|uFIDelate t set i = 2;|select * from t_slim;"))
 
@@ -670,15 +670,15 @@ func (s *testBlockSuite) TestDeferredCausetStatistics(c *C) {
 
 func (s *testBlockSuite) TestReloadDroFIDelatabase(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("create database test_dbs")
-	tk.MustExec("use test_dbs")
-	tk.MustExec("create block t1 (a int)")
-	tk.MustExec("create block t2 (a int)")
-	tk.MustExec("create block t3 (a int)")
+	tk.MustInterDirc("create database test_dbs")
+	tk.MustInterDirc("use test_dbs")
+	tk.MustInterDirc("create causet t1 (a int)")
+	tk.MustInterDirc("create causet t2 (a int)")
+	tk.MustInterDirc("create causet t3 (a int)")
 	is := petri.GetPetri(tk.Se).SchemaReplicant()
 	t2, err := is.BlockByName(perceptron.NewCIStr("test_dbs"), perceptron.NewCIStr("t2"))
 	c.Assert(err, IsNil)
-	tk.MustExec("drop database test_dbs")
+	tk.MustInterDirc("drop database test_dbs")
 	is = petri.GetPetri(tk.Se).SchemaReplicant()
 	_, err = is.BlockByName(perceptron.NewCIStr("test_dbs"), perceptron.NewCIStr("t2"))
 	c.Assert(terror.ErrorEqual(schemareplicant.ErrBlockNotExists, err), IsTrue)
@@ -771,12 +771,12 @@ func (s *testBlockSuite) checkSystemSchemaBlockID(c *C, dbName string, dbID, sta
 	EDB, ok := is.SchemaByName(perceptron.NewCIStr(dbName))
 	c.Assert(ok, IsTrue)
 	c.Assert(EDB.ID, Equals, dbID)
-	// Test for information_schema block id.
+	// Test for information_schema causet id.
 	blocks := is.SchemaBlocks(perceptron.NewCIStr(dbName))
 	c.Assert(len(blocks), Greater, 0)
 	for _, tbl := range blocks {
 		tid := tbl.Meta().ID
-		comment := Commentf("block name is %v", tbl.Meta().Name)
+		comment := Commentf("causet name is %v", tbl.Meta().Name)
 		c.Assert(tid&autoid.SystemSchemaIDFlag, Greater, int64(0), comment)
 		c.Assert(tid&^autoid.SystemSchemaIDFlag, Greater, start, comment)
 		c.Assert(tid&^autoid.SystemSchemaIDFlag, Less, end, comment)
@@ -792,9 +792,9 @@ func (s *testClusterBlockSuite) TestSelectClusterBlock(c *C) {
 	prepareSlowLogfile(c, slowLogFileName)
 	defer os.Remove(slowLogFileName)
 	for i := 0; i < 2; i++ {
-		tk.MustExec("use information_schema")
-		tk.MustExec(fmt.Sprintf("set @@milevadb_enable_streaming=%d", i))
-		tk.MustExec("set @@global.milevadb_enable_stmt_summary=1")
+		tk.MustInterDirc("use information_schema")
+		tk.MustInterDirc(fmt.Sprintf("set @@milevadb_enable_streaming=%d", i))
+		tk.MustInterDirc("set @@global.milevadb_enable_stmt_summary=1")
 		tk.MustQuery("select count(*) from `CLUSTER_SLOW_QUERY`").Check(testkit.Rows("1"))
 		tk.MustQuery("select time from `CLUSTER_SLOW_QUERY` where time='2020-02-12 19:33:56.571953'").Check(solitonutil.RowsWithSep("|", "2020-02-12 19:33:56.571953"))
 		tk.MustQuery("select count(*) from `CLUSTER_PROCESSLIST`").Check(testkit.Rows("1"))
@@ -803,21 +803,21 @@ func (s *testClusterBlockSuite) TestSelectClusterBlock(c *C) {
 		tk.MustQuery("select count(*) from `CLUSTER_SLOW_QUERY` group by digest").Check(testkit.Rows("1"))
 		tk.MustQuery("select digest, count(*) from `CLUSTER_SLOW_QUERY` group by digest").Check(testkit.Rows("42a1c8aae6f133e934d4bf0147491709a8812ea05ff8819ec522780fe657b772 1"))
 		tk.MustQuery("select count(*) from `CLUSTER_SLOW_QUERY` where time > now() group by digest").Check(testkit.Rows())
-		re := tk.MustQuery("select * from `CLUSTER_statements_summary`")
+		re := tk.MustQuery("select * from `CLUSTER_memexs_summary`")
 		c.Assert(re, NotNil)
 		c.Assert(len(re.Rows()) > 0, IsTrue)
 		// Test for MilevaDB issue 14915.
-		re = tk.MustQuery("select sum(exec_count*avg_mem) from cluster_statements_summary_history group by schema_name,digest,digest_text;")
+		re = tk.MustQuery("select sum(exec_count*avg_mem) from cluster_memexs_summary_history group by schema_name,digest,digest_text;")
 		c.Assert(re, NotNil)
 		c.Assert(len(re.Rows()) > 0, IsTrue)
-		tk.MustQuery("select * from `CLUSTER_statements_summary_history`")
+		tk.MustQuery("select * from `CLUSTER_memexs_summary_history`")
 		c.Assert(re, NotNil)
 		c.Assert(len(re.Rows()) > 0, IsTrue)
-		tk.MustExec("set @@global.milevadb_enable_stmt_summary=0")
-		re = tk.MustQuery("select * from `CLUSTER_statements_summary`")
+		tk.MustInterDirc("set @@global.milevadb_enable_stmt_summary=0")
+		re = tk.MustQuery("select * from `CLUSTER_memexs_summary`")
 		c.Assert(re, NotNil)
 		c.Assert(len(re.Rows()) == 0, IsTrue)
-		tk.MustQuery("select * from `CLUSTER_statements_summary_history`")
+		tk.MustQuery("select * from `CLUSTER_memexs_summary_history`")
 		c.Assert(re, NotNil)
 		c.Assert(len(re.Rows()) == 0, IsTrue)
 	}
@@ -844,15 +844,15 @@ select * from t3;
 	c.Assert(f.Close(), IsNil)
 	c.Assert(err, IsNil)
 	defer os.Remove(slowLogFileName)
-	tk.MustExec("use information_schema")
+	tk.MustInterDirc("use information_schema")
 	tk.MustQuery("select count(*) from `CLUSTER_SLOW_QUERY`").Check(testkit.Rows("4"))
 	tk.MustQuery("select count(*) from `SLOW_QUERY`").Check(testkit.Rows("4"))
 	tk.MustQuery("select count(*) from `CLUSTER_PROCESSLIST`").Check(testkit.Rows("1"))
 	tk.MustQuery("select * from `CLUSTER_PROCESSLIST`").Check(testkit.Rows(fmt.Sprintf(":10080 1 root 127.0.0.1 <nil> Query 9223372036 %s <nil>  0 ", "")))
-	tk.MustExec("create user user1")
-	tk.MustExec("create user user2")
+	tk.MustInterDirc("create user user1")
+	tk.MustInterDirc("create user user2")
 	user1 := testkit.NewTestKit(c, s.causetstore)
-	user1.MustExec("use information_schema")
+	user1.MustInterDirc("use information_schema")
 	c.Assert(user1.Se.Auth(&auth.UserIdentity{
 		Username: "user1",
 		Hostname: "127.0.0.1",
@@ -862,7 +862,7 @@ select * from t3;
 	user1.MustQuery("select user,query from `CLUSTER_SLOW_QUERY`").Check(testkit.Rows("user1 select * from t1;"))
 
 	user2 := testkit.NewTestKit(c, s.causetstore)
-	user2.MustExec("use information_schema")
+	user2.MustInterDirc("use information_schema")
 	c.Assert(user2.Se.Auth(&auth.UserIdentity{
 		Username: "user2",
 		Hostname: "127.0.0.1",
@@ -873,10 +873,10 @@ select * from t3;
 
 func (s *testBlockSuite) TestSelectHiddenDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("DROP DATABASE IF EXISTS `test_hidden`;")
-	tk.MustExec("CREATE DATABASE `test_hidden`;")
-	tk.MustExec("USE test_hidden;")
-	tk.MustExec("CREATE TABLE hidden (a int , b int, c int);")
+	tk.MustInterDirc("DROP DATABASE IF EXISTS `test_hidden`;")
+	tk.MustInterDirc("CREATE DATABASE `test_hidden`;")
+	tk.MustInterDirc("USE test_hidden;")
+	tk.MustInterDirc("CREATE TABLE hidden (a int , b int, c int);")
 	tk.MustQuery("select count(*) from INFORMATION_SCHEMA.COLUMNS where block_name = 'hidden'").Check(testkit.Rows("3"))
 	tb, err := s.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test_hidden"), perceptron.NewCIStr("hidden"))
 	c.Assert(err, IsNil)
@@ -913,55 +913,55 @@ func (s *testBlockSuite) TestFormatVersion(c *C) {
 	}
 }
 
-// Test statements_summary.
+// Test memexs_summary.
 func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	tk := s.newTestKitWithRoot(c)
 
-	tk.MustExec("set @@milevadb_enable_defCauslect_execution_info=0;")
+	tk.MustInterDirc("set @@milevadb_enable_defCauslect_execution_info=0;")
 	tk.MustQuery("select defCausumn_comment from information_schema.defCausumns " +
 		"where block_name='STATEMENTS_SUMMARY' and defCausumn_name='STMT_TYPE'",
 	).Check(testkit.Rows("Statement type"))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int, b varchar(10), key k(a))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int, b varchar(10), key k(a))")
 
-	// Clear all statements.
-	tk.MustExec("set stochastik milevadb_enable_stmt_summary = 0")
-	tk.MustExec("set stochastik milevadb_enable_stmt_summary = ''")
+	// Clear all memexs.
+	tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = 0")
+	tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = ''")
 
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
 	tk.MustQuery("select @@global.milevadb_enable_stmt_summary").Check(testkit.Rows("1"))
 
 	// Invalidate the cache manually so that milevadb_enable_stmt_summary works immediately.
 	s.dom.GetGlobalVarsCache().Disable()
 	// Disable refreshing summary.
-	tk.MustExec("set global milevadb_stmt_summary_refresh_interval = 999999999")
+	tk.MustInterDirc("set global milevadb_stmt_summary_refresh_interval = 999999999")
 	tk.MustQuery("select @@global.milevadb_stmt_summary_refresh_interval").Check(testkit.Rows("999999999"))
 
 	// Create a new stochastik to test.
 	tk = s.newTestKitWithRoot(c)
 
 	// Test INSERT
-	tk.MustExec("insert into t values(1, 'a')")
-	tk.MustExec("insert into t    values(2, 'b')")
-	tk.MustExec("insert into t VALUES(3, 'c')")
-	tk.MustExec("/**/insert into t values(4, 'd')")
+	tk.MustInterDirc("insert into t values(1, 'a')")
+	tk.MustInterDirc("insert into t    values(2, 'b')")
+	tk.MustInterDirc("insert into t VALUES(3, 'c')")
+	tk.MustInterDirc("/**/insert into t values(4, 'd')")
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'insert into t%'`,
 	).Check(testkit.Rows("Insert test test.t <nil> 4 0 0 0 0 0 2 2 1 1 1 insert into t values(1, 'a')"))
 
 	// Test point get.
-	tk.MustExec("drop block if exists p")
-	tk.MustExec("create block p(a int primary key, b int)")
+	tk.MustInterDirc("drop causet if exists p")
+	tk.MustInterDirc("create causet p(a int primary key, b int)")
 	for i := 1; i < 3; i++ {
 		tk.MustQuery("select b from p where a=1")
-		expectedResult := fmt.Sprintf("%d \tid         \ttask\testRows\toperator info\n\tPoint_Get_1\troot\t1      \tblock:p, handle:1 %s", i, "test.p")
+		expectedResult := fmt.Sprintf("%d \tid         \ttask\testRows\toperator info\n\tPoint_Get_1\troot\t1      \tcauset:p, handle:1 %s", i, "test.p")
 		// Also make sure that the plan digest is not empty
 		tk.MustQuery(`select exec_count, plan, block_names
-			from information_schema.statements_summary
+			from information_schema.memexs_summary
 			where digest_text like 'select b from p%' and plan_digest != ''`,
 		).Check(testkit.Rows(expectedResult))
 	}
@@ -969,37 +969,37 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	// Point get another database.
 	tk.MustQuery("select variable_value from allegrosql.milevadb where variable_name = 'system_tz'")
 	tk.MustQuery(`select block_names
-			from information_schema.statements_summary
+			from information_schema.memexs_summary
 			where digest_text like 'select variable_value%' and schema_name='test'`,
 	).Check(testkit.Rows("allegrosql.milevadb"))
 
 	// Test `create database`.
-	tk.MustExec("create database if not exists test")
+	tk.MustInterDirc("create database if not exists test")
 	tk.MustQuery(`select block_names
-			from information_schema.statements_summary
+			from information_schema.memexs_summary
 			where digest_text like 'create database%' and schema_name='test'`,
 	).Check(testkit.Rows("<nil>"))
 
 	// Test SELECT.
-	const failpointName = "github.com/whtcorpsinc/milevadb/planner/core/mockPlanRowCount"
+	const failpointName = "github.com/whtcorpsinc/milevadb/causet/core/mockCausetRowCount"
 	c.Assert(failpoint.Enable(failpointName, "return(100)"), IsNil)
 	defer func() { c.Assert(failpoint.Disable(failpointName), IsNil) }()
 	tk.MustQuery("select * from t where a=2")
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	).Check(testkit.Rows("Select test test.t t:k 1 2 0 0 0 0 0 0 0 0 0 select * from t where a=2 \tid            \ttask     \testRows\toperator info\n" +
 		"\tIndexLookUp_10\troot     \t100    \t\n" +
-		"\t├─IndexScan_8 \tcop[einsteindb]\t100    \tblock:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
-		"\t└─BlockScan_9 \tcop[einsteindb]\t100    \tblock:t, keep order:false, stats:pseudo"))
+		"\t├─IndexScan_8 \tcop[einsteindb]\t100    \tcauset:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
+		"\t└─BlockScan_9 \tcop[einsteindb]\t100    \tcauset:t, keep order:false, stats:pseudo"))
 
 	// select ... order by
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		order by exec_count desc limit 1`,
 	).Check(testkit.Rows("Insert test test.t <nil> 4 0 0 0 0 0 2 2 1 1 1 insert into t values(1, 'a')"))
 
@@ -1009,49 +1009,49 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	).Check(testkit.Rows("Select test test.t t:k 2 4 0 0 0 0 0 0 0 0 0 select * from t where a=2 \tid            \ttask     \testRows\toperator info\n" +
 		"\tIndexLookUp_10\troot     \t100    \t\n" +
-		"\t├─IndexScan_8 \tcop[einsteindb]\t100    \tblock:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
-		"\t└─BlockScan_9 \tcop[einsteindb]\t100    \tblock:t, keep order:false, stats:pseudo"))
+		"\t├─IndexScan_8 \tcop[einsteindb]\t100    \tcauset:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
+		"\t└─BlockScan_9 \tcop[einsteindb]\t100    \tcauset:t, keep order:false, stats:pseudo"))
 
 	// Disable it again.
-	tk.MustExec("set global milevadb_enable_stmt_summary = false")
-	tk.MustExec("set stochastik milevadb_enable_stmt_summary = false")
-	defer tk.MustExec("set global milevadb_enable_stmt_summary = 1")
-	defer tk.MustExec("set stochastik milevadb_enable_stmt_summary = ''")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = false")
+	tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = false")
+	defer tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
+	defer tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = ''")
 	tk.MustQuery("select @@global.milevadb_enable_stmt_summary").Check(testkit.Rows("0"))
 
 	// Create a new stochastik to test
 	tk = s.newTestKitWithRoot(c)
 
-	// This statement shouldn't be summarized.
+	// This memex shouldn't be summarized.
 	tk.MustQuery("select * from t where a=2")
 
-	// The block should be cleared.
+	// The causet should be cleared.
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary`,
+		from information_schema.memexs_summary`,
 	).Check(testkit.Rows())
 
 	// Enable it in stochastik scope.
-	tk.MustExec("set stochastik milevadb_enable_stmt_summary = on")
+	tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = on")
 	// It should work immediately.
-	tk.MustExec("begin")
-	tk.MustExec("insert into t values(1, 'a')")
-	tk.MustExec("commit")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t values(1, 'a')")
+	tk.MustInterDirc("commit")
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, prev_sample_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'insert into t%'`,
 	).Check(testkit.Rows("Insert test test.t <nil> 1 0 0 0 0 0 0 0 0 0 1 insert into t values(1, 'a') "))
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, prev_sample_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text='commit'`,
 	).Check(testkit.Rows("Commit test <nil> <nil> 1 0 0 0 0 0 2 2 1 1 0 commit insert into t values(1, 'a')"))
 
@@ -1059,15 +1059,15 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	).Check(testkit.Rows("Select test test.t t:k 1 2 0 0 0 0 0 0 0 0 0 select * from t where a=2 \tid            \ttask     \testRows\toperator info\n" +
 		"\tIndexLookUp_10\troot     \t1000   \t\n" +
-		"\t├─IndexScan_8 \tcop[einsteindb]\t1000   \tblock:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
-		"\t└─BlockScan_9 \tcop[einsteindb]\t1000   \tblock:t, keep order:false, stats:pseudo"))
+		"\t├─IndexScan_8 \tcop[einsteindb]\t1000   \tcauset:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
+		"\t└─BlockScan_9 \tcop[einsteindb]\t1000   \tcauset:t, keep order:false, stats:pseudo"))
 
 	// Disable it in global scope.
-	tk.MustExec("set global milevadb_enable_stmt_summary = false")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = false")
 
 	// Create a new stochastik to test.
 	tk = s.newTestKitWithRoot(c)
@@ -1078,48 +1078,48 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	).Check(testkit.Rows("Select test test.t t:k 2 4 0 0 0 0 0 0 0 0 0 select * from t where a=2 \tid            \ttask     \testRows\toperator info\n" +
 		"\tIndexLookUp_10\troot     \t1000   \t\n" +
-		"\t├─IndexScan_8 \tcop[einsteindb]\t1000   \tblock:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
-		"\t└─BlockScan_9 \tcop[einsteindb]\t1000   \tblock:t, keep order:false, stats:pseudo"))
+		"\t├─IndexScan_8 \tcop[einsteindb]\t1000   \tcauset:t, index:k(a), range:[2,2], keep order:false, stats:pseudo\n" +
+		"\t└─BlockScan_9 \tcop[einsteindb]\t1000   \tcauset:t, keep order:false, stats:pseudo"))
 
 	// Unset stochastik variable.
-	tk.MustExec("set stochastik milevadb_enable_stmt_summary = ''")
+	tk.MustInterDirc("set stochastik milevadb_enable_stmt_summary = ''")
 	tk.MustQuery("select * from t where a=2")
 
 	// Statement summary is disabled.
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary`,
+		from information_schema.memexs_summary`,
 	).Check(testkit.Rows())
 
 	// Create a new stochastik to test
 	tk = s.newTestKitWithRoot(c)
 
-	tk.MustExec("set global milevadb_enable_stmt_summary = on")
-	tk.MustExec("set global milevadb_stmt_summary_history_size = 24")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = on")
+	tk.MustInterDirc("set global milevadb_stmt_summary_history_size = 24")
 
-	// Create a new user to test statements summary block privilege
-	tk.MustExec("create user 'test_user'@'localhost'")
-	tk.MustExec("grant select on *.* to 'test_user'@'localhost'")
+	// Create a new user to test memexs summary causet privilege
+	tk.MustInterDirc("create user 'test_user'@'localhost'")
+	tk.MustInterDirc("grant select on *.* to 'test_user'@'localhost'")
 	tk.Se.Auth(&auth.UserIdentity{
 		Username:     "root",
 		Hostname:     "%",
 		AuthUsername: "root",
 		AuthHostname: "%",
 	}, nil, nil)
-	tk.MustExec("select * from t where a=1")
+	tk.MustInterDirc("select * from t where a=1")
 	result := tk.MustQuery(`select *
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	)
 	// Super user can query all records.
 	c.Assert(len(result.Rows()), Equals, 1)
 	result = tk.MustQuery(`select *
-		from information_schema.statements_summary_history
+		from information_schema.memexs_summary_history
 		where digest_text like 'select * from t%'`,
 	)
 	c.Assert(len(result.Rows()), Equals, 1)
@@ -1130,25 +1130,25 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 		AuthHostname: "localhost",
 	}, nil, nil)
 	result = tk.MustQuery(`select *
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	)
 	// Ordinary users can not see others' records
 	c.Assert(len(result.Rows()), Equals, 0)
 	result = tk.MustQuery(`select *
-		from information_schema.statements_summary_history
+		from information_schema.memexs_summary_history
 		where digest_text like 'select * from t%'`,
 	)
 	c.Assert(len(result.Rows()), Equals, 0)
-	tk.MustExec("select * from t where a=1")
+	tk.MustInterDirc("select * from t where a=1")
 	result = tk.MustQuery(`select *
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like 'select * from t%'`,
 	)
 	c.Assert(len(result.Rows()), Equals, 1)
-	tk.MustExec("select * from t where a=1")
+	tk.MustInterDirc("select * from t where a=1")
 	result = tk.MustQuery(`select *
-		from information_schema.statements_summary_history
+		from information_schema.memexs_summary_history
 		where digest_text like 'select * from t%'`,
 	)
 	c.Assert(len(result.Rows()), Equals, 1)
@@ -1163,7 +1163,7 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 
 func (s *testBlockSuite) TestIssue18845(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec(`CREATE USER 'user18845'@'localhost';`)
+	tk.MustInterDirc(`CREATE USER 'user18845'@'localhost';`)
 	tk.Se.Auth(&auth.UserIdentity{
 		Username:     "user18845",
 		Hostname:     "localhost",
@@ -1173,61 +1173,61 @@ func (s *testBlockSuite) TestIssue18845(c *C) {
 	tk.MustQuery(`select count(*) from information_schema.defCausumns;`)
 }
 
-// Test statements_summary_history.
+// Test memexs_summary_history.
 func (s *testBlockSuite) TestStmtSummaryHistoryBlock(c *C) {
 	tk := s.newTestKitWithRoot(c)
-	tk.MustExec("drop block if exists test_summary")
-	tk.MustExec("create block test_summary(a int, b varchar(10), key k(a))")
+	tk.MustInterDirc("drop causet if exists test_summary")
+	tk.MustInterDirc("create causet test_summary(a int, b varchar(10), key k(a))")
 
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
 	tk.MustQuery("select @@global.milevadb_enable_stmt_summary").Check(testkit.Rows("1"))
 
 	// Invalidate the cache manually so that milevadb_enable_stmt_summary works immediately.
 	s.dom.GetGlobalVarsCache().Disable()
 	// Disable refreshing summary.
-	tk.MustExec("set global milevadb_stmt_summary_refresh_interval = 999999999")
+	tk.MustInterDirc("set global milevadb_stmt_summary_refresh_interval = 999999999")
 	tk.MustQuery("select @@global.milevadb_stmt_summary_refresh_interval").Check(testkit.Rows("999999999"))
 
 	// Create a new stochastik to test.
 	tk = s.newTestKitWithRoot(c)
 
 	// Test INSERT
-	tk.MustExec("insert into test_summary values(1, 'a')")
-	tk.MustExec("insert into test_summary    values(2, 'b')")
-	tk.MustExec("insert into TEST_SUMMARY VALUES(3, 'c')")
-	tk.MustExec("/**/insert into test_summary values(4, 'd')")
+	tk.MustInterDirc("insert into test_summary values(1, 'a')")
+	tk.MustInterDirc("insert into test_summary    values(2, 'b')")
+	tk.MustInterDirc("insert into TEST_SUMMARY VALUES(3, 'c')")
+	tk.MustInterDirc("/**/insert into test_summary values(4, 'd')")
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text
-		from information_schema.statements_summary_history
+		from information_schema.memexs_summary_history
 		where digest_text like 'insert into test_summary%'`,
 	).Check(testkit.Rows("Insert test test.test_summary <nil> 4 0 0 0 0 0 2 2 1 1 1 insert into test_summary values(1, 'a')"))
 
-	tk.MustExec("set global milevadb_stmt_summary_history_size = 0")
+	tk.MustInterDirc("set global milevadb_stmt_summary_history_size = 0")
 	tk.MustQuery(`select stmt_type, schema_name, block_names, index_names, exec_count, sum_cop_task_num, avg_total_keys,
 		max_total_keys, avg_processed_keys, max_processed_keys, avg_write_keys, max_write_keys, avg_prewrite_regions,
 		max_prewrite_regions, avg_affected_rows, query_sample_text, plan
-		from information_schema.statements_summary_history`,
+		from information_schema.memexs_summary_history`,
 	).Check(testkit.Rows())
 }
 
-// Test statements_summary_history.
+// Test memexs_summary_history.
 func (s *testBlockSuite) TestStmtSummaryInternalQuery(c *C) {
 	tk := s.newTestKitWithRoot(c)
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int, b varchar(10), key k(a))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int, b varchar(10), key k(a))")
 
 	// We use the allegrosql binding evolve to check the internal query summary.
-	tk.MustExec("set @@milevadb_use_plan_baselines = 1")
-	tk.MustExec("set @@milevadb_evolve_plan_baselines = 1")
-	tk.MustExec("create global binding for select * from t where t.a = 1 using select * from t ignore index(k) where t.a = 1")
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("set @@milevadb_use_plan_baselines = 1")
+	tk.MustInterDirc("set @@milevadb_evolve_plan_baselines = 1")
+	tk.MustInterDirc("create global binding for select * from t where t.a = 1 using select * from t ignore index(k) where t.a = 1")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
 	tk.MustQuery("select @@global.milevadb_enable_stmt_summary").Check(testkit.Rows("1"))
 	// Invalidate the cache manually so that milevadb_enable_stmt_summary works immediately.
 	s.dom.GetGlobalVarsCache().Disable()
 	// Disable refreshing summary.
-	tk.MustExec("set global milevadb_stmt_summary_refresh_interval = 999999999")
+	tk.MustInterDirc("set global milevadb_stmt_summary_refresh_interval = 999999999")
 	tk.MustQuery("select @@global.milevadb_stmt_summary_refresh_interval").Check(testkit.Rows("999999999"))
 
 	// Test Internal
@@ -1235,24 +1235,24 @@ func (s *testBlockSuite) TestStmtSummaryInternalQuery(c *C) {
 	// Create a new stochastik to test.
 	tk = s.newTestKitWithRoot(c)
 
-	tk.MustExec("select * from t where t.a = 1")
+	tk.MustInterDirc("select * from t where t.a = 1")
 	tk.MustQuery(`select exec_count, digest_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "select original_sql , bind_sql , default_db , status%"`).Check(testkit.Rows())
 
 	// Enable internal query and evolve baseline.
-	tk.MustExec("set global milevadb_stmt_summary_internal_query = 1")
-	defer tk.MustExec("set global milevadb_stmt_summary_internal_query = false")
+	tk.MustInterDirc("set global milevadb_stmt_summary_internal_query = 1")
+	defer tk.MustInterDirc("set global milevadb_stmt_summary_internal_query = false")
 
 	// Create a new stochastik to test.
 	tk = s.newTestKitWithRoot(c)
 
-	tk.MustExec("admin flush bindings")
-	tk.MustExec("admin evolve bindings")
+	tk.MustInterDirc("admin flush bindings")
+	tk.MustInterDirc("admin evolve bindings")
 
 	// `exec_count` may be bigger than 1 because other cases are also running.
 	tk.MustQuery(`select digest_text
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "select original_sql , bind_sql , default_db , status%"`).Check(testkit.Rows(
 		"select original_sql , bind_sql , default_db , status , create_time , uFIDelate_time , charset , defCauslation , source from allegrosql . bind_info" +
 			" where uFIDelate_time > ? order by uFIDelate_time"))
@@ -1263,23 +1263,23 @@ func (s *testBlockSuite) TestStmtSummaryErrorCount(c *C) {
 	tk := s.newTestKitWithRoot(c)
 
 	// Clear summaries.
-	tk.MustExec("set global milevadb_enable_stmt_summary = 0")
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 0")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
 
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists stmt_summary_test")
-	tk.MustExec("create block stmt_summary_test(id int primary key)")
-	tk.MustExec("insert into stmt_summary_test values(1)")
-	_, err := tk.Exec("insert into stmt_summary_test values(1)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists stmt_summary_test")
+	tk.MustInterDirc("create causet stmt_summary_test(id int primary key)")
+	tk.MustInterDirc("insert into stmt_summary_test values(1)")
+	_, err := tk.InterDirc("insert into stmt_summary_test values(1)")
 	c.Assert(err, NotNil)
 
 	tk.MustQuery(`select exec_count, sum_errors, sum_warnings
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "insert into stmt_summary_test%"`).Check(testkit.Rows("2 1 0"))
 
-	tk.MustExec("insert ignore into stmt_summary_test values(1)")
+	tk.MustInterDirc("insert ignore into stmt_summary_test values(1)")
 	tk.MustQuery(`select exec_count, sum_errors, sum_warnings
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "insert ignore into stmt_summary_test%"`).Check(testkit.Rows("1 0 1"))
 }
 
@@ -1287,30 +1287,30 @@ func (s *testBlockSuite) TestStmtSummaryPreparedStatements(c *C) {
 	tk := s.newTestKitWithRoot(c)
 
 	// Clear summaries.
-	tk.MustExec("set global milevadb_enable_stmt_summary = 0")
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 0")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
 
-	tk.MustExec("use test")
-	tk.MustExec("prepare stmt from 'select ?'")
-	tk.MustExec("set @number=1")
-	tk.MustExec("execute stmt using @number")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("prepare stmt from 'select ?'")
+	tk.MustInterDirc("set @number=1")
+	tk.MustInterDirc("execute stmt using @number")
 
 	tk.MustQuery(`select exec_count
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "prepare%"`).Check(testkit.Rows())
 	tk.MustQuery(`select exec_count
-		from information_schema.statements_summary
+		from information_schema.memexs_summary
 		where digest_text like "select ?"`).Check(testkit.Rows("1"))
 }
 
 func (s *testBlockSuite) TestStmtSummarySensitiveQuery(c *C) {
 	tk := s.newTestKitWithRoot(c)
-	tk.MustExec("set global milevadb_enable_stmt_summary = 0")
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
-	tk.MustExec("drop user if exists user_sensitive;")
-	tk.MustExec("create user user_sensitive identified by '123456789';")
-	tk.MustExec("alter user 'user_sensitive'@'%' identified by 'abcdefg';")
-	tk.MustExec("set password for 'user_sensitive'@'%' = 'xyzuvw';")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 0")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("drop user if exists user_sensitive;")
+	tk.MustInterDirc("create user user_sensitive identified by '123456789';")
+	tk.MustInterDirc("alter user 'user_sensitive'@'%' identified by 'abcdefg';")
+	tk.MustInterDirc("set password for 'user_sensitive'@'%' = 'xyzuvw';")
 	tk.MustQuery("select query_sample_text from `information_schema`.`STATEMENTS_SUMMARY` " +
 		"where query_sample_text like '%user_sensitive%' and " +
 		"(query_sample_text like 'set password%' or query_sample_text like 'create user%' or query_sample_text like 'alter user%') " +
@@ -1322,28 +1322,28 @@ func (s *testBlockSuite) TestStmtSummarySensitiveQuery(c *C) {
 		))
 }
 
-func (s *testBlockSuite) TestPerformanceSchemaforPlanCache(c *C) {
-	orgEnable := plannercore.PreparedPlanCacheEnabled()
+func (s *testBlockSuite) TestPerformanceSchemaforCausetCache(c *C) {
+	orgEnable := causetcore.PreparedCausetCacheEnabled()
 	defer func() {
-		plannercore.SetPreparedPlanCache(orgEnable)
+		causetcore.SetPreparedCausetCache(orgEnable)
 	}()
-	plannercore.SetPreparedPlanCache(true)
+	causetcore.SetPreparedCausetCache(true)
 
-	tk := s.newTestKitWithPlanCache(c)
+	tk := s.newTestKitWithCausetCache(c)
 
 	// Clear summaries.
-	tk.MustExec("set global milevadb_enable_stmt_summary = 0")
-	tk.MustExec("set global milevadb_enable_stmt_summary = 1")
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int)")
-	tk.MustExec("prepare stmt from 'select * from t'")
-	tk.MustExec("execute stmt")
-	tk.MustQuery("select plan_cache_hits, plan_in_cache from information_schema.statements_summary where digest_text='select * from t'").Check(
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 0")
+	tk.MustInterDirc("set global milevadb_enable_stmt_summary = 1")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int)")
+	tk.MustInterDirc("prepare stmt from 'select * from t'")
+	tk.MustInterDirc("execute stmt")
+	tk.MustQuery("select plan_cache_hits, plan_in_cache from information_schema.memexs_summary where digest_text='select * from t'").Check(
 		testkit.Rows("0 0"))
-	tk.MustExec("execute stmt")
-	tk.MustExec("execute stmt")
-	tk.MustExec("execute stmt")
-	tk.MustQuery("select plan_cache_hits, plan_in_cache from information_schema.statements_summary where digest_text='select * from t'").Check(
+	tk.MustInterDirc("execute stmt")
+	tk.MustInterDirc("execute stmt")
+	tk.MustInterDirc("execute stmt")
+	tk.MustQuery("select plan_cache_hits, plan_in_cache from information_schema.memexs_summary where digest_text='select * from t'").Check(
 		testkit.Rows("3 1"))
 }

@@ -77,7 +77,7 @@ func (c *DefCauslector) cpuProfileGraph() ([][]types.Causet, error) {
 	return c.ProfileReaderToCausets(buffer)
 }
 
-// ProfileGraph returns the CPU/memory/mutex/allocs/block profile flamegraph which is organized by tree form
+// ProfileGraph returns the CPU/memory/mutex/allocs/causet profile flamegraph which is organized by tree form
 func (c *DefCauslector) ProfileGraph(name string) ([][]types.Causet, error) {
 	if strings.ToLower(strings.TrimSpace(name)) == "cpu" {
 		return c.cpuProfileGraph()

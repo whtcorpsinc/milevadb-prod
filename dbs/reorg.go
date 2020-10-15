@@ -27,13 +27,13 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -127,7 +127,7 @@ func (rc *reorgCtx) clean() {
 	rc.doneCh = nil
 }
 
-func (w *worker) runReorgJob(t *meta.Meta, reorgInfo *reorgInfo, tblInfo *perceptron.BlockInfo, lease time.Duration, f func() error) error {
+func (w *worker) runReorgJob(t *spacetime.Meta, reorgInfo *reorgInfo, tblInfo *perceptron.BlockInfo, lease time.Duration, f func() error) error {
 	job := reorgInfo.Job
 	if w.reorgCtx.doneCh == nil {
 		// start a reorganization job
@@ -179,7 +179,7 @@ func (w *worker) runReorgJob(t *meta.Meta, reorgInfo *reorgInfo, tblInfo *percep
 		err := t.UFIDelateDBSReorgStartHandle(job, doneHandle)
 		logutil.BgLogger().Info("[dbs] run reorg job wait timeout", zap.Duration("waitTime", waitTimeout),
 			zap.Int64("totalAddedRowCount", rowCount), zap.String("doneHandle", toString(doneHandle)), zap.Error(err))
-		// If timeout, we will return, check the owner and retry to wait job done again.
+		// If timeout, we will return, check the tenant and retry to wait job done again.
 		return errWaitReorgTimeout
 	}
 }
@@ -209,13 +209,13 @@ func getBlockTotalCount(w *worker, tblInfo *perceptron.BlockInfo) int64 {
 	}
 	defer w.sessPool.put(ctx)
 
-	executor, ok := ctx.(sqlexec.RestrictedALLEGROSQLExecutor)
-	// `mock.Context` is used in tests, which doesn't implement RestrictedALLEGROSQLExecutor
+	interlock, ok := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate)
+	// `mock.Context` is used in tests, which doesn't implement RestrictedALLEGROSQLInterlockingDirectorate
 	if !ok {
 		return statistics.PseudoRowCount
 	}
 	allegrosql := fmt.Sprintf("select block_rows from information_schema.blocks where milevadb_block_id=%v;", tblInfo.ID)
-	rows, _, err := executor.ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := interlock.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return statistics.PseudoRowCount
 	}
@@ -236,10 +236,10 @@ func (w *worker) isReorgRunnable(d *dbsCtx) error {
 		return errCancelledDBSJob
 	}
 
-	if !d.isOwner() {
-		// If it's not the owner, we will try later, so here just returns an error.
-		logutil.BgLogger().Info("[dbs] DBS worker is not the DBS owner", zap.String("ID", d.uuid))
-		return errors.Trace(errNotOwner)
+	if !d.isTenant() {
+		// If it's not the tenant, we will try later, so here just returns an error.
+		logutil.BgLogger().Info("[dbs] DBS worker is not the DBS tenant", zap.String("ID", d.uuid))
+		return errors.Trace(errNotTenant)
 	}
 	return nil
 }
@@ -247,16 +247,16 @@ func (w *worker) isReorgRunnable(d *dbsCtx) error {
 type reorgInfo struct {
 	*perceptron.Job
 
-	// StartHandle is the first handle of the adding indices block.
+	// StartHandle is the first handle of the adding indices causet.
 	StartHandle ekv.Handle
-	// EndHandle is the last handle of the adding indices block.
+	// EndHandle is the last handle of the adding indices causet.
 	EndHandle ekv.Handle
 	d         *dbsCtx
 	first     bool
-	// PhysicalBlockID is used for partitioned block.
-	// DBS reorganize for a partitioned block will handle partitions one by one,
+	// PhysicalBlockID is used for partitioned causet.
+	// DBS reorganize for a partitioned causet will handle partitions one by one,
 	// PhysicalBlockID is used to trace the current partition we are handling.
-	// If the block is not partitioned, PhysicalBlockID would be BlockID.
+	// If the causet is not partitioned, PhysicalBlockID would be BlockID.
 	PhysicalBlockID int64
 }
 
@@ -267,21 +267,21 @@ func (r *reorgInfo) String() string {
 		"PhysicalBlockID:" + strconv.FormatInt(r.PhysicalBlockID, 10)
 }
 
-func constructDescBlockScanPB(physicalBlockID int64, tblInfo *perceptron.BlockInfo, handleDefCauss []*perceptron.DeferredCausetInfo) *fidelpb.Executor {
+func constructDescBlockScanPB(physicalBlockID int64, tblInfo *perceptron.BlockInfo, handleDefCauss []*perceptron.DeferredCausetInfo) *fidelpb.InterlockingDirectorate {
 	tblScan := blocks.BuildBlockScanFromInfos(tblInfo, handleDefCauss)
 	tblScan.BlockId = physicalBlockID
 	tblScan.Desc = true
-	return &fidelpb.Executor{Tp: fidelpb.ExecType_TypeBlockScan, TblScan: tblScan}
+	return &fidelpb.InterlockingDirectorate{Tp: fidelpb.InterDircType_TypeBlockScan, TblScan: tblScan}
 }
 
-func constructLimitPB(count uint64) *fidelpb.Executor {
-	limitExec := &fidelpb.Limit{
+func constructLimitPB(count uint64) *fidelpb.InterlockingDirectorate {
+	limitInterDirc := &fidelpb.Limit{
 		Limit: count,
 	}
-	return &fidelpb.Executor{Tp: fidelpb.ExecType_TypeLimit, Limit: limitExec}
+	return &fidelpb.InterlockingDirectorate{Tp: fidelpb.InterDircType_TypeLimit, Limit: limitInterDirc}
 }
 
-func buildDescBlockScanPosetDag(ctx stochastikctx.Context, tbl block.PhysicalBlock, handleDefCauss []*perceptron.DeferredCausetInfo, limit uint64) (*fidelpb.PosetDagRequest, error) {
+func buildDescBlockScanPosetDag(ctx stochastikctx.Context, tbl causet.PhysicalBlock, handleDefCauss []*perceptron.DeferredCausetInfo, limit uint64) (*fidelpb.PosetDagRequest, error) {
 	posetPosetDagReq := &fidelpb.PosetDagRequest{}
 	_, timeZoneOffset := time.Now().In(time.UTC).Zone()
 	posetPosetDagReq.TimeZoneOffset = int64(timeZoneOffset)
@@ -290,9 +290,9 @@ func buildDescBlockScanPosetDag(ctx stochastikctx.Context, tbl block.PhysicalBlo
 	}
 	posetPosetDagReq.Flags |= perceptron.FlagInSelectStmt
 
-	tblScanExec := constructDescBlockScanPB(tbl.GetPhysicalID(), tbl.Meta(), handleDefCauss)
-	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, tblScanExec)
-	posetPosetDagReq.Executors = append(posetPosetDagReq.Executors, constructLimitPB(limit))
+	tblScanInterDirc := constructDescBlockScanPB(tbl.GetPhysicalID(), tbl.Meta(), handleDefCauss)
+	posetPosetDagReq.InterlockingDirectorates = append(posetPosetDagReq.InterlockingDirectorates, tblScanInterDirc)
+	posetPosetDagReq.InterlockingDirectorates = append(posetPosetDagReq.InterlockingDirectorates, constructLimitPB(limit))
 	allegrosql.SetEncodeType(ctx, posetPosetDagReq)
 	return posetPosetDagReq, nil
 }
@@ -305,8 +305,8 @@ func getDeferredCausetsTypes(defCausumns []*perceptron.DeferredCausetInfo) []*ty
 	return defCausTypes
 }
 
-// buildDescBlockScan builds a desc block scan upon tblInfo.
-func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl block.PhysicalBlock,
+// buildDescBlockScan builds a desc causet scan upon tblInfo.
+func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl causet.PhysicalBlock,
 	handleDefCauss []*perceptron.DeferredCausetInfo, limit uint64) (allegrosql.SelectResult, error) {
 	sctx := newContext(dc.causetstore)
 	posetPosetDagPB, err := buildDescBlockScanPosetDag(sctx, tbl, handleDefCauss, limit)
@@ -344,7 +344,7 @@ func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl bl
 }
 
 // GetBlockMaxHandle gets the max handle of a PhysicalBlock.
-func (dc *dbsCtx) GetBlockMaxHandle(startTS uint64, tbl block.PhysicalBlock) (maxHandle ekv.Handle, emptyBlock bool, err error) {
+func (dc *dbsCtx) GetBlockMaxHandle(startTS uint64, tbl causet.PhysicalBlock) (maxHandle ekv.Handle, emptyBlock bool, err error) {
 	var handleDefCauss []*perceptron.DeferredCausetInfo
 	var pkIdx *perceptron.IndexInfo
 	tblInfo := tbl.Meta()
@@ -367,7 +367,7 @@ func (dc *dbsCtx) GetBlockMaxHandle(startTS uint64, tbl block.PhysicalBlock) (ma
 	}
 
 	ctx := context.Background()
-	// build a desc scan of tblInfo, which limit is 1, we can use it to retrieve the last handle of the block.
+	// build a desc scan of tblInfo, which limit is 1, we can use it to retrieve the last handle of the causet.
 	result, err := dc.buildDescBlockScan(ctx, startTS, tbl, handleDefCauss, 1)
 	if err != nil {
 		return nil, false, errors.Trace(err)
@@ -381,7 +381,7 @@ func (dc *dbsCtx) GetBlockMaxHandle(startTS uint64, tbl block.PhysicalBlock) (ma
 	}
 
 	if chk.NumRows() == 0 {
-		// empty block
+		// empty causet
 		return nil, true, nil
 	}
 	sessCtx := newContext(dc.causetstore)
@@ -410,8 +410,8 @@ func buildCommonHandleFromChunkRow(sctx *stmtctx.StatementContext, tblInfo *perc
 	return ekv.NewCommonHandle(handleBytes)
 }
 
-// getBlockRange gets the start and end handle of a block (or partition).
-func getBlockRange(d *dbsCtx, tbl block.PhysicalBlock, snapshotVer uint64, priority int) (startHandle, endHandle ekv.Handle, err error) {
+// getBlockRange gets the start and end handle of a causet (or partition).
+func getBlockRange(d *dbsCtx, tbl causet.PhysicalBlock, snapshotVer uint64, priority int) (startHandle, endHandle ekv.Handle, err error) {
 	// Get the start handle of this partition.
 	err = iterateSnapshotRows(d.causetstore, priority, tbl, snapshotVer, nil, nil, true,
 		func(h ekv.Handle, rowKey ekv.Key, rawRecord []byte) (bool, error) {
@@ -427,8 +427,8 @@ func getBlockRange(d *dbsCtx, tbl block.PhysicalBlock, snapshotVer uint64, prior
 		return startHandle, endHandle, errors.Trace(err)
 	}
 	if emptyBlock || endHandle.Compare(startHandle) < 0 {
-		logutil.BgLogger().Info("[dbs] get block range, endHandle < startHandle", zap.String("block", fmt.Sprintf("%v", tbl.Meta())),
-			zap.Int64("block/partition ID", tbl.GetPhysicalID()), zap.String("endHandle", toString(endHandle)), zap.String("startHandle", toString(startHandle)))
+		logutil.BgLogger().Info("[dbs] get causet range, endHandle < startHandle", zap.String("causet", fmt.Sprintf("%v", tbl.Meta())),
+			zap.Int64("causet/partition ID", tbl.GetPhysicalID()), zap.String("endHandle", toString(endHandle)), zap.String("startHandle", toString(startHandle)))
 		endHandle = startHandle
 	}
 	return
@@ -444,7 +444,7 @@ func getValidCurrentVersion(causetstore ekv.CausetStorage) (ver ekv.Version, err
 	return ver, nil
 }
 
-func getReorgInfo(d *dbsCtx, t *meta.Meta, job *perceptron.Job, tbl block.Block) (*reorgInfo, error) {
+func getReorgInfo(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job, tbl causet.Block) (*reorgInfo, error) {
 	var (
 		start ekv.Handle
 		end   ekv.Handle
@@ -461,18 +461,18 @@ func getReorgInfo(d *dbsCtx, t *meta.Meta, job *perceptron.Job, tbl block.Block)
 		}
 		tblInfo := tbl.Meta()
 		pid = tblInfo.ID
-		var tb block.PhysicalBlock
+		var tb causet.PhysicalBlock
 		if pi := tblInfo.GetPartitionInfo(); pi != nil {
 			pid = pi.Definitions[0].ID
-			tb = tbl.(block.PartitionedBlock).GetPartition(pid)
+			tb = tbl.(causet.PartitionedBlock).GetPartition(pid)
 		} else {
-			tb = tbl.(block.PhysicalBlock)
+			tb = tbl.(causet.PhysicalBlock)
 		}
 		start, end, err = getBlockRange(d, tb, ver.Ver, job.Priority)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		logutil.BgLogger().Info("[dbs] job get block range",
+		logutil.BgLogger().Info("[dbs] job get causet range",
 			zap.Int64("jobID", job.ID), zap.Int64("physicalBlockID", pid),
 			zap.String("startHandle", toString(start)), zap.String("endHandle", toString(end)))
 
@@ -505,6 +505,6 @@ func (r *reorgInfo) UFIDelateReorgMeta(txn ekv.Transaction, startHandle, endHand
 	if startHandle == nil && endHandle == nil {
 		return nil
 	}
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	return errors.Trace(t.UFIDelateDBSReorgHandle(r.Job, startHandle, endHandle, physicalBlockID))
 }

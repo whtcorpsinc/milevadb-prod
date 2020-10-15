@@ -20,8 +20,8 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/types"
 	. "github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
@@ -88,7 +88,7 @@ func (s *testDBSSuite) TestReorg(c *C) {
 	c.Assert(err, IsNil)
 	txn, err = ctx.Txn(true)
 	c.Assert(err, IsNil)
-	m := meta.NewMeta(txn)
+	m := spacetime.NewMeta(txn)
 	rInfo := &reorgInfo{
 		Job: job,
 	}
@@ -110,7 +110,7 @@ func (s *testDBSSuite) TestReorg(c *C) {
 			err = ctx.NewTxn(context.Background())
 			c.Assert(err, IsNil)
 
-			m = meta.NewMeta(txn)
+			m = spacetime.NewMeta(txn)
 			info, err1 := getReorgInfo(d.dbsCtx, m, job, mockTbl)
 			c.Assert(err1, IsNil)
 			c.Assert(info.StartHandle, HandleEquals, handle)
@@ -133,7 +133,7 @@ func (s *testDBSSuite) TestReorg(c *C) {
 	startHandle := s.NewHandle().Int(1).Common(100, "string")
 	endHandle := s.NewHandle().Int(0).Common(101, "string")
 	err = ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err1 error
 		info, err1 = getReorgInfo(d.dbsCtx, t, job, mockTbl)
 		c.Assert(err1, IsNil)
@@ -144,7 +144,7 @@ func (s *testDBSSuite) TestReorg(c *C) {
 	c.Assert(err, IsNil)
 
 	err = ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err1 error
 		info, err1 = getReorgInfo(d.dbsCtx, t, job, mockTbl)
 		c.Assert(err1, IsNil)
@@ -167,8 +167,8 @@ func (s *testDBSSuite) TestReorg(c *C) {
 	s.RerunWithCommonHandleEnabled(c, s.TestReorg)
 }
 
-func (s *testDBSSuite) TestReorgOwner(c *C) {
-	causetstore := testCreateStore(c, "test_reorg_owner")
+func (s *testDBSSuite) TestReorgTenant(c *C) {
+	causetstore := testCreateStore(c, "test_reorg_tenant")
 	defer causetstore.Close()
 
 	d1 := testNewDBSAndStart(
@@ -181,7 +181,7 @@ func (s *testDBSSuite) TestReorgOwner(c *C) {
 
 	ctx := testNewContext(d1)
 
-	testCheckOwner(c, d1, true)
+	testCheckTenant(c, d1, true)
 
 	d2 := testNewDBSAndStart(
 		context.Background(),
@@ -221,7 +221,7 @@ func (s *testDBSSuite) TestReorgOwner(c *C) {
 	testDropSchema(c, ctx, d1, dbInfo)
 
 	err = ekv.RunInNewTxn(d1.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		EDB, err1 := t.GetDatabase(dbInfo.ID)
 		c.Assert(err1, IsNil)
 		c.Assert(EDB, IsNil)

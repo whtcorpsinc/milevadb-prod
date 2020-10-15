@@ -31,7 +31,7 @@ func (s *testDeferredCausetChangeSuite) TestFailBeforeDecodeArgs(c *C) {
 		WithLease(testLease),
 	)
 	defer d.Stop()
-	// create block t_fail (c1 int, c2 int);
+	// create causet t_fail (c1 int, c2 int);
 	tblInfo := testBlockInfo(c, d, "t_fail", 2)
 	ctx := testNewContext(d)
 	err := ctx.NewTxn(context.Background())

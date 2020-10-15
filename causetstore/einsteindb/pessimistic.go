@@ -142,15 +142,15 @@ func (action actionPessimisticLock) handleSingleBatch(c *twoPhaseCommitter, bo *
 				return &ErrDeadlock{Deadlock: deadlock}
 			}
 
-			// Extract lock from key error
-			lock, err1 := extractLockFromKeyErr(keyErr)
+			// Extract dagger from key error
+			dagger, err1 := extractLockFromKeyErr(keyErr)
 			if err1 != nil {
 				return errors.Trace(err1)
 			}
-			locks = append(locks, lock)
+			locks = append(locks, dagger)
 		}
 		// Because we already waited on einsteindb, no need to Backoff here.
-		// einsteindb default will wait 3s(also the maximum wait value) when lock error occurs
+		// einsteindb default will wait 3s(also the maximum wait value) when dagger error occurs
 		startTime = time.Now()
 		msBeforeTxnExpired, _, err := c.causetstore.lockResolver.ResolveLocks(bo, 0, locks)
 		if err != nil {
@@ -161,14 +161,14 @@ func (action actionPessimisticLock) handleSingleBatch(c *twoPhaseCommitter, bo *
 		}
 
 		// If msBeforeTxnExpired is not zero, it means there are still locks blocking us acquiring
-		// the pessimistic lock. We should return acquire fail with nowait set or timeout error if necessary.
+		// the pessimistic dagger. We should return acquire fail with nowait set or timeout error if necessary.
 		if msBeforeTxnExpired > 0 {
 			if action.LockWaitTime == ekv.LockNoWait {
 				return ErrLockAcquireFailAndNoWaitSet
 			} else if action.LockWaitTime == ekv.LockAlwaysWait {
 				// do nothing but keep wait
 			} else {
-				// the lockWaitTime is set, we should return wait timeout if we are still blocked by a lock
+				// the lockWaitTime is set, we should return wait timeout if we are still blocked by a dagger
 				if time.Since(lockWaitStartTime).Milliseconds() >= action.LockWaitTime {
 					return errors.Trace(ErrLockWaitTimeout)
 				}
@@ -178,9 +178,9 @@ func (action actionPessimisticLock) handleSingleBatch(c *twoPhaseCommitter, bo *
 			}
 		}
 
-		// Handle the killed flag when waiting for the pessimistic lock.
+		// Handle the killed flag when waiting for the pessimistic dagger.
 		// When a txn runs into LockKeys() and backoff here, it has no chance to call
-		// executor.Next() and check the killed flag.
+		// interlock.Next() and check the killed flag.
 		if action.Killed != nil {
 			// Do not reset the killed flag here!
 			// actionPessimisticLock runs on each region parallelly, we have to consider that

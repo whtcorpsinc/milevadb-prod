@@ -38,9 +38,9 @@ func (s *testLatchSuite) SetUpTest(c *C) {
 	s.latches = NewLatches(256)
 }
 
-func (s *testLatchSuite) newLock(keys [][]byte) (startTS uint64, lock *Lock) {
+func (s *testLatchSuite) newLock(keys [][]byte) (startTS uint64, dagger *Lock) {
 	startTS = getTso()
-	lock = s.latches.genLock(startTS, keys)
+	dagger = s.latches.genLock(startTS, keys)
 	return
 }
 
@@ -56,15 +56,15 @@ func (s *testLatchSuite) TestWakeUp(c *C) {
 	keysB := [][]byte{[]byte("d"), []byte("e"), []byte("a"), []byte("c")}
 	startTSB, lockB := s.newLock(keysB)
 
-	// A acquire lock success.
+	// A acquire dagger success.
 	result := s.latches.acquire(lockA)
 	c.Assert(result, Equals, acquireSuccess)
 
-	// B acquire lock failed.
+	// B acquire dagger failed.
 	result = s.latches.acquire(lockB)
 	c.Assert(result, Equals, acquireLocked)
 
-	// A release lock, and get wakeup list.
+	// A release dagger, and get wakeup list.
 	commitTSA := getTso()
 	wakeupList := make([]*Lock, 0)
 	lockA.SetCommitTS(commitTSA)
@@ -75,7 +75,7 @@ func (s *testLatchSuite) TestWakeUp(c *C) {
 	result = s.latches.acquire(lockB)
 	c.Assert(result, Equals, acquireStale)
 
-	// B release lock since it received a stale.
+	// B release dagger since it received a stale.
 	wakeupList = s.latches.release(lockB, wakeupList)
 	c.Assert(wakeupList, HasLen, 0)
 
@@ -111,18 +111,18 @@ func (s *testLatchSuite) TestRecycle(c *C) {
 	latches := NewLatches(8)
 	now := time.Now()
 	startTS := oracle.ComposeTS(oracle.GetPhysical(now), 0)
-	lock := latches.genLock(startTS, [][]byte{
+	dagger := latches.genLock(startTS, [][]byte{
 		[]byte("a"), []byte("b"),
 	})
 	lock1 := latches.genLock(startTS, [][]byte{
 		[]byte("b"), []byte("c"),
 	})
-	c.Assert(latches.acquire(lock), Equals, acquireSuccess)
+	c.Assert(latches.acquire(dagger), Equals, acquireSuccess)
 	c.Assert(latches.acquire(lock1), Equals, acquireLocked)
-	lock.SetCommitTS(startTS + 1)
+	dagger.SetCommitTS(startTS + 1)
 	var wakeupList []*Lock
-	latches.release(lock, wakeupList)
-	// Release lock will grant latch to lock1 automatically,
+	latches.release(dagger, wakeupList)
+	// Release dagger will grant latch to lock1 automatically,
 	// so release lock1 is called here.
 	latches.release(lock1, wakeupList)
 

@@ -115,9 +115,9 @@ func (hg *Histogram) GetUpper(idx int) *types.Causet {
 }
 
 // MemoryUsage returns the total memory usage of this Histogram.
-// everytime changed the Histogram of the block, it will cost O(n)
+// everytime changed the Histogram of the causet, it will cost O(n)
 // complexity so calculate the memoryUsage might cost little time.
-// We ignore the size of other metadata in Histogram.
+// We ignore the size of other spacetimedata in Histogram.
 func (hg *Histogram) MemoryUsage() (sum int64) {
 	if hg == nil {
 		return
@@ -714,7 +714,7 @@ type ErrorRate struct {
 }
 
 // MaxErrorRate is the max error rate of estimate event count of a not pseudo column.
-// If the block is pseudo, but the average error rate is less than MaxErrorRate,
+// If the causet is pseudo, but the average error rate is less than MaxErrorRate,
 // then the column is not pseudo.
 const MaxErrorRate = 0.25
 
@@ -757,7 +757,7 @@ func (c *DeferredCauset) String() string {
 }
 
 // MemoryUsage returns the total memory usage of Histogram and CMSketch in DeferredCauset.
-// We ignore the size of other metadata in DeferredCauset
+// We ignore the size of other spacetimedata in DeferredCauset
 func (c *DeferredCauset) MemoryUsage() (sum int64) {
 	sum = c.Histogram.MemoryUsage()
 	if c.CMSketch != nil {
@@ -910,7 +910,7 @@ func (idx *Index) IsInvalid(collPseudo bool) bool {
 }
 
 // MemoryUsage returns the total memory usage of a Histogram and CMSketch in Index.
-// We ignore the size of other metadata in Index.
+// We ignore the size of other spacetimedata in Index.
 func (idx *Index) MemoryUsage() (sum int64) {
 	sum = idx.Histogram.MemoryUsage()
 	if idx.CMSketch != nil {
@@ -938,7 +938,7 @@ func (idx *Index) equalRowCount(sc *stmtctx.StatementContext, b []byte, modifyCo
 }
 
 // GetRowCount returns the event count of the given ranges.
-// It uses the modifyCount to adjust the influence of modifications on the block.
+// It uses the modifyCount to adjust the influence of modifications on the causet.
 func (idx *Index) GetRowCount(sc *stmtctx.StatementContext, indexRanges []*ranger.Range, modifyCount int64) (float64, error) {
 	totalCount := float64(0)
 	isSingleDefCaus := len(idx.Info.DeferredCausets) == 1
@@ -1104,8 +1104,8 @@ func (coll *HistDefCausl) NewHistDefCauslBySelectivity(sc *stmtctx.StatementCont
 			newIdxHist, err := idxHist.newIndexBySelectivity(sc, node)
 			if err != nil {
 				logutil.BgLogger().Warn("[Histogram-in-plan]: something wrong happened when calculating event count, "+
-					"failed to build histogram for index %v of block %v",
-					zap.String("index", idxHist.Info.Name.O), zap.String("block", idxHist.Info.Block.O), zap.Error(err))
+					"failed to build histogram for index %v of causet %v",
+					zap.String("index", idxHist.Info.Name.O), zap.String("causet", idxHist.Info.Block.O), zap.Error(err))
 				continue
 			}
 			newDefCausl.Indices[node.ID] = newIdxHist

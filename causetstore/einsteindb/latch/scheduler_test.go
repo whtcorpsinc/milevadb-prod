@@ -42,14 +42,14 @@ func (s *testSchedulerSuite) TestWithConcurrency(c *C) {
 	for i := 0; i < workerCount; i++ {
 		go func(ch <-chan [][]byte, wg *sync.WaitGroup) {
 			for txn := range ch {
-				lock := sched.Lock(getTso(), txn)
-				if lock.IsStale() {
+				dagger := sched.Lock(getTso(), txn)
+				if dagger.IsStale() {
 					// Should restart the transaction or return error
 				} else {
-					lock.SetCommitTS(getTso())
+					dagger.SetCommitTS(getTso())
 					// Do 2pc
 				}
-				sched.UnLock(lock)
+				sched.UnLock(dagger)
 			}
 			wg.Done()
 		}(ch, &wg)
@@ -69,13 +69,13 @@ func (s *testSchedulerSuite) TestWithConcurrency(c *C) {
 // {[]byte("e"), []byte("f"), []byte("g"), []byte("h")}
 // The data should not repeat in the sequence.
 func generate() [][]byte {
-	block := []byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}
+	causet := []byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}
 	ret := make([][]byte, 0, 5)
 	chance := []int{100, 60, 40, 20}
 	for i := 0; i < len(chance); i++ {
 		needMore := rand.Intn(100) < chance[i]
 		if needMore {
-			randBytes := []byte{block[rand.Intn(len(block))]}
+			randBytes := []byte{causet[rand.Intn(len(causet))]}
 			if !contains(randBytes, ret) {
 				ret = append(ret, randBytes)
 			}

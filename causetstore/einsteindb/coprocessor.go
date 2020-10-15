@@ -446,7 +446,7 @@ type copResponse struct {
 }
 
 const (
-	sizeofExecDetails   = int(unsafe.Sizeof(execdetails.ExecDetails{}))
+	sizeofInterDircDetails   = int(unsafe.Sizeof(execdetails.InterDircDetails{}))
 	sizeofCommitDetails = int(unsafe.Sizeof(execdetails.CommitDetails{}))
 )
 
@@ -473,7 +473,7 @@ func (rs *copResponse) MemSize() int64 {
 	// ignore rs.err
 	rs.respSize += int64(cap(rs.startKey))
 	if rs.detail != nil {
-		rs.respSize += int64(sizeofExecDetails)
+		rs.respSize += int64(sizeofInterDircDetails)
 	}
 	if rs.pbResp != nil {
 		// Using a approximate size since it's hard to get a accurate value.
@@ -729,7 +729,7 @@ func (worker *copIteratorWorker) handleTask(ctx context.Context, task *copTask, 
 }
 
 // handleTaskOnce handles single copTask, successful results are send to channel.
-// If error happened, returns error. If region split or meet lock, returns the remain tasks.
+// If error happened, returns error. If region split or meet dagger, returns the remain tasks.
 func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch chan<- *copResponse) ([]*copTask, error) {
 	failpoint.Inject("handleTaskOnceError", func(val failpoint.Value) {
 		if val.(bool) {
@@ -835,12 +835,12 @@ func (m *minCommitTSPushed) Get() []uint64 {
 }
 
 // clientHelper wraps LockResolver and RegionRequestSender.
-// It's introduced to support the new lock resolving pattern in the large transaction.
+// It's introduced to support the new dagger resolving pattern in the large transaction.
 // In the large transaction protocol, sending requests and resolving locks are
-// context-dependent. For example, when a send request meets a secondary lock, we'll
-// call ResolveLock, and if the lock belongs to a large transaction, we may retry
+// context-dependent. For example, when a send request meets a secondary dagger, we'll
+// call ResolveLock, and if the dagger belongs to a large transaction, we may retry
 // the request. If there is no context information about the resolved locks, we'll
-// meet the secondary lock again and run into a deadloop.
+// meet the secondary dagger again and run into a deadloop.
 type clientHelper struct {
 	*LockResolver
 	*RegionCache
@@ -875,7 +875,7 @@ func (ch *clientHelper) ResolveLocks(bo *Backoffer, callerStartTS uint64, locks 
 	return msBeforeTxnExpired, nil
 }
 
-// SendReqCtx wraps the SendReqCtx function and use the resolved lock result in the kvrpcpb.Context.
+// SendReqCtx wraps the SendReqCtx function and use the resolved dagger result in the kvrpcpb.Context.
 func (ch *clientHelper) SendReqCtx(bo *Backoffer, req *einsteindbrpc.Request, regionID RegionVerID, timeout time.Duration, sType ekv.StoreType, directStoreAddr string) (*einsteindbrpc.Response, *RPCContext, string, error) {
 	sender := NewRegionRequestSender(ch.RegionCache, ch.Client)
 	if len(directStoreAddr) > 0 {
@@ -899,15 +899,15 @@ func (worker *copIteratorWorker) logTimeCopTask(costTime time.Duration, task *co
 		backoffTypes := strings.Replace(fmt.Sprintf("%v", bo.types), " ", ",", -1)
 		logStr += fmt.Sprintf(" backoff_ms:%d backoff_types:%s", bo.totalSleep, backoffTypes)
 	}
-	var detail *kvrpcpb.ExecDetails
+	var detail *kvrpcpb.InterDircDetails
 	if resp.Resp != nil {
 		switch r := resp.Resp.(type) {
 		case *interlock.Response:
-			detail = r.ExecDetails
+			detail = r.InterDircDetails
 		case *einsteindbrpc.CopStreamResponse:
 			// streaming request returns io.EOF, so the first CopStreamResponse.Response maybe nil.
 			if r.Response != nil {
-				detail = r.Response.ExecDetails
+				detail = r.Response.InterDircDetails
 			}
 		default:
 			panic("unreachable")
@@ -922,7 +922,7 @@ func (worker *copIteratorWorker) logTimeCopTask(costTime time.Duration, task *co
 			if detail.ScanDetail != nil {
 				logStr = appendScanDetail(logStr, "write", detail.ScanDetail.Write)
 				logStr = appendScanDetail(logStr, "data", detail.ScanDetail.Data)
-				logStr = appendScanDetail(logStr, "lock", detail.ScanDetail.Lock)
+				logStr = appendScanDetail(logStr, "dagger", detail.ScanDetail.Lock)
 			}
 		}
 		if waitMs > minLogKVWaitTime {
@@ -981,7 +981,7 @@ func (worker *copIteratorWorker) handleCopStreamResult(bo *Backoffer, rpcCtx *RP
 	}
 }
 
-// handleCopResponse checks interlock Response for region split and lock,
+// handleCopResponse checks interlock Response for region split and dagger,
 // returns more tasks when that happens, or handles the response if no error.
 // if we're handling streaming interlock response, lastRange is the range of last
 // successful response, otherwise it's nil.
@@ -1002,7 +1002,7 @@ func (worker *copIteratorWorker) handleCopResponse(bo *Backoffer, rpcCtx *RPCCon
 	}
 	if lockErr := resp.pbResp.GetLocked(); lockErr != nil {
 		logutil.BgLogger().Debug("interlock encounters",
-			zap.Stringer("lock", lockErr))
+			zap.Stringer("dagger", lockErr))
 		msBeforeExpired, err1 := worker.ResolveLocks(bo, worker.req.StartTs, []*Lock{NewLock(lockErr)})
 		if err1 != nil {
 			return nil, errors.Trace(err1)
@@ -1046,7 +1046,7 @@ func (worker *copIteratorWorker) handleCopResponse(bo *Backoffer, rpcCtx *RPCCon
 		resp.detail.CalleeAddress = rpcCtx.Addr
 	}
 	resp.respTime = costTime
-	if pbDetails := resp.pbResp.ExecDetails; pbDetails != nil {
+	if pbDetails := resp.pbResp.InterDircDetails; pbDetails != nil {
 		if handleTime := pbDetails.HandleTime; handleTime != nil {
 			resp.detail.WaitTime = time.Duration(handleTime.WaitMs) * time.Millisecond
 			resp.detail.ProcessTime = time.Duration(handleTime.ProcessMs) * time.Millisecond
@@ -1090,7 +1090,7 @@ func (worker *copIteratorWorker) handleCopResponse(bo *Backoffer, rpcCtx *RPCCon
 
 // CopRuntimeStats contains execution detail information.
 type CopRuntimeStats struct {
-	execdetails.ExecDetails
+	execdetails.InterDircDetails
 	RegionRequestRuntimeStats
 
 	CoprCacheHit bool

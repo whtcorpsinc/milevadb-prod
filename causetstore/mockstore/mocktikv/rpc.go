@@ -30,7 +30,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/debugpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
@@ -159,7 +159,7 @@ type rpcHandler struct {
 	resolvedLocks  []uint64
 }
 
-func isTiFlashStore(causetstore *metapb.CausetStore) bool {
+func isTiFlashStore(causetstore *spacetimepb.CausetStore) bool {
 	for _, l := range causetstore.GetLabels() {
 		if l.GetKey() == "engine" && l.GetValue() == "tiflash" {
 			return true
@@ -186,7 +186,7 @@ func (h *rpcHandler) checkRequestContext(ctx *kvrpcpb.Context) *errorpb.Error {
 			},
 		}
 	}
-	var storePeer, leaderPeer *metapb.Peer
+	var storePeer, leaderPeer *spacetimepb.Peer
 	for _, p := range region.Peers {
 		if p.GetStoreId() == h.storeID {
 			storePeer = p
@@ -226,7 +226,7 @@ func (h *rpcHandler) checkRequestContext(ctx *kvrpcpb.Context) *errorpb.Error {
 	// Region epoch does not match.
 	if !proto.Equal(region.GetRegionEpoch(), ctx.GetRegionEpoch()) {
 		nextRegion, _ := h.cluster.GetRegionByKey(region.GetEndKey())
-		currentRegions := []*metapb.Region{region}
+		currentRegions := []*spacetimepb.Region{region}
 		if nextRegion != nil {
 			currentRegions = append(currentRegions, nextRegion)
 		}
@@ -655,7 +655,7 @@ func (h *rpcHandler) handleKvRawScan(req *kvrpcpb.RawScanRequest) *kvrpcpb.RawSc
 
 func (h *rpcHandler) handleSplitRegion(req *kvrpcpb.SplitRegionRequest) *kvrpcpb.SplitRegionResponse {
 	keys := req.GetSplitKeys()
-	resp := &kvrpcpb.SplitRegionResponse{Regions: make([]*metapb.Region, 0, len(keys)+1)}
+	resp := &kvrpcpb.SplitRegionResponse{Regions: make([]*spacetimepb.Region, 0, len(keys)+1)}
 	for i, key := range keys {
 		k := NewMvccKey(key)
 		region, _ := h.cluster.GetRegionByKey(k)
@@ -673,7 +673,7 @@ func (h *rpcHandler) handleSplitRegion(req *kvrpcpb.SplitRegionRequest) *kvrpcpb
 	return resp
 }
 
-func drainRowsFromExecutor(ctx context.Context, e executor, req *fidelpb.PosetDagRequest) (fidelpb.Chunk, error) {
+func drainRowsFromInterlockingDirectorate(ctx context.Context, e interlock, req *fidelpb.PosetDagRequest) (fidelpb.Chunk, error) {
 	var chunk fidelpb.Chunk
 	for {
 		event, err := e.Next(ctx)
@@ -698,11 +698,11 @@ func (h *rpcHandler) handleBatchCopRequest(ctx context.Context, req *interlock.B
 			StartTs: req.StartTs,
 			Ranges:  ri.Ranges,
 		}
-		_, exec, posetPosetDagReq, err := h.buildPosetDagExecutor(&cop)
+		_, exec, posetPosetDagReq, err := h.buildPosetDagInterlockingDirectorate(&cop)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		chunk, err := drainRowsFromExecutor(ctx, exec, posetPosetDagReq)
+		chunk, err := drainRowsFromInterlockingDirectorate(ctx, exec, posetPosetDagReq)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -748,7 +748,7 @@ func NewRPCClient(cluster *Cluster, mvccStore MVCCStore) *RPCClient {
 	}
 }
 
-func (c *RPCClient) getAndCheckStoreByAddr(addr string) (*metapb.CausetStore, error) {
+func (c *RPCClient) getAndCheckStoreByAddr(addr string) (*spacetimepb.CausetStore, error) {
 	causetstore, err := c.Cluster.GetAndCheckStoreByAddr(addr)
 	if err != nil {
 		return nil, err
@@ -756,8 +756,8 @@ func (c *RPCClient) getAndCheckStoreByAddr(addr string) (*metapb.CausetStore, er
 	if causetstore == nil {
 		return nil, errors.New("connect fail")
 	}
-	if causetstore.GetState() == metapb.StoreState_Offline ||
-		causetstore.GetState() == metapb.StoreState_Tombstone {
+	if causetstore.GetState() == spacetimepb.StoreState_Offline ||
+		causetstore.GetState() == spacetimepb.StoreState_Tombstone {
 		return nil, errors.New("connection refused")
 	}
 	return causetstore, nil

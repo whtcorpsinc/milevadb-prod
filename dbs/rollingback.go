@@ -22,7 +22,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"
 )
@@ -40,7 +40,7 @@ func uFIDelateDefCaussNull2NotNull(tblInfo *perceptron.BlockInfo, indexInfo *per
 	return nil
 }
 
-func convertAddIdxJob2RollbackJob(t *meta.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, indexInfo *perceptron.IndexInfo, err error) (int64, error) {
+func convertAddIdxJob2RollbackJob(t *spacetime.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, indexInfo *perceptron.IndexInfo, err error) (int64, error) {
 	job.State = perceptron.JobStateRollingback
 
 	if indexInfo.Primary {
@@ -79,7 +79,7 @@ func convertAddIdxJob2RollbackJob(t *meta.Meta, job *perceptron.Job, tblInfo *pe
 
 // convertNotStartAddIdxJob2RollbackJob converts the add index job that are not started workers to rollingbackJob,
 // to rollback add index operations. job.SnapshotVer == 0 indicates the workers are not started.
-func convertNotStartAddIdxJob2RollbackJob(t *meta.Meta, job *perceptron.Job, occuredErr error) (ver int64, err error) {
+func convertNotStartAddIdxJob2RollbackJob(t *spacetime.Meta, job *perceptron.Job, occuredErr error) (ver int64, err error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -110,7 +110,7 @@ func convertNotStartAddIdxJob2RollbackJob(t *meta.Meta, job *perceptron.Job, occ
 // Since modifying defCausumn job has two types: normal-type and reorg-type, we should handle it respectively.
 // normal-type has only two states:    None -> Public
 // reorg-type has five states:         None -> Delete-only -> Write-only -> Write-org -> Public
-func rollingbackModifyDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackModifyDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	_, tblInfo, oldDefCaus, jp, err := getModifyDeferredCausetInfo(t, job)
 	if err != nil {
 		return ver, err
@@ -143,7 +143,7 @@ func rollingbackModifyDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int
 	return ver, errCancelledDBSJob
 }
 
-func rollingbackAddDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackAddDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	job.State = perceptron.JobStateRollingback
 	tblInfo, defCausumnInfo, defCaus, _, _, err := checkAddDeferredCauset(t, job)
 	if err != nil {
@@ -166,7 +166,7 @@ func rollingbackAddDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64,
 	return ver, errCancelledDBSJob
 }
 
-func rollingbackAddDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackAddDeferredCausets(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	job.State = perceptron.JobStateRollingback
 	tblInfo, defCausumnInfos, _, _, _, _, err := checkAddDeferredCausets(t, job)
 	if err != nil {
@@ -194,7 +194,7 @@ func rollingbackAddDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int64
 	return ver, errCancelledDBSJob
 }
 
-func rollingbackDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackDropDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	tblInfo, defCausInfo, idxInfos, err := checkDropDeferredCauset(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -227,7 +227,7 @@ func rollingbackDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64
 	return ver, nil
 }
 
-func rollingbackDropDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackDropDeferredCausets(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	tblInfo, defCausInfos, _, idxInfos, err := checkDropDeferredCausets(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -260,7 +260,7 @@ func rollingbackDropDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int6
 	return ver, nil
 }
 
-func rollingbackDropIndex(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackDropIndex(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	tblInfo, indexInfo, err := checkDropIndex(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -290,7 +290,7 @@ func rollingbackDropIndex(t *meta.Meta, job *perceptron.Job) (ver int64, err err
 	return ver, errCancelledDBSJob
 }
 
-func rollingbackAddIndex(w *worker, d *dbsCtx, t *meta.Meta, job *perceptron.Job, isPK bool) (ver int64, err error) {
+func rollingbackAddIndex(w *worker, d *dbsCtx, t *spacetime.Meta, job *perceptron.Job, isPK bool) (ver int64, err error) {
 	// If the value of SnapshotVer isn't zero, it means the work is backfilling the indexes.
 	if job.SchemaState == perceptron.StateWriteReorganization && job.SnapshotVer != 0 {
 		// add index workers are started. need to ask them to exit.
@@ -304,7 +304,7 @@ func rollingbackAddIndex(w *worker, d *dbsCtx, t *meta.Meta, job *perceptron.Job
 	return
 }
 
-func convertAddBlockPartitionJob2RollbackJob(t *meta.Meta, job *perceptron.Job, otherwiseErr error, tblInfo *perceptron.BlockInfo) (ver int64, err error) {
+func convertAddBlockPartitionJob2RollbackJob(t *spacetime.Meta, job *perceptron.Job, otherwiseErr error, tblInfo *perceptron.BlockInfo) (ver int64, err error) {
 	job.State = perceptron.JobStateRollingback
 	addingDefinitions := tblInfo.Partition.AddingDefinitions
 	partNames := make([]string, 0, len(addingDefinitions))
@@ -319,7 +319,7 @@ func convertAddBlockPartitionJob2RollbackJob(t *meta.Meta, job *perceptron.Job, 
 	return ver, errors.Trace(otherwiseErr)
 }
 
-func rollingbackAddBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackAddBlockPartition(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	tblInfo, _, addingDefinitions, err := checkAddPartition(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -333,7 +333,7 @@ func rollingbackAddBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64,
 	return convertAddBlockPartitionJob2RollbackJob(t, job, errCancelledDBSJob, tblInfo)
 }
 
-func rollingbackDropBlockOrView(t *meta.Meta, job *perceptron.Job) error {
+func rollingbackDropBlockOrView(t *spacetime.Meta, job *perceptron.Job) error {
 	tblInfo, err := checkBlockExistAndCancelNonExistJob(t, job, job.SchemaID)
 	if err != nil {
 		return errors.Trace(err)
@@ -348,7 +348,7 @@ func rollingbackDropBlockOrView(t *meta.Meta, job *perceptron.Job) error {
 	return nil
 }
 
-func rollingbackDropBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackDropBlockPartition(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	_, err = getBlockInfoAndCancelFaultJob(t, job, job.SchemaID)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -356,7 +356,7 @@ func rollingbackDropBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64
 	return cancelOnlyNotHandledJob(job)
 }
 
-func rollingbackDropSchema(t *meta.Meta, job *perceptron.Job) error {
+func rollingbackDropSchema(t *spacetime.Meta, job *perceptron.Job) error {
 	dbInfo, err := checkSchemaExistAndCancelNotExistJob(t, job)
 	if err != nil {
 		return errors.Trace(err)
@@ -371,7 +371,7 @@ func rollingbackDropSchema(t *meta.Meta, job *perceptron.Job) error {
 	return nil
 }
 
-func rollingbackRenameIndex(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackRenameIndex(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	tblInfo, from, _, err := checkRenameIndex(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -398,7 +398,7 @@ func cancelOnlyNotHandledJob(job *perceptron.Job) (ver int64, err error) {
 	return ver, nil
 }
 
-func rollingbackTruncateBlock(t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func rollingbackTruncateBlock(t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	_, err = getBlockInfoAndCancelFaultJob(t, job, job.SchemaID)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -406,7 +406,7 @@ func rollingbackTruncateBlock(t *meta.Meta, job *perceptron.Job) (ver int64, err
 	return cancelOnlyNotHandledJob(job)
 }
 
-func convertJob2RollbackJob(w *worker, d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func convertJob2RollbackJob(w *worker, d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	switch job.Type {
 	case perceptron.CausetActionAddDeferredCauset:
 		ver, err = rollingbackAddDeferredCauset(t, job)

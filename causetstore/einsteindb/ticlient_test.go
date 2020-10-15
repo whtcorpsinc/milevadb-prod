@@ -76,7 +76,7 @@ func clearStorage(causetstore ekv.CausetStorage) error {
 type testTiclientSuite struct {
 	OneByOneSuite
 	causetstore *einsteindbStore
-	// prefix is prefix of each key in this test. It is used for block isolation,
+	// prefix is prefix of each key in this test. It is used for causet isolation,
 	// or it may pollute other data.
 	prefix string
 }

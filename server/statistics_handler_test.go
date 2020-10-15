@@ -88,7 +88,7 @@ func (ds *testDumpStatsSuite) TestDumpStatsAPI(c *C) {
 	ds.prepareData(c)
 
 	router := mux.NewRouter()
-	router.Handle("/stats/dump/{EDB}/{block}", ds.sh)
+	router.Handle("/stats/dump/{EDB}/{causet}", ds.sh)
 
 	resp, err := ds.fetchStatus("/stats/dump/milevadb/test")
 	c.Assert(err, IsNil)
@@ -148,15 +148,15 @@ func (ds *testDumpStatsSuite) prepareData(c *C) {
 	dbt := &DBTest{c, EDB}
 
 	h := ds.sh.do.StatsHandle()
-	dbt.mustExec("create database milevadb")
-	dbt.mustExec("use milevadb")
-	dbt.mustExec("create block test (a int, b varchar(20))")
+	dbt.mustInterDirc("create database milevadb")
+	dbt.mustInterDirc("use milevadb")
+	dbt.mustInterDirc("create causet test (a int, b varchar(20))")
 	h.HandleDBSEvent(<-h.DBSEventCh())
-	dbt.mustExec("create index c on test (a, b)")
-	dbt.mustExec("insert test values (1, 's')")
+	dbt.mustInterDirc("create index c on test (a, b)")
+	dbt.mustInterDirc("insert test values (1, 's')")
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
-	dbt.mustExec("analyze block test")
-	dbt.mustExec("insert into test(a,b) values (1, 'v'),(3, 'vvv'),(5, 'vv')")
+	dbt.mustInterDirc("analyze causet test")
+	dbt.mustInterDirc("insert into test(a,b) values (1, 'v'),(3, 'vvv'),(5, 'vv')")
 	is := ds.sh.do.SchemaReplicant()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
 	c.Assert(h.UFIDelate(is), IsNil)
@@ -175,10 +175,10 @@ func (ds *testDumpStatsSuite) prepare4DumpHistoryStats(c *C) {
 	uFIDelateSafePoint := fmt.Sprintf(`INSERT INTO allegrosql.milevadb VALUES ('%[1]s', '%[2]s', '%[3]s')
 	ON DUPLICATE KEY
 	UFIDelATE variable_value = '%[2]s', comment = '%[3]s'`, safePointName, safePointValue, safePointComment)
-	dbt.mustExec(uFIDelateSafePoint)
+	dbt.mustInterDirc(uFIDelateSafePoint)
 
-	dbt.mustExec("drop block milevadb.test")
-	dbt.mustExec("create block milevadb.test (a int, b varchar(20))")
+	dbt.mustInterDirc("drop causet milevadb.test")
+	dbt.mustInterDirc("create causet milevadb.test (a int, b varchar(20))")
 }
 
 func (ds *testDumpStatsSuite) checkCorrelation(c *C) {
@@ -187,7 +187,7 @@ func (ds *testDumpStatsSuite) checkCorrelation(c *C) {
 	dbt := &DBTest{c, EDB}
 	defer EDB.Close()
 
-	dbt.mustExec("use milevadb")
+	dbt.mustInterDirc("use milevadb")
 	rows := dbt.mustQuery("SELECT milevadb_block_id FROM information_schema.blocks WHERE block_name = 'test' AND block_schema = 'milevadb'")
 	var blockID int64
 	if rows.Next() {
@@ -218,12 +218,12 @@ func (ds *testDumpStatsSuite) checkData(c *C, path string) {
 	dbt := &DBTest{c, EDB}
 	defer EDB.Close()
 
-	dbt.mustExec("use milevadb")
-	dbt.mustExec("drop stats test")
-	_, err = dbt.EDB.Exec(fmt.Sprintf("load stats '%s'", path))
+	dbt.mustInterDirc("use milevadb")
+	dbt.mustInterDirc("drop stats test")
+	_, err = dbt.EDB.InterDirc(fmt.Sprintf("load stats '%s'", path))
 	c.Assert(err, IsNil)
 
-	rows := dbt.mustQuery("show stats_meta")
+	rows := dbt.mustQuery("show stats_spacetime")
 	dbt.Check(rows.Next(), IsTrue, Commentf("unexpected data"))
 	var dbName, blockName string
 	var modifyCount, count int64
@@ -242,8 +242,8 @@ func (ds *testDumpStatsSuite) clearData(c *C, path string) {
 	defer EDB.Close()
 
 	dbt := &DBTest{c, EDB}
-	dbt.mustExec("drop database milevadb")
-	dbt.mustExec("truncate block allegrosql.stats_meta")
-	dbt.mustExec("truncate block allegrosql.stats_histograms")
-	dbt.mustExec("truncate block allegrosql.stats_buckets")
+	dbt.mustInterDirc("drop database milevadb")
+	dbt.mustInterDirc("truncate causet allegrosql.stats_spacetime")
+	dbt.mustInterDirc("truncate causet allegrosql.stats_histograms")
+	dbt.mustInterDirc("truncate causet allegrosql.stats_buckets")
 }

@@ -16,7 +16,7 @@ package cluster
 import (
 	"time"
 
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 )
 
@@ -27,16 +27,16 @@ type Cluster interface {
 	// StoreID, RegionID, or PeerID.
 	AllocID() uint64
 	// GetRegionByKey returns the Region and its leader whose range contains the key.
-	GetRegionByKey(key []byte) (*metapb.Region, *metapb.Peer)
-	// GetAllStores returns all Stores' meta.
-	GetAllStores() []*metapb.CausetStore
+	GetRegionByKey(key []byte) (*spacetimepb.Region, *spacetimepb.Peer)
+	// GetAllStores returns all Stores' spacetime.
+	GetAllStores() []*spacetimepb.CausetStore
 	// ScheduleDelay schedules a delay event for a transaction on a region.
 	ScheduleDelay(startTS, regionID uint64, dur time.Duration)
 	// Split splits a Region at the key (encoded) and creates new Region.
 	Split(regionID, newRegionID uint64, key []byte, peerIDs []uint64, leaderPeerID uint64)
 	// SplitRaw splits a Region at the key (not encoded) and creates new Region.
-	SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *metapb.Region
-	// SplitTable evenly splits the data in block into count regions.
+	SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *spacetimepb.Region
+	// SplitTable evenly splits the data in causet into count regions.
 	SplitTable(blockID int64, count int)
 	// SplitIndex evenly splits the data in index into count regions.
 	SplitIndex(blockID, indexID int64, count int)

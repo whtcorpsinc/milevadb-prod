@@ -137,14 +137,14 @@ func (s TxnStatus) TTL() uint64 { return s.ttl }
 func (s TxnStatus) CausetAction() kvrpcpb.CausetAction { return s.action }
 
 // By default, locks after 3000ms is considered unusual (the client created the
-// lock might be dead). Other client may cleanup this HoTT of lock.
+// dagger might be dead). Other client may cleanup this HoTT of dagger.
 // For locks created recently, we will do backoff and retry.
 var defaultLockTTL uint64 = 3000
 
 // ttl = ttlFactor * sqrt(writeSizeInMiB)
 var ttlFactor = 6000
 
-// Lock represents a lock from einsteindb server.
+// Lock represents a dagger from einsteindb server.
 type Lock struct {
 	Key             []byte
 	Primary         []byte
@@ -231,13 +231,13 @@ func (lr *LockResolver) BatchResolveLocks(bo *Backoffer, locks []*Lock, loc Regi
 		}
 		einsteindbLockResolverCountWithExpired.Inc()
 
-		// Use currentTS = math.MaxUint64 means rollback the txn, no matter the lock is expired or not!
+		// Use currentTS = math.MaxUint64 means rollback the txn, no matter the dagger is expired or not!
 		status, err := lr.getTxnStatus(bo, l.TxnID, l.Primary, callerStartTS, math.MaxUint64, true)
 		if err != nil {
 			return false, err
 		}
 
-		// If the transaction uses async commit, CheckTxnStatus will reject rolling back the primary lock.
+		// If the transaction uses async commit, CheckTxnStatus will reject rolling back the primary dagger.
 		// Then we need to check the secondary locks to determine the final status of the transaction.
 		if status.primaryLock != nil && status.primaryLock.UseAsyncCommit {
 			resolveData, err := lr.checkAllSecondaries(bo, l, &status)
@@ -306,9 +306,9 @@ func (lr *LockResolver) BatchResolveLocks(bo *Backoffer, locks []*Lock, loc Regi
 //    old are considered orphan locks and will be handled later. If all locks
 //    are expired then all locks will be resolved so the returned `ok` will be
 //    true, otherwise caller should sleep a while before retry.
-// 2) For each lock, query the primary key to get txn(which left the lock)'s
+// 2) For each dagger, query the primary key to get txn(which left the dagger)'s
 //    commit status.
-// 3) Send `ResolveLock` cmd to the lock's region to resolve all locks belong to
+// 3) Send `ResolveLock` cmd to the dagger's region to resolve all locks belong to
 //    the same transaction.
 func (lr *LockResolver) ResolveLocks(bo *Backoffer, callerStartTS uint64, locks []*Lock) (int64, []uint64 /*pushed*/, error) {
 	return lr.resolveLocks(bo, callerStartTS, locks, false, false)
@@ -353,7 +353,7 @@ func (lr *LockResolver) resolveLocks(bo *Backoffer, callerStartTS uint64, locks 
 
 		if status.ttl == 0 {
 			einsteindbLockResolverCountWithExpired.Inc()
-			// If the lock is committed or rollbacked, resolve lock.
+			// If the dagger is committed or rollbacked, resolve dagger.
 			cleanRegions, exists := cleanTxns[l.TxnID]
 			if !exists {
 				cleanRegions = make(map[RegionVerID]struct{})
@@ -374,13 +374,13 @@ func (lr *LockResolver) resolveLocks(bo *Backoffer, callerStartTS uint64, locks 
 			}
 		} else {
 			einsteindbLockResolverCountWithNotExpired.Inc()
-			// If the lock is valid, the txn may be a pessimistic transaction.
+			// If the dagger is valid, the txn may be a pessimistic transaction.
 			// UFIDelate the txn expire time.
 			msBeforeLockExpired := lr.causetstore.GetOracle().UntilExpired(l.TxnID, status.ttl)
 			msBeforeTxnExpired.uFIDelate(msBeforeLockExpired)
 			if forWrite {
 				// Write conflict detected!
-				// If it's a optimistic conflict and current txn is earlier than the lock owner,
+				// If it's a optimistic conflict and current txn is earlier than the dagger tenant,
 				// abort current transaction.
 				// This could avoids the deadlock scene of two large transaction.
 				if l.LockType != kvrpcpb.Op_PessimisticLock && l.TxnID > callerStartTS {
@@ -397,12 +397,12 @@ func (lr *LockResolver) resolveLocks(bo *Backoffer, callerStartTS uint64, locks 
 		}
 	}
 	if pushFail {
-		// If any of the lock fails to push minCommitTS, don't return the pushed array.
+		// If any of the dagger fails to push minCommitTS, don't return the pushed array.
 		pushed = nil
 	}
 
 	if msBeforeTxnExpired.value() > 0 && len(pushed) == 0 {
-		// If len(pushed) > 0, the caller will not block on the locks, it push the minCommitTS instead.
+		// If len(pushed) > 0, the caller will not causet on the locks, it push the minCommitTS instead.
 		einsteindbLockResolverCountWithWaitExpired.Inc()
 	}
 	return msBeforeTxnExpired.value(), pushed, nil
@@ -464,9 +464,9 @@ func (lr *LockResolver) getTxnStatusFromLock(bo *Backoffer, l *Lock, callerStart
 		callerStartTS = 0
 	} else if l.TTL == 0 {
 		// NOTE: l.TTL = 0 is a special protocol!!!
-		// When the pessimistic txn prewrite meets locks of a txn, it should resolve the lock **unconditionally**.
-		// In this case, EinsteinDB use lock TTL = 0 to notify MilevaDB, and MilevaDB should resolve the lock!
-		// Set currentTS to max uint64 to make the lock expired.
+		// When the pessimistic txn prewrite meets locks of a txn, it should resolve the dagger **unconditionally**.
+		// In this case, EinsteinDB use dagger TTL = 0 to notify MilevaDB, and MilevaDB should resolve the dagger!
+		// Set currentTS to max uint64 to make the dagger expired.
 		currentTS = math.MaxUint64
 	} else {
 		currentTS, err = lr.causetstore.GetOracle().GetLowResolutionTimestamp(bo.ctx)
@@ -495,7 +495,7 @@ func (lr *LockResolver) getTxnStatusFromLock(bo *Backoffer, l *Lock, callerStart
 		})
 
 		// Handle txnNotFound error.
-		// getTxnStatus() returns it when the secondary locks exist while the primary lock doesn't.
+		// getTxnStatus() returns it when the secondary locks exist while the primary dagger doesn't.
 		// This is likely to happen in the concurrently prewrite when secondary regions
 		// success before the primary region.
 		if err := bo.Backoff(boTxnNotFound, err); err != nil {
@@ -503,13 +503,13 @@ func (lr *LockResolver) getTxnStatusFromLock(bo *Backoffer, l *Lock, callerStart
 		}
 
 		if lr.causetstore.GetOracle().UntilExpired(l.TxnID, l.TTL) <= 0 {
-			logutil.Logger(bo.ctx).Warn("lock txn not found, lock has expired",
+			logutil.Logger(bo.ctx).Warn("dagger txn not found, dagger has expired",
 				zap.Uint64("CallerStartTs", callerStartTS),
-				zap.Stringer("lock str", l))
+				zap.Stringer("dagger str", l))
 			if l.LockType == kvrpcpb.Op_PessimisticLock {
 				failpoint.Inject("txnExpireRetTTL", func() {
 					failpoint.Return(TxnStatus{ttl: l.TTL, action: kvrpcpb.CausetAction_NoCausetAction},
-						errors.New("error txn not found and lock expired"))
+						errors.New("error txn not found and dagger expired"))
 				})
 				return TxnStatus{}, nil
 			}
@@ -541,12 +541,12 @@ func (lr *LockResolver) getTxnStatus(bo *Backoffer, txnID uint64, primary []byte
 
 	// CheckTxnStatus may meet the following cases:
 	// 1. LOCK
-	// 1.1 Lock expired -- orphan lock, fail to uFIDelate TTL, crash recovery etc.
-	// 1.2 Lock TTL -- active transaction holding the lock.
+	// 1.1 Lock expired -- orphan dagger, fail to uFIDelate TTL, crash recovery etc.
+	// 1.2 Lock TTL -- active transaction holding the dagger.
 	// 2. NO LOCK
 	// 2.1 Txn Committed
 	// 2.2 Txn Rollbacked -- rollback itself, rollback by others, GC tomb etc.
-	// 2.3 No lock -- pessimistic lock rollback, concurrence prewrite.
+	// 2.3 No dagger -- pessimistic dagger rollback, concurrence prewrite.
 
 	var status TxnStatus
 	req := einsteindbrpc.NewRequest(einsteindbrpc.CmdCheckTxnStatus, &kvrpcpb.CheckTxnStatusRequest{
@@ -620,8 +620,8 @@ type asyncResolveData struct {
 	mutex sync.Mutex
 	// If any key has been committed (missingLock is true), then this is the commit ts. In that case, all locks should
 	// be committed with the same commit timestamp. If no locks have been committed (missingLock is false), then we will
-	// use max(all min commit ts) from all locks; i.e., it is the commit ts we should use. Note that a secondary lock's
-	// commit ts may or may not be the same as the primary lock's min commit ts.
+	// use max(all min commit ts) from all locks; i.e., it is the commit ts we should use. Note that a secondary dagger's
+	// commit ts may or may not be the same as the primary dagger's min commit ts.
 	commitTs    uint64
 	keys        [][]byte
 	missingLock bool
@@ -631,7 +631,7 @@ type asyncResolveData struct {
 // transaction being resolved.
 //
 // In the async commit protocol when checking locks, we send a list of keys to check and get back a list of locks. There
-// will be a lock for every key which is locked. If there are fewer locks than keys, then a lock is missing because it
+// will be a dagger for every key which is locked. If there are fewer locks than keys, then a dagger is missing because it
 // has been committed, rolled back, or was never locked.
 //
 // In this function, locks is the list of locks, and expected is the number of keys. asyncResolveData.missingLock will be
@@ -643,10 +643,10 @@ func (data *asyncResolveData) addKeys(locks []*kvrpcpb.LockInfo, expected int, s
 
 	// Check locks to see if any have been committed or rolled back.
 	if len(locks) < expected {
-		logutil.BgLogger().Debug("addKeys: lock has been committed or rolled back", zap.Uint64("commit ts", commitTS), zap.Uint64("start ts", startTS))
-		// A lock is missing - the transaction must either have been rolled back or committed.
+		logutil.BgLogger().Debug("addKeys: dagger has been committed or rolled back", zap.Uint64("commit ts", commitTS), zap.Uint64("start ts", startTS))
+		// A dagger is missing - the transaction must either have been rolled back or committed.
 		if !data.missingLock {
-			// commitTS == 0 => lock has been rolled back.
+			// commitTS == 0 => dagger has been rolled back.
 			if commitTS != 0 && commitTS < data.commitTs {
 				return errors.Errorf("commit TS must be greater or equal to min commit TS: commit ts: %v, min commit ts: %v", commitTS, data.commitTs)
 			}
@@ -745,7 +745,7 @@ func (lr *LockResolver) resolveLockAsync(bo *Backoffer, l *Lock, status TxnStatu
 	logutil.BgLogger().Info("resolve async commit", zap.Uint64("startTS", l.TxnID), zap.Uint64("commitTS", status.commitTS))
 
 	errChan := make(chan error, len(keysByRegion))
-	// Resolve every lock in the transaction.
+	// Resolve every dagger in the transaction.
 	for region, locks := range keysByRegion {
 		curLocks := locks
 		curRegion := region
@@ -838,7 +838,7 @@ func (lr *LockResolver) resolveRegionLocks(bo *Backoffer, l *Lock, region Region
 			return errors.Trace(err)
 		}
 
-		logutil.BgLogger().Info("resolveRegionLocks region error, regrouping", zap.String("lock", l.String()), zap.Uint64("region", region.GetID()))
+		logutil.BgLogger().Info("resolveRegionLocks region error, regrouping", zap.String("dagger", l.String()), zap.Uint64("region", region.GetID()))
 
 		// Regroup locks.
 		regions, _, err := lr.causetstore.GetRegionCache().GroupKeysByRegion(bo, keys, nil)
@@ -858,7 +858,7 @@ func (lr *LockResolver) resolveRegionLocks(bo *Backoffer, l *Lock, region Region
 	}
 	cmdResp := resp.Resp.(*kvrpcpb.ResolveLockResponse)
 	if keyErr := cmdResp.GetError(); keyErr != nil {
-		err = errors.Errorf("unexpected resolve err: %s, lock: %v", keyErr, l)
+		err = errors.Errorf("unexpected resolve err: %s, dagger: %v", keyErr, l)
 		logutil.BgLogger().Error("resolveLock error", zap.Error(err))
 	}
 
@@ -882,7 +882,7 @@ func (lr *LockResolver) resolveLock(bo *Backoffer, l *Lock, status TxnStatus, li
 		if status.IsCommitted() {
 			lreq.CommitVersion = status.CommitTS()
 		} else {
-			logutil.BgLogger().Info("resolveLock rollback", zap.String("lock", l.String()))
+			logutil.BgLogger().Info("resolveLock rollback", zap.String("dagger", l.String()))
 		}
 
 		if resolveLite {
@@ -912,7 +912,7 @@ func (lr *LockResolver) resolveLock(bo *Backoffer, l *Lock, status TxnStatus, li
 		}
 		cmdResp := resp.Resp.(*kvrpcpb.ResolveLockResponse)
 		if keyErr := cmdResp.GetError(); keyErr != nil {
-			err = errors.Errorf("unexpected resolve err: %s, lock: %v", keyErr, l)
+			err = errors.Errorf("unexpected resolve err: %s, dagger: %v", keyErr, l)
 			logutil.BgLogger().Error("resolveLock error", zap.Error(err))
 			return err
 		}
@@ -963,7 +963,7 @@ func (lr *LockResolver) resolvePessimisticLock(bo *Backoffer, l *Lock, cleanRegi
 		}
 		cmdResp := resp.Resp.(*kvrpcpb.PessimisticRollbackResponse)
 		if keyErr := cmdResp.GetErrors(); len(keyErr) > 0 {
-			err = errors.Errorf("unexpected resolve pessimistic lock err: %s, lock: %v", keyErr[0], l)
+			err = errors.Errorf("unexpected resolve pessimistic dagger err: %s, dagger: %v", keyErr[0], l)
 			logutil.Logger(bo.ctx).Error("resolveLock error", zap.Error(err))
 			return err
 		}

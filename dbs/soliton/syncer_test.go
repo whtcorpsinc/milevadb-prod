@@ -27,7 +27,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	. "github.com/whtcorpsinc/milevadb/dbs"
 	. "github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver"
 	"go.etcd.io/etcd/integration"
@@ -84,7 +84,7 @@ func TestSyncerSimple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client get version failed %v", err)
 	}
-	key := DBSAllSchemaVersions + "/" + d.OwnerManager().ID()
+	key := DBSAllSchemaVersions + "/" + d.TenantManager().ID()
 	checkRespKV(t, 1, key, InitialVersion, resp.Kvs...)
 	// for MustGetGlobalVersion function
 	globalVer, err := d.SchemaSyncer().MustGetGlobalVersion(ctx)
@@ -136,7 +136,7 @@ func TestSyncerSimple(t *testing.T) {
 	}()
 
 	// for uFIDelate latestSchemaVersion
-	err = d.SchemaSyncer().OwnerUFIDelateGlobalVersion(ctx, currentVer)
+	err = d.SchemaSyncer().TenantUFIDelateGlobalVersion(ctx, currentVer)
 	if err != nil {
 		t.Fatalf("uFIDelate latest schemaReplicant version failed %v", err)
 	}
@@ -149,7 +149,7 @@ func TestSyncerSimple(t *testing.T) {
 
 	// for CheckAllVersions
 	childCtx, cancel := goctx.WithTimeout(ctx, 200*time.Millisecond)
-	err = d.SchemaSyncer().OwnerCheckAllVersions(childCtx, currentVer)
+	err = d.SchemaSyncer().TenantCheckAllVersions(childCtx, currentVer)
 	if err == nil {
 		t.Fatalf("check result not match")
 	}
@@ -171,16 +171,16 @@ func TestSyncerSimple(t *testing.T) {
 	}
 
 	// for CheckAllVersions
-	err = d.SchemaSyncer().OwnerCheckAllVersions(context.Background(), currentVer-1)
+	err = d.SchemaSyncer().TenantCheckAllVersions(context.Background(), currentVer-1)
 	if err != nil {
 		t.Fatalf("check all versions failed %v", err)
 	}
-	err = d.SchemaSyncer().OwnerCheckAllVersions(context.Background(), currentVer)
+	err = d.SchemaSyncer().TenantCheckAllVersions(context.Background(), currentVer)
 	if err != nil {
 		t.Fatalf("check all versions failed %v", err)
 	}
 	childCtx, _ = goctx.WithTimeout(ctx, minInterval)
-	err = d.SchemaSyncer().OwnerCheckAllVersions(childCtx, currentVer)
+	err = d.SchemaSyncer().TenantCheckAllVersions(childCtx, currentVer)
 	if !isTimeoutError(err) {
 		t.Fatalf("check all versions result not match, err %v", err)
 	}
@@ -191,7 +191,7 @@ func TestSyncerSimple(t *testing.T) {
 	NeededCleanTTL = int64(11)
 	ttlKey := "stochastik_ttl_key"
 	ttlVal := "stochastik_ttl_val"
-	stochastik, err := owner.NewStochastik(ctx, "", cli, owner.NewStochastikDefaultRetryCnt, ttl)
+	stochastik, err := tenant.NewStochastik(ctx, "", cli, tenant.NewStochastikDefaultRetryCnt, ttl)
 	if err != nil {
 		t.Fatalf("new stochastik failed %v", err)
 	}

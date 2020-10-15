@@ -24,7 +24,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 )
 
 var _ = Suite(&testForeignKeySuite{})
@@ -97,7 +97,7 @@ func testDropForeignKey(c *C, ctx stochastikctx.Context, d *dbs, dbInfo *percept
 	return job
 }
 
-func getForeignKey(t block.Block, name string) *perceptron.FKInfo {
+func getForeignKey(t causet.Block, name string) *perceptron.FKInfo {
 	for _, fk := range t.Meta().ForeignKeys {
 		// only public foreign key can be read.
 		if fk.State != perceptron.StatePublic {
@@ -146,7 +146,7 @@ func (s *testForeignKeySuite) TestForeignKey(c *C) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		var t block.Block
+		var t causet.Block
 		t, err = testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 		if err != nil {
 			hookErr = errors.Trace(err)
@@ -189,7 +189,7 @@ func (s *testForeignKeySuite) TestForeignKey(c *C) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		var t block.Block
+		var t causet.Block
 		t, err = testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 		if err != nil {
 			hookErr = errors.Trace(err)

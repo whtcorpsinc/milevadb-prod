@@ -22,8 +22,8 @@ import (
 // AlterAlgorithm is used to causetstore supported alter algorithm.
 // For now, MilevaDB only support AlterAlgorithmInplace and AlterAlgorithmInstant.
 // The most alter operations are using instant algorithm, and only the add index is using inplace(not really inplace,
-// because we never block the DML but costs some time to backfill the index data)
-// See https://dev.allegrosql.com/doc/refman/8.0/en/alter-block.html#alter-block-performance.
+// because we never causet the DML but costs some time to backfill the index data)
+// See https://dev.allegrosql.com/doc/refman/8.0/en/alter-causet.html#alter-causet-performance.
 type AlterAlgorithm struct {
 	// supported MUST causetstore algorithms in the order 'INSTANT, INPLACE, COPY'
 	supported []ast.AlgorithmType
@@ -59,7 +59,7 @@ func getProperAlgorithm(specify ast.AlgorithmType, algorithm *AlterAlgorithm) (a
 
 	var err error
 	if specify != r {
-		err = ErrAlterOperationNotSupported.GenWithStackByArgs(fmt.Sprintf("ALGORITHM=%s", specify), fmt.Sprintf("Cannot alter block by %s", specify), fmt.Sprintf("ALGORITHM=%s", algorithm.defAlgorithm))
+		err = ErrAlterOperationNotSupported.GenWithStackByArgs(fmt.Sprintf("ALGORITHM=%s", specify), fmt.Sprintf("Cannot alter causet by %s", specify), fmt.Sprintf("ALGORITHM=%s", algorithm.defAlgorithm))
 	}
 	return r, err
 }

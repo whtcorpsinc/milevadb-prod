@@ -17,7 +17,7 @@ import "github.com/prometheus/client_golang/prometheus"
 
 // Stochastik metrics.
 var (
-	StochastikExecuteParseDuration = prometheus.NewHistogramVec(
+	StochastikInterDircuteParseDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
@@ -25,21 +25,21 @@ var (
 			Help:      "Bucketed histogram of processing time (s) in parse ALLEGROALLEGROSQL.",
 			Buckets:   prometheus.ExponentialBuckets(0.00004, 2, 28), // 40us ~ 1.5h
 		}, []string{LblALLEGROSQLType})
-	StochastikExecuteCompileDuration = prometheus.NewHistogramVec(
+	StochastikInterDircuteCompileDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
 			Name:      "compile_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) in query optimize.",
-			// Build plan may execute the statement, or allocate block ID, so it might take a long time.
+			// Build plan may execute the memex, or allocate causet ID, so it might take a long time.
 			Buckets: prometheus.ExponentialBuckets(0.00004, 2, 28), // 40us ~ 1.5h
 		}, []string{LblALLEGROSQLType})
-	StochastikExecuteRunDuration = prometheus.NewHistogramVec(
+	StochastikInterDircuteRunDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
 			Name:      "execute_duration_seconds",
-			Help:      "Bucketed histogram of processing time (s) in running executor.",
+			Help:      "Bucketed histogram of processing time (s) in running interlock.",
 			Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 30), // 100us ~ 15h
 		}, []string{LblALLEGROSQLType})
 	SchemaLeaseErrorCounter = prometheus.NewCounterVec(
@@ -77,8 +77,8 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
-			Name:      "transaction_statement_num",
-			Help:      "Bucketed histogram of statements count in each transaction.",
+			Name:      "transaction_memex_num",
+			Help:      "Bucketed histogram of memexs count in each transaction.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 16), // 1 ~ 32768
 		}, []string{LbTxnMode, LblType})
 
@@ -95,8 +95,8 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
-			Name:      "statement_deadlock_detect_duration_seconds",
-			Help:      "Bucketed histogram of a statement deadlock detect duration.",
+			Name:      "memex_deadlock_detect_duration_seconds",
+			Help:      "Bucketed histogram of a memex deadlock detect duration.",
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 28), // 1ms ~ 1.5days
 		},
 	)
@@ -105,8 +105,8 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
-			Name:      "statement_pessimistic_retry_count",
-			Help:      "Bucketed histogram of statement pessimistic retry count",
+			Name:      "memex_pessimistic_retry_count",
+			Help:      "Bucketed histogram of memex pessimistic retry count",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 16), // 1 ~ 32768
 		})
 
@@ -114,8 +114,8 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "stochastik",
-			Name:      "statement_lock_keys_count",
-			Help:      "Keys locking for a single statement",
+			Name:      "memex_lock_keys_count",
+			Help:      "Keys locking for a single memex",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 21), // 1 ~ 1048576
 		})
 )

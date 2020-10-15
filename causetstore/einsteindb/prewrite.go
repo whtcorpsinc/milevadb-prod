@@ -93,7 +93,7 @@ func (c *twoPhaseCommitter) buildPrewriteRequest(batch batchMutations, txnSize u
 func (action actionPrewrite) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch batchMutations) error {
 	txnSize := uint64(c.regionTxnSize[batch.region.id])
 	// When we retry because of a region miss, we don't know the transaction size. We set the transaction size here
-	// to MaxUint64 to avoid unexpected "resolve lock lite".
+	// to MaxUint64 to avoid unexpected "resolve dagger lite".
 	if len(bo.errors) > 0 {
 		txnSize = math.MaxUint64
 	}
@@ -158,15 +158,15 @@ func (action actionPrewrite) handleSingleBatch(c *twoPhaseCommitter, bo *Backoff
 				return c.extractKeyExistsErr(key)
 			}
 
-			// Extract lock from key error
-			lock, err1 := extractLockFromKeyErr(keyErr)
+			// Extract dagger from key error
+			dagger, err1 := extractLockFromKeyErr(keyErr)
 			if err1 != nil {
 				return errors.Trace(err1)
 			}
-			logutil.BgLogger().Info("prewrite encounters lock",
+			logutil.BgLogger().Info("prewrite encounters dagger",
 				zap.Uint64("conn", c.connID),
-				zap.Stringer("lock", lock))
-			locks = append(locks, lock)
+				zap.Stringer("dagger", dagger))
+			locks = append(locks, dagger)
 		}
 		start := time.Now()
 		msBeforeExpired, err := c.causetstore.lockResolver.resolveLocksForWrite(bo, c.startTS, locks)

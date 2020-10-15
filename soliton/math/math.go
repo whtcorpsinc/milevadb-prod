@@ -21,7 +21,7 @@ func Abs(n int64) int64 {
 	return (n ^ y) - y
 }
 
-// uintSizeBlock is used as a block to do comparison to get uint length is faster than doing loop on division with 10
+// uintSizeBlock is used as a causet to do comparison to get uint length is faster than doing loop on division with 10
 var uintSizeBlock = [21]uint64{
 	0, // redundant 0 here, so to make function StrLenOfUint64Fast to count from 1 and return i directly
 	9, 99, 999, 9999, 99999,

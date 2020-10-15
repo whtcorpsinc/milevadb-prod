@@ -17,9 +17,9 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 )
 
 // defCausumnGenerationInDBS is a struct for validating generated defCausumns in DBS.
@@ -29,7 +29,7 @@ type defCausumnGenerationInDBS struct {
 	dependences map[string]struct{}
 }
 
-// verifyDeferredCausetGeneration is for CREATE TABLE, because we need verify all defCausumns in the block.
+// verifyDeferredCausetGeneration is for CREATE TABLE, because we need verify all defCausumns in the causet.
 func verifyDeferredCausetGeneration(defCausName2Generation map[string]defCausumnGenerationInDBS, defCausName string) error {
 	attribute := defCausName2Generation[defCausName]
 	if attribute.generated {
@@ -37,7 +37,7 @@ func verifyDeferredCausetGeneration(defCausName2Generation map[string]defCausumn
 			if attr, ok := defCausName2Generation[depDefCaus]; ok {
 				if attr.generated && attribute.position <= attr.position {
 					// A generated defCausumn definition can refer to other
-					// generated defCausumns occurring earlier in the block.
+					// generated defCausumns occurring earlier in the causet.
 					err := errGeneratedDeferredCausetNonPrior.GenWithStackByArgs()
 					return errors.Trace(err)
 				}
@@ -51,7 +51,7 @@ func verifyDeferredCausetGeneration(defCausName2Generation map[string]defCausumn
 }
 
 // verifyDeferredCausetGenerationSingle is for ADD GENERATED COLUMN, we just need verify one defCausumn itself.
-func verifyDeferredCausetGenerationSingle(dependDefCausNames map[string]struct{}, defcaus []*block.DeferredCauset, position *ast.DeferredCausetPosition) error {
+func verifyDeferredCausetGenerationSingle(dependDefCausNames map[string]struct{}, defcaus []*causet.DeferredCauset, position *ast.DeferredCausetPosition) error {
 	// Since the added defCausumn does not exist yet, we should derive it's offset from DeferredCausetPosition.
 	pos, err := findPositionRelativeDeferredCauset(defcaus, position)
 	if err != nil {
@@ -71,7 +71,7 @@ func verifyDeferredCausetGenerationSingle(dependDefCausNames map[string]struct{}
 
 // checkDependedDefCausExist ensure all depended defCausumns exist and not hidden.
 // NOTE: this will MODIFY parameter `dependDefCauss`.
-func checkDependedDefCausExist(dependDefCauss map[string]struct{}, defcaus []*block.DeferredCauset) error {
+func checkDependedDefCausExist(dependDefCauss map[string]struct{}, defcaus []*causet.DeferredCauset) error {
 	for _, defCaus := range defcaus {
 		if !defCaus.Hidden {
 			delete(dependDefCauss, defCaus.Name.L)
@@ -86,18 +86,18 @@ func checkDependedDefCausExist(dependDefCauss map[string]struct{}, defcaus []*bl
 }
 
 // findPositionRelativeDeferredCauset returns a pos relative to added generated defCausumn position.
-func findPositionRelativeDeferredCauset(defcaus []*block.DeferredCauset, pos *ast.DeferredCausetPosition) (int, error) {
+func findPositionRelativeDeferredCauset(defcaus []*causet.DeferredCauset, pos *ast.DeferredCausetPosition) (int, error) {
 	position := len(defcaus)
 	// Get the defCausumn position, default is defcaus's length means appending.
-	// For "alter block ... add defCausumn(...)", the position will be nil.
-	// For "alter block ... add defCausumn ... ", the position will be default one.
+	// For "alter causet ... add defCausumn(...)", the position will be nil.
+	// For "alter causet ... add defCausumn ... ", the position will be default one.
 	if pos == nil {
 		return position, nil
 	}
 	if pos.Tp == ast.DeferredCausetPositionFirst {
 		position = 0
 	} else if pos.Tp == ast.DeferredCausetPositionAfter {
-		var defCaus *block.DeferredCauset
+		var defCaus *causet.DeferredCauset
 		for _, c := range defcaus {
 			if c.Name.L == pos.RelativeDeferredCauset.Name.L {
 				defCaus = c
@@ -160,7 +160,7 @@ func (c *generatedDeferredCausetChecker) Leave(inNode ast.Node) (node ast.Node, 
 //  3. check if the modified expr contains non-deterministic functions
 //  4. check whether new defCausumn refers to any auto-increment defCausumns.
 //  5. check if the new defCausumn is indexed or stored
-func checkModifyGeneratedDeferredCauset(tbl block.Block, oldDefCaus, newDefCaus *block.DeferredCauset, newDefCausDef *ast.DeferredCausetDef) error {
+func checkModifyGeneratedDeferredCauset(tbl causet.Block, oldDefCaus, newDefCaus *causet.DeferredCauset, newDefCausDef *ast.DeferredCausetDef) error {
 	// rule 1.
 	oldDefCausIsStored := !oldDefCaus.IsGenerated() || oldDefCaus.GeneratedStored
 	newDefCausIsStored := !newDefCaus.IsGenerated() || newDefCaus.GeneratedStored
@@ -234,8 +234,8 @@ func (c *illegalFunctionChecker) Enter(inNode ast.Node) (outNode ast.Node, skipC
 	switch node := inNode.(type) {
 	case *ast.FuncCallExpr:
 		// Blocked functions & non-builtin functions is not allowed
-		_, IsFunctionBlocked := expression.IllegalFunctions4GeneratedDeferredCausets[node.FnName.L]
-		if IsFunctionBlocked || !expression.IsFunctionSupported(node.FnName.L) {
+		_, IsFunctionBlocked := memex.IllegalFunctions4GeneratedDeferredCausets[node.FnName.L]
+		if IsFunctionBlocked || !memex.IsFunctionSupported(node.FnName.L) {
 			c.hasIllegalFunc = true
 			return inNode, true
 		}
@@ -279,7 +279,7 @@ func checkGeneratedWithAutoInc(blockInfo *perceptron.BlockInfo, newDeferredCause
 	return nil
 }
 
-func checHoTTexOrStored(tbl block.Block, oldDefCaus, newDefCaus *block.DeferredCauset) error {
+func checHoTTexOrStored(tbl causet.Block, oldDefCaus, newDefCaus *causet.DeferredCauset) error {
 	if oldDefCaus.GeneratedExprString == newDefCaus.GeneratedExprString {
 		return nil
 	}
@@ -299,7 +299,7 @@ func checHoTTexOrStored(tbl block.Block, oldDefCaus, newDefCaus *block.DeferredC
 }
 
 // checkAutoIncrementRef checks if an generated defCausumn depends on an auto-increment defCausumn and raises an error if so.
-// See https://dev.allegrosql.com/doc/refman/5.7/en/create-block-generated-defCausumns.html for details.
+// See https://dev.allegrosql.com/doc/refman/5.7/en/create-causet-generated-defCausumns.html for details.
 func checkAutoIncrementRef(name string, dependencies map[string]struct{}, tbInfo *perceptron.BlockInfo) error {
 	exists, autoIncrementDeferredCauset := schemareplicant.HasAutoIncrementDeferredCauset(tbInfo)
 	if exists {

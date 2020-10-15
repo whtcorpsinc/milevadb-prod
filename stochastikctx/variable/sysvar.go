@@ -133,7 +133,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeNone, "performance_schema_max_file_handles", "32768"},
 	{ScopeStochastik, "transaction_allow_batching", ""},
 	{ScopeGlobal | ScopeStochastik, ALLEGROSQLModeVar, allegrosql.DefaultALLEGROSQLMode},
-	{ScopeNone, "performance_schema_max_statement_classes", "168"},
+	{ScopeNone, "performance_schema_max_memex_classes", "168"},
 	{ScopeGlobal, "server_id", "0"},
 	{ScopeGlobal, "innodb_flushing_avg_loops", "30"},
 	{ScopeGlobal | ScopeStochastik, TmpBlockSize, "16777216"},
@@ -145,7 +145,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal, "innodb_max_undo_log_size", ""},
 	{ScopeGlobal | ScopeStochastik, "range_alloc_block_size", "4096"},
 	{ScopeGlobal, ConnectTimeout, "10"},
-	{ScopeGlobal | ScopeStochastik, MaxExecutionTime, "0"},
+	{ScopeGlobal | ScopeStochastik, MaxInterDircutionTime, "0"},
 	{ScopeGlobal | ScopeStochastik, DefCauslationServer, allegrosql.DefaultDefCauslationName},
 	{ScopeNone, "have_rtree_keys", "YES"},
 	{ScopeGlobal, "innodb_old_blocks_pct", "37"},
@@ -174,7 +174,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeNone, "have_crypt", "YES"},
 	{ScopeGlobal, "innodb_log_write_ahead_size", ""},
 	{ScopeNone, "innodb_log_group_home_dir", "./"},
-	{ScopeNone, "performance_schema_events_statements_history_size", "10"},
+	{ScopeNone, "performance_schema_events_memexs_history_size", "10"},
 	{ScopeGlobal, GeneralLog, "0"},
 	{ScopeGlobal, "validate_password_dictionary_file", ""},
 	{ScopeGlobal, BinlogOrderCommits, "1"},
@@ -201,7 +201,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal | ScopeStochastik, ForeignKeyChecks, "OFF"},
 	{ScopeGlobal, "host_cache_size", "279"},
 	{ScopeGlobal, DelayKeyWrite, "ON"},
-	{ScopeNone, "metadata_locks_cache_size", "1024"},
+	{ScopeNone, "spacetimedata_locks_cache_size", "1024"},
 	{ScopeNone, "innodb_force_recovery", "0"},
 	{ScopeGlobal, "innodb_file_format_max", "Antelope"},
 	{ScopeGlobal | ScopeStochastik, "debug", ""},
@@ -303,7 +303,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal, "delayed_insert_timeout", "300"},
 	{ScopeGlobal, "max_relay_log_size", "0"},
 	{ScopeGlobal | ScopeStochastik, MaxSortLength, "1024"},
-	{ScopeNone, "metadata_locks_hash_instances", "8"},
+	{ScopeNone, "spacetimedata_locks_hash_instances", "8"},
 	{ScopeGlobal, "ndb_eventbuffer_free_percent", ""},
 	{ScopeNone, "large_files_support", "1"},
 	{ScopeGlobal, "binlog_max_flush_queue_time", "0"},
@@ -314,7 +314,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal | ScopeStochastik, "ndb_blob_write_batch_bytes", ""},
 	{ScopeGlobal, "automatic_sp_privileges", "1"},
 	{ScopeGlobal, "innodb_flush_sync", ""},
-	{ScopeNone, "performance_schema_events_statements_history_long_size", "10000"},
+	{ScopeNone, "performance_schema_events_memexs_history_long_size", "10000"},
 	{ScopeGlobal, "innodb_monitor_disable", ""},
 	{ScopeNone, "innodb_doublewrite", "1"},
 	{ScopeNone, "log_bin_use_v1_row_events", "0"},
@@ -561,7 +561,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal, "innodb_thread_concurrency", "0"},
 	{ScopeGlobal, "innodb_buffer_pool_dump_pct", ""},
 	{ScopeGlobal | ScopeStochastik, "lc_time_names", "en_US"},
-	{ScopeGlobal | ScopeStochastik, "max_statement_time", ""},
+	{ScopeGlobal | ScopeStochastik, "max_memex_time", ""},
 	{ScopeGlobal | ScopeStochastik, EndMakersInJSON, "0"},
 	{ScopeGlobal, AvoidTemporalUpgrade, "0"},
 	{ScopeGlobal, "key_cache_age_threshold", "300"},
@@ -586,7 +586,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal, MilevaDBAutoAnalyzeStartTime, DefAutoAnalyzeStartTime},
 	{ScopeGlobal, MilevaDBAutoAnalyzeEndTime, DefAutoAnalyzeEndTime},
 	{ScopeStochastik, MilevaDBChecksumBlockConcurrency, strconv.Itoa(DefChecksumBlockConcurrency)},
-	{ScopeGlobal | ScopeStochastik, MilevaDBExecutorConcurrency, strconv.Itoa(DefExecutorConcurrency)},
+	{ScopeGlobal | ScopeStochastik, MilevaDBInterlockingDirectorateConcurrency, strconv.Itoa(DefInterlockingDirectorateConcurrency)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBDistALLEGROSQLScanConcurrency, strconv.Itoa(DefDistALLEGROSQLScanConcurrency)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBOptInSubqToJoinAnPosetDagg, BoolToIntStr(DefOptInSubqToJoinAnPosetDagg)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBOptCorrelationThreshold, strconv.FormatFloat(DefOptCorrelationThreshold, 'f', -1, 64)},
@@ -617,7 +617,7 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal | ScopeStochastik, MilevaDBMaxChunkSize, strconv.Itoa(DefMaxChunkSize)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBAllowBatchCop, strconv.Itoa(DefMilevaDBAllowBatchCop)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBInitChunkSize, strconv.Itoa(DefInitChunkSize)},
-	{ScopeGlobal | ScopeStochastik, MilevaDBEnableCascadesPlanner, "0"},
+	{ScopeGlobal | ScopeStochastik, MilevaDBEnableCascadesCausetAppend, "0"},
 	{ScopeGlobal | ScopeStochastik, MilevaDBEnableIndexMerge, "0"},
 	{ScopeStochastik, MilevaDBMemQuotaQuery, strconv.FormatInt(config.GetGlobalConfig().MemQuotaQuery, 10)},
 	{ScopeStochastik, MilevaDBMemQuotaHashJoin, strconv.FormatInt(DefMilevaDBMemQuotaHashJoin, 10)},
@@ -678,23 +678,23 @@ var defaultSysVars = []*SysVar{
 	{ScopeGlobal | ScopeStochastik, MilevaDBStmtSummaryHistorySize, strconv.Itoa(config.GetGlobalConfig().StmtSummary.HistorySize)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBStmtSummaryMaxStmtCount, strconv.FormatUint(uint64(config.GetGlobalConfig().StmtSummary.MaxStmtCount), 10)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBStmtSummaryMaxALLEGROSQLLength, strconv.FormatUint(uint64(config.GetGlobalConfig().StmtSummary.MaxALLEGROSQLLength), 10)},
-	{ScopeGlobal | ScopeStochastik, MilevaDBCapturePlanBaseline, "off"},
-	{ScopeGlobal | ScopeStochastik, MilevaDBUsePlanBaselines, boolToOnOff(DefMilevaDBUsePlanBaselines)},
-	{ScopeGlobal | ScopeStochastik, MilevaDBEvolvePlanBaselines, boolToOnOff(DefMilevaDBEvolvePlanBaselines)},
-	{ScopeGlobal, MilevaDBEvolvePlanTaskMaxTime, strconv.Itoa(DefMilevaDBEvolvePlanTaskMaxTime)},
-	{ScopeGlobal, MilevaDBEvolvePlanTaskStartTime, DefMilevaDBEvolvePlanTaskStartTime},
-	{ScopeGlobal, MilevaDBEvolvePlanTaskEndTime, DefMilevaDBEvolvePlanTaskEndTime},
+	{ScopeGlobal | ScopeStochastik, MilevaDBCaptureCausetBaseline, "off"},
+	{ScopeGlobal | ScopeStochastik, MilevaDBUseCausetBaselines, boolToOnOff(DefMilevaDBUseCausetBaselines)},
+	{ScopeGlobal | ScopeStochastik, MilevaDBEvolveCausetBaselines, boolToOnOff(DefMilevaDBEvolveCausetBaselines)},
+	{ScopeGlobal, MilevaDBEvolveCausetTaskMaxTime, strconv.Itoa(DefMilevaDBEvolveCausetTaskMaxTime)},
+	{ScopeGlobal, MilevaDBEvolveCausetTaskStartTime, DefMilevaDBEvolveCausetTaskStartTime},
+	{ScopeGlobal, MilevaDBEvolveCausetTaskEndTime, DefMilevaDBEvolveCausetTaskEndTime},
 	{ScopeStochastik, MilevaDBIsolationReadEngines, strings.Join(config.GetGlobalConfig().IsolationRead.Engines, ", ")},
 	{ScopeGlobal | ScopeStochastik, MilevaDBStoreLimit, strconv.FormatInt(atomic.LoadInt64(&config.GetGlobalConfig().EinsteinDBClient.StoreLimit), 10)},
 	{ScopeStochastik, MilevaDBMetricSchemaStep, strconv.Itoa(DefMilevaDBMetricSchemaStep)},
 	{ScopeStochastik, MilevaDBMetricSchemaRangeDuration, strconv.Itoa(DefMilevaDBMetricSchemaRangeDuration)},
 	{ScopeStochastik, MilevaDBSlowLogThreshold, strconv.Itoa(logutil.DefaultSlowThreshold)},
-	{ScopeStochastik, MilevaDBRecordPlanInSlowLog, strconv.Itoa(logutil.DefaultRecordPlanInSlowLog)},
+	{ScopeStochastik, MilevaDBRecordCausetInSlowLog, strconv.Itoa(logutil.DefaultRecordCausetInSlowLog)},
 	{ScopeStochastik, MilevaDBEnableSlowLog, BoolToIntStr(logutil.DefaultMilevaDBEnableSlowLog)},
 	{ScopeStochastik, MilevaDBQueryLogMaxLen, strconv.Itoa(logutil.DefaultQueryLogMaxLen)},
 	{ScopeStochastik, MilevaDBCheckMb4ValueInUTF8, BoolToIntStr(config.GetGlobalConfig().CheckMb4ValueInUTF8)},
-	{ScopeStochastik, MilevaDBFoundInPlanCache, BoolToIntStr(DefMilevaDBFoundInPlanCache)},
-	{ScopeStochastik, MilevaDBEnableDefCauslectExecutionInfo, BoolToIntStr(DefMilevaDBEnableDefCauslectExecutionInfo)},
+	{ScopeStochastik, MilevaDBFoundInCausetCache, BoolToIntStr(DefMilevaDBFoundInCausetCache)},
+	{ScopeStochastik, MilevaDBEnableDefCauslectInterDircutionInfo, BoolToIntStr(DefMilevaDBEnableDefCauslectInterDircutionInfo)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBAllowAutoRandExplicitInsert, boolToOnOff(DefMilevaDBAllowAutoRandExplicitInsert)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBEnableClusteredIndex, BoolToIntStr(DefMilevaDBEnableClusteredIndex)},
 	{ScopeGlobal | ScopeStochastik, MilevaDBPartitionPruneMode, string(StaticOnly)},
@@ -756,14 +756,14 @@ func initSynonymsSysVariables() {
 	addSynonymsSysVariables(TxReadOnly, TransactionReadOnly)
 }
 
-// SetNamesVariables is the system variable names related to set names statements.
+// SetNamesVariables is the system variable names related to set names memexs.
 var SetNamesVariables = []string{
 	"character_set_client",
 	"character_set_connection",
 	"character_set_results",
 }
 
-// SetCharsetVariables is the system variable names related to set charset statements.
+// SetCharsetVariables is the system variable names related to set charset memexs.
 var SetCharsetVariables = []string{
 	"character_set_client",
 	"character_set_results",
@@ -888,10 +888,10 @@ const (
 	SlaveCompressedProtodefCaus = "slave_compressed_protodefCaus"
 	// BinlogRowQueryLogEvents is the name for 'binlog_rows_query_log_events' system variable.
 	BinlogRowQueryLogEvents = "binlog_rows_query_log_events"
-	// LogSlowSlaveStatements is the name for 'log_slow_slave_statements' system variable.
-	LogSlowSlaveStatements = "log_slow_slave_statements"
-	// LogSlowAdminStatements is the name for 'log_slow_admin_statements' system variable.
-	LogSlowAdminStatements = "log_slow_admin_statements"
+	// LogSlowSlaveStatements is the name for 'log_slow_slave_memexs' system variable.
+	LogSlowSlaveStatements = "log_slow_slave_memexs"
+	// LogSlowAdminStatements is the name for 'log_slow_admin_memexs' system variable.
+	LogSlowAdminStatements = "log_slow_admin_memexs"
 	// LogQueriesNotUsingIndexes is the name for 'log_queries_not_using_indexes' system variable.
 	LogQueriesNotUsingIndexes = "log_queries_not_using_indexes"
 	// QueryCacheWlockInvalidate is the name for 'query_cache_wlock_invalidate' system variable.
@@ -964,8 +964,8 @@ const (
 	InnodbBufferPoolDumpNow = "innodb_buffer_pool_dump_now"
 	// InnodbBufferPoolLoadNow is the name for 'innodb_buffer_pool_load_now' system variable.
 	InnodbBufferPoolLoadNow = "innodb_buffer_pool_load_now"
-	// InnodbStatsOnMetadata is the name for 'innodb_stats_on_metadata' system variable.
-	InnodbStatsOnMetadata = "innodb_stats_on_metadata"
+	// InnodbStatsOnMetadata is the name for 'innodb_stats_on_spacetimedata' system variable.
+	InnodbStatsOnMetadata = "innodb_stats_on_spacetimedata"
 	// InnodbDisableSortFileCache is the name for 'innodb_disable_sort_file_cache' system variable.
 	InnodbDisableSortFileCache = "innodb_disable_sort_file_cache"
 	// InnodbStatsAutoRecalc is the name for 'innodb_stats_auto_recalc' system variable.

@@ -70,7 +70,7 @@ type einsteindbTxn struct {
 
 	// For data consistency check.
 	// assertions[:confirmed] is the assertion of current transaction.
-	// assertions[confirmed:len(assertions)] is the assertions of current statement.
+	// assertions[confirmed:len(assertions)] is the assertions of current memex.
 	// StmtCommit/StmtRollback may change the confirmed position.
 	assertions []assertionPair
 	confirmed  int
@@ -232,7 +232,7 @@ func (txn *einsteindbTxn) Commit(ctx context.Context) error {
 	}
 
 	var err error
-	// If the txn use pessimistic lock, committer is initialized.
+	// If the txn use pessimistic dagger, committer is initialized.
 	committer := txn.committer
 	if committer == nil {
 		committer, err = newTwoPhaseCommitter(txn, connID)
@@ -282,14 +282,14 @@ func (txn *einsteindbTxn) Commit(ctx context.Context) error {
 	// latches enabled
 	// for transactions which need to acquire latches
 	start = time.Now()
-	lock := txn.causetstore.txnLatches.Lock(committer.startTS, committer.mutations.keys)
+	dagger := txn.causetstore.txnLatches.Lock(committer.startTS, committer.mutations.keys)
 	commitDetail := committer.getDetail()
 	commitDetail.LocalLatchTime = time.Since(start)
 	if commitDetail.LocalLatchTime > 0 {
 		metrics.EinsteinDBLocalLatchWaitTimeHistogram.Observe(commitDetail.LocalLatchTime.Seconds())
 	}
-	defer txn.causetstore.txnLatches.UnLock(lock)
-	if lock.IsStale() {
+	defer txn.causetstore.txnLatches.UnLock(dagger)
+	if dagger.IsStale() {
 		return ekv.ErrWriteConflictInMilevaDB.FastGenByArgs(txn.startTS)
 	}
 	err = committer.execute(ctx)
@@ -297,7 +297,7 @@ func (txn *einsteindbTxn) Commit(ctx context.Context) error {
 		txn.onCommitted(err)
 	}
 	if err == nil {
-		lock.SetCommitTS(committer.commitTS)
+		dagger.SetCommitTS(committer.commitTS)
 	}
 	logutil.Logger(ctx).Debug("[ekv] txnLatches enabled while txn retryable", zap.Error(err))
 	return errors.Trace(err)
@@ -312,7 +312,7 @@ func (txn *einsteindbTxn) Rollback() error {
 		return ekv.ErrInvalidTxn
 	}
 	start := time.Now()
-	// Clean up pessimistic lock.
+	// Clean up pessimistic dagger.
 	if txn.IsPessimistic() && txn.committer != nil {
 		err := txn.rollbackPessimisticLocks()
 		txn.committer.ttlManager.close()
@@ -358,7 +358,7 @@ func (txn *einsteindbTxn) onCommitted(err error) {
 	}
 }
 
-// lockWaitTime in ms, except that ekv.LockAlwaysWait(0) means always wait lock, ekv.LockNowait(-1) means nowait lock
+// lockWaitTime in ms, except that ekv.LockAlwaysWait(0) means always wait dagger, ekv.LockNowait(-1) means nowait dagger
 func (txn *einsteindbTxn) LockKeys(ctx context.Context, lockCtx *ekv.LockCtx, keysInput ...ekv.Key) error {
 	// Exclude keys that are already locked.
 	var err error
@@ -462,14 +462,14 @@ func (txn *einsteindbTxn) LockKeys(ctx context.Context, lockCtx *ekv.LockCtx, ke
 				}
 			}
 			keyMayBeLocked := terror.ErrorNotEqual(ekv.ErrWriteConflict, err) && terror.ErrorNotEqual(ekv.ErrKeyExists, err)
-			// If there is only 1 key and lock fails, no need to do pessimistic rollback.
+			// If there is only 1 key and dagger fails, no need to do pessimistic rollback.
 			if len(keys) > 1 || keyMayBeLocked {
 				wg := txn.asyncPessimisticRollback(ctx, keys)
 				if dl, ok := errors.Cause(err).(*ErrDeadlock); ok && hashInKeys(dl.DeadlockKeyHash, keys) {
 					dl.IsRetryable = true
-					// Wait for the pessimistic rollback to finish before we retry the statement.
+					// Wait for the pessimistic rollback to finish before we retry the memex.
 					wg.Wait()
-					// Sleep a little, wait for the other transaction that blocked by this transaction to acquire the lock.
+					// Sleep a little, wait for the other transaction that blocked by this transaction to acquire the dagger.
 					time.Sleep(time.Millisecond * 5)
 					failpoint.Inject("SingleStmtDeadLockRetrySleep", func() {
 						time.Sleep(300 * time.Millisecond)
@@ -477,7 +477,7 @@ func (txn *einsteindbTxn) LockKeys(ctx context.Context, lockCtx *ekv.LockCtx, ke
 				}
 			}
 			if assignedPrimaryKey {
-				// unset the primary key if we assigned primary key when failed to lock it.
+				// unset the primary key if we assigned primary key when failed to dagger it.
 				txn.committer.primaryKey = nil
 			}
 			return err
@@ -488,8 +488,8 @@ func (txn *einsteindbTxn) LockKeys(ctx context.Context, lockCtx *ekv.LockCtx, ke
 	}
 	for _, key := range keys {
 		valExists := ekv.SetKeyLockedValueExists
-		// PointGet and BatchPointGet will return value in pessimistic lock response, the value may not exist.
-		// For other lock modes, the locked key values always exist.
+		// PointGet and BatchPointGet will return value in pessimistic dagger response, the value may not exist.
+		// For other dagger modes, the locked key values always exist.
 		if lockCtx.ReturnValues {
 			val, _ := lockCtx.Values[string(key)]
 			if len(val.Value) == 0 {

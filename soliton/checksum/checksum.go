@@ -22,11 +22,11 @@ import (
 )
 
 const (
-	// the size of whole checksum block
+	// the size of whole checksum causet
 	checksumBlockSize = 1024
 	// the size of checksum field, we use CRC-32 algorithm to generate a 4 bytes checksum
 	checksumSize = 4
-	// the size of the payload of a checksum block
+	// the size of the payload of a checksum causet
 	checksumPayloadSize = checksumBlockSize - checksumSize
 )
 
@@ -37,7 +37,7 @@ var checksumReaderBufPool = sync.Pool{
 // Writer implements an io.WriteCloser, it calculates and stores a CRC-32 checksum for the payload before
 // writing to the underlying object.
 //
-// For example, a layout of the checksum block which payload is 2100 bytes is as follow:
+// For example, a layout of the checksum causet which payload is 2100 bytes is as follow:
 //
 // | --    4B    -- | --  1020B  -- || --    4B    -- | --  1020B  -- || --    4B    -- | --   60B   -- |
 // | -- checksum -- | -- payload -- || -- checksum -- | -- payload -- || -- checksum -- | -- payload -- |

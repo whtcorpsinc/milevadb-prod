@@ -71,7 +71,7 @@ func (h *rpcHandler) handleAnalyzeIndexReq(req *interlock.Request, analyzeReq *f
 	if startTS == 0 {
 		startTS = analyzeReq.GetStartTsFallback()
 	}
-	e := &indexScanExec{
+	e := &indexScanInterDirc{
 		defcausLen:        int(analyzeReq.IdxReq.NumDeferredCausets),
 		kvRanges:       ranges,
 		startTS:        startTS,
@@ -120,8 +120,8 @@ func (h *rpcHandler) handleAnalyzeIndexReq(req *interlock.Request, analyzeReq *f
 	return &interlock.Response{Data: data}, nil
 }
 
-type analyzeDeferredCausetsExec struct {
-	tblExec *blockScanExec
+type analyzeDeferredCausetsInterDirc struct {
+	tblInterDirc *blockScanInterDirc
 	fields  []*ast.ResultField
 }
 
@@ -163,9 +163,9 @@ func (h *rpcHandler) handleAnalyzeDeferredCausetsReq(req *interlock.Request, ana
 		}
 		return col.DefaultVal, nil
 	}
-	rd := rowcodec.NewByteDecoder(colInfos, []int64{-1}, defVal, nil)
-	e := &analyzeDeferredCausetsExec{
-		tblExec: &blockScanExec{
+	rd := rowcodec.NewByteCausetDecoder(colInfos, []int64{-1}, defVal, nil)
+	e := &analyzeDeferredCausetsInterDirc{
+		tblInterDirc: &blockScanInterDirc{
 			TableScan:      &fidelpb.TableScan{DeferredCausets: columns},
 			kvRanges:       ranges,
 			colIDs:         evalCtx.colIDs,
@@ -237,12 +237,12 @@ func (h *rpcHandler) handleAnalyzeDeferredCausetsReq(req *interlock.Request, ana
 }
 
 // Fields implements the sqlexec.RecordSet Fields interface.
-func (e *analyzeDeferredCausetsExec) Fields() []*ast.ResultField {
+func (e *analyzeDeferredCausetsInterDirc) Fields() []*ast.ResultField {
 	return e.fields
 }
 
-func (e *analyzeDeferredCausetsExec) getNext(ctx context.Context) ([]types.Causet, error) {
-	values, err := e.tblExec.Next(ctx)
+func (e *analyzeDeferredCausetsInterDirc) getNext(ctx context.Context) ([]types.Causet, error) {
+	values, err := e.tblInterDirc.Next(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -260,7 +260,7 @@ func (e *analyzeDeferredCausetsExec) getNext(ctx context.Context) ([]types.Cause
 	return datumRow, nil
 }
 
-func (e *analyzeDeferredCausetsExec) Next(ctx context.Context, req *chunk.Chunk) error {
+func (e *analyzeDeferredCausetsInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	req.Reset()
 	event, err := e.getNext(ctx)
 	if event == nil || err != nil {
@@ -272,7 +272,7 @@ func (e *analyzeDeferredCausetsExec) Next(ctx context.Context, req *chunk.Chunk)
 	return nil
 }
 
-func (e *analyzeDeferredCausetsExec) NewChunk() *chunk.Chunk {
+func (e *analyzeDeferredCausetsInterDirc) NewChunk() *chunk.Chunk {
 	fields := make([]*types.FieldType, 0, len(e.fields))
 	for _, field := range e.fields {
 		fields = append(fields, &field.DeferredCauset.FieldType)
@@ -281,6 +281,6 @@ func (e *analyzeDeferredCausetsExec) NewChunk() *chunk.Chunk {
 }
 
 // Close implements the sqlexec.RecordSet Close interface.
-func (e *analyzeDeferredCausetsExec) Close() error {
+func (e *analyzeDeferredCausetsInterDirc) Close() error {
 	return nil
 }

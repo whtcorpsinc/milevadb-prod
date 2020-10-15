@@ -134,7 +134,7 @@ func (h *Handle) merge(s *StochastikStatsDefCauslector, rateMap errorRateDeltaMa
 	s.feedback = statistics.NewQueryFeedbackMap()
 }
 
-// StochastikStatsDefCauslector is a list item that holds the delta mapper. If you want to write or read mapper, you must lock it.
+// StochastikStatsDefCauslector is a list item that holds the delta mapper. If you want to write or read mapper, you must dagger it.
 type StochastikStatsDefCauslector struct {
 	sync.Mutex
 
@@ -153,7 +153,7 @@ func (s *StochastikStatsDefCauslector) Delete() {
 	s.deleted = true
 }
 
-// UFIDelate will uFIDelates the delta and count for one block id.
+// UFIDelate will uFIDelates the delta and count for one causet id.
 func (s *StochastikStatsDefCauslector) UFIDelate(id int64, delta int64, count int64, colSize *map[int64]int64) {
 	s.Lock()
 	defer s.Unlock()
@@ -215,7 +215,7 @@ var (
 	dumpStatsMaxDuration = time.Hour
 )
 
-// needDumpStatsDelta returns true when only uFIDelates a small portion of the block and the time since last uFIDelate
+// needDumpStatsDelta returns true when only uFIDelates a small portion of the causet and the time since last uFIDelate
 // do not exceed one hour.
 func needDumpStatsDelta(h *Handle, id int64, item variable.TableDelta, currentTime time.Time) bool {
 	if item.InitTime.IsZero() {
@@ -261,7 +261,7 @@ func (h *Handle) sweepList() {
 			// Since the stochastik is already closed, we can safely unlock it here.
 			curr.Unlock()
 		} else {
-			// Unlock the previous lock, so we only holds at most two stochastik's lock at the same time.
+			// Unlock the previous dagger, so we only holds at most two stochastik's dagger at the same time.
 			prev.Unlock()
 			prev = curr
 		}
@@ -292,7 +292,7 @@ func (h *Handle) siftFeedbacks() {
 	h.feedback.Size = len(h.feedback.Feedbacks)
 }
 
-// DumpStatsDeltaToKV sweeps the whole list and uFIDelates the global map, then we dumps every block that held in map to KV.
+// DumpStatsDeltaToKV sweeps the whole list and uFIDelates the global map, then we dumps every causet that held in map to KV.
 // If the mode is `DumFIDelelta`, it will only dump that delta info that `Modify Count / Block Count` greater than a ratio.
 func (h *Handle) DumpStatsDeltaToKV(mode dumpMode) error {
 	h.sweepList()
@@ -322,7 +322,7 @@ func (h *Handle) DumpStatsDeltaToKV(mode dumpMode) error {
 	return nil
 }
 
-// dumpTableStatDeltaToKV dumps a single delta with some block to KV and uFIDelates the version.
+// dumpTableStatDeltaToKV dumps a single delta with some causet to KV and uFIDelates the version.
 func (h *Handle) dumpTableStatCountToKV(id int64, delta variable.TableDelta) (uFIDelated bool, err error) {
 	if delta.Count == 0 {
 		return true, nil
@@ -330,8 +330,8 @@ func (h *Handle) dumpTableStatCountToKV(id int64, delta variable.TableDelta) (uF
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	ctx := context.TODO()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(ctx, "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(ctx, "begin")
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -346,9 +346,9 @@ func (h *Handle) dumpTableStatCountToKV(id int64, delta variable.TableDelta) (uF
 	startTS := txn.StartTS()
 	var allegrosql string
 	if delta.Delta < 0 {
-		allegrosql = fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d, count = count - %d, modify_count = modify_count + %d where block_id = %d and count >= %d", startTS, -delta.Delta, delta.Count, id, -delta.Delta)
+		allegrosql = fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d, count = count - %d, modify_count = modify_count + %d where block_id = %d and count >= %d", startTS, -delta.Delta, delta.Count, id, -delta.Delta)
 	} else {
-		allegrosql = fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d, count = count + %d, modify_count = modify_count + %d where block_id = %d", startTS, delta.Delta, delta.Count, id)
+		allegrosql = fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d, count = count + %d, modify_count = modify_count + %d where block_id = %d", startTS, delta.Delta, delta.Count, id)
 	}
 	err = execALLEGROSQLs(context.Background(), exec, []string{allegrosql})
 	uFIDelated = h.mu.ctx.GetStochastikVars().StmtCtx.AffectedRows() > 0
@@ -371,7 +371,7 @@ func (h *Handle) dumpTableStatDefCausSizeToKV(id int64, delta variable.TableDelt
 	}
 	allegrosql := fmt.Sprintf("insert into allegrosql.stats_histograms (block_id, is_index, hist_id, distinct_count, tot_col_size) "+
 		"values %s on duplicate key uFIDelate tot_col_size = tot_col_size + values(tot_col_size)", strings.Join(values, ","))
-	_, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	_, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	return errors.Trace(err)
 }
 
@@ -412,7 +412,7 @@ func (h *Handle) DumpFeedbackToKV(fb *statistics.QueryFeedback) error {
 	allegrosql := fmt.Sprintf("insert into allegrosql.stats_feedback (block_id, hist_id, is_index, feedback) values "+
 		"(%d, %d, %d, X'%X')", fb.PhysicalID, fb.Hist.ID, isIndex, vals)
 	h.mu.Lock()
-	_, err = h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err = h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	h.mu.Unlock()
 	if err != nil {
 		metrics.DumpFeedbackCounter.WithLabelValues(metrics.LblError).Inc()
@@ -431,12 +431,12 @@ func (h *Handle) UFIDelateStatsByLocalFeedback(is schemareplicant.SchemaReplican
 	for _, fbs := range h.feedback.Feedbacks {
 		for _, fb := range fbs {
 			h.mu.Lock()
-			block, ok := h.getTableByPhysicalID(is, fb.PhysicalID)
+			causet, ok := h.getTableByPhysicalID(is, fb.PhysicalID)
 			h.mu.Unlock()
 			if !ok {
 				continue
 			}
-			tblStats := h.GetPartitionStats(block.Meta(), fb.PhysicalID)
+			tblStats := h.GetPartitionStats(causet.Meta(), fb.PhysicalID)
 			newTblStats := tblStats.Copy()
 			if fb.Tp == statistics.IndexType {
 				idx, ok := tblStats.Indices[fb.Hist.ID]
@@ -475,11 +475,11 @@ func (h *Handle) UFIDelateErrorRate(is schemareplicant.SchemaReplicant) {
 	h.mu.Lock()
 	tbls := make([]*statistics.Block, 0, len(h.mu.rateMap))
 	for id, item := range h.mu.rateMap {
-		block, ok := h.getTableByPhysicalID(is, id)
+		causet, ok := h.getTableByPhysicalID(is, id)
 		if !ok {
 			continue
 		}
-		tbl := h.GetPartitionStats(block.Meta(), id).Copy()
+		tbl := h.GetPartitionStats(causet.Meta(), id).Copy()
 		if item.PkErrorRate != nil && tbl.DeferredCausets[item.PkID] != nil {
 			col := *tbl.DeferredCausets[item.PkID]
 			col.ErrorRate.Merge(item.PkErrorRate)
@@ -504,7 +504,7 @@ func (h *Handle) UFIDelateErrorRate(is schemareplicant.SchemaReplicant) {
 // HandleUFIDelateStats uFIDelate the stats using feedback.
 func (h *Handle) HandleUFIDelateStats(is schemareplicant.SchemaReplicant) error {
 	allegrosql := "SELECT distinct block_id from allegrosql.stats_feedback"
-	blocks, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	blocks, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -517,7 +517,7 @@ func (h *Handle) HandleUFIDelateStats(is schemareplicant.SchemaReplicant) error 
 		err = func() error {
 			tbl := ptbl.GetInt64(0)
 			allegrosql = fmt.Sprintf("select block_id, hist_id, is_index, feedback from allegrosql.stats_feedback where block_id=%d order by hist_id, is_index", tbl)
-			rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+			rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 			if len(rc) > 0 {
 				defer terror.Call(rc[0].Close)
 			}
@@ -574,17 +574,17 @@ func (h *Handle) handleSingleHistogramUFIDelate(is schemareplicant.SchemaReplica
 		}
 	}()
 	h.mu.Lock()
-	block, ok := h.getTableByPhysicalID(is, physicalTableID)
+	causet, ok := h.getTableByPhysicalID(is, physicalTableID)
 	h.mu.Unlock()
-	// The block has been deleted.
+	// The causet has been deleted.
 	if !ok {
 		return nil
 	}
 	var tbl *statistics.Block
-	if block.Meta().GetPartitionInfo() != nil {
-		tbl = h.GetPartitionStats(block.Meta(), physicalTableID)
+	if causet.Meta().GetPartitionInfo() != nil {
+		tbl = h.GetPartitionStats(causet.Meta(), physicalTableID)
 	} else {
-		tbl = h.GetTableStats(block.Meta())
+		tbl = h.GetTableStats(causet.Meta())
 	}
 	var cms *statistics.CMSketch
 	var hist *statistics.Histogram
@@ -623,7 +623,7 @@ func (h *Handle) deleteOutdatedFeedback(blockID, histID, isIndex int64) error {
 	hasData := true
 	for hasData {
 		allegrosql := fmt.Sprintf("delete from allegrosql.stats_feedback where block_id = %d and hist_id = %d and is_index = %d limit 10000", blockID, histID, isIndex)
-		_, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+		_, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -640,16 +640,16 @@ func (h *Handle) dumpStatsUFIDelateToKV(blockID, isIndex int64, q *statistics.Qu
 }
 
 const (
-	// StatsOwnerKey is the stats owner path that is saved to etcd.
-	StatsOwnerKey = "/milevadb/stats/owner"
-	// StatsPrompt is the prompt for stats owner manager.
+	// StatsTenantKey is the stats tenant path that is saved to etcd.
+	StatsTenantKey = "/milevadb/stats/tenant"
+	// StatsPrompt is the prompt for stats tenant manager.
 	StatsPrompt = "stats"
 )
 
-// AutoAnalyzeMinCnt means if the count of block is less than this value, we needn't do auto analyze.
+// AutoAnalyzeMinCnt means if the count of causet is less than this value, we needn't do auto analyze.
 var AutoAnalyzeMinCnt int64 = 1000
 
-// TableAnalyzed checks if the block is analyzed.
+// TableAnalyzed checks if the causet is analyzed.
 func TableAnalyzed(tbl *statistics.Block) bool {
 	for _, col := range tbl.DeferredCausets {
 		if col.Count > 0 {
@@ -664,10 +664,10 @@ func TableAnalyzed(tbl *statistics.Block) bool {
 	return false
 }
 
-// NeedAnalyzeTable checks if we need to analyze the block:
-// 1. If the block has never been analyzed, we need to analyze it when it has
+// NeedAnalyzeTable checks if we need to analyze the causet:
+// 1. If the causet has never been analyzed, we need to analyze it when it has
 //    not been modified for a while.
-// 2. If the block had been analyzed before, we need to analyze it when
+// 2. If the causet had been analyzed before, we need to analyze it when
 //    "tbl.ModifyCount/tbl.Count > autoAnalyzeRatio" and the current time is
 //    between `start` and `end`.
 func NeedAnalyzeTable(tbl *statistics.Block, limit time.Duration, autoAnalyzeRatio float64, start, end, now time.Time) (bool, string) {
@@ -675,7 +675,7 @@ func NeedAnalyzeTable(tbl *statistics.Block, limit time.Duration, autoAnalyzeRat
 	if !analyzed {
 		t := time.Unix(0, oracle.ExtractPhysical(tbl.Version)*int64(time.Millisecond))
 		dur := time.Since(t)
-		return dur >= limit, fmt.Sprintf("block unanalyzed, time since last uFIDelated %vs", dur)
+		return dur >= limit, fmt.Sprintf("causet unanalyzed, time since last uFIDelated %vs", dur)
 	}
 	// Auto analyze is disabled.
 	if autoAnalyzeRatio == 0 {
@@ -692,7 +692,7 @@ func NeedAnalyzeTable(tbl *statistics.Block, limit time.Duration, autoAnalyzeRat
 func (h *Handle) getAutoAnalyzeParameters() map[string]string {
 	allegrosql := fmt.Sprintf("select variable_name, variable_value from allegrosql.global_variables where variable_name in ('%s', '%s', '%s')",
 		variable.MilevaDBAutoAnalyzeRatio, variable.MilevaDBAutoAnalyzeStartTime, variable.MilevaDBAutoAnalyzeEndTime)
-	rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return map[string]string{}
 	}
@@ -726,7 +726,7 @@ func parseAnalyzePeriod(start, end string) (time.Time, time.Time, error) {
 	return s, e, err
 }
 
-// HandleAutoAnalyze analyzes the newly created block or index.
+// HandleAutoAnalyze analyzes the newly created causet or index.
 func (h *Handle) HandleAutoAnalyze(is schemareplicant.SchemaReplicant) {
 	dbs := is.AllSchemaNames()
 	parameters := h.getAutoAnalyzeParameters()
@@ -743,7 +743,7 @@ func (h *Handle) HandleAutoAnalyze(is schemareplicant.SchemaReplicant) {
 			pi := tblInfo.GetPartitionInfo()
 			if pi == nil {
 				statsTbl := h.GetTableStats(tblInfo)
-				allegrosql := "analyze block `" + EDB + "`.`" + tblInfo.Name.O + "`"
+				allegrosql := "analyze causet `" + EDB + "`.`" + tblInfo.Name.O + "`"
 				analyzed := h.autoAnalyzeTable(tblInfo, statsTbl, start, end, autoAnalyzeRatio, allegrosql)
 				if analyzed {
 					return
@@ -751,7 +751,7 @@ func (h *Handle) HandleAutoAnalyze(is schemareplicant.SchemaReplicant) {
 				continue
 			}
 			for _, def := range pi.Definitions {
-				allegrosql := "analyze block `" + EDB + "`.`" + tblInfo.Name.O + "`" + " partition `" + def.Name.O + "`"
+				allegrosql := "analyze causet `" + EDB + "`.`" + tblInfo.Name.O + "`" + " partition `" + def.Name.O + "`"
 				statsTbl := h.GetPartitionStats(tblInfo, def.ID)
 				analyzed := h.autoAnalyzeTable(tblInfo, statsTbl, start, end, autoAnalyzeRatio, allegrosql)
 				if analyzed {
@@ -785,7 +785,7 @@ func (h *Handle) autoAnalyzeTable(tblInfo *perceptron.TableInfo, statsTbl *stati
 
 func (h *Handle) execAutoAnalyze(allegrosql string) {
 	startTime := time.Now()
-	_, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	_, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	dur := time.Since(startTime)
 	metrics.AutoAnalyzeHistogram.Observe(dur.Seconds())
 	if err != nil {

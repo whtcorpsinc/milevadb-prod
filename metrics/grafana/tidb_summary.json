@@ -719,7 +719,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MyALLEGROSQL command processing numbers per second. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-statements.html",
+          "description": "MyALLEGROSQL command processing numbers per second. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-memexs.html",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -946,7 +946,7 @@
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
           "decimals": null,
-          "description": "MilevaDB statement statistics.",
+          "description": "MilevaDB memex statistics.",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -987,7 +987,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_executor_statement_total[1m])) by (type)",
+              "expr": "sum(rate(milevadb_interlock_memex_total[1m])) by (type)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",
@@ -995,7 +995,7 @@
               "step": 30
             },
             {
-              "expr": "sum(rate(milevadb_executor_statement_total[1m]))",
+              "expr": "sum(rate(milevadb_interlock_memex_total[1m]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "total",
@@ -1052,7 +1052,7 @@
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
           "decimals": null,
-          "description": "MyALLEGROSQL command statistics by command type. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-statements.html",
+          "description": "MyALLEGROSQL command statistics by command type. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-memexs.html",
           "fill": 0,
           "gridPos": {
             "h": 7,
@@ -1437,7 +1437,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Execution Duration",
+          "title": "InterDircution Duration",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1536,7 +1536,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Queries Using Plan Cache OPS",
+          "title": "Queries Using Causet Cache OPS",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1791,7 +1791,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The max MilevaDB statements numbers within one transaction.",
+          "description": "The max MilevaDB memexs numbers within one transaction.",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -1825,7 +1825,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1, sum(rate(milevadb_stochastik_transaction_statement_num_bucket[30s])) by (le))",
+              "expr": "histogram_quantile(1, sum(rate(milevadb_stochastik_transaction_memex_num_bucket[30s])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "max",
@@ -2861,7 +2861,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB auto-ID requests per second including single block/global auto-ID processing and single block auto-ID rebase processing.",
+          "description": "MilevaDB auto-ID requests per second including single causet/global auto-ID processing and single causet auto-ID rebase processing.",
           "fill": 1,
           "gridPos": {
             "h": 7,

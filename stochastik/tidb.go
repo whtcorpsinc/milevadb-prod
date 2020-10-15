@@ -31,7 +31,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
@@ -115,7 +115,7 @@ var (
 	// For production, you should set a big schemaReplicant lease, like 300s+.
 	schemaLease = int64(1 * time.Second)
 
-	// statsLease is the time for reload stats block.
+	// statsLease is the time for reload stats causet.
 	statsLease = int64(3 * time.Second)
 
 	// indexUsageSyncLease is the time for index usage synchronization.
@@ -197,8 +197,8 @@ func recordAbortTxnDuration(sessVars *variable.StochastikVars) {
 func finishStmt(ctx context.Context, se *stochastik, meetsErr error, allegrosql sqlexec.Statement) error {
 	err := autoCommitAfterStmt(ctx, se, meetsErr, allegrosql)
 	if se.txn.pending() {
-		// After run statement finish, txn state is still pending means the
-		// statement never need a Txn(), such as:
+		// After run memex finish, txn state is still pending means the
+		// memex never need a Txn(), such as:
 		//
 		// set @@milevadb_general_log = 1
 		// set @@autocommit = 0
@@ -220,7 +220,7 @@ func autoCommitAfterStmt(ctx context.Context, se *stochastik, meetsErr error, al
 			logutil.BgLogger().Info("rollbackTxn for dbs/autocommit failed")
 			se.RollbackTxn(ctx)
 			recordAbortTxnDuration(sessVars)
-		} else if se.txn.Valid() && se.txn.IsPessimistic() && executor.ErrDeadlock.Equal(meetsErr) {
+		} else if se.txn.Valid() && se.txn.IsPessimistic() && interlock.ErrDeadlock.Equal(meetsErr) {
 			logutil.BgLogger().Info("rollbackTxn for deadlock", zap.Uint64("txn", se.txn.StartTS()))
 			se.RollbackTxn(ctx)
 			recordAbortTxnDuration(sessVars)
@@ -230,8 +230,8 @@ func autoCommitAfterStmt(ctx context.Context, se *stochastik, meetsErr error, al
 
 	if !sessVars.InTxn() {
 		if err := se.CommitTxn(ctx); err != nil {
-			if _, ok := allegrosql.(*executor.ExecStmt).StmtNode.(*ast.CommitStmt); ok {
-				err = errors.Annotatef(err, "previous statement: %s", se.GetStochastikVars().PrevStmt)
+			if _, ok := allegrosql.(*interlock.InterDircStmt).StmtNode.(*ast.CommitStmt); ok {
+				err = errors.Annotatef(err, "previous memex: %s", se.GetStochastikVars().PrevStmt)
 			}
 			return err
 		}
@@ -242,21 +242,21 @@ func autoCommitAfterStmt(ctx context.Context, se *stochastik, meetsErr error, al
 
 func checkStmtLimit(ctx context.Context, se *stochastik) error {
 	// If the user insert, insert, insert ... but never commit, MilevaDB would OOM.
-	// So we limit the statement count in a transaction here.
+	// So we limit the memex count in a transaction here.
 	var err error
 	sessVars := se.GetStochastikVars()
 	history := GetHistory(se)
 	if history.Count() > int(config.GetGlobalConfig().Performance.StmtCountLimit) {
 		if !sessVars.BatchCommit {
 			se.RollbackTxn(ctx)
-			return errors.Errorf("statement count %d exceeds the transaction limitation, autocommit = %t",
+			return errors.Errorf("memex count %d exceeds the transaction limitation, autocommit = %t",
 				history.Count(), sessVars.IsAutocommit())
 		}
 		err = se.NewTxn(ctx)
 		// The transaction does not committed yet, we need to keep it in transaction.
-		// The last history could not be "commit"/"rollback" statement.
+		// The last history could not be "commit"/"rollback" memex.
 		// It means it is impossible to start a new transaction at the end of the transaction.
-		// Because after the server executed "commit"/"rollback" statement, the stochastik is out of the transaction.
+		// Because after the server executed "commit"/"rollback" memex, the stochastik is out of the transaction.
 		sessVars.SetStatusFlag(allegrosql.ServerStatusInTrans, true)
 	}
 	return err

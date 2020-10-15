@@ -27,24 +27,24 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 )
 
-// decoder contains base soliton for decode event.
-type decoder struct {
+// causetDecoder contains base soliton for decode event.
+type causetDecoder struct {
 	event
 	defCausumns      []DefCausInfo
 	handleDefCausIDs []int64
 	loc          *time.Location
 }
 
-// NewDecoder creates a decoder.
-func NewDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, loc *time.Location) *decoder {
-	return &decoder{
+// NewCausetDecoder creates a causetDecoder.
+func NewCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, loc *time.Location) *causetDecoder {
+	return &causetDecoder{
 		defCausumns:      defCausumns,
 		handleDefCausIDs: handleDefCausIDs,
 		loc:          loc,
 	}
 }
 
-// DefCausInfo is used as defCausumn meta info for event decoder.
+// DefCausInfo is used as defCausumn spacetime info for event causetDecoder.
 type DefCausInfo struct {
 	ID            int64
 	IsPKHandle    bool
@@ -54,32 +54,32 @@ type DefCausInfo struct {
 
 // CausetMaFIDelecoder decodes the event to causet map.
 type CausetMaFIDelecoder struct {
-	decoder
+	causetDecoder
 }
 
 // NewCausetMaFIDelecoder creates a CausetMaFIDelecoder.
 func NewCausetMaFIDelecoder(defCausumns []DefCausInfo, loc *time.Location) *CausetMaFIDelecoder {
-	return &CausetMaFIDelecoder{decoder{
+	return &CausetMaFIDelecoder{causetDecoder{
 		defCausumns: defCausumns,
 		loc:     loc,
 	}}
 }
 
 // DecodeToCausetMap decodes byte slices to causet map.
-func (decoder *CausetMaFIDelecoder) DecodeToCausetMap(rowData []byte, event map[int64]types.Causet) (map[int64]types.Causet, error) {
+func (causetDecoder *CausetMaFIDelecoder) DecodeToCausetMap(rowData []byte, event map[int64]types.Causet) (map[int64]types.Causet, error) {
 	if event == nil {
-		event = make(map[int64]types.Causet, len(decoder.defCausumns))
+		event = make(map[int64]types.Causet, len(causetDecoder.defCausumns))
 	}
-	err := decoder.fromBytes(rowData)
+	err := causetDecoder.fromBytes(rowData)
 	if err != nil {
 		return nil, err
 	}
-	for i := range decoder.defCausumns {
-		defCaus := &decoder.defCausumns[i]
-		idx, isNil, notFound := decoder.event.findDefCausID(defCaus.ID)
+	for i := range causetDecoder.defCausumns {
+		defCaus := &causetDecoder.defCausumns[i]
+		idx, isNil, notFound := causetDecoder.event.findDefCausID(defCaus.ID)
 		if !notFound && !isNil {
-			defCausData := decoder.getData(idx)
-			d, err := decoder.decodeDefCausCauset(defCaus, defCausData)
+			defCausData := causetDecoder.getData(idx)
+			d, err := causetDecoder.decodeDefCausCauset(defCaus, defCausData)
 			if err != nil {
 				return nil, err
 			}
@@ -97,7 +97,7 @@ func (decoder *CausetMaFIDelecoder) DecodeToCausetMap(rowData []byte, event map[
 	return event, nil
 }
 
-func (decoder *CausetMaFIDelecoder) decodeDefCausCauset(defCaus *DefCausInfo, defCausData []byte) (types.Causet, error) {
+func (causetDecoder *CausetMaFIDelecoder) decodeDefCausCauset(defCaus *DefCausInfo, defCausData []byte) (types.Causet, error) {
 	var d types.Causet
 	switch defCaus.Ft.Tp {
 	case allegrosql.TypeLonglong, allegrosql.TypeLong, allegrosql.TypeInt24, allegrosql.TypeShort, allegrosql.TypeTiny:
@@ -141,7 +141,7 @@ func (decoder *CausetMaFIDelecoder) decodeDefCausCauset(defCaus *DefCausInfo, de
 			return d, err
 		}
 		if defCaus.Ft.Tp == allegrosql.TypeTimestamp && !t.IsZero() {
-			err = t.ConvertTimeZone(time.UTC, decoder.loc)
+			err = t.ConvertTimeZone(time.UTC, causetDecoder.loc)
 			if err != nil {
 				return d, err
 			}
@@ -179,16 +179,16 @@ func (decoder *CausetMaFIDelecoder) decodeDefCausCauset(defCaus *DefCausInfo, de
 	return d, nil
 }
 
-// ChunkDecoder decodes the event to chunk.Chunk.
-type ChunkDecoder struct {
-	decoder
+// ChunkCausetDecoder decodes the event to chunk.Chunk.
+type ChunkCausetDecoder struct {
+	causetDecoder
 	defCauset func(i int, chk *chunk.Chunk) error
 }
 
-// NewChunkDecoder creates a NewChunkDecoder.
-func NewChunkDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defCauset func(i int, chk *chunk.Chunk) error, loc *time.Location) *ChunkDecoder {
-	return &ChunkDecoder{
-		decoder: decoder{
+// NewChunkCausetDecoder creates a NewChunkCausetDecoder.
+func NewChunkCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defCauset func(i int, chk *chunk.Chunk) error, loc *time.Location) *ChunkCausetDecoder {
+	return &ChunkCausetDecoder{
+		causetDecoder: causetDecoder{
 			defCausumns:      defCausumns,
 			handleDefCausIDs: handleDefCausIDs,
 			loc:          loc,
@@ -198,31 +198,31 @@ func NewChunkDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defCau
 }
 
 // DecodeToChunk decodes a event to chunk.
-func (decoder *ChunkDecoder) DecodeToChunk(rowData []byte, handle ekv.Handle, chk *chunk.Chunk) error {
-	err := decoder.fromBytes(rowData)
+func (causetDecoder *ChunkCausetDecoder) DecodeToChunk(rowData []byte, handle ekv.Handle, chk *chunk.Chunk) error {
+	err := causetDecoder.fromBytes(rowData)
 	if err != nil {
 		return err
 	}
 
-	for defCausIdx := range decoder.defCausumns {
-		defCaus := &decoder.defCausumns[defCausIdx]
+	for defCausIdx := range causetDecoder.defCausumns {
+		defCaus := &causetDecoder.defCausumns[defCausIdx]
 		// fill the virtual defCausumn value after event calculation
 		if defCaus.VirtualGenDefCaus {
 			chk.AppendNull(defCausIdx)
 			continue
 		}
 
-		idx, isNil, notFound := decoder.event.findDefCausID(defCaus.ID)
+		idx, isNil, notFound := causetDecoder.event.findDefCausID(defCaus.ID)
 		if !notFound && !isNil {
-			defCausData := decoder.getData(idx)
-			err := decoder.decodeDefCausToChunk(defCausIdx, defCaus, defCausData, chk)
+			defCausData := causetDecoder.getData(idx)
+			err := causetDecoder.decodeDefCausToChunk(defCausIdx, defCaus, defCausData, chk)
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		if decoder.tryAppendHandleDeferredCauset(defCausIdx, defCaus, handle, chk) {
+		if causetDecoder.tryAppendHandleDeferredCauset(defCausIdx, defCaus, handle, chk) {
 			continue
 		}
 
@@ -231,12 +231,12 @@ func (decoder *ChunkDecoder) DecodeToChunk(rowData []byte, handle ekv.Handle, ch
 			continue
 		}
 
-		if decoder.defCauset == nil {
+		if causetDecoder.defCauset == nil {
 			chk.AppendNull(defCausIdx)
 			continue
 		}
 
-		err := decoder.defCauset(defCausIdx, chk)
+		err := causetDecoder.defCauset(defCausIdx, chk)
 		if err != nil {
 			return err
 		}
@@ -244,17 +244,17 @@ func (decoder *ChunkDecoder) DecodeToChunk(rowData []byte, handle ekv.Handle, ch
 	return nil
 }
 
-func (decoder *ChunkDecoder) tryAppendHandleDeferredCauset(defCausIdx int, defCaus *DefCausInfo, handle ekv.Handle, chk *chunk.Chunk) bool {
+func (causetDecoder *ChunkCausetDecoder) tryAppendHandleDeferredCauset(defCausIdx int, defCaus *DefCausInfo, handle ekv.Handle, chk *chunk.Chunk) bool {
 	if handle == nil {
 		return false
 	}
-	if handle.IsInt() && defCaus.ID == decoder.handleDefCausIDs[0] {
+	if handle.IsInt() && defCaus.ID == causetDecoder.handleDefCausIDs[0] {
 		chk.AppendInt64(defCausIdx, handle.IntValue())
 		return true
 	}
-	for i, id := range decoder.handleDefCausIDs {
+	for i, id := range causetDecoder.handleDefCausIDs {
 		if defCaus.ID == id {
-			coder := codec.NewDecoder(chk, decoder.loc)
+			coder := codec.NewCausetDecoder(chk, causetDecoder.loc)
 			_, err := coder.DecodeOne(handle.EncodedDefCaus(i), defCausIdx, defCaus.Ft)
 			if err != nil {
 				return false
@@ -265,7 +265,7 @@ func (decoder *ChunkDecoder) tryAppendHandleDeferredCauset(defCausIdx int, defCa
 	return false
 }
 
-func (decoder *ChunkDecoder) decodeDefCausToChunk(defCausIdx int, defCaus *DefCausInfo, defCausData []byte, chk *chunk.Chunk) error {
+func (causetDecoder *ChunkCausetDecoder) decodeDefCausToChunk(defCausIdx int, defCaus *DefCausInfo, defCausData []byte, chk *chunk.Chunk) error {
 	switch defCaus.Ft.Tp {
 	case allegrosql.TypeLonglong, allegrosql.TypeLong, allegrosql.TypeInt24, allegrosql.TypeShort, allegrosql.TypeTiny:
 		if allegrosql.HasUnsignedFlag(defCaus.Ft.Flag) {
@@ -312,8 +312,8 @@ func (decoder *ChunkDecoder) decodeDefCausToChunk(defCausIdx int, defCaus *DefCa
 		if err != nil {
 			return err
 		}
-		if defCaus.Ft.Tp == allegrosql.TypeTimestamp && decoder.loc != nil && !t.IsZero() {
-			err = t.ConvertTimeZone(time.UTC, decoder.loc)
+		if defCaus.Ft.Tp == allegrosql.TypeTimestamp && causetDecoder.loc != nil && !t.IsZero() {
+			err = t.ConvertTimeZone(time.UTC, causetDecoder.loc)
 			if err != nil {
 				return err
 			}
@@ -351,17 +351,17 @@ func (decoder *ChunkDecoder) decodeDefCausToChunk(defCausIdx int, defCaus *DefCa
 	return nil
 }
 
-// BytesDecoder decodes the event to old datums bytes.
-type BytesDecoder struct {
-	decoder
+// BytesCausetDecoder decodes the event to old datums bytes.
+type BytesCausetDecoder struct {
+	causetDecoder
 	defBytes func(i int) ([]byte, error)
 }
 
-// NewByteDecoder creates a BytesDecoder.
+// NewByteCausetDecoder creates a BytesCausetDecoder.
 // defBytes: provided default value bytes in old causet format(flag+defCausData).
-func NewByteDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defBytes func(i int) ([]byte, error), loc *time.Location) *BytesDecoder {
-	return &BytesDecoder{
-		decoder: decoder{
+func NewByteCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defBytes func(i int) ([]byte, error), loc *time.Location) *BytesCausetDecoder {
+	return &BytesCausetDecoder{
+		causetDecoder: causetDecoder{
 			defCausumns:      defCausumns,
 			handleDefCausIDs: handleDefCausIDs,
 			loc:          loc,
@@ -370,26 +370,26 @@ func NewByteDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, defByte
 	}
 }
 
-func (decoder *BytesDecoder) decodeToBytesInternal(outputOffset map[int64]int, handle ekv.Handle, value []byte, cacheBytes []byte) ([][]byte, error) {
+func (causetDecoder *BytesCausetDecoder) decodeToBytesInternal(outputOffset map[int64]int, handle ekv.Handle, value []byte, cacheBytes []byte) ([][]byte, error) {
 	var r event
 	err := r.fromBytes(value)
 	if err != nil {
 		return nil, err
 	}
 	values := make([][]byte, len(outputOffset))
-	for i := range decoder.defCausumns {
-		defCaus := &decoder.defCausumns[i]
+	for i := range causetDecoder.defCausumns {
+		defCaus := &causetDecoder.defCausumns[i]
 		tp := fieldType2Flag(defCaus.Ft.Tp, defCaus.Ft.Flag&allegrosql.UnsignedFlag == 0)
 		defCausID := defCaus.ID
 		offset := outputOffset[defCausID]
-		if decoder.tryDecodeHandle(values, offset, defCaus, handle, cacheBytes) {
+		if causetDecoder.tryDecodeHandle(values, offset, defCaus, handle, cacheBytes) {
 			continue
 		}
 
 		idx, isNil, notFound := r.findDefCausID(defCausID)
 		if !notFound && !isNil {
 			val := r.getData(idx)
-			values[offset] = decoder.encodeOldCauset(tp, val)
+			values[offset] = causetDecoder.encodeOldCauset(tp, val)
 			continue
 		}
 
@@ -398,8 +398,8 @@ func (decoder *BytesDecoder) decodeToBytesInternal(outputOffset map[int64]int, h
 			continue
 		}
 
-		if decoder.defBytes != nil {
-			defVal, err := decoder.defBytes(i)
+		if causetDecoder.defBytes != nil {
+			defVal, err := causetDecoder.defBytes(i)
 			if err != nil {
 				return nil, err
 			}
@@ -414,7 +414,7 @@ func (decoder *BytesDecoder) decodeToBytesInternal(outputOffset map[int64]int, h
 	return values, nil
 }
 
-func (decoder *BytesDecoder) tryDecodeHandle(values [][]byte, offset int, defCaus *DefCausInfo,
+func (causetDecoder *BytesCausetDecoder) tryDecodeHandle(values [][]byte, offset int, defCaus *DefCausInfo,
 	handle ekv.Handle, cacheBytes []byte) bool {
 	if handle == nil {
 		return false
@@ -432,7 +432,7 @@ func (decoder *BytesDecoder) tryDecodeHandle(values [][]byte, offset int, defCau
 		return true
 	}
 	var handleData []byte
-	for i, hid := range decoder.handleDefCausIDs {
+	for i, hid := range causetDecoder.handleDefCausIDs {
 		if defCaus.ID == hid {
 			handleData = append(handleData, handle.EncodedDefCaus(i)...)
 		}
@@ -445,16 +445,16 @@ func (decoder *BytesDecoder) tryDecodeHandle(values [][]byte, offset int, defCau
 }
 
 // DecodeToBytesNoHandle decodes raw byte slice to event dat without handle.
-func (decoder *BytesDecoder) DecodeToBytesNoHandle(outputOffset map[int64]int, value []byte) ([][]byte, error) {
-	return decoder.decodeToBytesInternal(outputOffset, nil, value, nil)
+func (causetDecoder *BytesCausetDecoder) DecodeToBytesNoHandle(outputOffset map[int64]int, value []byte) ([][]byte, error) {
+	return causetDecoder.decodeToBytesInternal(outputOffset, nil, value, nil)
 }
 
 // DecodeToBytes decodes raw byte slice to event data.
-func (decoder *BytesDecoder) DecodeToBytes(outputOffset map[int64]int, handle ekv.Handle, value []byte, cacheBytes []byte) ([][]byte, error) {
-	return decoder.decodeToBytesInternal(outputOffset, handle, value, cacheBytes)
+func (causetDecoder *BytesCausetDecoder) DecodeToBytes(outputOffset map[int64]int, handle ekv.Handle, value []byte, cacheBytes []byte) ([][]byte, error) {
+	return causetDecoder.decodeToBytesInternal(outputOffset, handle, value, cacheBytes)
 }
 
-func (decoder *BytesDecoder) encodeOldCauset(tp byte, val []byte) []byte {
+func (causetDecoder *BytesCausetDecoder) encodeOldCauset(tp byte, val []byte) []byte {
 	var buf []byte
 	switch tp {
 	case BytesFlag:

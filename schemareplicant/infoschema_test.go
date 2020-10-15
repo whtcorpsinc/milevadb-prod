@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -105,7 +105,7 @@ func (*testSuite) TestT(c *C) {
 
 	dbInfos := []*perceptron.DBInfo{dbInfo}
 	err = ekv.RunInNewTxn(causetstore, true, func(txn ekv.Transaction) error {
-		meta.NewMeta(txn).CreateDatabase(dbInfo)
+		spacetime.NewMeta(txn).CreateDatabase(dbInfo)
 		return errors.Trace(err)
 	})
 	c.Assert(err, IsNil)
@@ -189,19 +189,19 @@ func (*testSuite) TestT(c *C) {
 	tbs = is.SchemaBlocks(noexist)
 	c.Assert(tbs, HasLen, 0)
 
-	// Make sure partitions block exists
+	// Make sure partitions causet exists
 	tb, err = is.BlockByName(perceptron.NewCIStr("information_schema"), perceptron.NewCIStr("partitions"))
 	c.Assert(err, IsNil)
 	c.Assert(tb, NotNil)
 
 	err = ekv.RunInNewTxn(causetstore, true, func(txn ekv.Transaction) error {
-		meta.NewMeta(txn).CreateBlockOrView(dbID, tblInfo)
+		spacetime.NewMeta(txn).CreateBlockOrView(dbID, tblInfo)
 		return errors.Trace(err)
 	})
 	c.Assert(err, IsNil)
 	txn, err = causetstore.Begin()
 	c.Assert(err, IsNil)
-	_, err = builder.ApplyDiff(meta.NewMeta(txn), &perceptron.SchemaDiff{Type: perceptron.CausetActionRenameBlock, SchemaID: dbID, BlockID: tbID, OldSchemaID: dbID})
+	_, err = builder.ApplyDiff(spacetime.NewMeta(txn), &perceptron.SchemaDiff{Type: perceptron.CausetActionRenameBlock, SchemaID: dbID, BlockID: tbID, OldSchemaID: dbID})
 	c.Assert(err, IsNil)
 	txn.Rollback()
 	builder.Build()
@@ -238,13 +238,13 @@ func (testSuite) TestMockSchemaReplicant(c *C) {
 }
 
 func checkApplyCreateNonExistsSchemaDoesNotPanic(c *C, txn ekv.Transaction, builder *schemareplicant.Builder) {
-	m := meta.NewMeta(txn)
+	m := spacetime.NewMeta(txn)
 	_, err := builder.ApplyDiff(m, &perceptron.SchemaDiff{Type: perceptron.CausetActionCreateSchema, SchemaID: 999})
 	c.Assert(schemareplicant.ErrDatabaseNotExists.Equal(err), IsTrue)
 }
 
 func checkApplyCreateNonExistsBlockDoesNotPanic(c *C, txn ekv.Transaction, builder *schemareplicant.Builder, dbID int64) {
-	m := meta.NewMeta(txn)
+	m := spacetime.NewMeta(txn)
 	_, err := builder.ApplyDiff(m, &perceptron.SchemaDiff{Type: perceptron.CausetActionCreateBlock, SchemaID: dbID, BlockID: 999})
 	c.Assert(schemareplicant.ErrBlockNotExists.Equal(err), IsTrue)
 }
@@ -332,7 +332,7 @@ func genGlobalID(causetstore ekv.CausetStorage) (int64, error) {
 	var globalID int64
 	err := ekv.RunInNewTxn(causetstore, true, func(txn ekv.Transaction) error {
 		var err error
-		globalID, err = meta.NewMeta(txn).GenGlobalID()
+		globalID, err = spacetime.NewMeta(txn).GenGlobalID()
 		return errors.Trace(err)
 	})
 	return globalID, errors.Trace(err)

@@ -50,38 +50,38 @@ type testData struct {
 }
 
 func (s *testSuite) TestEncodeLargeSmallReuseBug(c *C) {
-	// reuse one rowcodec.Encoder.
-	var encoder rowcodec.Encoder
+	// reuse one rowcodec.CausetEncoder.
+	var causetCausetEncoder rowcodec.CausetEncoder
 	defCausFt := types.NewFieldType(allegrosql.TypeString)
 
 	largeDefCausID := int64(300)
-	b, err := encoder.Encode(&stmtctx.StatementContext{}, []int64{largeDefCausID}, []types.Causet{types.NewBytesCauset([]byte(""))}, nil)
+	b, err := causetCausetEncoder.Encode(&stmtctx.StatementContext{}, []int64{largeDefCausID}, []types.Causet{types.NewBytesCauset([]byte(""))}, nil)
 	c.Assert(err, IsNil)
 
-	bDecoder := rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
+	bCausetDecoder := rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
 		{
 			ID:         largeDefCausID,
 			Ft:         defCausFt,
 			IsPKHandle: false,
 		},
 	}, nil)
-	m, err := bDecoder.DecodeToCausetMap(b, nil)
+	m, err := bCausetDecoder.DecodeToCausetMap(b, nil)
 	c.Assert(err, IsNil)
 	v := m[largeDefCausID]
 
 	defCausFt = types.NewFieldType(allegrosql.TypeLonglong)
 	smallDefCausID := int64(1)
-	b, err = encoder.Encode(&stmtctx.StatementContext{}, []int64{smallDefCausID}, []types.Causet{types.NewIntCauset(2)}, nil)
+	b, err = causetCausetEncoder.Encode(&stmtctx.StatementContext{}, []int64{smallDefCausID}, []types.Causet{types.NewIntCauset(2)}, nil)
 	c.Assert(err, IsNil)
 
-	bDecoder = rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
+	bCausetDecoder = rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
 		{
 			ID:         smallDefCausID,
 			Ft:         defCausFt,
 			IsPKHandle: false,
 		},
 	}, nil)
-	m, err = bDecoder.DecodeToCausetMap(b, nil)
+	m, err = bCausetDecoder.DecodeToCausetMap(b, nil)
 	c.Assert(err, IsNil)
 	v = m[smallDefCausID]
 	c.Assert(v.GetInt64(), Equals, int64(2))
@@ -115,15 +115,15 @@ func (s *testSuite) TestDecodeRowWithHandle(c *C) {
 		}
 
 		// test encode input.
-		var encoder rowcodec.Encoder
+		var causetCausetEncoder rowcodec.CausetEncoder
 		sc := new(stmtctx.StatementContext)
 		sc.TimeZone = time.UTC
-		newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+		newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
-		dm, err := mDecoder.DecodeToCausetMap(newRow, nil)
+		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		dm, err = blockcodec.DecodeHandleToCausetMap(ekv.IntHandle(handleValue),
 			[]int64{handleID}, handleDefCausFtMap, sc.TimeZone, dm)
@@ -135,9 +135,9 @@ func (s *testSuite) TestDecodeRowWithHandle(c *C) {
 		}
 
 		// decode to chunk.
-		cDecoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+		cCausetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
 		chk := chunk.New(fts, 1, 1)
-		err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(handleValue), chk)
+		err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(handleValue), chk)
 		c.Assert(err, IsNil)
 		chkRow := chk.GetRow(0)
 		cdt := chkRow.GetCausetRow(fts)
@@ -155,8 +155,8 @@ func (s *testSuite) TestDecodeRowWithHandle(c *C) {
 		for i, t := range testData {
 			defCausOffset[t.id] = i
 		}
-		bDecoder := rowcodec.NewByteDecoder(defcaus, []int64{-1}, nil, nil)
-		oldRow, err := bDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(handleValue), newRow, nil)
+		bCausetDecoder := rowcodec.NewByteCausetDecoder(defcaus, []int64{-1}, nil, nil)
+		oldRow, err := bCausetDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(handleValue), newRow, nil)
 		c.Assert(err, IsNil)
 		for i, t := range testData {
 			remain, d, err := codec.DecodeOne(oldRow[i])
@@ -214,7 +214,7 @@ func (s *testSuite) TestDecodeRowWithHandle(c *C) {
 }
 
 func (s *testSuite) TestEncodeHoTTNullCauset(c *C) {
-	var encoder rowcodec.Encoder
+	var causetCausetEncoder rowcodec.CausetEncoder
 	sc := new(stmtctx.StatementContext)
 	sc.TimeZone = time.UTC
 	defCausIDs := []int64{
@@ -226,7 +226,7 @@ func (s *testSuite) TestEncodeHoTTNullCauset(c *C) {
 	dts := []types.Causet{nilDt, types.NewIntCauset(2)}
 	ft := types.NewFieldType(allegrosql.TypeLonglong)
 	fts := []*types.FieldType{ft, ft}
-	newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+	newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 	c.Assert(err, IsNil)
 
 	defcaus := []rowcodec.DefCausInfo{{
@@ -237,9 +237,9 @@ func (s *testSuite) TestEncodeHoTTNullCauset(c *C) {
 			ID: 2,
 			Ft: ft,
 		}}
-	cDecoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+	cCausetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
 	chk := chunk.New(fts, 1, 1)
-	err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
+	err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 	c.Assert(err, IsNil)
 	chkRow := chk.GetRow(0)
 	cdt := chkRow.GetCausetRow(fts)
@@ -248,7 +248,7 @@ func (s *testSuite) TestEncodeHoTTNullCauset(c *C) {
 }
 
 func (s *testSuite) TestDecodeDecimalFspNotMatch(c *C) {
-	var encoder rowcodec.Encoder
+	var causetCausetEncoder rowcodec.CausetEncoder
 	sc := new(stmtctx.StatementContext)
 	sc.TimeZone = time.UTC
 	defCausIDs := []int64{
@@ -259,7 +259,7 @@ func (s *testSuite) TestDecodeDecimalFspNotMatch(c *C) {
 	ft := types.NewFieldType(allegrosql.TypeNewDecimal)
 	ft.Decimal = 4
 	fts := []*types.FieldType{ft}
-	newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+	newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 	c.Assert(err, IsNil)
 
 	// decode to chunk.
@@ -270,9 +270,9 @@ func (s *testSuite) TestDecodeDecimalFspNotMatch(c *C) {
 		ID: 1,
 		Ft: ft,
 	})
-	cDecoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+	cCausetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
 	chk := chunk.New(fts, 1, 1)
-	err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
+	err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 	c.Assert(err, IsNil)
 	chkRow := chk.GetRow(0)
 	cdt := chkRow.GetCausetRow(fts)
@@ -299,7 +299,7 @@ func (s *testSuite) TestTypesNewRowCodec(c *C) {
 		return t
 	}
 
-	var encoder rowcodec.Encoder
+	var causetCausetEncoder rowcodec.CausetEncoder
 	encodeAndDecode := func(c *C, testData []testData) {
 		// transform test data into input.
 		defCausIDs := make([]int64, 0, len(testData))
@@ -321,12 +321,12 @@ func (s *testSuite) TestTypesNewRowCodec(c *C) {
 		// test encode input.
 		sc := new(stmtctx.StatementContext)
 		sc.TimeZone = time.UTC
-		newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+		newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
-		dm, err := mDecoder.DecodeToCausetMap(newRow, nil)
+		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		for _, t := range testData {
 			d, exists := dm[t.id]
@@ -335,9 +335,9 @@ func (s *testSuite) TestTypesNewRowCodec(c *C) {
 		}
 
 		// decode to chunk.
-		cDecoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+		cCausetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
 		chk := chunk.New(fts, 1, 1)
-		err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
+		err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 		c.Assert(err, IsNil)
 		chkRow := chk.GetRow(0)
 		cdt := chkRow.GetCausetRow(fts)
@@ -355,8 +355,8 @@ func (s *testSuite) TestTypesNewRowCodec(c *C) {
 		for i, t := range testData {
 			defCausOffset[t.id] = i
 		}
-		bDecoder := rowcodec.NewByteDecoder(defcaus, []int64{-1}, nil, nil)
-		oldRow, err := bDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(-1), newRow, nil)
+		bCausetDecoder := rowcodec.NewByteCausetDecoder(defcaus, []int64{-1}, nil, nil)
+		oldRow, err := bCausetDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(-1), newRow, nil)
 		c.Assert(err, IsNil)
 		for i, t := range testData {
 			remain, d, err := codec.DecodeOne(oldRow[i])
@@ -568,15 +568,15 @@ func (s *testSuite) TestNilAndDefault(c *C) {
 			return getOldCausetByte(*t.def), nil
 		}
 		// test encode input.
-		var encoder rowcodec.Encoder
+		var causetCausetEncoder rowcodec.CausetEncoder
 		sc := new(stmtctx.StatementContext)
 		sc.TimeZone = time.UTC
-		newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+		newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
-		dm, err := mDecoder.DecodeToCausetMap(newRow, nil)
+		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		for _, t := range testData {
 			d, exists := dm[t.id]
@@ -591,8 +591,8 @@ func (s *testSuite) TestNilAndDefault(c *C) {
 
 		//decode to chunk.
 		chk := chunk.New(fts, 1, 1)
-		cDecoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, ddf, sc.TimeZone)
-		err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
+		cCausetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, ddf, sc.TimeZone)
+		err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 		c.Assert(err, IsNil)
 		chkRow := chk.GetRow(0)
 		cdt := chkRow.GetCausetRow(fts)
@@ -606,8 +606,8 @@ func (s *testSuite) TestNilAndDefault(c *C) {
 		}
 
 		chk = chunk.New(fts, 1, 1)
-		cDecoder = rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
-		err = cDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
+		cCausetDecoder = rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+		err = cCausetDecoder.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 		c.Assert(err, IsNil)
 		chkRow = chk.GetRow(0)
 		cdt = chkRow.GetCausetRow(fts)
@@ -624,8 +624,8 @@ func (s *testSuite) TestNilAndDefault(c *C) {
 		for i, t := range testData {
 			defCausOffset[t.id] = i
 		}
-		bDecoder := rowcodec.NewByteDecoder(defcaus, []int64{-1}, bdf, sc.TimeZone)
-		oldRow, err := bDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(-1), newRow, nil)
+		bCausetDecoder := rowcodec.NewByteCausetDecoder(defcaus, []int64{-1}, bdf, sc.TimeZone)
+		oldRow, err := bCausetDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(-1), newRow, nil)
 		c.Assert(err, IsNil)
 		for i, t := range testData {
 			remain, d, err := codec.DecodeOne(oldRow[i])
@@ -679,18 +679,18 @@ func (s *testSuite) TestVarintCompatibility(c *C) {
 		}
 
 		// test encode input.
-		var encoder rowcodec.Encoder
+		var causetCausetEncoder rowcodec.CausetEncoder
 		sc := new(stmtctx.StatementContext)
 		sc.TimeZone = time.UTC
-		newRow, err := encoder.Encode(sc, defCausIDs, dts, nil)
+		newRow, err := causetCausetEncoder.Encode(sc, defCausIDs, dts, nil)
 		c.Assert(err, IsNil)
-		decoder := rowcodec.NewByteDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
+		causetDecoder := rowcodec.NewByteCausetDecoder(defcaus, []int64{-1}, nil, sc.TimeZone)
 		// decode to old event bytes.
 		defCausOffset := make(map[int64]int)
 		for i, t := range testData {
 			defCausOffset[t.id] = i
 		}
-		oldRow, err := decoder.DecodeToBytes(defCausOffset, ekv.IntHandle(1), newRow, nil)
+		oldRow, err := causetDecoder.DecodeToBytes(defCausOffset, ekv.IntHandle(1), newRow, nil)
 		c.Assert(err, IsNil)
 		for i, t := range testData {
 			oldVarint, err := blockcodec.EncodeValue(nil, nil, t.bt) // blockcodec will encode as varint/varuint
@@ -731,7 +731,7 @@ func (s *testSuite) TestCodecUtil(c *C) {
 	oldRow, err := blockcodec.EncodeOldRow(sc, types.MakeCausets(1, 2, 3, nil), defCausIDs, nil, nil)
 	c.Check(err, IsNil)
 	var (
-		rb     rowcodec.Encoder
+		rb     rowcodec.CausetEncoder
 		newRow []byte
 	)
 	newRow, err = rowcodec.EncodeFromOldRow(&rb, nil, oldRow, nil)
@@ -739,7 +739,7 @@ func (s *testSuite) TestCodecUtil(c *C) {
 	c.Assert(rowcodec.IsNewFormat(newRow), IsTrue)
 	c.Assert(rowcodec.IsNewFormat(oldRow), IsFalse)
 
-	// test stringer for decoder.
+	// test stringer for causetDecoder.
 	var defcaus []rowcodec.DefCausInfo
 	for i, ft := range tps {
 		defcaus = append(defcaus, rowcodec.DefCausInfo{
@@ -748,7 +748,7 @@ func (s *testSuite) TestCodecUtil(c *C) {
 			Ft:         ft,
 		})
 	}
-	d := rowcodec.NewDecoder(defcaus, []int64{-1}, nil)
+	d := rowcodec.NewCausetDecoder(defcaus, []int64{-1}, nil)
 
 	// test DeferredCausetIsNull
 	isNil, err := d.DeferredCausetIsNull(newRow, 4, nil)
@@ -781,7 +781,7 @@ func (s *testSuite) TestOldRowCodec(c *C) {
 	c.Check(err, IsNil)
 
 	var (
-		rb     rowcodec.Encoder
+		rb     rowcodec.CausetEncoder
 		newRow []byte
 	)
 	newRow, err = rowcodec.EncodeFromOldRow(&rb, nil, oldRow, nil)
@@ -793,7 +793,7 @@ func (s *testSuite) TestOldRowCodec(c *C) {
 			Ft: tp,
 		}
 	}
-	rd := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, time.Local)
+	rd := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, time.Local)
 	chk := chunk.NewChunkWithCapacity(tps, 1)
 	err = rd.DecodeToChunk(newRow, ekv.IntHandle(-1), chk)
 	c.Assert(err, IsNil)
@@ -809,7 +809,7 @@ func (s *testSuite) Test65535Bug(c *C) {
 	tps[0] = types.NewFieldType(allegrosql.TypeString)
 	sc := new(stmtctx.StatementContext)
 	text65535 := strings.Repeat("a", 65535)
-	encode := rowcodec.Encoder{}
+	encode := rowcodec.CausetEncoder{}
 	bd, err := encode.Encode(sc, defCausIds, []types.Causet{types.NewStringCauset(text65535)}, nil)
 	c.Check(err, IsNil)
 

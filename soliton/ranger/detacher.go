@@ -17,7 +17,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -26,13 +26,13 @@ import (
 
 // detachDeferredCausetCNFConditions detaches the condition for calculating range from the other conditions.
 // Please make sure that the top level is CNF form.
-func detachDeferredCausetCNFConditions(sctx stochastikctx.Context, conditions []expression.Expression, checker *conditionChecker) ([]expression.Expression, []expression.Expression) {
-	var accessConditions, filterConditions []expression.Expression
+func detachDeferredCausetCNFConditions(sctx stochastikctx.Context, conditions []memex.Expression, checker *conditionChecker) ([]memex.Expression, []memex.Expression) {
+	var accessConditions, filterConditions []memex.Expression
 	for _, cond := range conditions {
-		if sf, ok := cond.(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {
-			dnfItems := expression.FlattenDNFConditions(sf)
+		if sf, ok := cond.(*memex.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {
+			dnfItems := memex.FlattenDNFConditions(sf)
 			defCausumnDNFItems, hasResidual := detachDeferredCausetDNFConditions(sctx, dnfItems, checker)
-			// If this CNF has expression that cannot be resolved as access condition, then the total DNF expression
+			// If this CNF has memex that cannot be resolved as access condition, then the total DNF memex
 			// should be also appended into filter condition.
 			if hasResidual {
 				filterConditions = append(filterConditions, cond)
@@ -40,7 +40,7 @@ func detachDeferredCausetCNFConditions(sctx stochastikctx.Context, conditions []
 			if len(defCausumnDNFItems) == 0 {
 				continue
 			}
-			rebuildDNF := expression.ComposeDNFCondition(sctx, defCausumnDNFItems...)
+			rebuildDNF := memex.ComposeDNFCondition(sctx, defCausumnDNFItems...)
 			accessConditions = append(accessConditions, rebuildDNF)
 			continue
 		}
@@ -59,14 +59,14 @@ func detachDeferredCausetCNFConditions(sctx stochastikctx.Context, conditions []
 
 // detachDeferredCausetDNFConditions detaches the condition for calculating range from the other conditions.
 // Please make sure that the top level is DNF form.
-func detachDeferredCausetDNFConditions(sctx stochastikctx.Context, conditions []expression.Expression, checker *conditionChecker) ([]expression.Expression, bool) {
+func detachDeferredCausetDNFConditions(sctx stochastikctx.Context, conditions []memex.Expression, checker *conditionChecker) ([]memex.Expression, bool) {
 	var (
 		hasResidualConditions bool
-		accessConditions      []expression.Expression
+		accessConditions      []memex.Expression
 	)
 	for _, cond := range conditions {
-		if sf, ok := cond.(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicAnd {
-			cnfItems := expression.FlattenCNFConditions(sf)
+		if sf, ok := cond.(*memex.ScalarFunction); ok && sf.FuncName.L == ast.LogicAnd {
+			cnfItems := memex.FlattenCNFConditions(sf)
 			defCausumnCNFItems, others := detachDeferredCausetCNFConditions(sctx, cnfItems, checker)
 			if len(others) > 0 {
 				hasResidualConditions = true
@@ -75,7 +75,7 @@ func detachDeferredCausetDNFConditions(sctx stochastikctx.Context, conditions []
 			if len(defCausumnCNFItems) == 0 {
 				return nil, true
 			}
-			rebuildCNF := expression.ComposeCNFCondition(sctx, defCausumnCNFItems...)
+			rebuildCNF := memex.ComposeCNFCondition(sctx, defCausumnCNFItems...)
 			accessConditions = append(accessConditions, rebuildCNF)
 		} else if checker.check(cond) {
 			accessConditions = append(accessConditions, cond)
@@ -90,18 +90,18 @@ func detachDeferredCausetDNFConditions(sctx stochastikctx.Context, conditions []
 	return accessConditions, hasResidualConditions
 }
 
-// getEqOrInDefCausOffset checks if the expression is a eq function that one side is constant and another is defCausumn or an
+// getEqOrInDefCausOffset checks if the memex is a eq function that one side is constant and another is defCausumn or an
 // in function which is `defCausumn in (constant list)`.
 // If so, it will return the offset of this defCausumn in the slice, otherwise return -1 for not found.
-func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.DeferredCauset) int {
-	f, ok := expr.(*expression.ScalarFunction)
+func getEqOrInDefCausOffset(expr memex.Expression, defcaus []*memex.DeferredCauset) int {
+	f, ok := expr.(*memex.ScalarFunction)
 	if !ok {
 		return -1
 	}
 	_, defCauslation := expr.CharsetAndDefCauslation(f.GetCtx())
 	switch f.FuncName.L {
 	case ast.LogicOr:
-		dnfItems := expression.FlattenDNFConditions(f)
+		dnfItems := memex.FlattenDNFConditions(f)
 		offset := int(-1)
 		for _, dnfItem := range dnfItems {
 			curOffset := getEqOrInDefCausOffset(dnfItem, defcaus)
@@ -115,11 +115,11 @@ func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.De
 		}
 		return offset
 	case ast.EQ, ast.NullEQ:
-		if c, ok := f.GetArgs()[0].(*expression.DeferredCauset); ok {
+		if c, ok := f.GetArgs()[0].(*memex.DeferredCauset); ok {
 			if c.RetType.EvalType() == types.ETString && !defCauslate.CompatibleDefCauslate(c.RetType.DefCauslate, defCauslation) {
 				return -1
 			}
-			if constVal, ok := f.GetArgs()[1].(*expression.Constant); ok {
+			if constVal, ok := f.GetArgs()[1].(*memex.Constant); ok {
 				val, err := constVal.Eval(chunk.Row{})
 				if err != nil || val.IsNull() {
 					// treat defCaus<=>null as range scan instead of point get to avoid incorrect results
@@ -133,11 +133,11 @@ func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.De
 				}
 			}
 		}
-		if c, ok := f.GetArgs()[1].(*expression.DeferredCauset); ok {
+		if c, ok := f.GetArgs()[1].(*memex.DeferredCauset); ok {
 			if c.RetType.EvalType() == types.ETString && !defCauslate.CompatibleDefCauslate(c.RetType.DefCauslate, defCauslation) {
 				return -1
 			}
-			if constVal, ok := f.GetArgs()[0].(*expression.Constant); ok {
+			if constVal, ok := f.GetArgs()[0].(*memex.Constant); ok {
 				val, err := constVal.Eval(chunk.Row{})
 				if err != nil || val.IsNull() {
 					return -1
@@ -150,7 +150,7 @@ func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.De
 			}
 		}
 	case ast.In:
-		c, ok := f.GetArgs()[0].(*expression.DeferredCauset)
+		c, ok := f.GetArgs()[0].(*memex.DeferredCauset)
 		if !ok {
 			return -1
 		}
@@ -158,7 +158,7 @@ func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.De
 			return -1
 		}
 		for _, arg := range f.GetArgs()[1:] {
-			if _, ok := arg.(*expression.Constant); !ok {
+			if _, ok := arg.(*memex.Constant); !ok {
 				return -1
 			}
 		}
@@ -171,11 +171,11 @@ func getEqOrInDefCausOffset(expr expression.Expression, defcaus []*expression.De
 	return -1
 }
 
-// extractIndexPointRangesForCNF extracts a CNF item from the input CNF expressions, such that the CNF item
+// extractIndexPointRangesForCNF extracts a CNF item from the input CNF memexs, such that the CNF item
 // is totally composed of point range filters.
-// e.g, for input CNF expressions ((a,b) in ((1,1),(2,2))) and a > 1 and ((a,b,c) in (1,1,1),(2,2,2))
+// e.g, for input CNF memexs ((a,b) in ((1,1),(2,2))) and a > 1 and ((a,b,c) in (1,1,1),(2,2,2))
 // ((a,b,c) in (1,1,1),(2,2,2)) would be extracted.
-func extractIndexPointRangesForCNF(sctx stochastikctx.Context, conds []expression.Expression, defcaus []*expression.DeferredCauset, lengths []int) (*DetachRangeResult, int, error) {
+func extractIndexPointRangesForCNF(sctx stochastikctx.Context, conds []memex.Expression, defcaus []*memex.DeferredCauset, lengths []int) (*DetachRangeResult, int, error) {
 	if len(conds) < 2 {
 		return nil, -1, nil
 	}
@@ -183,8 +183,8 @@ func extractIndexPointRangesForCNF(sctx stochastikctx.Context, conds []expressio
 	maxNumDefCauss := int(0)
 	offset := int(-1)
 	for i, cond := range conds {
-		tmpConds := []expression.Expression{cond}
-		defCausSets := expression.ExtractDeferredCausetSet(tmpConds)
+		tmpConds := []memex.Expression{cond}
+		defCausSets := memex.ExtractDeferredCausetSet(tmpConds)
 		origDefCausNum := defCausSets.Len()
 		if origDefCausNum == 0 {
 			continue
@@ -233,10 +233,10 @@ func extractIndexPointRangesForCNF(sctx stochastikctx.Context, conds []expressio
 	return r, offset, nil
 }
 
-// detachCNFCondAndBuildRangeForIndex will detach the index filters from block filters. These conditions are connected with `and`
+// detachCNFCondAndBuildRangeForIndex will detach the index filters from causet filters. These conditions are connected with `and`
 // It will first find the point query defCausumn and then extract the range query defCausumn.
-// considerDNF is true means it will try to extract access conditions from the DNF expressions.
-func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expression.Expression, tpSlice []*types.FieldType, considerDNF bool) (*DetachRangeResult, error) {
+// considerDNF is true means it will try to extract access conditions from the DNF memexs.
+func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []memex.Expression, tpSlice []*types.FieldType, considerDNF bool) (*DetachRangeResult, error) {
 	var (
 		eqCount int
 		ranges  []*Range
@@ -249,7 +249,7 @@ func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expressi
 		return res, nil
 	}
 	for ; eqCount < len(accessConds); eqCount++ {
-		if accessConds[eqCount].(*expression.ScalarFunction).FuncName.L != ast.EQ {
+		if accessConds[eqCount].(*memex.ScalarFunction).FuncName.L != ast.EQ {
 			break
 		}
 	}
@@ -351,14 +351,14 @@ func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expressi
 // newConditions: We'll simplify the given conditions if there're multiple in conditions or eq conditions on the same defCausumn.
 //   e.g. if there're a in (1, 2, 3) and a in (2, 3, 4). This two will be combined to a in (2, 3) and pushed to newConditions.
 // bool: indicate whether there's nil range when merging eq and in conditions.
-func ExtractEqAndInCondition(sctx stochastikctx.Context, conditions []expression.Expression,
-	defcaus []*expression.DeferredCauset, lengths []int) ([]expression.Expression, []expression.Expression, []expression.Expression, bool) {
-	var filters []expression.Expression
+func ExtractEqAndInCondition(sctx stochastikctx.Context, conditions []memex.Expression,
+	defcaus []*memex.DeferredCauset, lengths []int) ([]memex.Expression, []memex.Expression, []memex.Expression, bool) {
+	var filters []memex.Expression
 	rb := builder{sc: sctx.GetStochastikVars().StmtCtx}
-	accesses := make([]expression.Expression, len(defcaus))
+	accesses := make([]memex.Expression, len(defcaus))
 	points := make([][]point, len(defcaus))
-	mergedAccesses := make([]expression.Expression, len(defcaus))
-	newConditions := make([]expression.Expression, 0, len(conditions))
+	mergedAccesses := make([]memex.Expression, len(defcaus))
+	newConditions := make([]memex.Expression, 0, len(conditions))
 	for _, cond := range conditions {
 		offset := getEqOrInDefCausOffset(cond, defcaus)
 		if offset == -1 {
@@ -376,7 +376,7 @@ func ExtractEqAndInCondition(sctx stochastikctx.Context, conditions []expression
 			points[offset] = rb.build(accesses[offset])
 		}
 		points[offset] = rb.intersection(points[offset], rb.build(cond))
-		// Early termination if false expression found
+		// Early termination if false memex found
 		if len(points[offset]) == 0 {
 			return nil, nil, nil, true
 		}
@@ -405,9 +405,9 @@ func ExtractEqAndInCondition(sctx stochastikctx.Context, conditions []expression
 	return accesses, filters, newConditions, false
 }
 
-// detachDNFCondAndBuildRangeForIndex will detach the index filters from block filters when it's a DNF.
+// detachDNFCondAndBuildRangeForIndex will detach the index filters from causet filters when it's a DNF.
 // We will detach the conditions of every DNF items, then compose them to a DNF.
-func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *expression.ScalarFunction, newTpSlice []*types.FieldType) ([]*Range, []expression.Expression, bool, error) {
+func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *memex.ScalarFunction, newTpSlice []*types.FieldType) ([]*Range, []memex.Expression, bool, error) {
 	sc := d.sctx.GetStochastikVars().StmtCtx
 	firstDeferredCausetChecker := &conditionChecker{
 		defCausUniqueID:   d.defcaus[0].UniqueID,
@@ -415,14 +415,14 @@ func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *expression
 		length:        d.lengths[0],
 	}
 	rb := builder{sc: sc}
-	dnfItems := expression.FlattenDNFConditions(condition)
-	newAccessItems := make([]expression.Expression, 0, len(dnfItems))
+	dnfItems := memex.FlattenDNFConditions(condition)
+	newAccessItems := make([]memex.Expression, 0, len(dnfItems))
 	var totalRanges []*Range
 	hasResidual := false
 	for _, item := range dnfItems {
-		if sf, ok := item.(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicAnd {
-			cnfItems := expression.FlattenCNFConditions(sf)
-			var accesses, filters []expression.Expression
+		if sf, ok := item.(*memex.ScalarFunction); ok && sf.FuncName.L == ast.LogicAnd {
+			cnfItems := memex.FlattenCNFConditions(sf)
+			var accesses, filters []memex.Expression
 			res, err := d.detachCNFCondAndBuildRangeForIndex(cnfItems, newTpSlice, true)
 			if err != nil {
 				return nil, nil, false, nil
@@ -437,7 +437,7 @@ func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *expression
 				hasResidual = true
 			}
 			totalRanges = append(totalRanges, ranges...)
-			newAccessItems = append(newAccessItems, expression.ComposeCNFCondition(d.sctx, accesses...))
+			newAccessItems = append(newAccessItems, memex.ComposeCNFCondition(d.sctx, accesses...))
 		} else if firstDeferredCausetChecker.check(item) {
 			if firstDeferredCausetChecker.shouldReserve {
 				hasResidual = true
@@ -460,7 +460,7 @@ func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *expression
 		return nil, nil, false, errors.Trace(err)
 	}
 
-	return totalRanges, []expression.Expression{expression.ComposeDNFCondition(d.sctx, newAccessItems...)}, hasResidual, nil
+	return totalRanges, []memex.Expression{memex.ComposeDNFCondition(d.sctx, newAccessItems...)}, hasResidual, nil
 }
 
 // DetachRangeResult wraps up results when detaching conditions and builing ranges.
@@ -468,9 +468,9 @@ type DetachRangeResult struct {
 	// Ranges is the ranges extracted and built from conditions.
 	Ranges []*Range
 	// AccessConds is the extracted conditions for access.
-	AccessConds []expression.Expression
+	AccessConds []memex.Expression
 	// RemainedConds is the filter conditions which should be kept after access.
-	RemainedConds []expression.Expression
+	RemainedConds []memex.Expression
 	// EqCondCount is the number of equal conditions extracted.
 	EqCondCount int
 	// EqOrInCount is the number of equal/in conditions extracted.
@@ -479,9 +479,9 @@ type DetachRangeResult struct {
 	IsDNFCond bool
 }
 
-// DetachCondAndBuildRangeForIndex will detach the index filters from block filters.
+// DetachCondAndBuildRangeForIndex will detach the index filters from causet filters.
 // The returned values are encapsulated into a struct DetachRangeResult, see its comments for explanation.
-func DetachCondAndBuildRangeForIndex(sctx stochastikctx.Context, conditions []expression.Expression, defcaus []*expression.DeferredCauset,
+func DetachCondAndBuildRangeForIndex(sctx stochastikctx.Context, conditions []memex.Expression, defcaus []*memex.DeferredCauset,
 	lengths []int) (*DetachRangeResult, error) {
 	d := &rangeDetacher{
 		sctx:             sctx,
@@ -495,8 +495,8 @@ func DetachCondAndBuildRangeForIndex(sctx stochastikctx.Context, conditions []ex
 
 type rangeDetacher struct {
 	sctx             stochastikctx.Context
-	allConds         []expression.Expression
-	defcaus             []*expression.DeferredCauset
+	allConds         []memex.Expression
+	defcaus             []*memex.DeferredCauset
 	lengths          []int
 	mergeConsecutive bool
 }
@@ -508,7 +508,7 @@ func (d *rangeDetacher) detachCondAndBuildRangeForDefCauss() (*DetachRangeResult
 		newTpSlice = append(newTpSlice, newFieldType(defCaus.RetType))
 	}
 	if len(d.allConds) == 1 {
-		if sf, ok := d.allConds[0].(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {
+		if sf, ok := d.allConds[0].(*memex.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {
 			ranges, accesses, hasResidual, err := d.detachDNFCondAndBuildRangeForIndex(sf, newTpSlice)
 			if err != nil {
 				return res, errors.Trace(err)
@@ -527,10 +527,10 @@ func (d *rangeDetacher) detachCondAndBuildRangeForDefCauss() (*DetachRangeResult
 	return d.detachCNFCondAndBuildRangeForIndex(d.allConds, newTpSlice, true)
 }
 
-// DetachSimpleCondAndBuildRangeForIndex will detach the index filters from block filters.
+// DetachSimpleCondAndBuildRangeForIndex will detach the index filters from causet filters.
 // It will find the point query defCausumn firstly and then extract the range query defCausumn.
-func DetachSimpleCondAndBuildRangeForIndex(sctx stochastikctx.Context, conditions []expression.Expression,
-	defcaus []*expression.DeferredCauset, lengths []int) ([]*Range, []expression.Expression, error) {
+func DetachSimpleCondAndBuildRangeForIndex(sctx stochastikctx.Context, conditions []memex.Expression,
+	defcaus []*memex.DeferredCauset, lengths []int) ([]*Range, []memex.Expression, error) {
 	newTpSlice := make([]*types.FieldType, 0, len(defcaus))
 	for _, defCaus := range defcaus {
 		newTpSlice = append(newTpSlice, newFieldType(defCaus.RetType))
@@ -546,10 +546,10 @@ func DetachSimpleCondAndBuildRangeForIndex(sctx stochastikctx.Context, condition
 	return res.Ranges, res.AccessConds, err
 }
 
-func removeAccessConditions(conditions, accessConds []expression.Expression) []expression.Expression {
-	filterConds := make([]expression.Expression, 0, len(conditions))
+func removeAccessConditions(conditions, accessConds []memex.Expression) []memex.Expression {
+	filterConds := make([]memex.Expression, 0, len(conditions))
 	for _, cond := range conditions {
-		if !expression.Contains(accessConds, cond) {
+		if !memex.Contains(accessConds, cond) {
 			filterConds = append(filterConds, cond)
 		}
 	}
@@ -558,17 +558,17 @@ func removeAccessConditions(conditions, accessConds []expression.Expression) []e
 
 // ExtractAccessConditionsForDeferredCauset extracts the access conditions used for range calculation. Since
 // we don't need to return the remained filter conditions, it is much simpler than DetachCondsForDeferredCauset.
-func ExtractAccessConditionsForDeferredCauset(conds []expression.Expression, uniqueID int64) []expression.Expression {
+func ExtractAccessConditionsForDeferredCauset(conds []memex.Expression, uniqueID int64) []memex.Expression {
 	checker := conditionChecker{
 		defCausUniqueID: uniqueID,
 		length:      types.UnspecifiedLength,
 	}
-	accessConds := make([]expression.Expression, 0, 8)
-	return expression.Filter(accessConds, conds, checker.check)
+	accessConds := make([]memex.Expression, 0, 8)
+	return memex.Filter(accessConds, conds, checker.check)
 }
 
 // DetachCondsForDeferredCauset detaches access conditions for specified defCausumn from other filter conditions.
-func DetachCondsForDeferredCauset(sctx stochastikctx.Context, conds []expression.Expression, defCaus *expression.DeferredCauset) (accessConditions, otherConditions []expression.Expression) {
+func DetachCondsForDeferredCauset(sctx stochastikctx.Context, conds []memex.Expression, defCaus *memex.DeferredCauset) (accessConditions, otherConditions []memex.Expression) {
 	checker := &conditionChecker{
 		defCausUniqueID: defCaus.UniqueID,
 		length:      types.UnspecifiedLength,
@@ -578,11 +578,11 @@ func DetachCondsForDeferredCauset(sctx stochastikctx.Context, conds []expression
 
 // MergeDNFItems4DefCaus receives a slice of DNF conditions, merges some of them which can be built into ranges on a single defCausumn, then returns.
 // For example, [a > 5, b > 6, c > 7, a = 1, b > 3] will become [a > 5 or a = 1, b > 6 or b > 3, c > 7].
-func MergeDNFItems4DefCaus(ctx stochastikctx.Context, dnfItems []expression.Expression) []expression.Expression {
-	mergedDNFItems := make([]expression.Expression, 0, len(dnfItems))
-	defCaus2DNFItems := make(map[int64][]expression.Expression)
+func MergeDNFItems4DefCaus(ctx stochastikctx.Context, dnfItems []memex.Expression) []memex.Expression {
+	mergedDNFItems := make([]memex.Expression, 0, len(dnfItems))
+	defCaus2DNFItems := make(map[int64][]memex.Expression)
 	for _, dnfItem := range dnfItems {
-		defcaus := expression.ExtractDeferredCausets(dnfItem)
+		defcaus := memex.ExtractDeferredCausets(dnfItem)
 		// If this condition contains multiple defCausumns, we can't merge it.
 		// If this defCausumn is _milevadb_rowid, we also can't merge it since Selectivity() doesn't handle it, or infinite recursion will happen.
 		if len(defcaus) != 1 || defcaus[0].ID == perceptron.ExtraHandleID {
@@ -596,7 +596,7 @@ func MergeDNFItems4DefCaus(ctx stochastikctx.Context, dnfItems []expression.Expr
 			length:      types.UnspecifiedLength,
 		}
 		// If we can't use this condition to build range, we can't merge it.
-		// Currently, we assume if every condition in a DNF expression can pass this check, then `Selectivity` must be able to
+		// Currently, we assume if every condition in a DNF memex can pass this check, then `Selectivity` must be able to
 		// cover this entire DNF directly without recursively call `Selectivity`. If this doesn't hold in the future, this logic
 		// may cause infinite recursion in `Selectivity`.
 		if !checker.check(dnfItem) {
@@ -607,7 +607,7 @@ func MergeDNFItems4DefCaus(ctx stochastikctx.Context, dnfItems []expression.Expr
 		defCaus2DNFItems[uniqueID] = append(defCaus2DNFItems[uniqueID], dnfItem)
 	}
 	for _, items := range defCaus2DNFItems {
-		mergedDNFItems = append(mergedDNFItems, expression.ComposeDNFCondition(ctx, items...))
+		mergedDNFItems = append(mergedDNFItems, memex.ComposeDNFCondition(ctx, items...))
 	}
 	return mergedDNFItems
 }

@@ -42,7 +42,7 @@ const (
 type SchemaValidator interface {
 	// UFIDelate the schemaReplicant validator, add a new item, delete the expired deltaSchemaInfos.
 	// The latest schemaVer is valid within leaseGrantTime plus lease duration.
-	// Add the changed block IDs to the new schemaReplicant information,
+	// Add the changed causet IDs to the new schemaReplicant information,
 	// which is produced when the oldSchemaVer is uFIDelated to the newSchemaVer.
 	UFIDelate(leaseGrantTime uint64, oldSchemaVer, newSchemaVer int64, change *einsteindb.RelatedSchemaChange)
 	// Check is it valid for a transaction to use schemaVer and related blocks, at timestamp txnTS.
@@ -160,7 +160,7 @@ func (s *schemaValidator) UFIDelate(leaseGrantTS uint64, oldVer, currVer int64, 
 
 // isRelatedBlocksChanged returns the result whether relatedBlockIDs is changed
 // from usedVer to the latest schemaReplicant version.
-// NOTE, this function should be called under lock!
+// NOTE, this function should be called under dagger!
 func (s *schemaValidator) isRelatedBlocksChanged(currVer int64, blockIDs []int64) (einsteindb.RelatedSchemaChange, bool) {
 	res := einsteindb.RelatedSchemaChange{}
 	if len(s.deltaSchemaInfos) == 0 {
@@ -229,7 +229,7 @@ func (s *schemaValidator) Check(txnTS uint64, schemaVer int64, relatedPhysicalBl
 	if schemaVer < s.latestSchemaVer {
 		// The DBS relatedPhysicalBlockIDs is empty.
 		if len(relatedPhysicalBlockIDs) == 0 {
-			logutil.BgLogger().Info("the related physical block ID is empty", zap.Int64("schemaVer", schemaVer),
+			logutil.BgLogger().Info("the related physical causet ID is empty", zap.Int64("schemaVer", schemaVer),
 				zap.Int64("latestSchemaVer", s.latestSchemaVer))
 			return nil, ResultFail
 		}
@@ -285,7 +285,7 @@ func (s *schemaValidator) enqueue(schemaVersion int64, change *einsteindb.Relate
 	}
 }
 
-// containIn is checks if lasteDelta is included in curDelta considering block id and action type.
+// containIn is checks if lasteDelta is included in curDelta considering causet id and action type.
 func containIn(lastDelta, curDelta deltaSchemaInfo) bool {
 	if len(lastDelta.relatedIDs) > len(curDelta.relatedIDs) {
 		return false

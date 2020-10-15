@@ -24,23 +24,23 @@ import (
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 )
 
-// ProcessInfo is a struct used for show processlist statement.
+// ProcessInfo is a struct used for show processlist memex.
 type ProcessInfo struct {
 	ID              uint64
 	User            string
 	Host            string
 	EDB              string
 	Digest          string
-	Plan            interface{}
-	PlanExplainRows [][]string
+	Causet            interface{}
+	CausetExplainRows [][]string
 	Time            time.Time
 	Info            string
 	CurTxnStartTS   uint64
 	StmtCtx         *stmtctx.StatementContext
 	StatsInfo       func(interface{}) map[string]uint64
-	// MaxExecutionTime is the timeout for select statement, in milliseconds.
+	// MaxInterDircutionTime is the timeout for select memex, in milliseconds.
 	// If the query takes too long, kill it.
-	MaxExecutionTime uint64
+	MaxInterDircutionTime uint64
 
 	State                     uint16
 	Command                   byte
@@ -119,7 +119,7 @@ var mapServerStatus2Str = map[uint16]string{
 	allegrosql.ServerStatusLastRowSend:        "last event send",
 	allegrosql.ServerStatusDBDropped:          "EDB dropped",
 	allegrosql.ServerStatusNoBackslashEscaped: "no backslash escaped",
-	allegrosql.ServerStatusMetadataChanged:    "metadata changed",
+	allegrosql.ServerStatusMetadataChanged:    "spacetimedata changed",
 	allegrosql.ServerStatusWasSlow:            "was slow",
 	allegrosql.ServerPSOutParams:              "ps out params",
 }
@@ -140,7 +140,7 @@ func serverStatus2Str(state uint16) string {
 }
 
 // StochastikManager is an interface for stochastik manage. Show processlist and
-// kill statement rely on this interface.
+// kill memex rely on this interface.
 type StochastikManager interface {
 	ShowProcessList() map[uint64]*ProcessInfo
 	GetProcessInfo(id uint64) (*ProcessInfo, bool)

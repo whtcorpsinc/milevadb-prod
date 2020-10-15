@@ -1,4 +1,4 @@
-drop block if exists city;
+drop causet if exists city;
 
 CREATE TABLE `city` (
   `id` varchar(70) NOT NULL,

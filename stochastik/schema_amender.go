@@ -24,14 +24,14 @@ import (
 	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/executor"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -76,9 +76,9 @@ var ConstOpAddIndex = map[perceptron.SchemaState]map[perceptron.SchemaState]int{
 	},
 }
 
-type schemaAndDecoder struct {
-	schemaReplicant  *expression.Schema
-	decoder *rowcodec.ChunkDecoder
+type schemaAndCausetDecoder struct {
+	schemaReplicant  *memex.Schema
+	causetDecoder *rowcodec.ChunkCausetDecoder
 }
 
 // amendDefCauslector collects all amend operations.
@@ -93,7 +93,7 @@ func newAmendDefCauslector() *amendDefCauslector {
 	return res
 }
 
-func findIndexByID(tbl block.Block, ID int64) block.Index {
+func findIndexByID(tbl causet.Block, ID int64) causet.Index {
 	for _, indexInfo := range tbl.Indices() {
 		if indexInfo.Meta().ID == ID {
 			return indexInfo
@@ -102,7 +102,7 @@ func findIndexByID(tbl block.Block, ID int64) block.Index {
 	return nil
 }
 
-func findDefCausByID(tbl block.Block, colID int64) *block.DeferredCauset {
+func findDefCausByID(tbl causet.Block, colID int64) *causet.DeferredCauset {
 	for _, colInfo := range tbl.DefCauss() {
 		if colInfo.ID == colID {
 			return colInfo
@@ -192,7 +192,7 @@ func colChangeAmendable(colAtStart *perceptron.DeferredCausetInfo, colAtCommit *
 
 // collectModifyDefCausAmendOps is used to check if there is column change from nullable to not null by now.
 // TODO allow column change from nullable to not null, and generate keys check operation.
-func (a *amendDefCauslector) collectModifyDefCausAmendOps(tblAtStart, tblAtCommit block.Block) ([]amendOp, error) {
+func (a *amendDefCauslector) collectModifyDefCausAmendOps(tblAtStart, tblAtCommit causet.Block) ([]amendOp, error) {
 	for _, colAtCommit := range tblAtCommit.DefCauss() {
 		colAtStart := findDefCausByID(tblAtStart, colAtCommit.ID)
 		if colAtStart != nil {
@@ -205,7 +205,7 @@ func (a *amendDefCauslector) collectModifyDefCausAmendOps(tblAtStart, tblAtCommi
 	return nil, nil
 }
 
-func (a *amendDefCauslector) collectIndexAmendOps(sctx stochastikctx.Context, tblAtStart, tblAtCommit block.Block) ([]amendOp, error) {
+func (a *amendDefCauslector) collectIndexAmendOps(sctx stochastikctx.Context, tblAtStart, tblAtCommit causet.Block) ([]amendOp, error) {
 	res := make([]amendOp, 0, 4)
 	// Check index having state change, collect index column info.
 	for _, idxInfoAtCommit := range tblAtCommit.Indices() {
@@ -220,7 +220,7 @@ func (a *amendDefCauslector) collectIndexAmendOps(sctx stochastikctx.Context, tb
 		if amendOpType != AmendNone {
 			// TODO unique index amend is not supported by now.
 			if idxInfoAtCommit.Meta().Unique {
-				return nil, errors.Trace(errors.Errorf("amend unique index=%v for block=%v is not supported now",
+				return nil, errors.Trace(errors.Errorf("amend unique index=%v for causet=%v is not supported now",
 					idxInfoAtCommit.Meta().Name, tblAtCommit.Meta().Name))
 			}
 			opInfo := &amendOperationAddIndexInfo{}
@@ -232,14 +232,14 @@ func (a *amendDefCauslector) collectIndexAmendOps(sctx stochastikctx.Context, tb
 			for _, idxDefCaus := range idxInfoAtCommit.Meta().DeferredCausets {
 				colID := tblAtCommit.Meta().DeferredCausets[idxDefCaus.Offset].ID
 				oldDefCausInfo := findDefCausByID(tblAtStart, colID)
-				// TODO: now index column MUST be found in old block columns, generated column is not supported.
+				// TODO: now index column MUST be found in old causet columns, generated column is not supported.
 				if oldDefCausInfo == nil || oldDefCausInfo.IsGenerated() || oldDefCausInfo.Hidden {
-					return nil, errors.Trace(errors.Errorf("amend index column=%v id=%v is not found or generated in block=%v",
+					return nil, errors.Trace(errors.Errorf("amend index column=%v id=%v is not found or generated in causet=%v",
 						idxDefCaus.Name, colID, tblAtCommit.Meta().Name.String()))
 				}
 				opInfo.relatedOldIdxDefCauss = append(opInfo.relatedOldIdxDefCauss, oldDefCausInfo)
 			}
-			opInfo.schemaAndDecoder = newSchemaAndDecoder(sctx, tblAtStart.Meta())
+			opInfo.schemaAndCausetDecoder = newSchemaAndCausetDecoder(sctx, tblAtStart.Meta())
 			fieldTypes := make([]*types.FieldType, 0, len(tblAtStart.Meta().DeferredCausets))
 			for _, col := range tblAtStart.Meta().DeferredCausets {
 				fieldTypes = append(fieldTypes, &col.FieldType)
@@ -262,9 +262,9 @@ func (a *amendDefCauslector) collectIndexAmendOps(sctx stochastikctx.Context, tb
 	return res, nil
 }
 
-// collectTblAmendOps collects amend operations for each block using the schemaReplicant diff between startTS and commitTS.
+// collectTblAmendOps collects amend operations for each causet using the schemaReplicant diff between startTS and commitTS.
 func (a *amendDefCauslector) collectTblAmendOps(sctx stochastikctx.Context, phyTblID int64,
-	tblInfoAtStart, tblInfoAtCommit block.Block, actionType uint64) error {
+	tblInfoAtStart, tblInfoAtCommit causet.Block, actionType uint64) error {
 	if _, ok := a.tblAmendOpMap[phyTblID]; !ok {
 		a.tblAmendOpMap[phyTblID] = make([]amendOp, 0, 4)
 	}
@@ -302,13 +302,13 @@ type amendOp interface {
 // amendOperationAddIndex represents one amend operation related to a specific add index change.
 type amendOperationAddIndexInfo struct {
 	AmendOpType       int
-	tblInfoAtStart    block.Block
-	tblInfoAtCommit   block.Block
-	indexInfoAtStart  block.Index
-	indexInfoAtCommit block.Index
-	relatedOldIdxDefCauss []*block.DeferredCauset
+	tblInfoAtStart    causet.Block
+	tblInfoAtCommit   causet.Block
+	indexInfoAtStart  causet.Index
+	indexInfoAtCommit causet.Index
+	relatedOldIdxDefCauss []*causet.DeferredCauset
 
-	schemaAndDecoder *schemaAndDecoder
+	schemaAndCausetDecoder *schemaAndCausetDecoder
 	chk              *chunk.Chunk
 }
 
@@ -382,7 +382,7 @@ func (a *amendOperationAddIndexInfo) genIndexKeyValue(ctx context.Context, sctx 
 		}
 		return nil, nil, errors.Errorf("key=%v is not found in new event ekv map", ekv.Key(key).String())
 	}
-	err := executor.DecodeRowValToChunk(sctx, a.schemaAndDecoder.schemaReplicant, a.tblInfoAtStart.Meta(), kvHandle, val, chk, a.schemaAndDecoder.decoder)
+	err := interlock.DecodeRowValToChunk(sctx, a.schemaAndCausetDecoder.schemaReplicant, a.tblInfoAtStart.Meta(), kvHandle, val, chk, a.schemaAndCausetDecoder.causetDecoder)
 	if err != nil {
 		logutil.Logger(ctx).Warn("amend decode value to chunk failed", zap.Error(err))
 		return nil, nil, errors.Trace(err)
@@ -548,11 +548,11 @@ func (s *SchemaAmender) genAllAmendMutations(ctx context.Context, commitMutation
 // are returned, the input commitMutations will not be changed.
 func (s *SchemaAmender) AmendTxn(ctx context.Context, startSchemaReplicant einsteindb.SchemaVer, change *einsteindb.RelatedSchemaChange,
 	commitMutations einsteindb.CommitterMutations) (*einsteindb.CommitterMutations, error) {
-	// Get info schemaReplicant meta
+	// Get info schemaReplicant spacetime
 	schemaReplicantAtStart := startSchemaReplicant.(schemareplicant.SchemaReplicant)
 	schemaReplicantAtCheck := change.LatestSchemaReplicant.(schemareplicant.SchemaReplicant)
 
-	// DefCauslect amend operations for each block by physical block ID.
+	// DefCauslect amend operations for each causet by physical causet ID.
 	var needAmendMem bool
 	amendDefCauslector := newAmendDefCauslector()
 	for i, tblID := range change.PhyTblIDS {
@@ -560,17 +560,17 @@ func (s *SchemaAmender) AmendTxn(ctx context.Context, startSchemaReplicant einst
 		// Check amendable flags, return if not supported flags exist.
 		if actionType&(^amendableType) != 0 {
 			logutil.Logger(ctx).Info("amend action type not supported for txn", zap.Int64("tblID", tblID), zap.Uint64("actionType", actionType))
-			return nil, errors.Trace(block.ErrUnsupportedOp)
+			return nil, errors.Trace(causet.ErrUnsupportedOp)
 		}
-		// Partition block is not supported now.
+		// Partition causet is not supported now.
 		tblInfoAtStart, ok := schemaReplicantAtStart.TableByID(tblID)
 		if !ok {
 			return nil, errors.Trace(errors.Errorf("blockID=%d is not found in schemaReplicant", tblID))
 		}
 		if tblInfoAtStart.Meta().Partition != nil {
-			logutil.Logger(ctx).Info("Amend for partition block is not supported",
+			logutil.Logger(ctx).Info("Amend for partition causet is not supported",
 				zap.String("blockName", tblInfoAtStart.Meta().Name.String()), zap.Int64("blockID", tblID))
-			return nil, errors.Trace(block.ErrUnsupportedOp)
+			return nil, errors.Trace(causet.ErrUnsupportedOp)
 		}
 		tblInfoAtCommit, ok := schemaReplicantAtCheck.TableByID(tblID)
 		if !ok {
@@ -591,18 +591,18 @@ func (s *SchemaAmender) AmendTxn(ctx context.Context, startSchemaReplicant einst
 	return nil, nil
 }
 
-func newSchemaAndDecoder(ctx stochastikctx.Context, tbl *perceptron.TableInfo) *schemaAndDecoder {
-	schemaReplicant := expression.NewSchema(make([]*expression.DeferredCauset, 0, len(tbl.DeferredCausets))...)
+func newSchemaAndCausetDecoder(ctx stochastikctx.Context, tbl *perceptron.TableInfo) *schemaAndCausetDecoder {
+	schemaReplicant := memex.NewSchema(make([]*memex.DeferredCauset, 0, len(tbl.DeferredCausets))...)
 	for _, col := range tbl.DeferredCausets {
-		colExpr := &expression.DeferredCauset{
+		colExpr := &memex.DeferredCauset{
 			RetType: &col.FieldType,
 			ID:      col.ID,
 		}
 		if col.IsGenerated() && !col.GeneratedStored {
 			// This will not be used since generated column is rejected in collectIndexAmendOps.
-			colExpr.VirtualExpr = &expression.Constant{}
+			colExpr.VirtualExpr = &memex.Constant{}
 		}
 		schemaReplicant.Append(colExpr)
 	}
-	return &schemaAndDecoder{schemaReplicant, executor.NewRowDecoder(ctx, schemaReplicant, tbl)}
+	return &schemaAndCausetDecoder{schemaReplicant, interlock.NewRowCausetDecoder(ctx, schemaReplicant, tbl)}
 }

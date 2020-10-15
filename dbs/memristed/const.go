@@ -14,7 +14,7 @@
 package memristed
 
 // MemruleDefaultGroupID is the default GroupID for all memristed rules, to
-//  indicate that it is from MilevaDB_DBS statements.
+//  indicate that it is from MilevaDB_DBS memexs.
 const MemruleDefaultGroupID = "MilevaDB_DBS"
 
 const (
@@ -22,7 +22,7 @@ const (
 	MemruleIndexDefault int = iota
 	// MemruleIndexDatabase is the index for a rule of database.
 	MemruleIndexDatabase
-	// MemruleIndexBlock is the index for a rule of block.
+	// MemruleIndexBlock is the index for a rule of causet.
 	MemruleIndexBlock
 	// MemruleIndexPartition is the index for a rule of partition.
 	MemruleIndexPartition

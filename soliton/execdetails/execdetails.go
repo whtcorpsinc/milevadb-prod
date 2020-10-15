@@ -38,8 +38,8 @@ var (
 	LockKeysDetailCtxKey = lockKeysDetailCtxKeyType{}
 )
 
-// ExecDetails contains execution detail information.
-type ExecDetails struct {
+// InterDircDetails contains execution detail information.
+type InterDircDetails struct {
 	CalleeAddress    string
 	CopTime          time.Duration
 	ProcessTime      time.Duration
@@ -55,13 +55,13 @@ type ExecDetails struct {
 	LockKeysDetail   *LockKeysDetails
 }
 
-type stmtExecDetailKeyType struct{}
+type stmtInterDircDetailKeyType struct{}
 
-// StmtExecDetailKey used to carry StmtExecDetail info in context.Context.
-var StmtExecDetailKey = stmtExecDetailKeyType{}
+// StmtInterDircDetailKey used to carry StmtInterDircDetail info in context.Context.
+var StmtInterDircDetailKey = stmtInterDircDetailKeyType{}
 
-// StmtExecDetails contains stmt level execution detail info.
-type StmtExecDetails struct {
+// StmtInterDircDetails contains stmt level execution detail info.
+type StmtInterDircDetails struct {
 	BackoffCount         int64
 	BackoffDuration      int64
 	WaitKVResFIDeluration   int64
@@ -123,7 +123,7 @@ func (cd *CommitDetails) Clone() *CommitDetails {
 	return commit
 }
 
-// LockKeysDetails contains pessimistic lock keys detail information.
+// LockKeysDetails contains pessimistic dagger keys detail information.
 type LockKeysDetails struct {
 	TotalTime       time.Duration
 	RegionNum       int32
@@ -139,7 +139,7 @@ type LockKeysDetails struct {
 	RetryCount   int
 }
 
-// Merge merges lock keys execution details into self.
+// Merge merges dagger keys execution details into self.
 func (ld *LockKeysDetails) Merge(lockKey *LockKeysDetails) {
 	ld.TotalTime += lockKey.TotalTime
 	ld.RegionNum += lockKey.RegionNum
@@ -154,7 +154,7 @@ func (ld *LockKeysDetails) Merge(lockKey *LockKeysDetails) {
 
 // Clone returns a deep copy of itself.
 func (ld *LockKeysDetails) Clone() *LockKeysDetails {
-	lock := &LockKeysDetails{
+	dagger := &LockKeysDetails{
 		TotalTime:       ld.TotalTime,
 		RegionNum:       ld.RegionNum,
 		LockKeys:        ld.LockKeys,
@@ -164,8 +164,8 @@ func (ld *LockKeysDetails) Clone() *LockKeysDetails {
 		LockRPCCount:    ld.LockRPCCount,
 		RetryCount:      ld.RetryCount,
 	}
-	lock.Mu.BackoffTypes = append([]fmt.Stringer{}, ld.Mu.BackoffTypes...)
-	return lock
+	dagger.Mu.BackoffTypes = append([]fmt.Stringer{}, ld.Mu.BackoffTypes...)
+	return dagger
 }
 
 const (
@@ -177,7 +177,7 @@ const (
 	WaitTimeStr = "Wait_time"
 	// BackoffTimeStr means the time of all back-off.
 	BackoffTimeStr = "Backoff_time"
-	// LockKeysTimeStr means the time interval between pessimistic lock wait start and lock got obtain
+	// LockKeysTimeStr means the time interval between pessimistic dagger wait start and dagger got obtain
 	LockKeysTimeStr = "LockKeys_time"
 	// RequestCountStr means the request count.
 	RequestCountStr = "Request_count"
@@ -197,7 +197,7 @@ const (
 	CommitBackoffTimeStr = "Commit_backoff_time"
 	// BackoffTypesStr means the backoff type.
 	BackoffTypesStr = "Backoff_types"
-	// ResolveLockTimeStr means the time of resolving lock.
+	// ResolveLockTimeStr means the time of resolving dagger.
 	ResolveLockTimeStr = "Resolve_lock_time"
 	// LocalLatchWaitTimeStr means the time of waiting in local latch.
 	LocalLatchWaitTimeStr = "Local_latch_wait_time"
@@ -212,7 +212,7 @@ const (
 )
 
 // String implements the fmt.Stringer interface.
-func (d ExecDetails) String() string {
+func (d InterDircDetails) String() string {
 	parts := make([]string, 0, 8)
 	if d.CopTime > 0 {
 		parts = append(parts, CopTimeStr+": "+strconv.FormatFloat(d.CopTime.Seconds(), 'f', -1, 64))
@@ -285,8 +285,8 @@ func (d ExecDetails) String() string {
 	return strings.Join(parts, " ")
 }
 
-// ToZapFields wraps the ExecDetails as zap.Fields.
-func (d ExecDetails) ToZapFields() (fields []zap.Field) {
+// ToZapFields wraps the InterDircDetails as zap.Fields.
+func (d InterDircDetails) ToZapFields() (fields []zap.Field) {
 	fields = make([]zap.Field, 0, 16)
 	if d.CopTime > 0 {
 		fields = append(fields, zap.String(strings.ToLower(CopTimeStr), strconv.FormatFloat(d.CopTime.Seconds(), 'f', -1, 64)+"s"))
@@ -366,7 +366,7 @@ type CopRuntimeStats struct {
 }
 
 // RecordOneCopTask records a specific cop tasks's execution detail.
-func (crs *CopRuntimeStats) RecordOneCopTask(address string, summary *fidelpb.ExecutorExecutionSummary) {
+func (crs *CopRuntimeStats) RecordOneCopTask(address string, summary *fidelpb.InterlockingDirectorateInterDircutionSummary) {
 	crs.Lock()
 	defer crs.Unlock()
 	crs.stats[address] = append(crs.stats[address],
@@ -432,7 +432,7 @@ const (
 	TpSelectResultRuntimeStats
 )
 
-// RuntimeStats is used to express the executor runtime information.
+// RuntimeStats is used to express the interlock runtime information.
 type RuntimeStats interface {
 	String() string
 	Merge(RuntimeStats)
@@ -442,11 +442,11 @@ type RuntimeStats interface {
 
 // BasicRuntimeStats is the basic runtime stats.
 type BasicRuntimeStats struct {
-	// executor's Next() called times.
+	// interlock's Next() called times.
 	loop int32
-	// executor consume time.
+	// interlock consume time.
 	consume int64
-	// executor return event count.
+	// interlock return event count.
 	rows int64
 }
 
@@ -480,7 +480,7 @@ func (e *BasicRuntimeStats) Tp() int {
 	return TpBasicRuntimeStats
 }
 
-// RootRuntimeStats is the executor runtime stats that combine with multiple runtime stats.
+// RootRuntimeStats is the interlock runtime stats that combine with multiple runtime stats.
 type RootRuntimeStats struct {
 	basics   []*BasicRuntimeStats
 	groupRss [][]RuntimeStats
@@ -531,7 +531,7 @@ func (e *RootRuntimeStats) String() string {
 	return buf.String()
 }
 
-// Record records executor's execution.
+// Record records interlock's execution.
 func (e *BasicRuntimeStats) Record(d time.Duration, rowNum int) {
 	atomic.AddInt32(&e.loop, 1)
 	atomic.AddInt64(&e.consume, int64(d))
@@ -548,20 +548,20 @@ func (e *BasicRuntimeStats) String() string {
 	return fmt.Sprintf("time:%v, loops:%d", time.Duration(e.consume), e.loop)
 }
 
-// RuntimeStatsDefCausl defCauslects executors's execution info.
+// RuntimeStatsDefCausl defCauslects interlocks's execution info.
 type RuntimeStatsDefCausl struct {
 	mu        sync.Mutex
 	rootStats map[int]*RootRuntimeStats
 	copStats  map[int]*CopRuntimeStats
 }
 
-// NewRuntimeStatsDefCausl creates new executor defCauslector.
+// NewRuntimeStatsDefCausl creates new interlock defCauslector.
 func NewRuntimeStatsDefCausl() *RuntimeStatsDefCausl {
 	return &RuntimeStatsDefCausl{rootStats: make(map[int]*RootRuntimeStats),
 		copStats: make(map[int]*CopRuntimeStats)}
 }
 
-// RegisterStats register execStat for a executor.
+// RegisterStats register execStat for a interlock.
 func (e *RuntimeStatsDefCausl) RegisterStats(planID int, info RuntimeStats) {
 	e.mu.Lock()
 	stats, ok := e.rootStats[planID]
@@ -591,7 +591,7 @@ func (e *RuntimeStatsDefCausl) RegisterStats(planID int, info RuntimeStats) {
 	e.mu.Unlock()
 }
 
-// GetRootStats gets execStat for a executor.
+// GetRootStats gets execStat for a interlock.
 func (e *RuntimeStatsDefCausl) GetRootStats(planID int) *RootRuntimeStats {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -615,9 +615,9 @@ func (e *RuntimeStatsDefCausl) GetCopStats(planID int) *CopRuntimeStats {
 	return copStats
 }
 
-func getPlanIDFromExecutionSummary(summary *fidelpb.ExecutorExecutionSummary) (int, bool) {
-	if summary.GetExecutorId() != "" {
-		strs := strings.Split(summary.GetExecutorId(), "_")
+func getCausetIDFromInterDircutionSummary(summary *fidelpb.InterlockingDirectorateInterDircutionSummary) (int, bool) {
+	if summary.GetInterlockingDirectorateId() != "" {
+		strs := strings.Split(summary.GetInterlockingDirectorateId(), "_")
 		if id, err := strconv.Atoi(strs[len(strs)-1]); err == nil {
 			return id, true
 		}
@@ -626,10 +626,10 @@ func getPlanIDFromExecutionSummary(summary *fidelpb.ExecutorExecutionSummary) (i
 }
 
 // RecordOneCopTask records a specific cop tasks's execution detail.
-func (e *RuntimeStatsDefCausl) RecordOneCopTask(planID int, address string, summary *fidelpb.ExecutorExecutionSummary) {
-	// for TiFlash cop response, ExecutorExecutionSummary contains executor id, so if there is a valid executor id in
+func (e *RuntimeStatsDefCausl) RecordOneCopTask(planID int, address string, summary *fidelpb.InterlockingDirectorateInterDircutionSummary) {
+	// for TiFlash cop response, InterlockingDirectorateInterDircutionSummary contains interlock id, so if there is a valid interlock id in
 	// summary, use it overwrite the planID
-	if id, valid := getPlanIDFromExecutionSummary(summary); valid {
+	if id, valid := getCausetIDFromInterDircutionSummary(summary); valid {
 		planID = id
 	}
 	copStats := e.GetCopStats(planID)
@@ -652,13 +652,13 @@ func (e *RuntimeStatsDefCausl) ExistsCopStats(planID int) bool {
 	return exists
 }
 
-// ConcurrencyInfo is used to save the concurrency information of the executor operator
+// ConcurrencyInfo is used to save the concurrency information of the interlock operator
 type ConcurrencyInfo struct {
 	concurrencyName string
 	concurrencyNum  int
 }
 
-// NewConcurrencyInfo creates new executor's concurrencyInfo.
+// NewConcurrencyInfo creates new interlock's concurrencyInfo.
 func NewConcurrencyInfo(name string, num int) *ConcurrencyInfo {
 	return &ConcurrencyInfo{name, num}
 }
@@ -667,7 +667,7 @@ func NewConcurrencyInfo(name string, num int) *ConcurrencyInfo {
 type RuntimeStatsWithConcurrencyInfo struct {
 	// protect concurrency
 	sync.Mutex
-	// executor concurrency information
+	// interlock concurrency information
 	concurrency []*ConcurrencyInfo
 }
 

@@ -40,7 +40,7 @@ const (
 	SyncLog
 	// KeyOnly retrieve only keys, it can be used in scan now.
 	KeyOnly
-	// Pessimistic is defined for pessimistic lock
+	// Pessimistic is defined for pessimistic dagger
 	Pessimistic
 	// SnapshotTS is defined to set snapshot ts.
 	SnapshotTS
@@ -177,8 +177,8 @@ type MemBuffer interface {
 
 	// RLock locks the MemBuffer for shared read.
 	// In the most case, MemBuffer will only used by single goroutine,
-	// but it will be read by multiple goroutine when combined with executor.UnionScanExec.
-	// To avoid race introduced by executor.UnionScanExec, MemBuffer expose read lock for it.
+	// but it will be read by multiple goroutine when combined with interlock.UnionScanInterDirc.
+	// To avoid race introduced by interlock.UnionScanInterDirc, MemBuffer expose read dagger for it.
 	RLock()
 	// RUnlock unlocks the MemBuffer.
 	RUnlock()
@@ -241,7 +241,7 @@ type Transaction interface {
 	Rollback() error
 	// String implements fmt.Stringer interface.
 	String() string
-	// LockKeys tries to lock the entries with the keys in KV causetstore.
+	// LockKeys tries to dagger the entries with the keys in KV causetstore.
 	LockKeys(ctx context.Context, lockCtx *LockCtx, keys ...Key) error
 	// SetOption sets an option with a value, when val is nil, uses the default
 	// value of this option.
@@ -265,7 +265,7 @@ type Transaction interface {
 	SetVars(vars *Variables)
 	// GetVars gets variables from the transaction.
 	GetVars() *Variables
-	// BatchGet gets ekv from the memory buffer of statement and transaction, and the ekv storage.
+	// BatchGet gets ekv from the memory buffer of memex and transaction, and the ekv storage.
 	// Do not use len(value) == 0 or value == nil to represent non-exist.
 	// If a key doesn't exist, there shouldn't be any corresponding entry in the result map.
 	BatchGet(ctx context.Context, keys []Key) (map[string][]byte, error)
@@ -385,7 +385,7 @@ type Request struct {
 	SchemaVar int64
 	// BatchCop indicates whether send batch interlock request to tiflash.
 	BatchCop bool
-	// TaskID is an unique ID for an execution of a statement
+	// TaskID is an unique ID for an execution of a memex
 	TaskID uint64
 }
 
@@ -485,9 +485,9 @@ type SplitblockStore interface {
 	CheckRegionInScattering(regionID uint64) (bool, error)
 }
 
-// Used for pessimistic lock wait time
-// these two constants are special for lock protocol with einsteindb
-// 0 means always wait, -1 means nowait, others meaning lock wait in milliseconds
+// Used for pessimistic dagger wait time
+// these two constants are special for dagger protocol with einsteindb
+// 0 means always wait, -1 means nowait, others meaning dagger wait in milliseconds
 var (
 	LockAlwaysWait = int64(0)
 	LockNoWait     = int64(-1)

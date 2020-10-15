@@ -19,7 +19,7 @@ import (
 	"reflect"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 )
@@ -33,7 +33,7 @@ func (s *testHexSuite) SetUpSuite(c *C) {}
 func (s *testHexSuite) SetUpTest(c *C) {}
 
 func (s *testHexSuite) TestHex(c *C) {
-	var region metapb.Region
+	var region spacetimepb.Region
 	region.Id = 6662
 	region.StartKey = []byte{'t', 200, '\\', 000, 000, 000, '\\', 000, 000, 000, 37, '-', 000, 000, 000, 000, 000, 000, 000, 37}
 	region.EndKey = []byte("3asg3asd")

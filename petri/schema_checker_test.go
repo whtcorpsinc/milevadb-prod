@@ -26,7 +26,7 @@ func (s *testSuite) TestSchemaCheckerSimple(c *C) {
 	validator := NewSchemaValidator(lease, nil)
 	checker := &SchemaChecker{SchemaValidator: validator}
 
-	// Add some schemaReplicant versions and delta block IDs.
+	// Add some schemaReplicant versions and delta causet IDs.
 	ts := uint64(time.Now().UnixNano())
 	validator.UFIDelate(ts, 0, 2, &einsteindb.RelatedSchemaChange{PhyTblIDS: []int64{1}, CausetActionTypes: []uint64{1}})
 	validator.UFIDelate(ts, 2, 4, &einsteindb.RelatedSchemaChange{PhyTblIDS: []int64{2}, CausetActionTypes: []uint64{2}})
@@ -37,7 +37,7 @@ func (s *testSuite) TestSchemaCheckerSimple(c *C) {
 	c.Assert(err, IsNil)
 
 	// checker's schemaReplicant version is less than the current schemaReplicant version, and it doesn't exist in validator's items.
-	// checker's related block ID isn't in validator's changed block IDs.
+	// checker's related causet ID isn't in validator's changed causet IDs.
 	checker.schemaVer = 2
 	checker.relatedBlockIDs = []int64{3}
 	_, err = checker.Check(ts)
@@ -47,7 +47,7 @@ func (s *testSuite) TestSchemaCheckerSimple(c *C) {
 	checker.relatedBlockIDs = []int64{3}
 	_, err = checker.Check(ts)
 	c.Assert(terror.ErrorEqual(err, ErrSchemaReplicantChanged), IsTrue)
-	// checker's related block ID is in validator's changed block IDs.
+	// checker's related causet ID is in validator's changed causet IDs.
 	checker.relatedBlockIDs = []int64{2}
 	_, err = checker.Check(ts)
 	c.Assert(terror.ErrorEqual(err, ErrSchemaReplicantChanged), IsTrue)

@@ -1,4 +1,4 @@
-drop block if exists dt;
+drop causet if exists dt;
 CREATE TABLE dt (
   id int(11) unsigned NOT NULL,
   aid varchar(32) NOT NULL comment '[[set=cn.sbkcq,us.sbkcq]]',
@@ -27,7 +27,7 @@ CREATE TABLE dt (
 );
 load stats 's/explain_complex_stats_dt.json';
 
-drop block if exists st;
+drop causet if exists st;
 CREATE TABLE st (
   id int(11) UNSIGNED NOT NULL,
   pt varchar(10) NOT NULL comment '[[set=android,ios]]',
@@ -54,7 +54,7 @@ CREATE TABLE st (
 );
 load stats 's/explain_complex_stats_st.json';
 
-drop block if exists dd;
+drop causet if exists dd;
 CREATE TABLE dd (
   id int(11) UNSIGNED NOT NULL,
   aid varchar(35) NOT NULL comment '[[set=cn.sbkcq,us.sbkcq]]',
@@ -73,7 +73,7 @@ CREATE TABLE dd (
 );
 load stats 's/explain_complex_stats_dd.json';
 
-drop block if exists pp;
+drop causet if exists pp;
 CREATE TABLE pp (
   oid varchar(20) NOT NULL,
   uid bigint(20) unsigned NOT NULL comment '[[set=18089709,18089710,18090780,18090781]]',
@@ -105,7 +105,7 @@ CREATE TABLE pp (
 );
 load stats 's/explain_complex_stats_pp.json';
 
-drop block if exists rr;
+drop causet if exists rr;
 CREATE TABLE rr (
   aid varchar(35) NOT NULL comment '[[set=cn.sbkcq,us.sbkcq]]',
   pt varchar(10) NOT NULL comment '[[set=android,ios]]',
@@ -130,39 +130,39 @@ explain select dt.id as id, dt.aid as aid, dt.pt as pt, dt.dic as dic, dt.cm as 
 
 explain select pc,cr,count(DISTINCT uid) as pay_users,count(oid) as pay_times,sum(am) as am from pp where ps=2  and ppt>=1478188800 and ppt<1478275200  and pi in ('510017','520017') and uid in ('18089709','18090780') group by pc,cr;
 
-drop block if exists tbl_001;
+drop causet if exists tbl_001;
 CREATE TABLE tbl_001 (a int, b int);
 load stats 's/explain_complex_stats_tbl_001.json';
 
-drop block if exists tbl_002;
+drop causet if exists tbl_002;
 CREATE TABLE tbl_002 (a int, b int);
 load stats 's/explain_complex_stats_tbl_002.json';
 
-drop block if exists tbl_003;
+drop causet if exists tbl_003;
 CREATE TABLE tbl_003 (a int, b int);
 load stats 's/explain_complex_stats_tbl_003.json';
 
-drop block if exists tbl_004;
+drop causet if exists tbl_004;
 CREATE TABLE tbl_004 (a int, b int);
 load stats 's/explain_complex_stats_tbl_004.json';
 
-drop block if exists tbl_005;
+drop causet if exists tbl_005;
 CREATE TABLE tbl_005 (a int, b int);
 load stats 's/explain_complex_stats_tbl_005.json';
 
-drop block if exists tbl_006;
+drop causet if exists tbl_006;
 CREATE TABLE tbl_006 (a int, b int);
 load stats 's/explain_complex_stats_tbl_006.json';
 
-drop block if exists tbl_007;
+drop causet if exists tbl_007;
 CREATE TABLE tbl_007 (a int, b int);
 load stats 's/explain_complex_stats_tbl_007.json';
 
-drop block if exists tbl_008;
+drop causet if exists tbl_008;
 CREATE TABLE tbl_008 (a int, b int);
 load stats 's/explain_complex_stats_tbl_008.json';
 
-drop block if exists tbl_009;
+drop causet if exists tbl_009;
 CREATE TABLE tbl_009 (a int, b int);
 load stats 's/explain_complex_stats_tbl_009.json';
 

@@ -43,7 +43,7 @@ type Callback interface {
 	OnJobRunBefore(job *perceptron.Job)
 	// OnJobUFIDelated is called after the running job is uFIDelated.
 	OnJobUFIDelated(job *perceptron.Job)
-	// OnWatched is called after watching owner is completed.
+	// OnWatched is called after watching tenant is completed.
 	OnWatched(ctx context.Context)
 }
 

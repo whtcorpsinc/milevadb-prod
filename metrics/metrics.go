@@ -30,7 +30,7 @@ var (
 const (
 	LabelStochastik   = "stochastik"
 	LabelPetri    = "petri"
-	LabelDBSOwner  = "dbs-owner"
+	LabelDBSTenant  = "dbs-tenant"
 	LabelDBS       = "dbs"
 	LabelDBSWorker = "dbs-worker"
 	LabelDBSSyncer = "dbs-syncer"
@@ -66,7 +66,7 @@ func RegisterMetrics() {
 	prometheus.MustRegister(BindUsageCounter)
 	prometheus.MustRegister(BindTotalGauge)
 	prometheus.MustRegister(BindMemoryUsage)
-	prometheus.MustRegister(CampaignOwnerCounter)
+	prometheus.MustRegister(CampaignTenantCounter)
 	prometheus.MustRegister(ConnGauge)
 	prometheus.MustRegister(DisconnectionCounter)
 	prometheus.MustRegister(PreparedStmtGauge)
@@ -81,8 +81,8 @@ func RegisterMetrics() {
 	prometheus.MustRegister(DistALLEGROSQLScanKeysHistogram)
 	prometheus.MustRegister(DistALLEGROSQLScanKeysPartialHistogram)
 	prometheus.MustRegister(DumpFeedbackCounter)
-	prometheus.MustRegister(ExecuteErrorCounter)
-	prometheus.MustRegister(ExecutorCounter)
+	prometheus.MustRegister(InterDircuteErrorCounter)
+	prometheus.MustRegister(InterlockingDirectorateCounter)
 	prometheus.MustRegister(GetTokenDurationHistogram)
 	prometheus.MustRegister(HandShakeErrorCounter)
 	prometheus.MustRegister(HandleJobHistogram)
@@ -95,18 +95,18 @@ func RegisterMetrics() {
 	prometheus.MustRegister(LoadSchemaDuration)
 	prometheus.MustRegister(MetaHistogram)
 	prometheus.MustRegister(NewStochastikHistogram)
-	prometheus.MustRegister(OwnerHandleSyncerHistogram)
+	prometheus.MustRegister(TenantHandleSyncerHistogram)
 	prometheus.MustRegister(PanicCounter)
-	prometheus.MustRegister(PlanCacheCounter)
+	prometheus.MustRegister(CausetCacheCounter)
 	prometheus.MustRegister(PseudoEstimation)
 	prometheus.MustRegister(PacketIOHistogram)
 	prometheus.MustRegister(QueryDurationHistogram)
 	prometheus.MustRegister(QueryTotalCounter)
 	prometheus.MustRegister(SchemaLeaseErrorCounter)
 	prometheus.MustRegister(ServerEventCounter)
-	prometheus.MustRegister(StochastikExecuteCompileDuration)
-	prometheus.MustRegister(StochastikExecuteParseDuration)
-	prometheus.MustRegister(StochastikExecuteRunDuration)
+	prometheus.MustRegister(StochastikInterDircuteCompileDuration)
+	prometheus.MustRegister(StochastikInterDircuteParseDuration)
+	prometheus.MustRegister(StochastikInterDircuteRunDuration)
 	prometheus.MustRegister(StochastikRestrictedALLEGROSQLCounter)
 	prometheus.MustRegister(StochastikRetry)
 	prometheus.MustRegister(StochastikRetryErrorCounter)
@@ -138,7 +138,7 @@ func RegisterMetrics() {
 	prometheus.MustRegister(StatementLockKeysCount)
 	prometheus.MustRegister(UFIDelateSelfVersionHistogram)
 	prometheus.MustRegister(UFIDelateStatsCounter)
-	prometheus.MustRegister(WatchOwnerCounter)
+	prometheus.MustRegister(WatchTenantCounter)
 	prometheus.MustRegister(GCCausetActionRegionResultCounter)
 	prometheus.MustRegister(GCConfigGauge)
 	prometheus.MustRegister(GCHistogram)

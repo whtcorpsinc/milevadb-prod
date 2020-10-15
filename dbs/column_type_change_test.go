@@ -28,8 +28,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
@@ -57,7 +57,7 @@ func (s *testDeferredCausetTypeChangeSuite) TearDownSuite(c *C) {
 
 func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeBetweenInteger(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	// Enable defCausumn change variable.
 	tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = true
 	defer func() {
@@ -65,80 +65,80 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeBetweenI
 	}()
 
 	// Modify defCausumn from null to not null.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int null, b int null)")
-	tk.MustExec("alter block t modify defCausumn b int not null")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int null, b int null)")
+	tk.MustInterDirc("alter causet t modify defCausumn b int not null")
 
-	tk.MustExec("insert into t(a, b) values (null, 1)")
+	tk.MustInterDirc("insert into t(a, b) values (null, 1)")
 	// Modify defCausumn from null to not null in same type will cause ErrInvalidUseOfNull
-	tk.MustGetErrCode("alter block t modify defCausumn a int not null", allegrosql.ErrInvalidUseOfNull)
+	tk.MustGetErrCode("alter causet t modify defCausumn a int not null", allegrosql.ErrInvalidUseOfNull)
 
 	// Modify defCausumn from null to not null in different type will cause WarnDataTruncated.
-	tk.MustGetErrCode("alter block t modify defCausumn a tinyint not null", allegrosql.WarnDataTruncated)
-	tk.MustGetErrCode("alter block t modify defCausumn a bigint not null", allegrosql.WarnDataTruncated)
+	tk.MustGetErrCode("alter causet t modify defCausumn a tinyint not null", allegrosql.WarnDataTruncated)
+	tk.MustGetErrCode("alter causet t modify defCausumn a bigint not null", allegrosql.WarnDataTruncated)
 
 	// Modify defCausumn not null to null.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int not null, b int not null)")
-	tk.MustExec("alter block t modify defCausumn b int null")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int not null, b int not null)")
+	tk.MustInterDirc("alter causet t modify defCausumn b int null")
 
-	tk.MustExec("insert into t(a, b) values (1, null)")
-	tk.MustExec("alter block t modify defCausumn a int null")
+	tk.MustInterDirc("insert into t(a, b) values (1, null)")
+	tk.MustInterDirc("alter causet t modify defCausumn a int null")
 
 	// Modify defCausumn from unsigned to signed and from signed to unsigned.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int unsigned, b int signed)")
-	tk.MustExec("insert into t(a, b) values (1, 1)")
-	tk.MustExec("alter block t modify defCausumn a int signed")
-	tk.MustExec("alter block t modify defCausumn b int unsigned")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int unsigned, b int signed)")
+	tk.MustInterDirc("insert into t(a, b) values (1, 1)")
+	tk.MustInterDirc("alter causet t modify defCausumn a int signed")
+	tk.MustInterDirc("alter causet t modify defCausumn b int unsigned")
 
 	// Modify defCausumn from small type to big type.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a tinyint)")
-	tk.MustExec("alter block t modify defCausumn a smallint")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a tinyint)")
+	tk.MustInterDirc("alter causet t modify defCausumn a smallint")
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a tinyint)")
-	tk.MustExec("insert into t(a) values (127)")
-	tk.MustExec("alter block t modify defCausumn a smallint")
-	tk.MustExec("alter block t modify defCausumn a mediumint")
-	tk.MustExec("alter block t modify defCausumn a int")
-	tk.MustExec("alter block t modify defCausumn a bigint")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a tinyint)")
+	tk.MustInterDirc("insert into t(a) values (127)")
+	tk.MustInterDirc("alter causet t modify defCausumn a smallint")
+	tk.MustInterDirc("alter causet t modify defCausumn a mediumint")
+	tk.MustInterDirc("alter causet t modify defCausumn a int")
+	tk.MustInterDirc("alter causet t modify defCausumn a bigint")
 
 	// Modify defCausumn from big type to small type.
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a bigint)")
-	tk.MustExec("alter block t modify defCausumn a int")
-	tk.MustExec("alter block t modify defCausumn a mediumint")
-	tk.MustExec("alter block t modify defCausumn a smallint")
-	tk.MustExec("alter block t modify defCausumn a tinyint")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a bigint)")
+	tk.MustInterDirc("alter causet t modify defCausumn a int")
+	tk.MustInterDirc("alter causet t modify defCausumn a mediumint")
+	tk.MustInterDirc("alter causet t modify defCausumn a smallint")
+	tk.MustInterDirc("alter causet t modify defCausumn a tinyint")
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a bigint)")
-	tk.MustExec("insert into t(a) values (9223372036854775807)")
-	tk.MustGetErrCode("alter block t modify defCausumn a int", allegrosql.ErrDataOutOfRange)
-	tk.MustGetErrCode("alter block t modify defCausumn a mediumint", allegrosql.ErrDataOutOfRange)
-	tk.MustGetErrCode("alter block t modify defCausumn a smallint", allegrosql.ErrDataOutOfRange)
-	tk.MustGetErrCode("alter block t modify defCausumn a tinyint", allegrosql.ErrDataOutOfRange)
-	_, err := tk.Exec("admin check block t")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a bigint)")
+	tk.MustInterDirc("insert into t(a) values (9223372036854775807)")
+	tk.MustGetErrCode("alter causet t modify defCausumn a int", allegrosql.ErrDataOutOfRange)
+	tk.MustGetErrCode("alter causet t modify defCausumn a mediumint", allegrosql.ErrDataOutOfRange)
+	tk.MustGetErrCode("alter causet t modify defCausumn a smallint", allegrosql.ErrDataOutOfRange)
+	tk.MustGetErrCode("alter causet t modify defCausumn a tinyint", allegrosql.ErrDataOutOfRange)
+	_, err := tk.InterDirc("admin check causet t")
 	c.Assert(err, IsNil)
 }
 
 func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBetweenInteger(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (c1 int, c2 int)")
-	tk.MustExec("insert into t(c1, c2) values (1, 1)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (c1 int, c2 int)")
+	tk.MustInterDirc("insert into t(c1, c2) values (1, 1)")
 	// Enable defCausumn change variable.
 	tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = true
 	defer func() {
 		tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = false
 	}()
 
-	// use new stochastik to check meta in callback function.
+	// use new stochastik to check spacetime in callback function.
 	internalTK := testkit.NewTestKit(c, s.causetstore)
-	internalTK.MustExec("use test")
+	internalTK.MustInterDirc("use test")
 
 	tbl := testGetBlockByName(c, tk.Se, "test", "t")
 	c.Assert(tbl, NotNil)
@@ -170,7 +170,7 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBet
 			if tbl == nil {
 				checkErr = errors.New("tbl is nil")
 			} else if len(tbl.(*blocks.BlockCommon).DeferredCausets) != 3 {
-				// changingDefCauss has been added into meta.
+				// changingDefCauss has been added into spacetime.
 				checkErr = errors.New("len(defcaus) is not right")
 			} else if getModifyDeferredCauset(c, internalTK.Se.(stochastikctx.Context), "test", "t", "c2", true).Flag&BerolinaSQL_mysql.PreventNullInsertFlag == uint(0) {
 				checkErr = errors.New("old defCaus's flag is not right")
@@ -181,12 +181,12 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBet
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	// Alter allegrosql will modify defCausumn c2 to tinyint not null.
-	ALLEGROALLEGROSQL := "alter block t modify defCausumn c2 tinyint not null"
-	tk.MustExec(ALLEGROALLEGROSQL)
+	ALLEGROALLEGROSQL := "alter causet t modify defCausumn c2 tinyint not null"
+	tk.MustInterDirc(ALLEGROALLEGROSQL)
 	// Assert the checkErr in the job of every state.
 	c.Assert(checkErr, IsNil)
 
-	// Check the defCaus meta after the defCausumn type change.
+	// Check the defCaus spacetime after the defCausumn type change.
 	tbl = testGetBlockByName(c, tk.Se, "test", "t")
 	c.Assert(tbl, NotNil)
 	c.Assert(len(tbl.DefCauss()), Equals, 2)
@@ -201,10 +201,10 @@ func (s *testDeferredCausetTypeChangeSuite) TestDeferredCausetTypeChangeStateBet
 
 func (s *testDeferredCausetTypeChangeSuite) TestRollbackDeferredCausetTypeChangeBetweenInteger(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (c1 bigint, c2 bigint)")
-	tk.MustExec("insert into t(c1, c2) values (1, 1)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (c1 bigint, c2 bigint)")
+	tk.MustInterDirc("insert into t(c1, c2) values (1, 1)")
 	// Enable defCausumn change variable.
 	tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = true
 	defer func() {
@@ -224,8 +224,8 @@ func (s *testDeferredCausetTypeChangeSuite) TestRollbackDeferredCausetTypeChange
 	customizeHookRollbackAtState(hook, tbl, perceptron.StateNone)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	// Alter allegrosql will modify defCausumn c2 to bigint not null.
-	ALLEGROALLEGROSQL := "alter block t modify defCausumn c2 int not null"
-	_, err := tk.Exec(ALLEGROALLEGROSQL)
+	ALLEGROALLEGROSQL := "alter causet t modify defCausumn c2 int not null"
+	_, err := tk.InterDirc(ALLEGROALLEGROSQL)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:1]MockRollingBackInCallBack-none")
 	assertRollBackedDefCausUnchanged(c, tk)
@@ -233,7 +233,7 @@ func (s *testDeferredCausetTypeChangeSuite) TestRollbackDeferredCausetTypeChange
 	// Mock roll back at perceptron.StateDeleteOnly.
 	customizeHookRollbackAtState(hook, tbl, perceptron.StateDeleteOnly)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	_, err = tk.Exec(ALLEGROALLEGROSQL)
+	_, err = tk.InterDirc(ALLEGROALLEGROSQL)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:1]MockRollingBackInCallBack-delete only")
 	assertRollBackedDefCausUnchanged(c, tk)
@@ -241,7 +241,7 @@ func (s *testDeferredCausetTypeChangeSuite) TestRollbackDeferredCausetTypeChange
 	// Mock roll back at perceptron.StateWriteOnly.
 	customizeHookRollbackAtState(hook, tbl, perceptron.StateWriteOnly)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	_, err = tk.Exec(ALLEGROALLEGROSQL)
+	_, err = tk.InterDirc(ALLEGROALLEGROSQL)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:1]MockRollingBackInCallBack-write only")
 	assertRollBackedDefCausUnchanged(c, tk)
@@ -249,13 +249,13 @@ func (s *testDeferredCausetTypeChangeSuite) TestRollbackDeferredCausetTypeChange
 	// Mock roll back at perceptron.StateWriteReorg.
 	customizeHookRollbackAtState(hook, tbl, perceptron.StateWriteReorganization)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	_, err = tk.Exec(ALLEGROALLEGROSQL)
+	_, err = tk.InterDirc(ALLEGROALLEGROSQL)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:1]MockRollingBackInCallBack-write reorganization")
 	assertRollBackedDefCausUnchanged(c, tk)
 }
 
-func customizeHookRollbackAtState(hook *dbs.TestDBSCallback, tbl block.Block, state perceptron.SchemaState) {
+func customizeHookRollbackAtState(hook *dbs.TestDBSCallback, tbl causet.Block, state perceptron.SchemaState) {
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
 		if tbl.Meta().ID != job.BlockID {
 			return

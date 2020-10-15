@@ -42,7 +42,7 @@ var locCa *locCache
 // systemTZ is current MilevaDB's system timezone name.
 var systemTZ atomic.String
 
-// locCache is a simple map with lock. It stores all used timezone during the lifetime of milevadb instance.
+// locCache is a simple map with dagger. It stores all used timezone during the lifetime of milevadb instance.
 // Talked with Golang team about whether they can have some forms of cache policy available for programmer,
 // they suggests that only programmers knows which one is best for their use case.
 // For detail, please refer to: https://github.com/golang/go/issues/26106

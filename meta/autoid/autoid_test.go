@@ -26,8 +26,8 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 )
 
@@ -42,9 +42,9 @@ type testSuite struct {
 }
 
 func (*testSuite) TestT(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange", `return(true)`), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange"), IsNil)
 	}()
 
 	causetstore, err := mockstore.NewMockStore()
@@ -52,7 +52,7 @@ func (*testSuite) TestT(c *C) {
 	defer causetstore.Close()
 
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: 1, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		err = m.CreateBlockOrView(1, &perceptron.BlockInfo{ID: 1, Name: perceptron.NewCIStr("t")})
@@ -245,9 +245,9 @@ func (*testSuite) TestT(c *C) {
 }
 
 func (*testSuite) TestUnsignedAutoid(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange", `return(true)`), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange"), IsNil)
 	}()
 
 	causetstore, err := mockstore.NewMockStore()
@@ -255,7 +255,7 @@ func (*testSuite) TestUnsignedAutoid(c *C) {
 	defer causetstore.Close()
 
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: 1, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		err = m.CreateBlockOrView(1, &perceptron.BlockInfo{ID: 1, Name: perceptron.NewCIStr("t")})
@@ -405,7 +405,7 @@ func (*testSuite) TestUnsignedAutoid(c *C) {
 }
 
 // TestConcurrentAlloc is used for the test that
-// multiple allocators allocate ID with the same block ID concurrently.
+// multiple allocators allocate ID with the same causet ID concurrently.
 func (*testSuite) TestConcurrentAlloc(c *C) {
 	causetstore, err := mockstore.NewMockStore()
 	c.Assert(err, IsNil)
@@ -418,7 +418,7 @@ func (*testSuite) TestConcurrentAlloc(c *C) {
 	dbID := int64(2)
 	tblID := int64(100)
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: dbID, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		err = m.CreateBlockOrView(dbID, &perceptron.BlockInfo{ID: tblID, Name: perceptron.NewCIStr("t")})
@@ -500,7 +500,7 @@ func (*testSuite) TestRollbackAlloc(c *C) {
 	dbID := int64(1)
 	tblID := int64(2)
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: dbID, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		err = m.CreateBlockOrView(dbID, &perceptron.BlockInfo{ID: tblID, Name: perceptron.NewCIStr("t")})
@@ -544,7 +544,7 @@ func BenchmarkSlabPredictor_Alloc(b *testing.B) {
 	dbID := int64(1)
 	tblID := int64(2)
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: dbID, Name: perceptron.NewCIStr("a")})
 		if err != nil {
 			return err
@@ -575,7 +575,7 @@ func BenchmarkSlabPredictor_SequenceAlloc(b *testing.B) {
 	var seq *perceptron.SequenceInfo
 	var sequenceBase int64
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: 1, Name: perceptron.NewCIStr("a")})
 		if err != nil {
 			return err
@@ -629,7 +629,7 @@ func (*testSuite) TestSequenceAutoid(c *C) {
 	var seq *perceptron.SequenceInfo
 	var sequenceBase int64
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: 1, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		seq = &perceptron.SequenceInfo{
@@ -750,7 +750,7 @@ func (*testSuite) TestConcurrentAllocSequence(c *C) {
 	var seq *perceptron.SequenceInfo
 	var sequenceBase int64
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err1 := m.CreateDatabase(&perceptron.DBInfo{ID: 2, Name: perceptron.NewCIStr("a")})
 		c.Assert(err1, IsNil)
 		seq = &perceptron.SequenceInfo{
@@ -828,9 +828,9 @@ func (*testSuite) TestConcurrentAllocSequence(c *C) {
 
 // Fix a computation logic bug in allocator computation.
 func (*testSuite) TestAllocComputationIssue(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDCustomize", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDCustomize", `return(true)`), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDCustomize"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDCustomize"), IsNil)
 	}()
 
 	causetstore, err := mockstore.NewMockStore()
@@ -838,7 +838,7 @@ func (*testSuite) TestAllocComputationIssue(c *C) {
 	defer causetstore.Close()
 
 	err = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		err = m.CreateDatabase(&perceptron.DBInfo{ID: 1, Name: perceptron.NewCIStr("a")})
 		c.Assert(err, IsNil)
 		err = m.CreateBlockOrView(1, &perceptron.BlockInfo{ID: 1, Name: perceptron.NewCIStr("t")})

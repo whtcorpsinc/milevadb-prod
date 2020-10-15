@@ -34,7 +34,7 @@ const (
 // CheckGCEnable is use to check whether GC is enable.
 func CheckGCEnable(ctx stochastikctx.Context) (enable bool, err error) {
 	allegrosql := fmt.Sprintf(selectVariableValueALLEGROSQL, "einsteindb_gc_enable")
-	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -47,14 +47,14 @@ func CheckGCEnable(ctx stochastikctx.Context) (enable bool, err error) {
 // DisableGC will disable GC enable variable.
 func DisableGC(ctx stochastikctx.Context) error {
 	allegrosql := fmt.Sprintf(insertVariableValueALLEGROSQL, "einsteindb_gc_enable", "false", "Current GC enable status")
-	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	return errors.Trace(err)
 }
 
 // EnableGC will enable GC enable variable.
 func EnableGC(ctx stochastikctx.Context) error {
 	allegrosql := fmt.Sprintf(insertVariableValueALLEGROSQL, "einsteindb_gc_enable", "true", "Current GC enable status")
-	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	return errors.Trace(err)
 }
 
@@ -81,7 +81,7 @@ func ValidateSnapshotWithGCSafePoint(snapshotTS, safePointTS uint64) error {
 // GetGCSafePoint loads GC safe point time from allegrosql.milevadb.
 func GetGCSafePoint(ctx stochastikctx.Context) (uint64, error) {
 	allegrosql := fmt.Sprintf(selectVariableValueALLEGROSQL, "einsteindb_gc_safe_point")
-	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return 0, errors.Trace(err)
 	}

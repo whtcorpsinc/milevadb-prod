@@ -61,11 +61,11 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/plugin"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -98,7 +98,7 @@ var (
 		allegrosql.ComPing:             metrics.QueryTotalCounter.WithLabelValues("Ping", "OK"),
 		allegrosql.ComFieldList:        metrics.QueryTotalCounter.WithLabelValues("FieldList", "OK"),
 		allegrosql.ComStmtPrepare:      metrics.QueryTotalCounter.WithLabelValues("StmtPrepare", "OK"),
-		allegrosql.ComStmtExecute:      metrics.QueryTotalCounter.WithLabelValues("StmtExecute", "OK"),
+		allegrosql.ComStmtInterDircute:      metrics.QueryTotalCounter.WithLabelValues("StmtInterDircute", "OK"),
 		allegrosql.ComStmtFetch:        metrics.QueryTotalCounter.WithLabelValues("StmtFetch", "OK"),
 		allegrosql.ComStmtClose:        metrics.QueryTotalCounter.WithLabelValues("StmtClose", "OK"),
 		allegrosql.ComStmtSendLongData: metrics.QueryTotalCounter.WithLabelValues("StmtSendLongData", "OK"),
@@ -113,7 +113,7 @@ var (
 		allegrosql.ComPing:             metrics.QueryTotalCounter.WithLabelValues("Ping", "Error"),
 		allegrosql.ComFieldList:        metrics.QueryTotalCounter.WithLabelValues("FieldList", "Error"),
 		allegrosql.ComStmtPrepare:      metrics.QueryTotalCounter.WithLabelValues("StmtPrepare", "Error"),
-		allegrosql.ComStmtExecute:      metrics.QueryTotalCounter.WithLabelValues("StmtExecute", "Error"),
+		allegrosql.ComStmtInterDircute:      metrics.QueryTotalCounter.WithLabelValues("StmtInterDircute", "Error"),
 		allegrosql.ComStmtFetch:        metrics.QueryTotalCounter.WithLabelValues("StmtFetch", "Error"),
 		allegrosql.ComStmtClose:        metrics.QueryTotalCounter.WithLabelValues("StmtClose", "Error"),
 		allegrosql.ComStmtSendLongData: metrics.QueryTotalCounter.WithLabelValues("StmtSendLongData", "Error"),
@@ -131,7 +131,7 @@ var (
 	queryDurationHistogramDelete   = metrics.QueryDurationHistogram.WithLabelValues("Delete")
 	queryDurationHistogramUFIDelate   = metrics.QueryDurationHistogram.WithLabelValues("UFIDelate")
 	queryDurationHistogramSelect   = metrics.QueryDurationHistogram.WithLabelValues("Select")
-	queryDurationHistogramExecute  = metrics.QueryDurationHistogram.WithLabelValues("Execute")
+	queryDurationHistogramInterDircute  = metrics.QueryDurationHistogram.WithLabelValues("InterDircute")
 	queryDurationHistogramSet      = metrics.QueryDurationHistogram.WithLabelValues("Set")
 	queryDurationHistogramGeneral  = metrics.QueryDurationHistogram.WithLabelValues(metrics.LblGeneral)
 
@@ -165,7 +165,7 @@ type clientConn struct {
 	salt         []byte            // random bytes used for authentication.
 	alloc        memcam.SlabPredictor   // an memory allocator for reducing memory allocation.
 	lastPacket   []byte            // latest allegrosql query string, currently used for logging error.
-	ctx          *MilevaDBContext      // an interface to execute allegrosql statements.
+	ctx          *MilevaDBContext      // an interface to execute allegrosql memexs.
 	attrs        map[string]string // attributes parsed from client handshake response, not used for now.
 	peerHost     string            // peer host
 	peerPort     string            // peer port
@@ -839,7 +839,7 @@ func errStrForLog(err error) string {
 }
 
 func (cc *clientConn) addMetrics(cmd byte, startTime time.Time, err error) {
-	if cmd == allegrosql.ComQuery && cc.ctx.Value(stochastikctx.LastExecuteDBS) != nil {
+	if cmd == allegrosql.ComQuery && cc.ctx.Value(stochastikctx.LastInterDircuteDBS) != nil {
 		// Don't take DBS execute time into account.
 		// It's already recorded by other metrics in dbs package.
 		return
@@ -889,8 +889,8 @@ func (cc *clientConn) addMetrics(cmd byte, startTime time.Time, err error) {
 		queryDurationHistogramUFIDelate.Observe(time.Since(startTime).Seconds())
 	case "Select":
 		queryDurationHistogramSelect.Observe(time.Since(startTime).Seconds())
-	case "Execute":
-		queryDurationHistogramExecute.Observe(time.Since(startTime).Seconds())
+	case "InterDircute":
+		queryDurationHistogramInterDircute.Observe(time.Since(startTime).Seconds())
 	case "Set":
 		queryDurationHistogramSet.Observe(time.Since(startTime).Seconds())
 	case metrics.LblGeneral:
@@ -1001,8 +1001,8 @@ func (cc *clientConn) dispatch(ctx context.Context, data []byte) error {
 	// ComBinlogDump, ComBlockDump, ComConnectOut, ComRegisterSlave
 	case allegrosql.ComStmtPrepare:
 		return cc.handleStmtPrepare(ctx, dataStr)
-	case allegrosql.ComStmtExecute:
-		return cc.handleStmtExecute(ctx, data)
+	case allegrosql.ComStmtInterDircute:
+		return cc.handleStmtInterDircute(ctx, data)
 	case allegrosql.ComStmtSendLongData:
 		return cc.handleStmtSendLongData(data)
 	case allegrosql.ComStmtClose:
@@ -1029,7 +1029,7 @@ func (cc *clientConn) useDB(ctx context.Context, EDB string) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = cc.ctx.ExecuteStmt(ctx, stmts[0])
+	_, err = cc.ctx.InterDircuteStmt(ctx, stmts[0])
 	if err != nil {
 		return err
 	}
@@ -1151,7 +1151,7 @@ func (cc *clientConn) writeReq(ctx context.Context, filePath string) error {
 }
 
 func insertDataWithCommit(ctx context.Context, prevData,
-	curData []byte, loadDataInfo *executor.LoadDataInfo) ([]byte, error) {
+	curData []byte, loadDataInfo *interlock.LoadDataInfo) ([]byte, error) {
 	var err error
 	var reachLimit bool
 	for {
@@ -1174,7 +1174,7 @@ func insertDataWithCommit(ctx context.Context, prevData,
 }
 
 // processStream process input stream from network
-func processStream(ctx context.Context, cc *clientConn, loadDataInfo *executor.LoadDataInfo, wg *sync.WaitGroup) {
+func processStream(ctx context.Context, cc *clientConn, loadDataInfo *interlock.LoadDataInfo, wg *sync.WaitGroup) {
 	var err error
 	var shouldBreak bool
 	var prevData, curData []byte
@@ -1236,7 +1236,7 @@ func processStream(ctx context.Context, cc *clientConn, loadDataInfo *executor.L
 
 // handleLoadData does the additional work after processing the 'load data' query.
 // It sends client a file path, then reads the file content from client, inserts data into database.
-func (cc *clientConn) handleLoadData(ctx context.Context, loadDataInfo *executor.LoadDataInfo) error {
+func (cc *clientConn) handleLoadData(ctx context.Context, loadDataInfo *interlock.LoadDataInfo) error {
 	// If the server handles the load data request, the client has to set the ClientLocalFiles capability.
 	if cc.capability&allegrosql.ClientLocalFiles == 0 {
 		return errNotAllowedCommand
@@ -1274,7 +1274,7 @@ func (cc *clientConn) handleLoadData(ctx context.Context, loadDataInfo *executor
 			// check kill flag again, let the draining loop could quit if empty packet could not be received
 			if atomic.CompareAndSwapUint32(&loadDataInfo.Ctx.GetStochastikVars().Killed, 1, 0) {
 				logutil.Logger(ctx).Warn("receiving kill, stop draining data, connection may be reset")
-				return executor.ErrQueryInterrupted
+				return interlock.ErrQueryInterrupted
 			}
 			curData, err1 := cc.readPacket()
 			if err1 != nil {
@@ -1314,7 +1314,7 @@ func (cc *clientConn) getDataFromPath(ctx context.Context, path string) ([]byte,
 
 // handleLoadStats does the additional work after processing the 'load stats' query.
 // It sends client a file path, then reads the file content from client, loads it into the storage.
-func (cc *clientConn) handleLoadStats(ctx context.Context, loadStatsInfo *executor.LoadStatsInfo) error {
+func (cc *clientConn) handleLoadStats(ctx context.Context, loadStatsInfo *interlock.LoadStatsInfo) error {
 	// If the server handles the load data request, the client has to set the ClientLocalFiles capability.
 	if cc.capability&allegrosql.ClientLocalFiles == 0 {
 		return errNotAllowedCommand
@@ -1333,7 +1333,7 @@ func (cc *clientConn) handleLoadStats(ctx context.Context, loadStatsInfo *execut
 }
 
 // handleIndexAdvise does the index advise work and returns the advise result for index.
-func (cc *clientConn) handleIndexAdvise(ctx context.Context, indexAdviseInfo *executor.IndexAdviseInfo) error {
+func (cc *clientConn) handleIndexAdvise(ctx context.Context, indexAdviseInfo *interlock.IndexAdviseInfo) error {
 	if cc.capability&allegrosql.ClientLocalFiles == 0 {
 		return errNotAllowedCommand
 	}
@@ -1367,7 +1367,7 @@ func (cc *clientConn) handleQuery(ctx context.Context, allegrosql string) (err e
 	prevWarns := sc.GetWarnings()
 	stmts, err := cc.ctx.Parse(ctx, allegrosql)
 	if err != nil {
-		metrics.ExecuteErrorCounter.WithLabelValues(metrics.ExecuteErrorToLabel(err)).Inc()
+		metrics.InterDircuteErrorCounter.WithLabelValues(metrics.InterDircuteErrorToLabel(err)).Inc()
 		return err
 	}
 
@@ -1378,21 +1378,21 @@ func (cc *clientConn) handleQuery(ctx context.Context, allegrosql string) (err e
 	warns := sc.GetWarnings()
 	BerolinaSQLWarns := warns[len(prevWarns):]
 
-	var pointPlans []plannercore.Plan
+	var pointCausets []causetcore.Causet
 	if len(stmts) > 1 {
-		// Only pre-build point plans for multi-statement query
-		pointPlans, err = cc.prefetchPointPlanKeys(ctx, stmts)
+		// Only pre-build point plans for multi-memex query
+		pointCausets, err = cc.prefetchPointCausetKeys(ctx, stmts)
 		if err != nil {
 			return err
 		}
 	}
-	if len(pointPlans) > 0 {
-		defer cc.ctx.ClearValue(plannercore.PointPlanKey)
+	if len(pointCausets) > 0 {
+		defer cc.ctx.ClearValue(causetcore.PointCausetKey)
 	}
 	for i, stmt := range stmts {
-		if len(pointPlans) > 0 {
+		if len(pointCausets) > 0 {
 			// Save the point plan in Stochastik so we don't need to build the point plan again.
-			cc.ctx.SetValue(plannercore.PointPlanKey, plannercore.PointPlanVal{Plan: pointPlans[i]})
+			cc.ctx.SetValue(causetcore.PointCausetKey, causetcore.PointCausetVal{Causet: pointCausets[i]})
 		}
 		err = cc.handleStmt(ctx, stmt, BerolinaSQLWarns, i == len(stmts)-1)
 		if err != nil {
@@ -1400,28 +1400,28 @@ func (cc *clientConn) handleQuery(ctx context.Context, allegrosql string) (err e
 		}
 	}
 	if err != nil {
-		metrics.ExecuteErrorCounter.WithLabelValues(metrics.ExecuteErrorToLabel(err)).Inc()
+		metrics.InterDircuteErrorCounter.WithLabelValues(metrics.InterDircuteErrorToLabel(err)).Inc()
 	}
 	return err
 }
 
-// prefetchPointPlanKeys extracts the point keys in multi-statement query,
+// prefetchPointCausetKeys extracts the point keys in multi-memex query,
 // use BatchGet to get the keys, so the values will be cached in the snapshot cache, save RPC call cost.
 // For pessimistic transaction, the keys will be batch locked.
-func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.StmtNode) ([]plannercore.Plan, error) {
+func (cc *clientConn) prefetchPointCausetKeys(ctx context.Context, stmts []ast.StmtNode) ([]causetcore.Causet, error) {
 	txn, err := cc.ctx.Txn(false)
 	if err != nil {
 		return nil, err
 	}
 	if !txn.Valid() {
 		// Only prefetch in-transaction query for simplicity.
-		// Later we can support out-transaction multi-statement query.
+		// Later we can support out-transaction multi-memex query.
 		return nil, nil
 	}
 	vars := cc.ctx.GetStochastikVars()
 	if vars.TxnCtx.IsPessimistic {
 		if vars.IsReadConsistencyTxn() {
-			// TODO: to support READ-COMMITTED, we need to avoid getting new TS for each statement in the query.
+			// TODO: to support READ-COMMITTED, we need to avoid getting new TS for each memex in the query.
 			return nil, nil
 		}
 		if vars.TxnCtx.GetForUFIDelateTS() != vars.TxnCtx.StartTS {
@@ -1429,33 +1429,33 @@ func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.Stm
 			return nil, nil
 		}
 	}
-	pointPlans := make([]plannercore.Plan, len(stmts))
+	pointCausets := make([]causetcore.Causet, len(stmts))
 	var idxKeys []ekv.Key
 	var rowKeys []ekv.Key
 	is := petri.GetPetri(cc.ctx).SchemaReplicant()
 	sc := vars.StmtCtx
 	for i, stmt := range stmts {
 		// TODO: the preprocess is run twice, we should find some way to avoid do it again.
-		if err = plannercore.Preprocess(cc.ctx, stmt, is); err != nil {
+		if err = causetcore.Preprocess(cc.ctx, stmt, is); err != nil {
 			return nil, err
 		}
-		p := plannercore.TryFastPlan(cc.ctx.Stochastik, stmt)
-		pointPlans[i] = p
+		p := causetcore.TryFastCauset(cc.ctx.Stochastik, stmt)
+		pointCausets[i] = p
 		if p == nil {
 			continue
 		}
 		// Only support UFIDelate for now.
 		// TODO: support other point plans.
 		switch x := p.(type) {
-		case *plannercore.UFIDelate:
+		case *causetcore.UFIDelate:
 			uFIDelateStmt := stmt.(*ast.UFIDelateStmt)
-			if pp, ok := x.SelectPlan.(*plannercore.PointGetPlan); ok {
+			if pp, ok := x.SelectCauset.(*causetcore.PointGetCauset); ok {
 				if pp.PartitionInfo != nil {
 					continue
 				}
 				if pp.IndexInfo != nil {
-					executor.ResetUFIDelateStmtCtx(sc, uFIDelateStmt, vars)
-					idxKey, err1 := executor.EncodeUniqueIndexKey(cc.ctx, pp.TblInfo, pp.IndexInfo, pp.IndexValues, pp.TblInfo.ID)
+					interlock.ResetUFIDelateStmtCtx(sc, uFIDelateStmt, vars)
+					idxKey, err1 := interlock.EncodeUniqueIndexKey(cc.ctx, pp.TblInfo, pp.IndexInfo, pp.IndexValues, pp.TblInfo.ID)
 					if err1 != nil {
 						return nil, err1
 					}
@@ -1467,7 +1467,7 @@ func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.Stm
 		}
 	}
 	if len(idxKeys) == 0 && len(rowKeys) == 0 {
-		return pointPlans, nil
+		return pointCausets, nil
 	}
 	snapshot := txn.GetSnapshot()
 	idxVals, err1 := snapshot.BatchGet(ctx, idxKeys)
@@ -1484,11 +1484,11 @@ func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.Stm
 	}
 	if vars.TxnCtx.IsPessimistic {
 		allKeys := append(rowKeys, idxKeys...)
-		err = executor.LockKeys(ctx, cc.ctx, vars.LockWaitTimeout, allKeys...)
+		err = interlock.LockKeys(ctx, cc.ctx, vars.LockWaitTimeout, allKeys...)
 		if err != nil {
-			// suppress the lock error, we are not going to handle it here for simplicity.
+			// suppress the dagger error, we are not going to handle it here for simplicity.
 			err = nil
-			logutil.BgLogger().Warn("lock keys error on prefetch", zap.Error(err))
+			logutil.BgLogger().Warn("dagger keys error on prefetch", zap.Error(err))
 		}
 	} else {
 		_, err = snapshot.BatchGet(ctx, rowKeys)
@@ -1496,13 +1496,13 @@ func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.Stm
 			return nil, err
 		}
 	}
-	return pointPlans, nil
+	return pointCausets, nil
 }
 
 func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns []stmtctx.ALLEGROSQLWarn, lastStmt bool) error {
-	ctx = context.WithValue(ctx, execdetails.StmtExecDetailKey, &execdetails.StmtExecDetails{})
-	reg := trace.StartRegion(ctx, "ExecuteStmt")
-	rs, err := cc.ctx.ExecuteStmt(ctx, stmt)
+	ctx = context.WithValue(ctx, execdetails.StmtInterDircDetailKey, &execdetails.StmtInterDircDetails{})
+	reg := trace.StartRegion(ctx, "InterDircuteStmt")
+	rs, err := cc.ctx.InterDircuteStmt(ctx, stmt)
 	reg.End()
 	// The stochastik tracker detachment from global tracker is solved in the `rs.Close` in most cases.
 	// If the rs is nil, the detachment will be done in the `handleNoDelay`.
@@ -1525,7 +1525,7 @@ func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns [
 	if rs != nil {
 		connStatus := atomic.LoadInt32(&cc.status)
 		if connStatus == connStatusShutdown || connStatus == connStatusWaitShutdown {
-			return executor.ErrQueryInterrupted
+			return interlock.ErrQueryInterrupted
 		}
 
 		err = cc.writeResultset(ctx, rs, false, status, 0)
@@ -1542,34 +1542,34 @@ func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns [
 }
 
 func (cc *clientConn) handleQuerySpecial(ctx context.Context, status uint16) error {
-	loadDataInfo := cc.ctx.Value(executor.LoadDataVarKey)
+	loadDataInfo := cc.ctx.Value(interlock.LoadDataVarKey)
 	if loadDataInfo != nil {
-		defer cc.ctx.SetValue(executor.LoadDataVarKey, nil)
-		if err := cc.handleLoadData(ctx, loadDataInfo.(*executor.LoadDataInfo)); err != nil {
+		defer cc.ctx.SetValue(interlock.LoadDataVarKey, nil)
+		if err := cc.handleLoadData(ctx, loadDataInfo.(*interlock.LoadDataInfo)); err != nil {
 			return err
 		}
 	}
 
-	loadStats := cc.ctx.Value(executor.LoadStatsVarKey)
+	loadStats := cc.ctx.Value(interlock.LoadStatsVarKey)
 	if loadStats != nil {
-		defer cc.ctx.SetValue(executor.LoadStatsVarKey, nil)
-		if err := cc.handleLoadStats(ctx, loadStats.(*executor.LoadStatsInfo)); err != nil {
+		defer cc.ctx.SetValue(interlock.LoadStatsVarKey, nil)
+		if err := cc.handleLoadStats(ctx, loadStats.(*interlock.LoadStatsInfo)); err != nil {
 			return err
 		}
 	}
 
-	indexAdvise := cc.ctx.Value(executor.IndexAdviseVarKey)
+	indexAdvise := cc.ctx.Value(interlock.IndexAdviseVarKey)
 	if indexAdvise != nil {
-		defer cc.ctx.SetValue(executor.IndexAdviseVarKey, nil)
-		if err := cc.handleIndexAdvise(ctx, indexAdvise.(*executor.IndexAdviseInfo)); err != nil {
+		defer cc.ctx.SetValue(interlock.IndexAdviseVarKey, nil)
+		if err := cc.handleIndexAdvise(ctx, indexAdvise.(*interlock.IndexAdviseInfo)); err != nil {
 			return err
 		}
 	}
 	return cc.writeOkWith(ctx, cc.ctx.LastMessage(), cc.ctx.AffectedRows(), cc.ctx.LastInsertID(), status, cc.ctx.WarningCount())
 }
 
-// handleFieldList returns the field list for a block.
-// The allegrosql string is composed of a block name and a terminating character \x00.
+// handleFieldList returns the field list for a causet.
+// The allegrosql string is composed of a causet name and a terminating character \x00.
 func (cc *clientConn) handleFieldList(ctx context.Context, allegrosql string) (err error) {
 	parts := strings.Split(allegrosql, "\x00")
 	defCausumns, err := cc.ctx.FieldList(parts[0])
@@ -1653,10 +1653,10 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs ResultSet, binary bool
 	data := cc.alloc.AllocWithLen(4, 1024)
 	req := rs.NewChunk()
 	gotDeferredCausetInfo := false
-	var stmtDetail *execdetails.StmtExecDetails
-	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	var stmtDetail *execdetails.StmtInterDircDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtInterDircDetailKey)
 	if stmtDetailRaw != nil {
-		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtInterDircDetails)
 	}
 
 	for {
@@ -1752,10 +1752,10 @@ func (cc *clientConn) writeChunksWithFetchSize(ctx context.Context, rs ResultSet
 	rs.StoreFetchedRows(fetchedRows)
 
 	data := cc.alloc.AllocWithLen(4, 1024)
-	var stmtDetail *execdetails.StmtExecDetails
-	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	var stmtDetail *execdetails.StmtInterDircDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtInterDircDetailKey)
 	if stmtDetailRaw != nil {
-		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtInterDircDetails)
 	}
 	start := time.Now()
 	var err error
@@ -1933,7 +1933,7 @@ func (cc getLastStmtInConn) String() string {
 			allegrosql, _ = BerolinaSQL.NormalizeDigest(allegrosql)
 		}
 		return queryStrForLog(allegrosql)
-	case allegrosql.ComStmtExecute, allegrosql.ComStmtFetch:
+	case allegrosql.ComStmtInterDircute, allegrosql.ComStmtFetch:
 		stmtID := binary.LittleEndian.Uint32(data[0:4])
 		return queryStrForLog(cc.preparedStmt2String(stmtID))
 	case allegrosql.ComStmtClose, allegrosql.ComStmtReset:
@@ -1964,7 +1964,7 @@ func (cc getLastStmtInConn) PProfLabel() string {
 		return "ResetStmt"
 	case allegrosql.ComQuery, allegrosql.ComStmtPrepare:
 		return BerolinaSQL.Normalize(queryStrForLog(string(replog.String(data))))
-	case allegrosql.ComStmtExecute, allegrosql.ComStmtFetch:
+	case allegrosql.ComStmtInterDircute, allegrosql.ComStmtFetch:
 		stmtID := binary.LittleEndian.Uint32(data[0:4])
 		return queryStrForLog(cc.preparedStmt2StringNoArgs(stmtID))
 	default:

@@ -80,7 +80,7 @@ func (s *testEncryptSuite) TestUnpad(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(toHex(p), Equals, "")
 
-	// Invalid padding: incorrect block size
+	// Invalid padding: incorrect causet size
 	p = []byte{0x0A, 0x0B, 0x0C, 0x04, 0x04, 0x04, 0x04}
 	_, err = PKCS7Unpad(p, 8)
 	c.Assert(err, NotNil)
@@ -93,7 +93,7 @@ func (s *testEncryptSuite) TestUnpad(c *C) {
 	_, err = PKCS7Unpad(p, 8)
 	c.Assert(err, NotNil)
 
-	// Invalid padding: padding length > block length
+	// Invalid padding: padding length > causet length
 	p = []byte{0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09}
 	_, err = PKCS7Unpad(p, 8)
 	c.Assert(err, NotNil)

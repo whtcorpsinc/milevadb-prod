@@ -55,7 +55,7 @@ type mvccLock struct {
 type mvccEntry struct {
 	key    MvccKey
 	values []mvccValue
-	lock   *mvccLock
+	dagger   *mvccLock
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler interface.
@@ -204,8 +204,8 @@ func (l *mvccLock) lockErr(key []byte) error {
 }
 
 func (l *mvccLock) check(ts uint64, key []byte, resolvedLocks []uint64) (uint64, error) {
-	// ignore when ts is older than lock or lock's type is Lock.
-	// Pessimistic lock doesn't block read.
+	// ignore when ts is older than dagger or dagger's type is Lock.
+	// Pessimistic dagger doesn't causet read.
 	if l.startTS > ts || l.op == kvrpcpb.Op_Lock || l.op == kvrpcpb.Op_PessimisticLock {
 		return ts, nil
 	}
@@ -213,7 +213,7 @@ func (l *mvccLock) check(ts uint64, key []byte, resolvedLocks []uint64) (uint64,
 	if ts == math.MaxUint64 && bytes.Equal(l.primary, key) {
 		return l.startTS - 1, nil
 	}
-	// Skip lock if the lock is resolved.
+	// Skip dagger if the dagger is resolved.
 	for _, resolved := range resolvedLocks {
 		if l.startTS == resolved {
 			return ts, nil
@@ -227,9 +227,9 @@ func (e *mvccEntry) Less(than btree.Item) bool {
 }
 
 func (e *mvccEntry) Get(ts uint64, isoLevel kvrpcpb.IsolationLevel, resolvedLocks []uint64) ([]byte, error) {
-	if isoLevel == kvrpcpb.IsolationLevel_SI && e.lock != nil {
+	if isoLevel == kvrpcpb.IsolationLevel_SI && e.dagger != nil {
 		var err error
-		ts, err = e.lock.check(ts, e.key.Raw(), resolvedLocks)
+		ts, err = e.dagger.check(ts, e.key.Raw(), resolvedLocks)
 		if err != nil {
 			return nil, err
 		}

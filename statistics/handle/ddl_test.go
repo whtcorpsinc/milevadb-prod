@@ -24,9 +24,9 @@ import (
 func (s *testStatsSuite) TestDBSAfterLoad(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
+	testKit.MustInterDirc("analyze causet t")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -36,13 +36,13 @@ func (s *testStatsSuite) TestDBSAfterLoad(c *C) {
 	c.Assert(statsTbl.Pseudo, IsFalse)
 	recordCount := 1000
 	for i := 0; i < recordCount; i++ {
-		testKit.MustExec("insert into t values (?, ?)", i, i+1)
+		testKit.MustInterDirc("insert into t values (?, ?)", i, i+1)
 	}
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
 	// add column
-	testKit.MustExec("alter block t add column c10 int")
+	testKit.MustInterDirc("alter causet t add column c10 int")
 	is = do.SchemaReplicant()
 	tbl, err = is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
@@ -58,8 +58,8 @@ func (s *testStatsSuite) TestDBSAfterLoad(c *C) {
 func (s *testStatsSuite) TestDBSTable(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -72,7 +72,7 @@ func (s *testStatsSuite) TestDBSTable(c *C) {
 	statsTbl := h.GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	testKit.MustExec("create block t1 (c1 int, c2 int, index idx(c1))")
+	testKit.MustInterDirc("create causet t1 (c1 int, c2 int, index idx(c1))")
 	is = do.SchemaReplicant()
 	tbl, err = is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t1"))
 	c.Assert(err, IsNil)
@@ -83,7 +83,7 @@ func (s *testStatsSuite) TestDBSTable(c *C) {
 	statsTbl = h.GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	testKit.MustExec("truncate block t1")
+	testKit.MustInterDirc("truncate causet t1")
 	is = do.SchemaReplicant()
 	tbl, err = is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t1"))
 	c.Assert(err, IsNil)
@@ -101,13 +101,13 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	do := s.do
 	h := do.StatsHandle()
 
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t (c1 int, c2 int)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t (c1 int, c2 int)")
 	<-h.DBSEventCh()
-	testKit.MustExec("insert into t values(1,2),(3,4)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("insert into t values(1,2),(3,4)")
+	testKit.MustInterDirc("analyze causet t")
 
-	testKit.MustExec("alter block t add column c_null int")
+	testKit.MustInterDirc("alter causet t add column c_null int")
 	err := h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is := do.SchemaReplicant()
@@ -120,7 +120,7 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	c.Check(statsTbl.DeferredCausets[blockInfo.DeferredCausets[2].ID].NullCount, Equals, int64(2))
 	c.Check(statsTbl.DeferredCausets[blockInfo.DeferredCausets[2].ID].NDV, Equals, int64(0))
 
-	testKit.MustExec("alter block t add column c3 int NOT NULL")
+	testKit.MustInterDirc("alter causet t add column c3 int NOT NULL")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -138,7 +138,7 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, float64(0))
 
-	testKit.MustExec("alter block t add column c4 datetime NOT NULL default CURRENT_TIMESTAMP")
+	testKit.MustInterDirc("alter causet t add column c4 datetime NOT NULL default CURRENT_TIMESTAMP")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -147,10 +147,10 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	c.Assert(err, IsNil)
 	blockInfo = tbl.Meta()
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
-	// If we don't use original default value, we will get a pseudo block.
+	// If we don't use original default value, we will get a pseudo causet.
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	testKit.MustExec("alter block t add column c5 varchar(15) DEFAULT '123'")
+	testKit.MustInterDirc("alter causet t add column c5 varchar(15) DEFAULT '123'")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -162,7 +162,7 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	c.Assert(statsTbl.Pseudo, IsFalse)
 	c.Check(statsTbl.DeferredCausets[blockInfo.DeferredCausets[5].ID].AvgDefCausSize(statsTbl.Count, false), Equals, 3.0)
 
-	testKit.MustExec("alter block t add column c6 varchar(15) DEFAULT '123', add column c7 varchar(15) DEFAULT '123'")
+	testKit.MustInterDirc("alter causet t add column c6 varchar(15) DEFAULT '123', add column c7 varchar(15) DEFAULT '123'")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -173,8 +173,8 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 	statsTbl = do.StatsHandle().GetTableStats(blockInfo)
 	c.Assert(statsTbl.Pseudo, IsFalse)
 
-	testKit.MustExec("create index i on t(c2, c1)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("create index i on t(c2, c1)")
+	testKit.MustInterDirc("analyze causet t")
 	rs := testKit.MustQuery("select count(*) from allegrosql.stats_histograms where block_id = ? and hist_id = 1 and is_index =1", blockInfo.ID)
 	rs.Check(testkit.Rows("1"))
 	rs = testKit.MustQuery("select count(*) from allegrosql.stats_buckets where block_id = ? and hist_id = 1 and is_index = 1", blockInfo.ID)
@@ -184,8 +184,8 @@ func (s *testStatsSuite) TestDBSHistogram(c *C) {
 func (s *testStatsSuite) TestDBSPartition(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
 	createTable := `CREATE TABLE t (a int, b int, primary key(a), index idx(b))
 PARTITION BY RANGE ( a ) (
 		PARTITION p0 VALUES LESS THAN (6),
@@ -193,7 +193,7 @@ PARTITION BY RANGE ( a ) (
 		PARTITION p2 VALUES LESS THAN (16),
 		PARTITION p3 VALUES LESS THAN (21)
 )`
-	testKit.MustExec(createTable)
+	testKit.MustInterDirc(createTable)
 	do := s.do
 	is := do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -209,9 +209,9 @@ PARTITION BY RANGE ( a ) (
 		c.Assert(statsTbl.Pseudo, IsFalse)
 	}
 
-	testKit.MustExec("insert into t values (1,2),(6,2),(11,2),(16,2)")
-	testKit.MustExec("analyze block t")
-	testKit.MustExec("alter block t add column c varchar(15) DEFAULT '123'")
+	testKit.MustInterDirc("insert into t values (1,2),(6,2),(11,2),(16,2)")
+	testKit.MustInterDirc("analyze causet t")
+	testKit.MustInterDirc("alter causet t add column c varchar(15) DEFAULT '123'")
 	err = h.HandleDBSEvent(<-h.DBSEventCh())
 	c.Assert(err, IsNil)
 	is = do.SchemaReplicant()
@@ -226,8 +226,8 @@ PARTITION BY RANGE ( a ) (
 		c.Check(statsTbl.DeferredCausets[blockInfo.DeferredCausets[2].ID].AvgDefCausSize(statsTbl.Count, false), Equals, 3.0)
 	}
 
-	addPartition := "alter block t add partition (partition p4 values less than (26))"
-	testKit.MustExec(addPartition)
+	addPartition := "alter causet t add partition (partition p4 values less than (26))"
+	testKit.MustInterDirc(addPartition)
 	is = s.do.SchemaReplicant()
 	tbl, err = is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
@@ -241,8 +241,8 @@ PARTITION BY RANGE ( a ) (
 		c.Assert(statsTbl.Pseudo, IsFalse)
 	}
 
-	truncatePartition := "alter block t truncate partition p4"
-	testKit.MustExec(truncatePartition)
+	truncatePartition := "alter causet t truncate partition p4"
+	testKit.MustInterDirc(truncatePartition)
 	is = s.do.SchemaReplicant()
 	tbl, err = is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)

@@ -70,13 +70,13 @@ func (h *Handle) DBSEventCh() chan *soliton.Event {
 	return h.dbsEventCh
 }
 
-// insertTableStats2KV inserts a record standing for a new block to stats_meta and inserts some records standing for the
-// new columns and indices which belong to this block.
+// insertTableStats2KV inserts a record standing for a new causet to stats_spacetime and inserts some records standing for the
+// new columns and indices which belong to this causet.
 func (h *Handle) insertTableStats2KV(info *perceptron.TableInfo, physicalID int64) (err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(context.Background(), "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(context.Background(), "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -89,7 +89,7 @@ func (h *Handle) insertTableStats2KV(info *perceptron.TableInfo, physicalID int6
 	}
 	startTS := txn.StartTS()
 	sqls := make([]string, 0, 1+len(info.DeferredCausets)+len(info.Indices))
-	sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_meta (version, block_id) values(%d, %d)", startTS, physicalID))
+	sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_spacetime (version, block_id) values(%d, %d)", startTS, physicalID))
 	for _, col := range info.DeferredCausets {
 		sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_histograms (block_id, is_index, hist_id, distinct_count, version) values(%d, 0, %d, 0, %d)", physicalID, col.ID, startTS))
 	}
@@ -105,8 +105,8 @@ func (h *Handle) insertDefCausStats2KV(physicalID int64, colInfos []*perceptron.
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(context.Background(), "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(context.Background(), "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -119,16 +119,16 @@ func (h *Handle) insertDefCausStats2KV(physicalID int64, colInfos []*perceptron.
 	}
 	startTS := txn.StartTS()
 	// First of all, we uFIDelate the version.
-	_, err = exec.Execute(context.Background(), fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d where block_id = %d ", startTS, physicalID))
+	_, err = exec.InterDircute(context.Background(), fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d where block_id = %d ", startTS, physicalID))
 	if err != nil {
 		return
 	}
 	ctx := context.TODO()
-	// If we didn't uFIDelate anything by last ALLEGROALLEGROSQL, it means the stats of this block does not exist.
+	// If we didn't uFIDelate anything by last ALLEGROALLEGROSQL, it means the stats of this causet does not exist.
 	if h.mu.ctx.GetStochastikVars().StmtCtx.AffectedRows() > 0 {
-		// By this step we can get the count of this block, then we can sure the count and repeats of bucket.
+		// By this step we can get the count of this causet, then we can sure the count and repeats of bucket.
 		var rs []sqlexec.RecordSet
-		rs, err = exec.Execute(ctx, fmt.Sprintf("select count from allegrosql.stats_meta where block_id = %d", physicalID))
+		rs, err = exec.InterDircute(ctx, fmt.Sprintf("select count from allegrosql.stats_spacetime where block_id = %d", physicalID))
 		if len(rs) > 0 {
 			defer terror.Call(rs[0].Close)
 		}
@@ -152,7 +152,7 @@ func (h *Handle) insertDefCausStats2KV(physicalID int64, colInfos []*perceptron.
 				// If the adding column has default value null, all the existing rows have null value on the newly added column.
 				sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_histograms (version, block_id, is_index, hist_id, distinct_count, null_count) values (%d, %d, 0, %d, 0, %d)", startTS, physicalID, colInfo.ID, count))
 			} else {
-				// If this stats exists, we insert histogram meta first, the distinct_count will always be one.
+				// If this stats exists, we insert histogram spacetime first, the distinct_count will always be one.
 				sqls = append(sqls, fmt.Sprintf("insert into allegrosql.stats_histograms (version, block_id, is_index, hist_id, distinct_count, tot_col_size) values (%d, %d, 0, %d, 1, %d)", startTS, physicalID, colInfo.ID, int64(len(value.GetBytes()))*count))
 				value, err = value.ConvertTo(h.mu.ctx.GetStochastikVars().StmtCtx, types.NewFieldType(allegrosql.TypeBlob))
 				if err != nil {
@@ -168,19 +168,19 @@ func (h *Handle) insertDefCausStats2KV(physicalID int64, colInfos []*perceptron.
 }
 
 // finishTransaction will execute `commit` when error is nil, otherwise `rollback`.
-func finishTransaction(ctx context.Context, exec sqlexec.ALLEGROSQLExecutor, err error) error {
+func finishTransaction(ctx context.Context, exec sqlexec.ALLEGROSQLInterlockingDirectorate, err error) error {
 	if err == nil {
-		_, err = exec.Execute(ctx, "commit")
+		_, err = exec.InterDircute(ctx, "commit")
 	} else {
-		_, err1 := exec.Execute(ctx, "rollback")
+		_, err1 := exec.InterDircute(ctx, "rollback")
 		terror.Log(errors.Trace(err1))
 	}
 	return errors.Trace(err)
 }
 
-func execALLEGROSQLs(ctx context.Context, exec sqlexec.ALLEGROSQLExecutor, sqls []string) error {
+func execALLEGROSQLs(ctx context.Context, exec sqlexec.ALLEGROSQLInterlockingDirectorate, sqls []string) error {
 	for _, allegrosql := range sqls {
-		_, err := exec.Execute(ctx, allegrosql)
+		_, err := exec.InterDircute(ctx, allegrosql)
 		if err != nil {
 			return err
 		}

@@ -54,7 +54,7 @@ func (s *testJSONSuite) TestBinaryJSONExtract(c *C) {
 		found           bool
 		err             error
 	}{
-		// test extract with only one path expression.
+		// test extract with only one path memex.
 		{bj1, []string{"$.a"}, mustParseBinaryFromString(c, `[1, "2", {"aa": "bb"}, 4.0, {"aa": "cc"}]`), true, nil},
 		{bj2, []string{"$.a"}, mustParseBinaryFromString(c, "null"), false, nil},
 		{bj1, []string{"$[0]"}, bj1, true, nil}, // in Extract, autowraped bj1 as an array.
@@ -66,7 +66,7 @@ func (s *testJSONSuite) TestBinaryJSONExtract(c *C) {
 		{bj1, []string{`$."\"hello\""`}, mustParseBinaryFromString(c, `"world"`), true, nil},
 		{bj1, []string{`$**[1]`}, mustParseBinaryFromString(c, `"2"`), true, nil},
 
-		// test extract with multi path expressions.
+		// test extract with multi path memexs.
 		{bj1, []string{"$.a", "$[5]"}, mustParseBinaryFromString(c, `[[1, "2", {"aa": "bb"}, 4.0, {"aa": "cc"}]]`), true, nil},
 		{bj2, []string{"$.a", "$[0]"}, mustParseBinaryFromString(c, `[{"a": 1, "b": true}]`), true, nil},
 	}
@@ -187,7 +187,7 @@ func (s *testJSONSuite) TestBinaryJSONModify(c *C) {
 		// nothing changed because we want to replace but the full path doesn't exist.
 		{`{"a": [3, 4]}`, "$.a[2]", `30`, `{"a": [3, 4]}`, true, ModifyReplace},
 
-		// bad path expression.
+		// bad path memex.
 		{"null", "$.*", "{}", "null", false, ModifySet},
 		{"null", "$[*]", "{}", "null", false, ModifySet},
 		{"null", "$**.a", "{}", "null", false, ModifySet},

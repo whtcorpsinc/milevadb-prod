@@ -23,13 +23,13 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -84,7 +84,7 @@ func (m mockPumpClient) PullBinlogs(ctx context.Context, in *binlog.PullBinlogRe
 }
 
 func (ts *testSuite) TestBasic(c *C) {
-	_, err := ts.se.Execute(context.Background(), "CREATE TABLE test.t (a int primary key auto_increment, b varchar(255) unique)")
+	_, err := ts.se.InterDircute(context.Background(), "CREATE TABLE test.t (a int primary key auto_increment, b varchar(255) unique)")
 	c.Assert(err, IsNil)
 	c.Assert(ts.se.NewTxn(context.Background()), IsNil)
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -98,7 +98,7 @@ func (ts *testSuite) TestBasic(c *C) {
 	c.Assert(string(tb.RecordPrefix()), Not(Equals), "")
 	c.Assert(blocks.FindIndexByDefCausName(tb, "b"), NotNil)
 
-	autoID, err := block.AllocAutoIncrementValue(context.Background(), tb, ts.se)
+	autoID, err := causet.AllocAutoIncrementValue(context.Background(), tb, ts.se)
 	c.Assert(err, IsNil)
 	c.Assert(autoID, Greater, int64(0))
 
@@ -122,7 +122,7 @@ func (ts *testSuite) TestBasic(c *C) {
 
 	c.Assert(tb.UFIDelateRecord(context.Background(), ctx, rid, types.MakeCausets(1, "abc"), types.MakeCausets(1, "cba"), []bool{false, true}), IsNil)
 
-	tb.IterRecords(ctx, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	tb.IterRecords(ctx, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		return true, nil
 	})
 
@@ -137,7 +137,7 @@ func (ts *testSuite) TestBasic(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(vals, HasLen, 2)
 	c.Assert(vals[0].GetInt64(), Equals, int64(1))
-	defcaus := []*block.DeferredCauset{tb.DefCauss()[1]}
+	defcaus := []*causet.DeferredCauset{tb.DefCauss()[1]}
 	vals, err = tb.RowWithDefCauss(ctx, ekv.IntHandle(1), defcaus)
 	c.Assert(err, IsNil)
 	c.Assert(vals, HasLen, 1)
@@ -155,10 +155,10 @@ func (ts *testSuite) TestBasic(c *C) {
 	c.Assert(handle.IntValue(), Equals, int64(1))
 	c.Assert(found, Equals, true)
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(context.Background(), "drop block test.t")
+	_, err = ts.se.InterDircute(context.Background(), "drop causet test.t")
 	c.Assert(err, IsNil)
 
-	block.MockBlockFromMeta(tb.Meta())
+	causet.MockBlockFromMeta(tb.Meta())
 	alc := tb.SlabPredictors(nil).Get(autoid.RowIDAllocType)
 	c.Assert(alc, NotNil)
 
@@ -181,27 +181,27 @@ func countEntriesWithPrefix(ctx stochastikctx.Context, prefix []byte) (int, erro
 
 func (ts *testSuite) TestTypes(c *C) {
 	ctx := context.Background()
-	_, err := ts.se.Execute(context.Background(), "CREATE TABLE test.t (c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 text, c6 blob, c7 varchar(64), c8 time, c9 timestamp null default CURRENT_TIMESTAMP, c10 decimal(10,1))")
+	_, err := ts.se.InterDircute(context.Background(), "CREATE TABLE test.t (c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 text, c6 blob, c7 varchar(64), c8 time, c9 timestamp null default CURRENT_TIMESTAMP, c10 decimal(10,1))")
 	c.Assert(err, IsNil)
 	_, err = ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(ctx, "insert test.t values (1, 2, 3, 4, '5', '6', '7', '10:10:10', null, 1.4)")
+	_, err = ts.se.InterDircute(ctx, "insert test.t values (1, 2, 3, 4, '5', '6', '7', '10:10:10', null, 1.4)")
 	c.Assert(err, IsNil)
-	rs, err := ts.se.Execute(ctx, "select * from test.t where c1 = 1")
+	rs, err := ts.se.InterDircute(ctx, "select * from test.t where c1 = 1")
 	c.Assert(err, IsNil)
 	req := rs[0].NewChunk()
 	err = rs[0].Next(ctx, req)
 	c.Assert(err, IsNil)
 	c.Assert(req.NumRows() == 0, IsFalse)
 	c.Assert(rs[0].Close(), IsNil)
-	_, err = ts.se.Execute(ctx, "drop block test.t")
+	_, err = ts.se.InterDircute(ctx, "drop causet test.t")
 	c.Assert(err, IsNil)
 
-	_, err = ts.se.Execute(ctx, "CREATE TABLE test.t (c1 tinyint unsigned, c2 smallint unsigned, c3 int unsigned, c4 bigint unsigned, c5 double, c6 bit(8))")
+	_, err = ts.se.InterDircute(ctx, "CREATE TABLE test.t (c1 tinyint unsigned, c2 smallint unsigned, c3 int unsigned, c4 bigint unsigned, c5 double, c6 bit(8))")
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(ctx, "insert test.t values (1, 2, 3, 4, 5, 6)")
+	_, err = ts.se.InterDircute(ctx, "insert test.t values (1, 2, 3, 4, 5, 6)")
 	c.Assert(err, IsNil)
-	rs, err = ts.se.Execute(ctx, "select * from test.t where c1 = 1")
+	rs, err = ts.se.InterDircute(ctx, "select * from test.t where c1 = 1")
 	c.Assert(err, IsNil)
 	req = rs[0].NewChunk()
 	err = rs[0].Next(ctx, req)
@@ -210,14 +210,14 @@ func (ts *testSuite) TestTypes(c *C) {
 	event := req.GetRow(0)
 	c.Assert(types.BinaryLiteral(event.GetBytes(5)), DeepEquals, types.NewBinaryLiteralFromUint(6, -1))
 	c.Assert(rs[0].Close(), IsNil)
-	_, err = ts.se.Execute(ctx, "drop block test.t")
+	_, err = ts.se.InterDircute(ctx, "drop causet test.t")
 	c.Assert(err, IsNil)
 
-	_, err = ts.se.Execute(ctx, "CREATE TABLE test.t (c1 enum('a', 'b', 'c'))")
+	_, err = ts.se.InterDircute(ctx, "CREATE TABLE test.t (c1 enum('a', 'b', 'c'))")
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(ctx, "insert test.t values ('a'), (2), ('c')")
+	_, err = ts.se.InterDircute(ctx, "insert test.t values ('a'), (2), ('c')")
 	c.Assert(err, IsNil)
-	rs, err = ts.se.Execute(ctx, "select c1 + 1 from test.t where c1 = 1")
+	rs, err = ts.se.InterDircute(ctx, "select c1 + 1 from test.t where c1 = 1")
 	c.Assert(err, IsNil)
 	req = rs[0].NewChunk()
 	err = rs[0].Next(ctx, req)
@@ -225,15 +225,15 @@ func (ts *testSuite) TestTypes(c *C) {
 	c.Assert(req.NumRows() == 0, IsFalse)
 	c.Assert(req.GetRow(0).GetFloat64(0), DeepEquals, float64(2))
 	c.Assert(rs[0].Close(), IsNil)
-	_, err = ts.se.Execute(ctx, "drop block test.t")
+	_, err = ts.se.InterDircute(ctx, "drop causet test.t")
 	c.Assert(err, IsNil)
 }
 
 func (ts *testSuite) TestUniqueIndexMultipleNullEntries(c *C) {
 	ctx := context.Background()
-	_, err := ts.se.Execute(ctx, "drop block if exists test.t")
+	_, err := ts.se.InterDircute(ctx, "drop causet if exists test.t")
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(ctx, "CREATE TABLE test.t (a int primary key auto_increment, b varchar(255) unique)")
+	_, err = ts.se.InterDircute(ctx, "CREATE TABLE test.t (a int primary key auto_increment, b varchar(255) unique)")
 	c.Assert(err, IsNil)
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
@@ -250,7 +250,7 @@ func (ts *testSuite) TestUniqueIndexMultipleNullEntries(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(handle.IntValue(), Greater, int64(0))
 
-	autoid, err := block.AllocAutoIncrementValue(context.Background(), tb, ts.se)
+	autoid, err := causet.AllocAutoIncrementValue(context.Background(), tb, ts.se)
 	c.Assert(err, IsNil)
 	c.Assert(autoid, Greater, int64(0))
 
@@ -263,7 +263,7 @@ func (ts *testSuite) TestUniqueIndexMultipleNullEntries(c *C) {
 	txn, err := sctx.Txn(true)
 	c.Assert(err, IsNil)
 	c.Assert(txn.Rollback(), IsNil)
-	_, err = ts.se.Execute(context.Background(), "drop block test.t")
+	_, err = ts.se.InterDircute(context.Background(), "drop causet test.t")
 	c.Assert(err, IsNil)
 }
 
@@ -309,8 +309,8 @@ func (ts *testSuite) TestRowKeyCodec(c *C) {
 }
 
 func (ts *testSuite) TestUnsignedPK(c *C) {
-	ts.se.Execute(context.Background(), "DROP TABLE IF EXISTS test.tPK")
-	_, err := ts.se.Execute(context.Background(), "CREATE TABLE test.tPK (a bigint unsigned primary key, b varchar(255))")
+	ts.se.InterDircute(context.Background(), "DROP TABLE IF EXISTS test.tPK")
+	_, err := ts.se.InterDircute(context.Background(), "CREATE TABLE test.tPK (a bigint unsigned primary key, b varchar(255))")
 	c.Assert(err, IsNil)
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("tPK"))
 	c.Assert(err, IsNil)
@@ -328,16 +328,16 @@ func (ts *testSuite) TestUnsignedPK(c *C) {
 }
 
 func (ts *testSuite) TestIterRecords(c *C) {
-	ts.se.Execute(context.Background(), "DROP TABLE IF EXISTS test.tIter")
-	_, err := ts.se.Execute(context.Background(), "CREATE TABLE test.tIter (a int primary key, b int)")
+	ts.se.InterDircute(context.Background(), "DROP TABLE IF EXISTS test.tIter")
+	_, err := ts.se.InterDircute(context.Background(), "CREATE TABLE test.tIter (a int primary key, b int)")
 	c.Assert(err, IsNil)
-	_, err = ts.se.Execute(context.Background(), "INSERT test.tIter VALUES (-1, 2), (2, NULL)")
+	_, err = ts.se.InterDircute(context.Background(), "INSERT test.tIter VALUES (-1, 2), (2, NULL)")
 	c.Assert(err, IsNil)
 	c.Assert(ts.se.NewTxn(context.Background()), IsNil)
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("tIter"))
 	c.Assert(err, IsNil)
 	totalCount := 0
-	err = tb.IterRecords(ts.se, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, rec []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tb.IterRecords(ts.se, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, rec []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		totalCount++
 		c.Assert(rec[0].IsNull(), IsFalse)
 		return true, nil
@@ -351,10 +351,10 @@ func (ts *testSuite) TestIterRecords(c *C) {
 
 func (ts *testSuite) TestBlockFromMeta(c *C) {
 	tk := testkit.NewTestKitWithInit(c, ts.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("CREATE TABLE meta (a int primary key auto_increment, b varchar(255) unique)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("CREATE TABLE spacetime (a int primary key auto_increment, b varchar(255) unique)")
 	c.Assert(ts.se.NewTxn(context.Background()), IsNil)
-	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("meta"))
+	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("spacetime"))
 	c.Assert(err, IsNil)
 	tbInfo := tb.Meta()
 
@@ -373,17 +373,17 @@ func (ts *testSuite) TestBlockFromMeta(c *C) {
 	c.Assert(tb, IsNil)
 	c.Assert(err, NotNil)
 
-	tk.MustExec(`create block t_mock (id int) partition by range (id) (partition p0 values less than maxvalue)`)
+	tk.MustInterDirc(`create causet t_mock (id int) partition by range (id) (partition p0 values less than maxvalue)`)
 	tb, err = ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t_mock"))
 	c.Assert(err, IsNil)
-	t := block.MockBlockFromMeta(tb.Meta())
-	_, ok := t.(block.PartitionedBlock)
+	t := causet.MockBlockFromMeta(tb.Meta())
+	_, ok := t.(causet.PartitionedBlock)
 	c.Assert(ok, IsTrue)
-	tk.MustExec("drop block t_mock")
-	c.Assert(t.Type(), Equals, block.NormalBlock)
+	tk.MustInterDirc("drop causet t_mock")
+	c.Assert(t.Type(), Equals, causet.NormalBlock)
 
-	tk.MustExec("create block t_meta (a int) shard_row_id_bits = 15")
-	tb, err = petri.GetPetri(tk.Se).SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t_meta"))
+	tk.MustInterDirc("create causet t_spacetime (a int) shard_row_id_bits = 15")
+	tb, err = petri.GetPetri(tk.Se).SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t_spacetime"))
 	c.Assert(err, IsNil)
 	_, err = blocks.AllocHandle(tk.Se, tb)
 	c.Assert(err, IsNil)
@@ -398,11 +398,11 @@ func (ts *testSuite) TestBlockFromMeta(c *C) {
 
 func (ts *testSuite) TestShardRowIDBitsStep(c *C) {
 	tk := testkit.NewTestKit(c, ts.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists shard_t;")
-	tk.MustExec("create block shard_t (a int) shard_row_id_bits = 15;")
-	tk.MustExec("set @@milevadb_shard_allocate_step=3;")
-	tk.MustExec("insert into shard_t values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists shard_t;")
+	tk.MustInterDirc("create causet shard_t (a int) shard_row_id_bits = 15;")
+	tk.MustInterDirc("set @@milevadb_shard_allocate_step=3;")
+	tk.MustInterDirc("insert into shard_t values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);")
 	rows := tk.MustQuery("select _milevadb_rowid from shard_t;").Rows()
 	shards := make(map[int]struct{})
 	for _, event := range rows {
@@ -415,11 +415,11 @@ func (ts *testSuite) TestShardRowIDBitsStep(c *C) {
 
 func (ts *testSuite) TestHiddenDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, ts.causetstore)
-	tk.MustExec("DROP DATABASE IF EXISTS test_hidden;")
-	tk.MustExec("CREATE DATABASE test_hidden;")
-	tk.MustExec("USE test_hidden;")
-	tk.MustExec("CREATE TABLE t (a int primary key, b int as (a+1), c int, d int as (c+1) stored, e int, f tinyint as (a+1));")
-	tk.MustExec("insert into t values (1, default, 3, default, 5, default);")
+	tk.MustInterDirc("DROP DATABASE IF EXISTS test_hidden;")
+	tk.MustInterDirc("CREATE DATABASE test_hidden;")
+	tk.MustInterDirc("USE test_hidden;")
+	tk.MustInterDirc("CREATE TABLE t (a int primary key, b int as (a+1), c int, d int as (c+1) stored, e int, f tinyint as (a+1));")
+	tk.MustInterDirc("insert into t values (1, default, 3, default, 5, default);")
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test_hidden"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 	defCausInfo := tb.Meta().DeferredCausets
@@ -436,31 +436,31 @@ func (ts *testSuite) TestHiddenDeferredCauset(c *C) {
 
 	// Basic test
 	defcaus := tb.VisibleDefCauss()
-	c.Assert(block.FindDefCaus(defcaus, "a"), NotNil)
-	c.Assert(block.FindDefCaus(defcaus, "b"), IsNil)
-	c.Assert(block.FindDefCaus(defcaus, "c"), NotNil)
-	c.Assert(block.FindDefCaus(defcaus, "d"), IsNil)
-	c.Assert(block.FindDefCaus(defcaus, "e"), NotNil)
+	c.Assert(causet.FindDefCaus(defcaus, "a"), NotNil)
+	c.Assert(causet.FindDefCaus(defcaus, "b"), IsNil)
+	c.Assert(causet.FindDefCaus(defcaus, "c"), NotNil)
+	c.Assert(causet.FindDefCaus(defcaus, "d"), IsNil)
+	c.Assert(causet.FindDefCaus(defcaus, "e"), NotNil)
 	hiddenDefCauss := tb.HiddenDefCauss()
-	c.Assert(block.FindDefCaus(hiddenDefCauss, "a"), IsNil)
-	c.Assert(block.FindDefCaus(hiddenDefCauss, "b"), NotNil)
-	c.Assert(block.FindDefCaus(hiddenDefCauss, "c"), IsNil)
-	c.Assert(block.FindDefCaus(hiddenDefCauss, "d"), NotNil)
-	c.Assert(block.FindDefCaus(hiddenDefCauss, "e"), IsNil)
+	c.Assert(causet.FindDefCaus(hiddenDefCauss, "a"), IsNil)
+	c.Assert(causet.FindDefCaus(hiddenDefCauss, "b"), NotNil)
+	c.Assert(causet.FindDefCaus(hiddenDefCauss, "c"), IsNil)
+	c.Assert(causet.FindDefCaus(hiddenDefCauss, "d"), NotNil)
+	c.Assert(causet.FindDefCaus(hiddenDefCauss, "e"), IsNil)
 	defCausInfo[1].State = perceptron.StateDeleteOnly
 	defCausInfo[2].State = perceptron.StateDeleteOnly
 	fullHiddenDefCaussAndVisibleDeferredCausets := tb.FullHiddenDefCaussAndVisibleDefCauss()
-	c.Assert(block.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "a"), NotNil)
-	c.Assert(block.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "b"), NotNil)
-	c.Assert(block.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "c"), IsNil)
-	c.Assert(block.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "d"), NotNil)
-	c.Assert(block.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "e"), NotNil)
+	c.Assert(causet.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "a"), NotNil)
+	c.Assert(causet.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "b"), NotNil)
+	c.Assert(causet.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "c"), IsNil)
+	c.Assert(causet.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "d"), NotNil)
+	c.Assert(causet.FindDefCaus(fullHiddenDefCaussAndVisibleDeferredCausets, "e"), NotNil)
 	// Reset schemaReplicant states.
 	defCausInfo[1].State = perceptron.StatePublic
 	defCausInfo[2].State = perceptron.StatePublic
 
-	// Test show create block
-	tk.MustQuery("show create block t;").Check(testkit.Rows(
+	// Test show create causet
+	tk.MustQuery("show create causet t;").Check(testkit.Rows(
 		"t CREATE TABLE `t` (\n" +
 			"  `a` int(11) NOT NULL,\n" +
 			"  `c` int(11) DEFAULT NULL,\n" +
@@ -481,88 +481,88 @@ func (ts *testSuite) TestHiddenDeferredCauset(c *C) {
 		"e|int(11)|YES||<nil>|",
 		"f|tinyint(4)|YES||<nil>|VIRTUAL GENERATED"))
 
-	// `SELECT` statement
+	// `SELECT` memex
 	tk.MustQuery("select * from t;").Check(testkit.Rows("1 3 5"))
 	tk.MustQuery("select a, c, e from t;").Check(testkit.Rows("1 3 5"))
 
-	// Can't use hidden defCausumns in `SELECT` statement
-	tk.MustGetErrMsg("select b from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("select b+1 from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("select b, c from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("select a, d from t;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("select d, b from t;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("select * from t where b > 1;", "[planner:1054]Unknown defCausumn 'b' in 'where clause'")
-	tk.MustGetErrMsg("select * from t order by b;", "[planner:1054]Unknown defCausumn 'b' in 'order clause'")
-	tk.MustGetErrMsg("select * from t group by b;", "[planner:1054]Unknown defCausumn 'b' in 'group statement'")
+	// Can't use hidden defCausumns in `SELECT` memex
+	tk.MustGetErrMsg("select b from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("select b+1 from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("select b, c from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("select a, d from t;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("select d, b from t;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("select * from t where b > 1;", "[causet:1054]Unknown defCausumn 'b' in 'where clause'")
+	tk.MustGetErrMsg("select * from t order by b;", "[causet:1054]Unknown defCausumn 'b' in 'order clause'")
+	tk.MustGetErrMsg("select * from t group by b;", "[causet:1054]Unknown defCausumn 'b' in 'group memex'")
 
-	// Can't use hidden defCausumns in `INSERT` statement
+	// Can't use hidden defCausumns in `INSERT` memex
 	// 1. insert into ... values ...
-	tk.MustGetErrMsg("insert into t values (1, 2, 3, 4, 5, 6);", "[planner:1136]DeferredCauset count doesn't match value count at event 1")
-	tk.MustGetErrMsg("insert into t(b) values (2)", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t(b, c) values (2, 3);", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t(a, d) values (1, 4);", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t(d, b) values (4, 2);", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t(a) values (b);", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t(a) values (d+1);", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t values (1, 2, 3, 4, 5, 6);", "[causet:1136]DeferredCauset count doesn't match value count at event 1")
+	tk.MustGetErrMsg("insert into t(b) values (2)", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t(b, c) values (2, 3);", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t(a, d) values (1, 4);", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t(d, b) values (4, 2);", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t(a) values (b);", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t(a) values (d+1);", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
 	// 2. insert into ... set ...
-	tk.MustGetErrMsg("insert into t set b = 2;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set b = 2, c = 3;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1, d = 4;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t set d = 4, b = 2;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = b;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = d + 1;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set b = 2;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set b = 2, c = 3;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1, d = 4;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set d = 4, b = 2;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = b;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = d + 1;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
 	// 3. insert into ... on duplicated key uFIDelate ...
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate b = 2;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate b = 2, c = 3;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = 3, d = 4;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate d = 4, b = 2;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = b;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = d + 1;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate b = 2;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate b = 2, c = 3;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = 3, d = 4;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate d = 4, b = 2;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = b;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t set a = 1 on duplicate key uFIDelate c = d + 1;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
 	// 4. replace into ... set ...
-	tk.MustGetErrMsg("replace into t set a = 1, b = 2;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("replace into t set a = 1, b = 2, c = 3;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("replace into t set a = 1, d = 4;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("replace into t set a = 1, d = 4, b = 2;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("replace into t set a = 1, c = b;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("replace into t set a = 1, c = d + 1;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, b = 2;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, b = 2, c = 3;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, d = 4;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, d = 4, b = 2;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, c = b;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("replace into t set a = 1, c = d + 1;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
 	// 5. insert into ... select ...
-	tk.MustExec("create block t1(a int, b int, c int, d int);")
-	tk.MustGetErrMsg("insert into t1 select b from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t1 select b+1 from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t1 select b, c from t;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("insert into t1 select a, d from t;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t1 select d, b from t;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("insert into t1 select a from t where b > 1;", "[planner:1054]Unknown defCausumn 'b' in 'where clause'")
-	tk.MustGetErrMsg("insert into t1 select a from t order by b;", "[planner:1054]Unknown defCausumn 'b' in 'order clause'")
-	tk.MustGetErrMsg("insert into t1 select a from t group by b;", "[planner:1054]Unknown defCausumn 'b' in 'group statement'")
-	tk.MustExec("drop block t1")
+	tk.MustInterDirc("create causet t1(a int, b int, c int, d int);")
+	tk.MustGetErrMsg("insert into t1 select b from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t1 select b+1 from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t1 select b, c from t;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("insert into t1 select a, d from t;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t1 select d, b from t;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("insert into t1 select a from t where b > 1;", "[causet:1054]Unknown defCausumn 'b' in 'where clause'")
+	tk.MustGetErrMsg("insert into t1 select a from t order by b;", "[causet:1054]Unknown defCausumn 'b' in 'order clause'")
+	tk.MustGetErrMsg("insert into t1 select a from t group by b;", "[causet:1054]Unknown defCausumn 'b' in 'group memex'")
+	tk.MustInterDirc("drop causet t1")
 
-	// `UFIDelATE` statement
-	tk.MustGetErrMsg("uFIDelate t set b = 2;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("uFIDelate t set b = 2, c = 3;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("uFIDelate t set a = 1, d = 4;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
+	// `UFIDelATE` memex
+	tk.MustGetErrMsg("uFIDelate t set b = 2;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("uFIDelate t set b = 2, c = 3;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("uFIDelate t set a = 1, d = 4;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
 
 	// FIXME: This allegrosql return unknown defCausumn 'd' in MyALLEGROSQL
-	tk.MustGetErrMsg("uFIDelate t set d = 4, b = 2;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("uFIDelate t set d = 4, b = 2;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
 
-	tk.MustGetErrMsg("uFIDelate t set a = b;", "[planner:1054]Unknown defCausumn 'b' in 'field list'")
-	tk.MustGetErrMsg("uFIDelate t set a = d + 1;", "[planner:1054]Unknown defCausumn 'd' in 'field list'")
-	tk.MustGetErrMsg("uFIDelate t set a=1 where b=1;", "[planner:1054]Unknown defCausumn 'b' in 'where clause'")
-	tk.MustGetErrMsg("uFIDelate t set a=1 where c=3 order by b;", "[planner:1054]Unknown defCausumn 'b' in 'order clause'")
+	tk.MustGetErrMsg("uFIDelate t set a = b;", "[causet:1054]Unknown defCausumn 'b' in 'field list'")
+	tk.MustGetErrMsg("uFIDelate t set a = d + 1;", "[causet:1054]Unknown defCausumn 'd' in 'field list'")
+	tk.MustGetErrMsg("uFIDelate t set a=1 where b=1;", "[causet:1054]Unknown defCausumn 'b' in 'where clause'")
+	tk.MustGetErrMsg("uFIDelate t set a=1 where c=3 order by b;", "[causet:1054]Unknown defCausumn 'b' in 'order clause'")
 
-	// `DELETE` statement
-	tk.MustExec("delete from t;")
+	// `DELETE` memex
+	tk.MustInterDirc("delete from t;")
 	tk.MustQuery("select count(*) from t;").Check(testkit.Rows("0"))
-	tk.MustExec("insert into t values (1, 3, 5);")
+	tk.MustInterDirc("insert into t values (1, 3, 5);")
 	tk.MustQuery("select * from t;").Check(testkit.Rows("1 3 5"))
-	tk.MustGetErrMsg("delete from t where b = 1;", "[planner:1054]Unknown defCausumn 'b' in 'where clause'")
+	tk.MustGetErrMsg("delete from t where b = 1;", "[causet:1054]Unknown defCausumn 'b' in 'where clause'")
 	tk.MustQuery("select * from t;").Check(testkit.Rows("1 3 5"))
-	tk.MustGetErrMsg("delete from t order by d = 1;", "[planner:1054]Unknown defCausumn 'd' in 'order clause'")
+	tk.MustGetErrMsg("delete from t order by d = 1;", "[causet:1054]Unknown defCausumn 'd' in 'order clause'")
 	tk.MustQuery("select * from t;").Check(testkit.Rows("1 3 5"))
 
-	// `DROP COLUMN` statement
+	// `DROP COLUMN` memex
 	tk.MustGetErrMsg("ALTER TABLE t DROP COLUMN b;", "[dbs:1091]defCausumn b doesn't exist")
-	tk.MustQuery("show create block t;").Check(testkit.Rows(
+	tk.MustQuery("show create causet t;").Check(testkit.Rows(
 		"t CREATE TABLE `t` (\n" +
 			"  `a` int(11) NOT NULL,\n" +
 			"  `c` int(11) DEFAULT NULL,\n" +
@@ -579,12 +579,12 @@ func (ts *testSuite) TestHiddenDeferredCauset(c *C) {
 }
 
 func (ts *testSuite) TestAddRecordWithCtx(c *C) {
-	ts.se.Execute(context.Background(), "DROP TABLE IF EXISTS test.tRecord")
-	_, err := ts.se.Execute(context.Background(), "CREATE TABLE test.tRecord (a bigint unsigned primary key, b varchar(255))")
+	ts.se.InterDircute(context.Background(), "DROP TABLE IF EXISTS test.tRecord")
+	_, err := ts.se.InterDircute(context.Background(), "CREATE TABLE test.tRecord (a bigint unsigned primary key, b varchar(255))")
 	c.Assert(err, IsNil)
 	tb, err := ts.dom.SchemaReplicant().BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("tRecord"))
 	c.Assert(err, IsNil)
-	defer ts.se.Execute(context.Background(), "DROP TABLE test.tRecord")
+	defer ts.se.InterDircute(context.Background(), "DROP TABLE test.tRecord")
 
 	c.Assert(ts.se.NewTxn(context.Background()), IsNil)
 	_, err = ts.se.Txn(true)
@@ -604,7 +604,7 @@ func (ts *testSuite) TestAddRecordWithCtx(c *C) {
 	}
 
 	i := 0
-	err = tb.IterRecords(ts.se, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, rec []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tb.IterRecords(ts.se, tb.FirstKey(), tb.DefCauss(), func(_ ekv.Handle, rec []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		i++
 		return true, nil
 	})

@@ -102,10 +102,10 @@ func intToDecimalString(intValue int64, decimal int) string {
 	return data
 }
 
-func genRowDatas(block *block, count int) ([]string, error) {
+func genRowDatas(causet *causet, count int) ([]string, error) {
 	quantum := make([]string, 0, count)
 	for i := 0; i < count; i++ {
-		data, err := genRowData(block)
+		data, err := genRowData(causet)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -115,10 +115,10 @@ func genRowDatas(block *block, count int) ([]string, error) {
 	return quantum, nil
 }
 
-func genRowData(block *block) (string, error) {
+func genRowData(causet *causet) (string, error) {
 	var values []byte
-	for _, column := range block.columns {
-		data, err := genDeferredCausetData(block, column)
+	for _, column := range causet.columns {
+		data, err := genDeferredCausetData(causet, column)
 		if err != nil {
 			return "", errors.Trace(err)
 		}
@@ -127,11 +127,11 @@ func genRowData(block *block) (string, error) {
 	}
 
 	values = values[:len(values)-1]
-	allegrosql := fmt.Sprintf("insert into %s (%s) values (%s);", block.name, block.columnList, string(values))
+	allegrosql := fmt.Sprintf("insert into %s (%s) values (%s);", causet.name, causet.columnList, string(values))
 	return allegrosql, nil
 }
 
-func genDeferredCausetData(block *block, column *column) (string, error) {
+func genDeferredCausetData(causet *causet, column *column) (string, error) {
 	tp := column.tp
 	incremental := column.incremental
 	if incremental {
@@ -141,7 +141,7 @@ func genDeferredCausetData(block *block, column *column) (string, error) {
 			column.data.remains--
 		}
 	}
-	if _, ok := block.uniqIndices[column.name]; ok {
+	if _, ok := causet.uniqIndices[column.name]; ok {
 		incremental = true
 	}
 	isUnsigned := allegrosql.HasUnsignedFlag(tp.Flag)
@@ -307,7 +307,7 @@ func execALLEGROSQL(EDB *allegrosql.EDB, allegrosql string) error {
 		return nil
 	}
 
-	_, err := EDB.Exec(allegrosql)
+	_, err := EDB.InterDirc(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}

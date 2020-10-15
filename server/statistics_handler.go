@@ -123,8 +123,8 @@ func (sh StatsHistoryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 		return
 	}
 	se.GetStochastikVars().SnapshotschemaReplicant, se.GetStochastikVars().SnapshotTS = is, snapshot
-	historyStatsExec := se.(sqlexec.RestrictedALLEGROSQLExecutor)
-	js, err := h.DumpStatsToJSON(params[FIDelBName], tbl.Meta(), historyStatsExec)
+	historyStatsInterDirc := se.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate)
+	js, err := h.DumpStatsToJSON(params[FIDelBName], tbl.Meta(), historyStatsInterDirc)
 	if err != nil {
 		writeError(w, err)
 	} else {

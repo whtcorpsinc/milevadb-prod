@@ -33,7 +33,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
@@ -272,7 +272,7 @@ func (*testSuite) TestT(c *C) {
 
 	// for uFIDelating the self schemaReplicant version
 	goCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	err = dd.SchemaSyncer().OwnerCheckAllVersions(goCtx, is.SchemaMetaVersion())
+	err = dd.SchemaSyncer().TenantCheckAllVersions(goCtx, is.SchemaMetaVersion())
 	cancel()
 	c.Assert(err, IsNil)
 	snapIs, err := dom.GetSnapshotSchemaReplicant(snapTS)
@@ -280,7 +280,7 @@ func (*testSuite) TestT(c *C) {
 	c.Assert(err, IsNil)
 	// Make sure that the self schemaReplicant version doesn't be changed.
 	goCtx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
-	err = dd.SchemaSyncer().OwnerCheckAllVersions(goCtx, is.SchemaMetaVersion())
+	err = dd.SchemaSyncer().TenantCheckAllVersions(goCtx, is.SchemaMetaVersion())
 	cancel()
 	c.Assert(err, IsNil)
 
@@ -299,7 +299,7 @@ func (*testSuite) TestT(c *C) {
 	m, err := dom.GetSnapshotMeta(snapTS)
 	c.Assert(err, IsNil)
 	tblInfo1, err := m.GetBlock(dbInfo.ID, tbl.Meta().ID)
-	c.Assert(meta.ErrDBNotExists.Equal(err), IsTrue)
+	c.Assert(spacetime.ErrDBNotExists.Equal(err), IsTrue)
 	c.Assert(tblInfo1, IsNil)
 	m, err = dom.GetSnapshotMeta(currSnapTS)
 	c.Assert(err, IsNil)

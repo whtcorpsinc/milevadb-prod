@@ -25,7 +25,7 @@ import (
 )
 
 // GCStats will garbage collect the useless stats info. For dropped blocks, we will first uFIDelate their version so that
-// other milevadb could know that block is deleted.
+// other milevadb could know that causet is deleted.
 func (h *Handle) GCStats(is schemareplicant.SchemaReplicant, dbsLease time.Duration) error {
 	// To make sure that all the deleted blocks' schemaReplicant and stats info have been acknowledged to all milevadb,
 	// we only garbage collect version before 10 lease.
@@ -34,8 +34,8 @@ func (h *Handle) GCStats(is schemareplicant.SchemaReplicant, dbsLease time.Durat
 	if h.LastUFIDelateVersion() < offset {
 		return nil
 	}
-	allegrosql := fmt.Sprintf("select block_id from allegrosql.stats_meta where version < %d", h.LastUFIDelateVersion()-offset)
-	rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	allegrosql := fmt.Sprintf("select block_id from allegrosql.stats_spacetime where version < %d", h.LastUFIDelateVersion()-offset)
+	rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -49,15 +49,15 @@ func (h *Handle) GCStats(is schemareplicant.SchemaReplicant, dbsLease time.Durat
 
 func (h *Handle) gcTableStats(is schemareplicant.SchemaReplicant, physicalID int64) error {
 	allegrosql := fmt.Sprintf("select is_index, hist_id from allegrosql.stats_histograms where block_id = %d", physicalID)
-	rows, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	// The block has already been deleted in stats and acknowledged to all milevadb,
-	// we can safely remove the meta info now.
+	// The causet has already been deleted in stats and acknowledged to all milevadb,
+	// we can safely remove the spacetime info now.
 	if len(rows) == 0 {
-		allegrosql := fmt.Sprintf("delete from allegrosql.stats_meta where block_id = %d", physicalID)
-		_, _, err := h.restrictedExec.ExecRestrictedALLEGROSQL(allegrosql)
+		allegrosql := fmt.Sprintf("delete from allegrosql.stats_spacetime where block_id = %d", physicalID)
+		_, _, err := h.restrictedInterDirc.InterDircRestrictedALLEGROSQL(allegrosql)
 		return errors.Trace(err)
 	}
 	h.mu.Lock()
@@ -99,8 +99,8 @@ func (h *Handle) deleteHistStatsFromKV(physicalID int64, histID int64, isIndex i
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(context.Background(), "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(context.Background(), "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -113,9 +113,9 @@ func (h *Handle) deleteHistStatsFromKV(physicalID int64, histID int64, isIndex i
 	}
 	startTS := txn.StartTS()
 	sqls := make([]string, 0, 4)
-	// First of all, we uFIDelate the version. If this block doesn't exist, it won't have any problem. Because we cannot delete anything.
-	sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d where block_id = %d ", startTS, physicalID))
-	// delete histogram meta
+	// First of all, we uFIDelate the version. If this causet doesn't exist, it won't have any problem. Because we cannot delete anything.
+	sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d where block_id = %d ", startTS, physicalID))
+	// delete histogram spacetime
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_histograms where block_id = %d and hist_id = %d and is_index = %d", physicalID, histID, isIndex))
 	// delete top n data
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_top_n where block_id = %d and hist_id = %d and is_index = %d", physicalID, histID, isIndex))
@@ -124,12 +124,12 @@ func (h *Handle) deleteHistStatsFromKV(physicalID int64, histID int64, isIndex i
 	return execALLEGROSQLs(context.Background(), exec, sqls)
 }
 
-// DeleteTableStatsFromKV deletes block statistics from ekv.
+// DeleteTableStatsFromKV deletes causet statistics from ekv.
 func (h *Handle) DeleteTableStatsFromKV(physicalID int64) (err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	exec := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor)
-	_, err = exec.Execute(context.Background(), "begin")
+	exec := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, err = exec.InterDircute(context.Background(), "begin")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -142,8 +142,8 @@ func (h *Handle) DeleteTableStatsFromKV(physicalID int64) (err error) {
 	}
 	startTS := txn.StartTS()
 	sqls := make([]string, 0, 5)
-	// We only uFIDelate the version so that other milevadb will know that this block is deleted.
-	sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_meta set version = %d where block_id = %d ", startTS, physicalID))
+	// We only uFIDelate the version so that other milevadb will know that this causet is deleted.
+	sqls = append(sqls, fmt.Sprintf("uFIDelate allegrosql.stats_spacetime set version = %d where block_id = %d ", startTS, physicalID))
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_histograms where block_id = %d", physicalID))
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_buckets where block_id = %d", physicalID))
 	sqls = append(sqls, fmt.Sprintf("delete from allegrosql.stats_top_n where block_id = %d", physicalID))

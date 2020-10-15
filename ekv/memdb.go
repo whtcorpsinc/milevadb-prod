@@ -35,7 +35,7 @@ const (
 	nodeFlagsMask       = ^nodeDefCausorBit
 )
 
-// KeyFlags are metadata associated with key
+// KeyFlags are spacetimedata associated with key
 type KeyFlags uint8
 
 // HasPresumeKeyNotExists returns whether the associated key use lazy check.
@@ -43,7 +43,7 @@ func (f KeyFlags) HasPresumeKeyNotExists() bool {
 	return f&flagPresumeKNE != 0
 }
 
-// HasLocked returns whether the associated key has acquired pessimistic lock.
+// HasLocked returns whether the associated key has acquired pessimistic dagger.
 func (f KeyFlags) HasLocked() bool {
 	return f&flagKeyLocked != 0
 }
@@ -72,7 +72,7 @@ const (
 	SetPresumeKeyNotExists FlagsOp = 1 << iota
 	// DelPresumeKeyNotExists reverts SetPresumeKeyNotExists.
 	DelPresumeKeyNotExists
-	// SetKeyLocked marks the associated key has acquired lock.
+	// SetKeyLocked marks the associated key has acquired dagger.
 	SetKeyLocked
 	// DelKeyLocked reverts SetKeyLocked.
 	DelKeyLocked

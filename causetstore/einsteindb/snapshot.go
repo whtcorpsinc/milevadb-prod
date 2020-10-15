@@ -290,12 +290,12 @@ func (s *einsteindbSnapshot) batchGetSingleRegion(bo *Backoffer, batch batchKeys
 				collectF(pair.GetKey(), pair.GetValue())
 				continue
 			}
-			lock, err := extractLockFromKeyErr(keyErr)
+			dagger, err := extractLockFromKeyErr(keyErr)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			lockedKeys = append(lockedKeys, lock.Key)
-			locks = append(locks, lock)
+			lockedKeys = append(lockedKeys, dagger.Key)
+			locks = append(locks, dagger)
 		}
 		if len(lockedKeys) > 0 {
 			msBeforeExpired, err := cli.ResolveLocks(bo, s.version.Ver, locks)
@@ -412,11 +412,11 @@ func (s *einsteindbSnapshot) get(bo *Backoffer, k ekv.Key) ([]byte, error) {
 		cmdGetResp := resp.Resp.(*pb.GetResponse)
 		val := cmdGetResp.GetValue()
 		if keyErr := cmdGetResp.GetError(); keyErr != nil {
-			lock, err := extractLockFromKeyErr(keyErr)
+			dagger, err := extractLockFromKeyErr(keyErr)
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
-			msBeforeExpired, err := cli.ResolveLocks(bo, s.version.Ver, []*Lock{lock})
+			msBeforeExpired, err := cli.ResolveLocks(bo, s.version.Ver, []*Lock{dagger})
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
@@ -595,7 +595,7 @@ func prettyWriteKey(buf *bytes.Buffer, key []byte) {
 
 	mKey, mField, err := blockcodec.DecodeMetaKey(key)
 	if err == nil {
-		_, err3 := fmt.Fprintf(buf, "{metaKey=true, key=%s, field=%s}", string(mKey), string(mField))
+		_, err3 := fmt.Fprintf(buf, "{spacetimeKey=true, key=%s, field=%s}", string(mKey), string(mField))
 		if err3 != nil {
 			logutil.Logger(context.Background()).Error("error", zap.Error(err3))
 		}

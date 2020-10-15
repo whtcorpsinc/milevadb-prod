@@ -37,8 +37,8 @@ import (
 )
 
 // TxnState wraps ekv.Transaction to provide a new ekv.Transaction.
-// 1. It holds all statement related modification in the buffer before flush to the txn,
-// so if execute statement meets error, the txn won't be made dirty.
+// 1. It holds all memex related modification in the buffer before flush to the txn,
+// so if execute memex meets error, the txn won't be made dirty.
 // 2. It's a lazy transaction, that means it's a txnFuture before StartTS() is really need.
 type TxnState struct {
 	// States of a TxnState should be one of the followings:
@@ -282,7 +282,7 @@ func (st *TxnState) KeysNeedToLock() ([]ekv.Key, error) {
 func keyNeedToLock(k, v []byte, flags ekv.KeyFlags) bool {
 	isTableKey := bytes.HasPrefix(k, blockcodec.TablePrefix())
 	if !isTableKey {
-		// meta key always need to lock.
+		// spacetime key always need to dagger.
 		return true
 	}
 	if flags.HasPresumeKeyNotExists() {
@@ -297,7 +297,7 @@ func keyNeedToLock(k, v []byte, flags ekv.KeyFlags) bool {
 		return false
 	}
 	isNonUniqueIndex := blockcodec.IsIndexKey(k) && len(v) == 1
-	// Put event key and unique index need to lock.
+	// Put event key and unique index need to dagger.
 	return !isNonUniqueIndex
 }
 
@@ -368,7 +368,7 @@ func (s *stochastik) getTxnFuture(ctx context.Context) *txnFuture {
 	return ret
 }
 
-// HasDirtyContent checks whether there's dirty uFIDelate on the given block.
+// HasDirtyContent checks whether there's dirty uFIDelate on the given causet.
 // Put this function here is to avoid cycle import.
 func (s *stochastik) HasDirtyContent(tid int64) bool {
 	if s.txn.Transaction == nil {

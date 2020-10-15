@@ -22,7 +22,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/ekvproto/pkg/FIDelpb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockoracle"
@@ -179,7 +179,7 @@ func (c *mockFIDelClient) ScanRegions(ctx context.Context, startKey []byte, endK
 	return c.client.ScanRegions(ctx, startKey, endKey, limit)
 }
 
-func (c *mockFIDelClient) GetStore(ctx context.Context, storeID uint64) (*metapb.CausetStore, error) {
+func (c *mockFIDelClient) GetStore(ctx context.Context, storeID uint64) (*spacetimepb.CausetStore, error) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -189,7 +189,7 @@ func (c *mockFIDelClient) GetStore(ctx context.Context, storeID uint64) (*metapb
 	return c.client.GetStore(ctx, storeID)
 }
 
-func (c *mockFIDelClient) GetAllStores(ctx context.Context, opts ...fidel.GetStoreOption) ([]*metapb.CausetStore, error) {
+func (c *mockFIDelClient) GetAllStores(ctx context.Context, opts ...fidel.GetStoreOption) ([]*spacetimepb.CausetStore, error) {
 	c.RLock()
 	defer c.Unlock()
 

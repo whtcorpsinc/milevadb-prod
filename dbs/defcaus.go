@@ -30,16 +30,16 @@ import (
 	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	decoder "github.com/whtcorpsinc/milevadb/soliton/rowDecoder"
+	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -88,8 +88,8 @@ func adjustDeferredCausetInfoInDropDeferredCauset(tblInfo *perceptron.BlockInfo,
 		oldDefCauss[i].Offset = i - 1
 	}
 	oldDefCauss[offset].Offset = len(oldDefCauss) - 1
-	// For expression index, we drop hidden defCausumns and index simultaneously.
-	// So we need to change the offset of expression index.
+	// For memex index, we drop hidden defCausumns and index simultaneously.
+	// So we need to change the offset of memex index.
 	offsetChanged[offset] = len(oldDefCauss) - 1
 	// UFIDelate index defCausumn offset info.
 	// TODO: There may be some corner cases for index defCausumn offsets, we may check this later.
@@ -140,7 +140,7 @@ func createDeferredCausetInfo(tblInfo *perceptron.BlockInfo, defCausInfo *percep
 	return defCausInfo, pos, offset, nil
 }
 
-func checkAddDeferredCauset(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.DeferredCausetInfo, *perceptron.DeferredCausetInfo, *ast.DeferredCausetPosition, int, error) {
+func checkAddDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.DeferredCausetInfo, *perceptron.DeferredCausetInfo, *ast.DeferredCausetPosition, int, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -166,7 +166,7 @@ func checkAddDeferredCauset(t *meta.Meta, job *perceptron.Job) (*perceptron.Bloc
 	return tblInfo, defCausumnInfo, defCaus, pos, offset, nil
 }
 
-func onAddDeferredCauset(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func onAddDeferredCauset(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	// Handle the rolling back job.
 	if job.IsRollingback() {
 		ver, err = onDropDeferredCauset(t, job)
@@ -222,7 +222,7 @@ func onAddDeferredCauset(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int6
 		ver, err = uFIDelateVersionAndBlockInfo(t, job, tblInfo, originalState != defCausumnInfo.State)
 	case perceptron.StateWriteReorganization:
 		// reorganization -> public
-		// Adjust block defCausumn offset.
+		// Adjust causet defCausumn offset.
 		adjustDeferredCausetInfoInAddDeferredCauset(tblInfo, offset)
 		defCausumnInfo.State = perceptron.StatePublic
 		ver, err = uFIDelateVersionAndBlockInfo(t, job, tblInfo, originalState != defCausumnInfo.State)
@@ -240,7 +240,7 @@ func onAddDeferredCauset(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int6
 	return ver, errors.Trace(err)
 }
 
-func checkAddDeferredCausets(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, []*perceptron.DeferredCausetInfo, []*perceptron.DeferredCausetInfo, []*ast.DeferredCausetPosition, []int, []bool, error) {
+func checkAddDeferredCausets(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, []*perceptron.DeferredCausetInfo, []*perceptron.DeferredCausetInfo, []*ast.DeferredCausetPosition, []int, []bool, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -296,7 +296,7 @@ func setIndicesState(indexInfos []*perceptron.IndexInfo, state perceptron.Schema
 	}
 }
 
-func onAddDeferredCausets(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func onAddDeferredCausets(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	// Handle the rolling back job.
 	if job.IsRollingback() {
 		ver, err = onDropDeferredCausets(t, job)
@@ -359,16 +359,16 @@ func onAddDeferredCausets(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int
 		ver, err = uFIDelateVersionAndBlockInfo(t, job, tblInfo, originalState != defCausumnInfos[0].State)
 	case perceptron.StateWriteReorganization:
 		// reorganization -> public
-		// Adjust block defCausumn offsets.
+		// Adjust causet defCausumn offsets.
 		oldDefCauss := tblInfo.DeferredCausets[:len(tblInfo.DeferredCausets)-len(offsets)]
 		newDefCauss := tblInfo.DeferredCausets[len(tblInfo.DeferredCausets)-len(offsets):]
 		tblInfo.DeferredCausets = oldDefCauss
 		for i := range offsets {
 			// For multiple defCausumns with after position, should adjust offsets.
-			// e.g. create block t(a int);
-			// alter block t add defCausumn b int after a, add defCausumn c int after a;
-			// alter block t add defCausumn a1 int after a, add defCausumn b1 int after b, add defCausumn c1 int after c;
-			// alter block t add defCausumn a1 int after a, add defCausumn b1 int first;
+			// e.g. create causet t(a int);
+			// alter causet t add defCausumn b int after a, add defCausumn c int after a;
+			// alter causet t add defCausumn a1 int after a, add defCausumn b1 int after b, add defCausumn c1 int after c;
+			// alter causet t add defCausumn a1 int after a, add defCausumn b1 int first;
 			if positions[i].Tp == ast.DeferredCausetPositionAfter {
 				for j := 0; j < i; j++ {
 					if (positions[j].Tp == ast.DeferredCausetPositionAfter && offsets[j] < offsets[i]) || positions[j].Tp == ast.DeferredCausetPositionFirst {
@@ -394,7 +394,7 @@ func onAddDeferredCausets(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int
 	return ver, errors.Trace(err)
 }
 
-func onDropDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropDeferredCausets(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, defCausInfos, delCount, idxInfos, err := checkDropDeferredCausets(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -459,12 +459,12 @@ func onDropDeferredCausets(t *meta.Meta, job *perceptron.Job) (ver int64, _ erro
 			job.Args = append(job.Args, indexIDs, getPartitionIDs(tblInfo))
 		}
 	default:
-		err = errInvalidDBSJob.GenWithStackByArgs("block", tblInfo.State)
+		err = errInvalidDBSJob.GenWithStackByArgs("causet", tblInfo.State)
 	}
 	return ver, errors.Trace(err)
 }
 
-func checkDropDeferredCausets(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, []*perceptron.DeferredCausetInfo, int, []*perceptron.IndexInfo, error) {
+func checkDropDeferredCausets(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, []*perceptron.DeferredCausetInfo, int, []*perceptron.IndexInfo, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -515,7 +515,7 @@ func checkDropDeferredCausetForStatePublic(tblInfo *perceptron.BlockInfo, defCau
 	// NOTE: If the state of StateWriteOnly can be rollbacked, we'd better reconsider the original default value.
 	// And we need consider the defCausumn without not-null flag.
 	if defCausInfo.OriginDefaultValue == nil && allegrosql.HasNotNullFlag(defCausInfo.Flag) {
-		// If the defCausumn is timestamp default current_timestamp, and DBS owner is new version MilevaDB that set defCausumn.Version to 1,
+		// If the defCausumn is timestamp default current_timestamp, and DBS tenant is new version MilevaDB that set defCausumn.Version to 1,
 		// then old MilevaDB uFIDelate record in the defCausumn write only stage will uses the wrong default value of the dropping defCausumn.
 		// Because new version of the defCausumn default value is UTC time, but old version MilevaDB will think the default value is the time in system timezone.
 		// But currently will be ok, because we can't cancel the drop defCausumn job when the job is running,
@@ -529,7 +529,7 @@ func checkDropDeferredCausetForStatePublic(tblInfo *perceptron.BlockInfo, defCau
 	return nil
 }
 
-func onDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, defCausInfo, idxInfos, err := checkDropDeferredCauset(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -589,12 +589,12 @@ func onDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (ver int64, _ error
 			job.Args = append(job.Args, indexIDs, getPartitionIDs(tblInfo))
 		}
 	default:
-		err = errInvalidDBSJob.GenWithStackByArgs("block", tblInfo.State)
+		err = errInvalidDBSJob.GenWithStackByArgs("causet", tblInfo.State)
 	}
 	return ver, errors.Trace(err)
 }
 
-func checkDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.DeferredCausetInfo, []*perceptron.IndexInfo, error) {
+func checkDropDeferredCauset(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.DeferredCausetInfo, []*perceptron.IndexInfo, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -630,7 +630,7 @@ func checkDropDeferredCauset(t *meta.Meta, job *perceptron.Job) (*perceptron.Blo
 	return tblInfo, defCausInfo, idxInfos, nil
 }
 
-func onSetDefaultValue(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onSetDefaultValue(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	newDefCaus := &perceptron.DeferredCausetInfo{}
 	err := job.DecodeArgs(newDefCaus)
 	if err != nil {
@@ -661,7 +661,7 @@ type modifyDeferredCausetJobParameter struct {
 	pos                   *ast.DeferredCausetPosition
 }
 
-func getModifyDeferredCausetInfo(t *meta.Meta, job *perceptron.Job) (*perceptron.DBInfo, *perceptron.BlockInfo, *perceptron.DeferredCausetInfo, *modifyDeferredCausetJobParameter, error) {
+func getModifyDeferredCausetInfo(t *spacetime.Meta, job *perceptron.Job) (*perceptron.DBInfo, *perceptron.BlockInfo, *perceptron.DeferredCausetInfo, *modifyDeferredCausetJobParameter, error) {
 	jobParam := &modifyDeferredCausetJobParameter{pos: &ast.DeferredCausetPosition{}}
 	err := job.DecodeArgs(&jobParam.newDefCaus, &jobParam.oldDefCausName, jobParam.pos, &jobParam.modifyDeferredCausetTp, &jobParam.uFIDelatedAutoRandomBits, &jobParam.changingDefCaus, &jobParam.changingIdxs)
 	if err != nil {
@@ -688,7 +688,7 @@ func getModifyDeferredCausetInfo(t *meta.Meta, job *perceptron.Job) (*perceptron
 	return dbInfo, tblInfo, oldDefCaus, jobParam, errors.Trace(err)
 }
 
-func (w *worker) onModifyDeferredCauset(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func (w *worker) onModifyDeferredCauset(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	dbInfo, tblInfo, oldDefCaus, jobParam, err := getModifyDeferredCausetInfo(t, job)
 	if err != nil {
 		return ver, err
@@ -768,7 +768,7 @@ func (w *worker) onModifyDeferredCauset(d *dbsCtx, t *meta.Meta, job *perceptron
 }
 
 // rollbackModifyDeferredCausetJobWithData is used to rollback modify-defCausumn job which need to reorg the data.
-func rollbackModifyDeferredCausetJobWithData(t *meta.Meta, tblInfo *perceptron.BlockInfo, job *perceptron.Job, oldDefCaus *perceptron.DeferredCausetInfo, jobParam *modifyDeferredCausetJobParameter) (ver int64, err error) {
+func rollbackModifyDeferredCausetJobWithData(t *spacetime.Meta, tblInfo *perceptron.BlockInfo, job *perceptron.Job, oldDefCaus *perceptron.DeferredCausetInfo, jobParam *modifyDeferredCausetJobParameter) (ver int64, err error) {
 	// If the not-null change is included, we should clean the flag info in oldDefCaus.
 	if jobParam.modifyDeferredCausetTp == allegrosql.TypeNull {
 		// Reset NotNullFlag flag.
@@ -787,7 +787,7 @@ func rollbackModifyDeferredCausetJobWithData(t *meta.Meta, tblInfo *perceptron.B
 		return ver, errors.Trace(err)
 	}
 	job.FinishBlockJob(perceptron.JobStateRollbackDone, perceptron.StateNone, ver, tblInfo)
-	// Refactor the job args to add the abandoned temporary index ids into delete range block.
+	// Refactor the job args to add the abandoned temporary index ids into delete range causet.
 	idxIDs := make([]int64, 0, len(jobParam.changingIdxs))
 	for _, idx := range jobParam.changingIdxs {
 		idxIDs = append(idxIDs, idx.ID)
@@ -797,7 +797,7 @@ func rollbackModifyDeferredCausetJobWithData(t *meta.Meta, tblInfo *perceptron.B
 }
 
 func (w *worker) doModifyDeferredCausetTypeWithData(
-	d *dbsCtx, t *meta.Meta, job *perceptron.Job,
+	d *dbsCtx, t *spacetime.Meta, job *perceptron.Job,
 	dbInfo *perceptron.DBInfo, tblInfo *perceptron.BlockInfo, changingDefCaus, oldDefCaus *perceptron.DeferredCausetInfo,
 	defCausName perceptron.CIStr, pos *ast.DeferredCausetPosition, changingIdxs []*perceptron.IndexInfo) (ver int64, _ error) {
 	var err error
@@ -826,7 +826,7 @@ func (w *worker) doModifyDeferredCausetTypeWithData(
 				}
 				defer w.sessPool.put(ctx)
 
-				_, _, err = ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(valStr)
+				_, _, err = ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(valStr)
 				if err != nil {
 					job.State = perceptron.JobStateCancelled
 					failpoint.Return(ver, err)
@@ -883,13 +883,13 @@ func (w *worker) doModifyDeferredCausetTypeWithData(
 		err = w.runReorgJob(t, reorgInfo, tbl.Meta(), d.lease, func() (addIndexErr error) {
 			defer soliton.Recover(metrics.LabelDBS, "onModifyDeferredCauset",
 				func() {
-					addIndexErr = errCancelledDBSJob.GenWithStack("modify block `%v` defCausumn `%v` panic", tblInfo.Name, oldDefCaus.Name)
+					addIndexErr = errCancelledDBSJob.GenWithStack("modify causet `%v` defCausumn `%v` panic", tblInfo.Name, oldDefCaus.Name)
 				}, false)
 			return w.uFIDelateDeferredCausetAndIndexes(tbl, oldDefCaus, changingDefCaus, changingIdxs, reorgInfo)
 		})
 		if err != nil {
 			if errWaitReorgTimeout.Equal(err) {
-				// If timeout, we should return, check for the owner and re-wait job done.
+				// If timeout, we should return, check for the tenant and re-wait job done.
 				return ver, nil
 			}
 			if ekv.ErrKeyExists.Equal(err) || errCancelledDBSJob.Equal(err) || errCantDecodeRecord.Equal(err) || types.ErrOverflow.Equal(err) {
@@ -922,7 +922,7 @@ func (w *worker) doModifyDeferredCausetTypeWithData(
 		changingDefCaus.Name = defCausName
 		changingDefCaus.ChangeStateInfo = nil
 		tblInfo.Indices = tblInfo.Indices[:len(tblInfo.Indices)-len(changingIdxs)]
-		// Adjust block defCausumn offset.
+		// Adjust causet defCausumn offset.
 		if err = adjustDeferredCausetInfoInModifyDeferredCauset(job, tblInfo, changingDefCaus, oldDefCaus, pos); err != nil {
 			// TODO: Do rollback.
 			return ver, errors.Trace(err)
@@ -935,7 +935,7 @@ func (w *worker) doModifyDeferredCausetTypeWithData(
 
 		// Finish this job.
 		job.FinishBlockJob(perceptron.JobStateDone, perceptron.StatePublic, ver, tblInfo)
-		// Refactor the job args to add the old index ids into delete range block.
+		// Refactor the job args to add the old index ids into delete range causet.
 		job.Args = []interface{}{oldIdxIDs, getPartitionIDs(tblInfo)}
 		// TODO: Change defCausumn ID.
 		// asyncNotifyEvent(d, &soliton.Event{Tp: perceptron.CausetActionAddDeferredCauset, BlockInfo: tblInfo, DeferredCausetInfos: []*perceptron.DeferredCausetInfo{changingDefCaus}})
@@ -946,16 +946,16 @@ func (w *worker) doModifyDeferredCausetTypeWithData(
 	return ver, errors.Trace(err)
 }
 
-func (w *worker) uFIDelatePhysicalBlockRow(t block.PhysicalBlock, oldDefCausInfo, defCausInfo *perceptron.DeferredCausetInfo, reorgInfo *reorgInfo) error {
-	logutil.BgLogger().Info("[dbs] start to uFIDelate block event", zap.String("job", reorgInfo.Job.String()), zap.String("reorgInfo", reorgInfo.String()))
-	return w.writePhysicalBlockRecord(t.(block.PhysicalBlock), typeUFIDelateDeferredCausetWorker, nil, oldDefCausInfo, defCausInfo, reorgInfo)
+func (w *worker) uFIDelatePhysicalBlockRow(t causet.PhysicalBlock, oldDefCausInfo, defCausInfo *perceptron.DeferredCausetInfo, reorgInfo *reorgInfo) error {
+	logutil.BgLogger().Info("[dbs] start to uFIDelate causet event", zap.String("job", reorgInfo.Job.String()), zap.String("reorgInfo", reorgInfo.String()))
+	return w.writePhysicalBlockRecord(t.(causet.PhysicalBlock), typeUFIDelateDeferredCausetWorker, nil, oldDefCausInfo, defCausInfo, reorgInfo)
 }
 
-// uFIDelateDeferredCausetAndIndexes handles the modify defCausumn reorganization state for a block.
-func (w *worker) uFIDelateDeferredCausetAndIndexes(t block.Block, oldDefCaus, defCaus *perceptron.DeferredCausetInfo, idxes []*perceptron.IndexInfo, reorgInfo *reorgInfo) error {
+// uFIDelateDeferredCausetAndIndexes handles the modify defCausumn reorganization state for a causet.
+func (w *worker) uFIDelateDeferredCausetAndIndexes(t causet.Block, oldDefCaus, defCaus *perceptron.DeferredCausetInfo, idxes []*perceptron.IndexInfo, reorgInfo *reorgInfo) error {
 	// TODO: Consider rebuild ReorgInfo key to mDBSJobReorgKey_jobID_elementID(defCausID/idxID).
 	// TODO: Support partition blocks.
-	err := w.uFIDelatePhysicalBlockRow(t.(block.PhysicalBlock), oldDefCaus, defCaus, reorgInfo)
+	err := w.uFIDelatePhysicalBlockRow(t.(causet.PhysicalBlock), oldDefCaus, defCaus, reorgInfo)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -977,19 +977,19 @@ type uFIDelateDeferredCausetWorker struct {
 
 	// The following attributes are used to reduce memory allocation.
 	rowRecords []*rowRecord
-	rowDecoder *decoder.RowDecoder
+	rowCausetDecoder *causetDecoder.RowCausetDecoder
 
 	rowMap map[int64]types.Causet
 }
 
-func newUFIDelateDeferredCausetWorker(sessCtx stochastikctx.Context, worker *worker, id int, t block.PhysicalBlock, oldDefCaus, newDefCaus *perceptron.DeferredCausetInfo, decodeDefCausMap map[int64]decoder.DeferredCauset) *uFIDelateDeferredCausetWorker {
-	rowDecoder := decoder.NewRowDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
+func newUFIDelateDeferredCausetWorker(sessCtx stochastikctx.Context, worker *worker, id int, t causet.PhysicalBlock, oldDefCaus, newDefCaus *perceptron.DeferredCausetInfo, decodeDefCausMap map[int64]causetDecoder.DeferredCauset) *uFIDelateDeferredCausetWorker {
+	rowCausetDecoder := causetDecoder.NewRowCausetDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
 	return &uFIDelateDeferredCausetWorker{
 		backfillWorker: newBackfillWorker(sessCtx, worker, id, t),
 		oldDefCausInfo:     oldDefCaus,
 		newDefCausInfo:     newDefCaus,
 		metricCounter:  metrics.BackfillTotalCounter.WithLabelValues("uFIDelate_defCaus_speed"),
-		rowDecoder:     rowDecoder,
+		rowCausetDecoder:     rowCausetDecoder,
 		rowMap:         make(map[int64]types.Causet, len(decodeDefCausMap)),
 	}
 }
@@ -999,7 +999,7 @@ func (w *uFIDelateDeferredCausetWorker) AddMetricInfo(cnt float64) {
 }
 
 type rowRecord struct {
-	key  []byte // It's used to lock a record. Record it to reduce the encoding time.
+	key  []byte // It's used to dagger a record. Record it to reduce the encoding time.
 	vals []byte // It's the record.
 }
 
@@ -1029,7 +1029,7 @@ func (w *uFIDelateDeferredCausetWorker) fetchRowDefCausVals(txn ekv.Transaction,
 	taskDone := false
 	var lastAccessedHandle ekv.Handle
 	oprStartTime := startTime
-	err := iterateSnapshotRows(w.sessCtx.GetStore(), w.priority, w.block, txn.StartTS(), taskRange.startHandle, taskRange.endHandle, taskRange.endIncluded,
+	err := iterateSnapshotRows(w.sessCtx.GetStore(), w.priority, w.causet, txn.StartTS(), taskRange.startHandle, taskRange.endHandle, taskRange.endIncluded,
 		func(handle ekv.Handle, recordKey ekv.Key, rawRow []byte) (bool, error) {
 			oprEndTime := time.Now()
 			logSlowOperations(oprEndTime.Sub(oprStartTime), "iterateSnapshotRows in uFIDelateDeferredCausetWorker fetchRowDefCausVals", 0)
@@ -1066,18 +1066,18 @@ func (w *uFIDelateDeferredCausetWorker) fetchRowDefCausVals(txn ekv.Transaction,
 }
 
 func (w *uFIDelateDeferredCausetWorker) getRowRecord(handle ekv.Handle, recordKey []byte, rawRow []byte) error {
-	_, err := w.rowDecoder.DecodeAndEvalRowWithMap(w.sessCtx, handle, rawRow, time.UTC, timeutil.SystemLocation(), w.rowMap)
+	_, err := w.rowCausetDecoder.DecodeAndEvalRowWithMap(w.sessCtx, handle, rawRow, time.UTC, timeutil.SystemLocation(), w.rowMap)
 	if err != nil {
 		return errors.Trace(errCantDecodeRecord.GenWithStackByArgs("defCausumn", err))
 	}
 
 	if _, ok := w.rowMap[w.newDefCausInfo.ID]; ok {
-		// The defCausumn is already added by uFIDelate or insert statement, skip it.
+		// The defCausumn is already added by uFIDelate or insert memex, skip it.
 		w.cleanRowMap()
 		return nil
 	}
 
-	newDefCausVal, err := block.CastValue(w.sessCtx, w.rowMap[w.oldDefCausInfo.ID], w.newDefCausInfo, false, false)
+	newDefCausVal, err := causet.CastValue(w.sessCtx, w.rowMap[w.oldDefCausInfo.ID], w.newDefCausInfo, false, false)
 	// TODO: Consider sql_mode and the error msg(encounter this error check whether to rollback).
 	if err != nil {
 		return errors.Trace(err)
@@ -1089,7 +1089,7 @@ func (w *uFIDelateDeferredCausetWorker) getRowRecord(handle ekv.Handle, recordKe
 		newDeferredCausetIDs = append(newDeferredCausetIDs, defCausID)
 		newRow = append(newRow, val)
 	}
-	sctx, rd := w.sessCtx.GetStochastikVars().StmtCtx, &w.sessCtx.GetStochastikVars().RowEncoder
+	sctx, rd := w.sessCtx.GetStochastikVars().StmtCtx, &w.sessCtx.GetStochastikVars().RowCausetEncoder
 	newRowVal, err := blockcodec.EncodeRow(sctx, newRow, newDeferredCausetIDs, nil, nil, rd)
 	if err != nil {
 		return errors.Trace(err)
@@ -1106,7 +1106,7 @@ func (w *uFIDelateDeferredCausetWorker) cleanRowMap() {
 	}
 }
 
-// BackfillDataInTxn will backfill the block record in a transaction, lock corresponding rowKey, if the value of rowKey is changed.
+// BackfillDataInTxn will backfill the causet record in a transaction, dagger corresponding rowKey, if the value of rowKey is changed.
 func (w *uFIDelateDeferredCausetWorker) BackfillDataInTxn(handleRange reorgBackfillTask) (taskCtx backfillTaskContext, errInTxn error) {
 	oprStartTime := time.Now()
 	errInTxn = ekv.RunInNewTxn(w.sessCtx.GetStore(), true, func(txn ekv.Transaction) error {
@@ -1147,7 +1147,7 @@ func uFIDelateChangingInfo(changingDefCaus *perceptron.DeferredCausetInfo, chang
 
 // doModifyDeferredCauset uFIDelates the defCausumn information and reorders all defCausumns. It does not support modifying defCausumn data.
 func (w *worker) doModifyDeferredCauset(
-	t *meta.Meta, job *perceptron.Job, dbInfo *perceptron.DBInfo, tblInfo *perceptron.BlockInfo,
+	t *spacetime.Meta, job *perceptron.Job, dbInfo *perceptron.DBInfo, tblInfo *perceptron.BlockInfo,
 	newDefCaus, oldDefCaus *perceptron.DeferredCausetInfo, pos *ast.DeferredCausetPosition) (ver int64, _ error) {
 	// DeferredCauset from null to not null.
 	if !allegrosql.HasNotNullFlag(oldDefCaus.Flag) && allegrosql.HasNotNullFlag(newDefCaus.Flag) {
@@ -1193,7 +1193,7 @@ func adjustDeferredCausetInfoInModifyDeferredCauset(
 	if pos.Tp == ast.DeferredCausetPositionAfter {
 		// TODO: The check of "RelativeDeferredCauset" can be checked in advance. When "EnableChangeDeferredCausetType" is true, unnecessary state changes can be reduced.
 		if oldDefCaus.Name.L == pos.RelativeDeferredCauset.Name.L {
-			// `alter block blockName modify defCausumn b int after b` will return ver,ErrDeferredCausetNotExists.
+			// `alter causet blockName modify defCausumn b int after b` will return ver,ErrDeferredCausetNotExists.
 			// Modified the type definition of 'null' to 'not null' before this, so rollback the job when an error occurs.
 			job.State = perceptron.JobStateRollingback
 			return schemareplicant.ErrDeferredCausetNotExists.GenWithStackByArgs(oldDefCaus.Name, tblInfo.Name)
@@ -1255,7 +1255,7 @@ func adjustDeferredCausetInfoInModifyDeferredCauset(
 	return nil
 }
 
-func checkAndApplyNewAutoRandomBits(job *perceptron.Job, t *meta.Meta, tblInfo *perceptron.BlockInfo,
+func checkAndApplyNewAutoRandomBits(job *perceptron.Job, t *spacetime.Meta, tblInfo *perceptron.BlockInfo,
 	newDefCaus *perceptron.DeferredCausetInfo, oldName *perceptron.CIStr, newAutoRandBits uint64) error {
 	schemaID := job.SchemaID
 	newLayout := autoid.NewAutoRandomIDLayout(&newDefCaus.FieldType, newAutoRandBits)
@@ -1283,9 +1283,9 @@ func checkAndApplyNewAutoRandomBits(job *perceptron.Job, t *meta.Meta, tblInfo *
 	return nil
 }
 
-// checkForNullValue ensure there are no null values of the defCausumn of this block.
+// checkForNullValue ensure there are no null values of the defCausumn of this causet.
 // `isDataTruncated` indicates whether the new field and the old field type are the same, in order to be compatible with allegrosql.
-func checkForNullValue(ctx stochastikctx.Context, isDataTruncated bool, schemaReplicant, block, newDefCaus perceptron.CIStr, oldDefCauss ...*perceptron.DeferredCausetInfo) error {
+func checkForNullValue(ctx stochastikctx.Context, isDataTruncated bool, schemaReplicant, causet, newDefCaus perceptron.CIStr, oldDefCauss ...*perceptron.DeferredCausetInfo) error {
 	defcausStr := ""
 	for i, defCaus := range oldDefCauss {
 		if i == 0 {
@@ -1294,8 +1294,8 @@ func checkForNullValue(ctx stochastikctx.Context, isDataTruncated bool, schemaRe
 			defcausStr += " or `" + defCaus.Name.L + "` is null"
 		}
 	}
-	allegrosql := fmt.Sprintf("select 1 from `%s`.`%s` where %s limit 1;", schemaReplicant.L, block.L, defcausStr)
-	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	allegrosql := fmt.Sprintf("select 1 from `%s`.`%s` where %s limit 1;", schemaReplicant.L, causet.L, defcausStr)
+	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -1309,7 +1309,7 @@ func checkForNullValue(ctx stochastikctx.Context, isDataTruncated bool, schemaRe
 	return nil
 }
 
-func uFIDelateDeferredCausetDefaultValue(t *meta.Meta, job *perceptron.Job, newDefCaus *perceptron.DeferredCausetInfo, oldDefCausName *perceptron.CIStr) (ver int64, _ error) {
+func uFIDelateDeferredCausetDefaultValue(t *spacetime.Meta, job *perceptron.Job, newDefCaus *perceptron.DeferredCausetInfo, oldDefCausName *perceptron.CIStr) (ver int64, _ error) {
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, job.SchemaID)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -1392,7 +1392,7 @@ func checkAddDeferredCausetTooManyDeferredCausets(defCausNum int) error {
 }
 
 // rollbackModifyDeferredCausetJob rollbacks the job when an error occurs.
-func rollbackModifyDeferredCausetJob(t *meta.Meta, tblInfo *perceptron.BlockInfo, job *perceptron.Job, oldDefCaus *perceptron.DeferredCausetInfo, modifyDeferredCausetTp byte) (ver int64, _ error) {
+func rollbackModifyDeferredCausetJob(t *spacetime.Meta, tblInfo *perceptron.BlockInfo, job *perceptron.Job, oldDefCaus *perceptron.DeferredCausetInfo, modifyDeferredCausetTp byte) (ver int64, _ error) {
 	var err error
 	if modifyDeferredCausetTp == allegrosql.TypeNull {
 		// field NotNullFlag flag reset.
@@ -1423,7 +1423,7 @@ func modifyDefCaussFromNull2NotNull(w *worker, dbInfo *perceptron.DBInfo, tblInf
 	defer w.sessPool.put(ctx)
 
 	skipCheck := false
-	failpoint.Inject("skipMockContextDoExec", func(val failpoint.Value) {
+	failpoint.Inject("skipMockContextDoInterDirc", func(val failpoint.Value) {
 		if val.(bool) {
 			skipCheck = true
 		}
@@ -1447,7 +1447,7 @@ func generateOriginDefaultValue(defCaus *perceptron.DeferredCausetInfo) (interfa
 	var err error
 	odValue := defCaus.GetDefaultValue()
 	if odValue == nil && allegrosql.HasNotNullFlag(defCaus.Flag) {
-		zeroVal := block.GetZeroValue(defCaus)
+		zeroVal := causet.GetZeroValue(defCaus)
 		odValue, err = zeroVal.ToString()
 		if err != nil {
 			return nil, errors.Trace(err)

@@ -83,7 +83,7 @@ func preSplitPhysicalBlockByShardRowID(ctx context.Context, causetstore ekv.Spli
 	//
 	// And the max _milevadb_rowid is 9223372036854775807, it won't be negative number.
 
-	// Split block region.
+	// Split causet region.
 	step := int64(1 << (tbInfo.ShardRowIDBits - tbInfo.PreSplitRegions))
 	max := int64(1 << tbInfo.ShardRowIDBits)
 	splitBlockKeys := make([][]byte, 0, 1<<(tbInfo.PreSplitRegions))
@@ -97,8 +97,8 @@ func preSplitPhysicalBlockByShardRowID(ctx context.Context, causetstore ekv.Spli
 	var err error
 	regionIDs, err := causetstore.SplitRegions(ctx, splitBlockKeys, scatter, &tbInfo.ID)
 	if err != nil {
-		logutil.BgLogger().Warn("[dbs] pre split some block regions failed",
-			zap.Stringer("block", tbInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))
+		logutil.BgLogger().Warn("[dbs] pre split some causet regions failed",
+			zap.Stringer("causet", tbInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))
 	}
 	regionIDs = append(regionIDs, splitIndexRegion(causetstore, tbInfo, scatter)...)
 	return regionIDs
@@ -109,7 +109,7 @@ func splitRecordRegion(ctx context.Context, causetstore ekv.SplitblockStore, blo
 	regionIDs, err := causetstore.SplitRegions(ctx, [][]byte{blockStartKey}, scatter, &blockID)
 	if err != nil {
 		// It will be automatically split by EinsteinDB later.
-		logutil.BgLogger().Warn("[dbs] split block region failed", zap.Error(err))
+		logutil.BgLogger().Warn("[dbs] split causet region failed", zap.Error(err))
 	}
 	if len(regionIDs) == 1 {
 		return regionIDs[0]
@@ -125,8 +125,8 @@ func splitIndexRegion(causetstore ekv.SplitblockStore, tblInfo *perceptron.Block
 	}
 	regionIDs, err := causetstore.SplitRegions(context.Background(), splitKeys, scatter, &tblInfo.ID)
 	if err != nil {
-		logutil.BgLogger().Warn("[dbs] pre split some block index regions failed",
-			zap.Stringer("block", tblInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))
+		logutil.BgLogger().Warn("[dbs] pre split some causet index regions failed",
+			zap.Stringer("causet", tblInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))
 	}
 	return regionIDs
 }

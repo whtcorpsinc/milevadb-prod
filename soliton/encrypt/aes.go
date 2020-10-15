@@ -240,7 +240,7 @@ func aesDecrypt(cryptStr []byte, mode cipher.BlockMode) ([]byte, error) {
 func aesEncrypt(str []byte, mode cipher.BlockMode) ([]byte, error) {
 	blockSize := mode.BlockSize()
 	// The str arguments can be any length, and padding is automatically added to
-	// str so it is a multiple of a block as required by block-based algorithms such as AES.
+	// str so it is a multiple of a causet as required by causet-based algorithms such as AES.
 	// This padding is automatically removed by the AES_DECRYPT() function.
 	data, err := PKCS7Pad(str, blockSize)
 	if err != nil {

@@ -32,16 +32,16 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
@@ -51,8 +51,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/gcworker"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -72,7 +72,7 @@ const (
 	pHandle     = "handle"
 	pRegionID   = "regionID"
 	pStartTS    = "startTS"
-	pBlockName  = "block"
+	pBlockName  = "causet"
 	pBlockID    = "blockID"
 	pDeferredCausetID   = "defCausID"
 	pDeferredCausetTp   = "defCausTp"
@@ -235,7 +235,7 @@ func (t *einsteindbHandlerTool) getMvccByStartTs(startTS uint64, startKey, endKe
 	}
 }
 
-func (t *einsteindbHandlerTool) getMvccByIdxValue(idx block.Index, values url.Values, idxDefCauss []*perceptron.DeferredCausetInfo, handleStr string) (*mvccKV, error) {
+func (t *einsteindbHandlerTool) getMvccByIdxValue(idx causet.Index, values url.Values, idxDefCauss []*perceptron.DeferredCausetInfo, handleStr string) (*mvccKV, error) {
 	sc := new(stmtctx.StatementContext)
 	// HTTP request is not a database stochastik, set timezone to UTC directly here.
 	// See https://github.com/whtcorpsinc/milevadb/blob/master/docs/milevadb_http_api.md for more details.
@@ -299,7 +299,7 @@ func (t *einsteindbHandlerTool) getBlockID(dbName, blockName string) (int64, err
 	return tbl.GetPhysicalID(), nil
 }
 
-func (t *einsteindbHandlerTool) getBlock(dbName, blockName string) (block.PhysicalBlock, error) {
+func (t *einsteindbHandlerTool) getBlock(dbName, blockName string) (causet.PhysicalBlock, error) {
 	schemaReplicant, err := t.schemaReplicant()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -312,10 +312,10 @@ func (t *einsteindbHandlerTool) getBlock(dbName, blockName string) (block.Physic
 	return t.getPartition(blockVal, partitionName)
 }
 
-func (t *einsteindbHandlerTool) getPartition(blockVal block.Block, partitionName string) (block.PhysicalBlock, error) {
-	if pt, ok := blockVal.(block.PartitionedBlock); ok {
+func (t *einsteindbHandlerTool) getPartition(blockVal causet.Block, partitionName string) (causet.PhysicalBlock, error) {
+	if pt, ok := blockVal.(causet.PartitionedBlock); ok {
 		if partitionName == "" {
-			return blockVal.(block.PhysicalBlock), errors.New("work on partitioned block, please specify the block name like this: block(partition)")
+			return blockVal.(causet.PhysicalBlock), errors.New("work on partitioned causet, please specify the causet name like this: causet(partition)")
 		}
 		tblInfo := pt.Meta()
 		pid, err := blocks.FindPartitionByName(tblInfo, partitionName)
@@ -325,9 +325,9 @@ func (t *einsteindbHandlerTool) getPartition(blockVal block.Block, partitionName
 		return pt.GetPartition(pid), nil
 	}
 	if partitionName != "" {
-		return nil, fmt.Errorf("%s is not a partitionted block", blockVal.Meta().Name)
+		return nil, fmt.Errorf("%s is not a partitionted causet", blockVal.Meta().Name)
 	}
-	return blockVal.(block.PhysicalBlock), nil
+	return blockVal.(causet.PhysicalBlock), nil
 }
 
 func (t *einsteindbHandlerTool) schemaReplicant() (schemareplicant.SchemaReplicant, error) {
@@ -363,7 +363,7 @@ type settingsHandler struct {
 // It can be recovered using HTTP API.
 type binlogRecover struct{}
 
-// schemaHandler is the handler for list database or block schemas.
+// schemaHandler is the handler for list database or causet schemas.
 type schemaHandler struct {
 	*einsteindbHandlerTool
 }
@@ -382,7 +382,7 @@ type regionHandler struct {
 	*einsteindbHandlerTool
 }
 
-// blockHandler is the handler for list block's regions.
+// blockHandler is the handler for list causet's regions.
 type blockHandler struct {
 	*einsteindbHandlerTool
 	op string
@@ -393,8 +393,8 @@ type dbsHistoryJobHandler struct {
 	*einsteindbHandlerTool
 }
 
-// dbsResignOwnerHandler is the handler for resigning dbs owner.
-type dbsResignOwnerHandler struct {
+// dbsResignTenantHandler is the handler for resigning dbs tenant.
+type dbsResignTenantHandler struct {
 	causetstore ekv.CausetStorage
 }
 
@@ -417,8 +417,8 @@ type valueHandler struct {
 const (
 	opBlockRegions     = "regions"
 	opBlockDiskUsage   = "disk-usage"
-	opBlockScatter     = "scatter-block"
-	opStopBlockScatter = "stop-scatter-block"
+	opBlockScatter     = "scatter-causet"
+	opStopBlockScatter = "stop-scatter-causet"
 )
 
 // mvccTxnHandler is the handler for txn debugger.
@@ -434,7 +434,7 @@ const (
 	opMvccGetByTxn = "txn"
 )
 
-// ServeHTTP handles request of list a database or block's schemas.
+// ServeHTTP handles request of list a database or causet's schemas.
 func (vh valueHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// parse params
 	params := mux.Vars(req)
@@ -511,7 +511,7 @@ func (vh valueHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	writeData(w, val)
 }
 
-// BlockRegions is the response data for list block's regions.
+// BlockRegions is the response data for list causet's regions.
 // It contains regions list for record and indices.
 type BlockRegions struct {
 	BlockName     string         `json:"name"`
@@ -523,9 +523,9 @@ type BlockRegions struct {
 // RegionMeta contains a region's peer detail
 type RegionMeta struct {
 	ID          uint64              `json:"region_id"`
-	Leader      *metapb.Peer        `json:"leader"`
-	Peers       []*metapb.Peer      `json:"peers"`
-	RegionEpoch *metapb.RegionEpoch `json:"region_epoch"`
+	Leader      *spacetimepb.Peer        `json:"leader"`
+	Peers       []*spacetimepb.Peer      `json:"peers"`
+	RegionEpoch *spacetimepb.RegionEpoch `json:"region_epoch"`
 }
 
 // IndexRegions is the region info for one index.
@@ -544,7 +544,7 @@ type RegionDetail struct {
 	Frames   []*helper.FrameItem `json:"frames"`
 }
 
-// addBlockInRange insert a block into RegionDetail
+// addBlockInRange insert a causet into RegionDetail
 // with index's id or record in the range if r.
 func (rt *RegionDetail) addBlockInRange(dbName string, curBlock *perceptron.BlockInfo, r *helper.RegionFrameRange) {
 	tName := curBlock.Name.String()
@@ -582,7 +582,7 @@ func (rt *RegionDetail) addBlockInRange(dbName string, curBlock *perceptron.Bloc
 	}
 }
 
-// FrameItem includes a index's or record's meta data with block's info.
+// FrameItem includes a index's or record's spacetime data with causet's info.
 type FrameItem struct {
 	DBName      string   `json:"db_name"`
 	BlockName   string   `json:"block_name"`
@@ -806,7 +806,7 @@ func (h flashReplicaHandler) getDropOrTruncateBlockTiflash(currentSchema schemar
 	replicaInfos := make([]*blockFlashReplicaInfo, 0)
 	uniqueIDMap := make(map[int64]struct{})
 	handleJobAndBlockInfo := func(job *perceptron.Job, tblInfo *perceptron.BlockInfo) (bool, error) {
-		// Avoid duplicate block ID info.
+		// Avoid duplicate causet ID info.
 		if _, ok := currentSchema.BlockByID(tblInfo.ID); ok {
 			return false, nil
 		}
@@ -819,7 +819,7 @@ func (h flashReplicaHandler) getDropOrTruncateBlockTiflash(currentSchema schemar
 	}
 	dom := petri.GetPetri(s)
 	fn := func(jobs []*perceptron.Job) (bool, error) {
-		return executor.GetDropOrTruncateBlockInfoFromJobs(jobs, gcSafePoint, dom, handleJobAndBlockInfo)
+		return interlock.GetDropOrTruncateBlockInfoFromJobs(jobs, gcSafePoint, dom, handleJobAndBlockInfo)
 	}
 
 	err = admin.IterAllDBSJobs(txn, fn)
@@ -843,14 +843,14 @@ type blockFlashReplicaStatus struct {
 	FlashRegionCount uint64 `json:"flash_region_count"`
 }
 
-// checkBlockFlashReplicaAvailable uses to check the available status of block flash replica.
+// checkBlockFlashReplicaAvailable uses to check the available status of causet flash replica.
 func (tf *blockFlashReplicaStatus) checkBlockFlashReplicaAvailable() bool {
 	return tf.FlashRegionCount == tf.RegionCount
 }
 
 func (h flashReplicaHandler) handleStatusReport(w http.ResponseWriter, req *http.Request) {
 	var status blockFlashReplicaStatus
-	err := json.NewDecoder(req.Body).Decode(&status)
+	err := json.NewCausetDecoder(req.Body).Decode(&status)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -879,13 +879,13 @@ func (h flashReplicaHandler) handleStatusReport(w http.ResponseWriter, req *http
 		writeError(w, err)
 	}
 
-	logutil.BgLogger().Info("handle flash replica report", zap.Int64("block ID", status.ID), zap.Uint64("region count",
+	logutil.BgLogger().Info("handle flash replica report", zap.Int64("causet ID", status.ID), zap.Uint64("region count",
 		status.RegionCount),
 		zap.Uint64("flash region count", status.FlashRegionCount),
 		zap.Error(err))
 }
 
-// ServeHTTP handles request of list a database or block's schemas.
+// ServeHTTP handles request of list a database or causet's schemas.
 func (h schemaHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	schemaReplicant, err := h.schemaReplicant()
 	if err != nil {
@@ -899,7 +899,7 @@ func (h schemaHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if dbName, ok := params[FIDelBName]; ok {
 		cDBName := perceptron.NewCIStr(dbName)
 		if blockName, ok := params[pBlockName]; ok {
-			// block schemaReplicant of a specified block name
+			// causet schemaReplicant of a specified causet name
 			cBlockName := perceptron.NewCIStr(blockName)
 			data, err := schemaReplicant.BlockByName(cDBName, cBlockName)
 			if err != nil {
@@ -909,7 +909,7 @@ func (h schemaHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			writeData(w, data.Meta())
 			return
 		}
-		// all block schemas in a specified database
+		// all causet schemas in a specified database
 		if schemaReplicant.SchemaExists(cDBName) {
 			tbs := schemaReplicant.SchemaBlocks(cDBName)
 			tbsInfo := make([]*perceptron.BlockInfo, len(tbs))
@@ -924,7 +924,7 @@ func (h schemaHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if blockID := req.FormValue(qBlockID); len(blockID) > 0 {
-		// block schemaReplicant of a specified blockID
+		// causet schemaReplicant of a specified blockID
 		tid, err := strconv.Atoi(blockID)
 		if err != nil {
 			writeError(w, err)
@@ -946,7 +946,7 @@ func (h schemaHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	writeData(w, schemaReplicant.AllSchemas())
 }
 
-// ServeHTTP handles block related requests, such as block's region information, disk usage.
+// ServeHTTP handles causet related requests, such as causet's region information, disk usage.
 func (h blockHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// parse params
 	params := mux.Vars(req)
@@ -970,7 +970,7 @@ func (h blockHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case opBlockDiskUsage:
 		h.handleDiskUsageRequest(blockVal, w)
 	case opBlockScatter:
-		// supports partition block, only get one physical block, prevent too many scatter schedulers.
+		// supports partition causet, only get one physical causet, prevent too many scatter schedulers.
 		ptbl, err := h.getPartition(blockVal, partitionName)
 		if err != nil {
 			writeError(w, err)
@@ -1043,7 +1043,7 @@ func (h dbsHistoryJobHandler) getAllHistoryDBS() ([]*perceptron.Job, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	txnMeta := meta.NewMeta(txn)
+	txnMeta := spacetime.NewMeta(txn)
 
 	jobs, err := txnMeta.GetAllHistoryDBSJobs()
 	if err != nil {
@@ -1052,28 +1052,28 @@ func (h dbsHistoryJobHandler) getAllHistoryDBS() ([]*perceptron.Job, error) {
 	return jobs, nil
 }
 
-func (h dbsResignOwnerHandler) resignDBSOwner() error {
+func (h dbsResignTenantHandler) resignDBSTenant() error {
 	dom, err := stochastik.GetPetri(h.causetstore)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	ownerMgr := dom.DBS().OwnerManager()
-	err = ownerMgr.ResignOwner(context.Background())
+	tenantMgr := dom.DBS().TenantManager()
+	err = tenantMgr.ResignTenant(context.Background())
 	if err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-// ServeHTTP handles request of resigning dbs owner.
-func (h dbsResignOwnerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// ServeHTTP handles request of resigning dbs tenant.
+func (h dbsResignTenantHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		writeError(w, errors.Errorf("This api only support POST method."))
 		return
 	}
 
-	err := h.resignDBSOwner()
+	err := h.resignDBSTenant()
 	if err != nil {
 		log.Error(err)
 		writeError(w, err)
@@ -1144,7 +1144,7 @@ func (h blockHandler) deleteScatterSchedule(name string) error {
 	return nil
 }
 
-func (h blockHandler) handleScatterBlockRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl block.PhysicalBlock, w http.ResponseWriter, req *http.Request) {
+func (h blockHandler) handleScatterBlockRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl causet.PhysicalBlock, w http.ResponseWriter, req *http.Request) {
 	// for record
 	blockID := tbl.GetPhysicalID()
 	startKey, endKey := blockcodec.GetBlockHandleKeyRange(blockID)
@@ -1173,7 +1173,7 @@ func (h blockHandler) handleScatterBlockRequest(schemaReplicant schemareplicant.
 	writeData(w, "success!")
 }
 
-func (h blockHandler) handleStopScatterBlockRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl block.PhysicalBlock, w http.ResponseWriter, req *http.Request) {
+func (h blockHandler) handleStopScatterBlockRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl causet.PhysicalBlock, w http.ResponseWriter, req *http.Request) {
 	// for record
 	blockName := fmt.Sprintf("%s-%d", tbl.Meta().Name.String(), tbl.GetPhysicalID())
 	err := h.deleteScatterSchedule(blockName)
@@ -1194,10 +1194,10 @@ func (h blockHandler) handleStopScatterBlockRequest(schemaReplicant schemareplic
 	writeData(w, "success!")
 }
 
-func (h blockHandler) handleRegionRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl block.Block, w http.ResponseWriter, req *http.Request) {
+func (h blockHandler) handleRegionRequest(schemaReplicant schemareplicant.SchemaReplicant, tbl causet.Block, w http.ResponseWriter, req *http.Request) {
 	pi := tbl.Meta().GetPartitionInfo()
 	if pi != nil {
-		// Partitioned block.
+		// Partitioned causet.
 		var data []*BlockRegions
 		for _, def := range pi.Definitions {
 			blockRegions, err := h.getRegionsByID(tbl, def.ID, def.Name.O)
@@ -1212,8 +1212,8 @@ func (h blockHandler) handleRegionRequest(schemaReplicant schemareplicant.Schema
 		return
 	}
 
-	meta := tbl.Meta()
-	blockRegions, err := h.getRegionsByID(tbl, meta.ID, meta.Name.O)
+	spacetime := tbl.Meta()
+	blockRegions, err := h.getRegionsByID(tbl, spacetime.ID, spacetime.Name.O)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -1222,7 +1222,7 @@ func (h blockHandler) handleRegionRequest(schemaReplicant schemareplicant.Schema
 	writeData(w, blockRegions)
 }
 
-func (h blockHandler) getRegionsByID(tbl block.Block, id int64, name string) (*BlockRegions, error) {
+func (h blockHandler) getRegionsByID(tbl causet.Block, id int64, name string) (*BlockRegions, error) {
 	// for record
 	startKey, endKey := blockcodec.GetBlockHandleKeyRange(id)
 	ctx := context.Background()
@@ -1234,13 +1234,13 @@ func (h blockHandler) getRegionsByID(tbl block.Block, id int64, name string) (*B
 
 	recordRegions := make([]RegionMeta, 0, len(regions))
 	for _, region := range regions {
-		meta := RegionMeta{
+		spacetime := RegionMeta{
 			ID:          region.Meta.Id,
 			Leader:      region.Leader,
 			Peers:       region.Meta.Peers,
 			RegionEpoch: region.Meta.RegionEpoch,
 		}
-		recordRegions = append(recordRegions, meta)
+		recordRegions = append(recordRegions, spacetime)
 	}
 
 	// for indices
@@ -1256,13 +1256,13 @@ func (h blockHandler) getRegionsByID(tbl block.Block, id int64, name string) (*B
 		}
 		indexRegions := make([]RegionMeta, 0, len(regions))
 		for _, region := range regions {
-			meta := RegionMeta{
+			spacetime := RegionMeta{
 				ID:          region.Meta.Id,
 				Leader:      region.Leader,
 				Peers:       region.Meta.Peers,
 				RegionEpoch: region.Meta.RegionEpoch,
 			}
-			indexRegions = append(indexRegions, meta)
+			indexRegions = append(indexRegions, spacetime)
 		}
 		indices[i].Regions = indexRegions
 	}
@@ -1275,7 +1275,7 @@ func (h blockHandler) getRegionsByID(tbl block.Block, id int64, name string) (*B
 	}, nil
 }
 
-func (h blockHandler) handleDiskUsageRequest(tbl block.Block, w http.ResponseWriter) {
+func (h blockHandler) handleDiskUsageRequest(tbl causet.Block, w http.ResponseWriter) {
 	blockID := tbl.Meta().ID
 	var stats helper.FIDelRegionStats
 	err := h.GetFIDelRegionStats(blockID, &stats)
@@ -1384,8 +1384,8 @@ func (h regionHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		writeError(w, err)
 		return
 	}
-	// Since we need a database's name for each frame, and a block's database name can not
-	// get from block's ID directly. Above all, here do dot process like
+	// Since we need a database's name for each frame, and a causet's database name can not
+	// get from causet's ID directly. Above all, here do dot process like
 	// 		`for id in [frameRange.firstBlockID,frameRange.endBlockID]`
 	// on [frameRange.firstBlockID,frameRange.endBlockID] is small enough.
 	for _, EDB := range schemaReplicant.AllSchemas() {
@@ -1446,7 +1446,7 @@ func parseQuery(query string, m url.Values, shouldUnescape bool) error {
 	return errors.Trace(err)
 }
 
-// ServeHTTP handles request of list a block's regions.
+// ServeHTTP handles request of list a causet's regions.
 func (h mvccTxnHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var data interface{}
 	params := mux.Vars(req)
@@ -1480,8 +1480,8 @@ func (h mvccTxnHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func extractBlockAndPartitionName(str string) (string, string) {
-	// extract block name and partition name from this "block(partition)":
-	// A sane person would not let the the block name or partition name contain '('.
+	// extract causet name and partition name from this "causet(partition)":
+	// A sane person would not let the the causet name or partition name contain '('.
 	start := strings.IndexByte(str, '(')
 	if start == -1 {
 		return str, ""
@@ -1505,7 +1505,7 @@ func (h mvccTxnHandler) handleMvccGetByIdx(params map[string]string, values url.
 	}
 
 	var idxDefCauss []*perceptron.DeferredCausetInfo
-	var idx block.Index
+	var idx causet.Index
 	for _, v := range t.Indices() {
 		if strings.EqualFold(v.Meta().Name.String(), params[pIndexName]) {
 			for _, c := range v.Meta().DeferredCausets {
@@ -1606,7 +1606,7 @@ func (h *mvccTxnHandler) handleMvccGetByTxn(params map[string]string) (interface
 
 // serverInfo is used to report the servers info when do http request.
 type serverInfo struct {
-	IsOwner bool `json:"is_owner"`
+	IsTenant bool `json:"is_tenant"`
 	*infosync.ServerInfo
 }
 
@@ -1625,14 +1625,14 @@ func (h serverInfoHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Error(err)
 		return
 	}
-	info.IsOwner = do.DBS().OwnerManager().IsOwner()
+	info.IsTenant = do.DBS().TenantManager().IsTenant()
 	writeData(w, info)
 }
 
 // clusterServerInfo is used to report cluster servers info when do http request.
 type clusterServerInfo struct {
 	ServersNum                   int                             `json:"servers_num,omitempty"`
-	OwnerID                      string                          `json:"owner_id"`
+	TenantID                      string                          `json:"tenant_id"`
 	IsAllServerVersionConsistent bool                            `json:"is_all_server_version_consistent,omitempty"`
 	AllServersDiffVersions       []infosync.ServerVersionInfo    `json:"all_servers_diff_versions,omitempty"`
 	AllServersInfo               map[string]*infosync.ServerInfo `json:"all_servers_info,omitempty"`
@@ -1654,7 +1654,7 @@ func (h allServerInfoHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	ownerID, err := do.DBS().OwnerManager().GetOwnerID(ctx)
+	tenantID, err := do.DBS().TenantManager().GetTenantID(ctx)
 	cancel()
 	if err != nil {
 		writeError(w, errors.New("dbs server information not found"))
@@ -1672,7 +1672,7 @@ func (h allServerInfoHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 	}
 	clusterInfo := clusterServerInfo{
 		ServersNum: len(allServersInfo),
-		OwnerID:    ownerID,
+		TenantID:    tenantID,
 		// len(allVersions) = 1 indicates there has only 1 milevadb version in cluster, so all server versions are consistent.
 		IsAllServerVersionConsistent: len(allVersions) == 1,
 		AllServersInfo:               allServersInfo,
@@ -1684,14 +1684,14 @@ func (h allServerInfoHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 	writeData(w, clusterInfo)
 }
 
-// dbBlockInfo is used to report the database, block information and the current schemaReplicant version.
+// dbBlockInfo is used to report the database, causet information and the current schemaReplicant version.
 type dbBlockInfo struct {
 	DBInfo        *perceptron.DBInfo    `json:"db_info"`
 	BlockInfo     *perceptron.BlockInfo `json:"block_info"`
 	SchemaVersion int64            `json:"schema_version"`
 }
 
-// ServeHTTP handles request of database information and block information by blockID.
+// ServeHTTP handles request of database information and causet information by blockID.
 func (h dbBlockHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	params := mux.Vars(req)
 	blockID := params[pBlockID]
@@ -1715,7 +1715,7 @@ func (h dbBlockHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		dbTblInfo.BlockInfo = tbl.Meta()
 		dbInfo, ok := schemaReplicant.SchemaByBlock(dbTblInfo.BlockInfo)
 		if !ok {
-			logutil.BgLogger().Error("can not find the database of the block", zap.Int64("block id", dbTblInfo.BlockInfo.ID), zap.String("block name", dbTblInfo.BlockInfo.Name.L))
+			logutil.BgLogger().Error("can not find the database of the causet", zap.Int64("causet id", dbTblInfo.BlockInfo.ID), zap.String("causet name", dbTblInfo.BlockInfo.Name.L))
 			writeError(w, schemareplicant.ErrBlockNotExists.GenWithStack("Block which ID = %s does not exist.", blockID))
 			return
 		}
@@ -1723,7 +1723,7 @@ func (h dbBlockHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		writeData(w, dbTblInfo)
 		return
 	}
-	// The physicalID maybe a partition ID of the partition-block.
+	// The physicalID maybe a partition ID of the partition-causet.
 	tbl, dbInfo := schemaReplicant.FindBlockByPartitionID(int64(physicalID))
 	if tbl == nil {
 		writeError(w, schemareplicant.ErrBlockNotExists.GenWithStack("Block which ID = %s does not exist.", blockID))
@@ -1761,7 +1761,7 @@ func (h profileHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		start = end.Add(-time.Minute * 10)
 	}
 	valueTp := req.FormValue("type")
-	pb, err := executor.NewProfileBuilder(sctx, start, end, valueTp)
+	pb, err := interlock.NewProfileBuilder(sctx, start, end, valueTp)
 	if err != nil {
 		writeError(w, err)
 		return

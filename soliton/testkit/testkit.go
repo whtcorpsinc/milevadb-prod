@@ -123,7 +123,7 @@ func NewTestKit(c *check.C, causetstore ekv.CausetStorage) *TestKit {
 func NewTestKitWithInit(c *check.C, causetstore ekv.CausetStorage) *TestKit {
 	tk := NewTestKit(c, causetstore)
 	// Use test and prepare a stochastik.
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	return tk
 }
 
@@ -137,8 +137,8 @@ func (tk *TestKit) GetConnectionID() {
 	}
 }
 
-// Exec executes a allegrosql statement.
-func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordSet, error) {
+// InterDirc executes a allegrosql memex.
+func (tk *TestKit) InterDirc(allegrosql string, args ...interface{}) (sqlexec.RecordSet, error) {
 	var err error
 	if tk.Se == nil {
 		tk.Se, err = stochastik.CreateStochastik4Test(tk.causetstore)
@@ -157,7 +157,7 @@ func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordS
 		BerolinaSQLWarns := warns[len(prevWarns):]
 		var rs0 sqlexec.RecordSet
 		for i, stmt := range stmts {
-			rs, err := tk.Se.ExecuteStmt(ctx, stmt)
+			rs, err := tk.Se.InterDircuteStmt(ctx, stmt)
 			if i == 0 {
 				rs0 = rs
 			}
@@ -179,7 +179,7 @@ func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordS
 	for i := 0; i < len(params); i++ {
 		params[i] = types.NewCauset(args[i])
 	}
-	rs, err := tk.Se.ExecutePreparedStmt(ctx, stmtID, params)
+	rs, err := tk.Se.InterDircutePreparedStmt(ctx, stmtID, params)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -190,28 +190,28 @@ func (tk *TestKit) Exec(allegrosql string, args ...interface{}) (sqlexec.RecordS
 	return rs, nil
 }
 
-// CheckExecResult checks the affected rows and the insert id after executing MustExec.
-func (tk *TestKit) CheckExecResult(affectedRows, insertID int64) {
+// CheckInterDircResult checks the affected rows and the insert id after executing MustInterDirc.
+func (tk *TestKit) CheckInterDircResult(affectedRows, insertID int64) {
 	tk.c.Assert(affectedRows, check.Equals, int64(tk.Se.AffectedRows()))
 	tk.c.Assert(insertID, check.Equals, int64(tk.Se.LastInsertID()))
 }
 
-// CheckLastMessage checks last message after executing MustExec
+// CheckLastMessage checks last message after executing MustInterDirc
 func (tk *TestKit) CheckLastMessage(msg string) {
 	tk.c.Assert(tk.Se.LastMessage(), check.Equals, msg)
 }
 
-// MustExec executes a allegrosql statement and asserts nil error.
-func (tk *TestKit) MustExec(allegrosql string, args ...interface{}) {
-	res, err := tk.Exec(allegrosql, args...)
+// MustInterDirc executes a allegrosql memex and asserts nil error.
+func (tk *TestKit) MustInterDirc(allegrosql string, args ...interface{}) {
+	res, err := tk.InterDirc(allegrosql, args...)
 	tk.c.Assert(err, check.IsNil, check.Commentf("allegrosql:%s, %v, error stack %v", allegrosql, args, errors.ErrorStack(err)))
 	if res != nil {
 		tk.c.Assert(res.Close(), check.IsNil)
 	}
 }
 
-// HasPlan checks if the result execution plan contains specific plan.
-func (tk *TestKit) HasPlan(allegrosql string, plan string, args ...interface{}) bool {
+// HasCauset checks if the result execution plan contains specific plan.
+func (tk *TestKit) HasCauset(allegrosql string, plan string, args ...interface{}) bool {
 	rs := tk.MustQuery("explain "+allegrosql, args...)
 	for i := range rs.rows {
 		if strings.Contains(rs.rows[i][0], plan) {
@@ -234,13 +234,13 @@ func (tk *TestKit) MustUseIndex(allegrosql string, index string, args ...interfa
 
 // MustIndexLookup checks whether the plan for the allegrosql is IndexLookUp.
 func (tk *TestKit) MustIndexLookup(allegrosql string, args ...interface{}) *Result {
-	tk.c.Assert(tk.HasPlan(allegrosql, "IndexLookUp", args...), check.IsTrue)
+	tk.c.Assert(tk.HasCauset(allegrosql, "IndexLookUp", args...), check.IsTrue)
 	return tk.MustQuery(allegrosql, args...)
 }
 
 // MustBlockDual checks whether the plan for the allegrosql is BlockDual.
 func (tk *TestKit) MustBlockDual(allegrosql string, args ...interface{}) *Result {
-	tk.c.Assert(tk.HasPlan(allegrosql, "BlockDual", args...), check.IsTrue)
+	tk.c.Assert(tk.HasCauset(allegrosql, "BlockDual", args...), check.IsTrue)
 	return tk.MustQuery(allegrosql, args...)
 }
 
@@ -252,20 +252,20 @@ func (tk *TestKit) MustPointGet(allegrosql string, args ...interface{}) *Result 
 	return tk.MustQuery(allegrosql, args...)
 }
 
-// MustQuery query the statements and returns result rows.
+// MustQuery query the memexs and returns result rows.
 // If expected result is set it asserts the query result equals expected result.
 func (tk *TestKit) MustQuery(allegrosql string, args ...interface{}) *Result {
 	comment := check.Commentf("allegrosql:%s, args:%v", allegrosql, args)
-	rs, err := tk.Exec(allegrosql, args...)
+	rs, err := tk.InterDirc(allegrosql, args...)
 	tk.c.Assert(errors.ErrorStack(err), check.Equals, "", comment)
 	tk.c.Assert(rs, check.NotNil, comment)
 	return tk.ResultSetToResult(rs, comment)
 }
 
-// QueryToErr executes a allegrosql statement and discard results.
+// QueryToErr executes a allegrosql memex and discard results.
 func (tk *TestKit) QueryToErr(allegrosql string, args ...interface{}) error {
 	comment := check.Commentf("allegrosql:%s, args:%v", allegrosql, args)
-	res, err := tk.Exec(allegrosql, args...)
+	res, err := tk.InterDirc(allegrosql, args...)
 	tk.c.Assert(errors.ErrorStack(err), check.Equals, "", comment)
 	tk.c.Assert(res, check.NotNil, comment)
 	_, resErr := stochastik.GetRows4Test(context.Background(), tk.Se, res)
@@ -273,25 +273,25 @@ func (tk *TestKit) QueryToErr(allegrosql string, args ...interface{}) error {
 	return resErr
 }
 
-// ExecToErr executes a allegrosql statement and discard results.
-func (tk *TestKit) ExecToErr(allegrosql string, args ...interface{}) error {
-	res, err := tk.Exec(allegrosql, args...)
+// InterDircToErr executes a allegrosql memex and discard results.
+func (tk *TestKit) InterDircToErr(allegrosql string, args ...interface{}) error {
+	res, err := tk.InterDirc(allegrosql, args...)
 	if res != nil {
 		tk.c.Assert(res.Close(), check.IsNil)
 	}
 	return err
 }
 
-// MustGetErrMsg executes a allegrosql statement and assert it's error message.
+// MustGetErrMsg executes a allegrosql memex and assert it's error message.
 func (tk *TestKit) MustGetErrMsg(allegrosql string, errStr string) {
-	err := tk.ExecToErr(allegrosql)
+	err := tk.InterDircToErr(allegrosql)
 	tk.c.Assert(err, check.NotNil)
 	tk.c.Assert(err.Error(), check.Equals, errStr)
 }
 
-// MustGetErrCode executes a allegrosql statement and assert it's error code.
+// MustGetErrCode executes a allegrosql memex and assert it's error code.
 func (tk *TestKit) MustGetErrCode(allegrosql string, errCode int) {
-	_, err := tk.Exec(allegrosql)
+	_, err := tk.InterDirc(allegrosql)
 	tk.c.Assert(err, check.NotNil)
 	originErr := errors.Cause(err)
 	tErr, ok := originErr.(*terror.Error)
@@ -301,7 +301,7 @@ func (tk *TestKit) MustGetErrCode(allegrosql string, errCode int) {
 }
 
 // ResultSetToResult converts sqlexec.RecordSet to testkit.Result.
-// It is used to check results of execute statement in binary mode.
+// It is used to check results of execute memex in binary mode.
 func (tk *TestKit) ResultSetToResult(rs sqlexec.RecordSet, comment check.CommentInterface) *Result {
 	return tk.ResultSetToResultWithCtx(context.Background(), rs, comment)
 }
@@ -318,7 +318,7 @@ func Rows(args ...string) [][]interface{} {
 	return solitonutil.RowsWithSep(" ", args...)
 }
 
-// GetBlockID gets block ID by name.
+// GetBlockID gets causet ID by name.
 func (tk *TestKit) GetBlockID(blockName string) int64 {
 	dom := petri.GetPetri(tk.Se)
 	is := dom.SchemaReplicant()

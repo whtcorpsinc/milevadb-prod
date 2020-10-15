@@ -972,12 +972,12 @@ func BenchmarkChunkMemoryUsage(b *testing.B) {
 	}
 }
 
-type seqNumberGenerateExec struct {
+type seqNumberGenerateInterDirc struct {
 	seq          int
 	genCountSize int
 }
 
-func (x *seqNumberGenerateExec) Next(chk *Chunk, resize bool) {
+func (x *seqNumberGenerateInterDirc) Next(chk *Chunk, resize bool) {
 	if resize {
 		chk.GrowAndReset(1024)
 	} else {
@@ -1042,7 +1042,7 @@ func benchmarkChunkGrow(t benchChunkGrowCase) func(b *testing.B) {
 		chk := New([]*types.FieldType{{Tp: allegrosql.TypeLong}}, t.initCap, t.maxCap)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			e := &seqNumberGenerateExec{genCountSize: t.cntPerCall}
+			e := &seqNumberGenerateInterDirc{genCountSize: t.cntPerCall}
 			for {
 				e.Next(chk, t.newReset)
 				if chk.NumRows() == 0 {

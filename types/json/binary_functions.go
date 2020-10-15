@@ -207,9 +207,9 @@ func quoteString(s string) string {
 	return ret.String()[1:]
 }
 
-// Extract receives several path expressions as arguments, matches them in bj, and returns:
-//  ret: target JSON matched any path expressions. maybe autowrapped as an array.
-//  found: true if any path expressions matched.
+// Extract receives several path memexs as arguments, matches them in bj, and returns:
+//  ret: target JSON matched any path memexs. maybe autowrapped as an array.
+//  found: true if any path memexs matched.
 func (bj BinaryJSON) Extract(pathExprList []PathExpression) (ret BinaryJSON, found bool) {
 	buf := make([]BinaryJSON, 0, 1)
 	for _, pathExpr := range pathExprList {
@@ -338,7 +338,7 @@ func buildBinaryObject(keys [][]byte, elems []BinaryJSON) BinaryJSON {
 }
 
 // Modify modifies a JSON object by insert, replace or set.
-// All path expressions cannot contain * or ** wildcard.
+// All path memexs cannot contain * or ** wildcard.
 // If any error occurs, the input won't be changed.
 func (bj BinaryJSON) Modify(pathExprList []PathExpression, values []BinaryJSON, mt ModifyType) (retj BinaryJSON, err error) {
 	if len(pathExprList) != len(values) {
@@ -348,7 +348,7 @@ func (bj BinaryJSON) Modify(pathExprList []PathExpression, values []BinaryJSON, 
 	for _, pathExpr := range pathExprList {
 		if pathExpr.flags.containsAnyAsterisk() {
 			// TODO: should return 3149(42000)
-			return retj, errors.New("Invalid path expression")
+			return retj, errors.New("Invalid path memex")
 		}
 	}
 	for i := 0; i < len(pathExprList); i++ {
@@ -367,7 +367,7 @@ func (bj BinaryJSON) Modify(pathExprList []PathExpression, values []BinaryJSON, 
 }
 
 // ArrayInsert insert a BinaryJSON into the given array cell.
-// All path expressions cannot contain * or ** wildcard.
+// All path memexs cannot contain * or ** wildcard.
 // If any error occurs, the input won't be changed.
 func (bj BinaryJSON) ArrayInsert(pathExpr PathExpression, value BinaryJSON) (res BinaryJSON, err error) {
 	// Check the path is a index
@@ -414,11 +414,11 @@ func (bj BinaryJSON) Remove(pathExprList []PathExpression) (BinaryJSON, error) {
 	for _, pathExpr := range pathExprList {
 		if len(pathExpr.legs) == 0 {
 			// TODO: should return 3153(42000)
-			return bj, errors.New("Invalid path expression")
+			return bj, errors.New("Invalid path memex")
 		}
 		if pathExpr.flags.containsAnyAsterisk() {
 			// TODO: should return 3149(42000)
-			return bj, errors.New("Invalid path expression")
+			return bj, errors.New("Invalid path memex")
 		}
 		modifer := &binaryModifier{bj: bj}
 		bj = modifer.remove(pathExpr)

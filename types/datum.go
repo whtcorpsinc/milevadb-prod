@@ -46,7 +46,7 @@ const (
 	HoTTMysqlDecimal  byte = 8
 	HoTTMysqlDuration byte = 9
 	HoTTMysqlEnum     byte = 10
-	HoTTMysqlBit      byte = 11 // Used for BIT block defCausumn values.
+	HoTTMysqlBit      byte = 11 // Used for BIT causet defCausumn values.
 	HoTTMysqlSet      byte = 12
 	HoTTMysqlTime     byte = 13
 	HoTTInterface     byte = 14
@@ -2105,7 +2105,7 @@ func getCausetBound(retType *FieldType, rType RoundingType) Causet {
 	return GetMinValue(retType)
 }
 
-// ChangeReverseResultByUpperLowerBound is for expression's reverse evaluation.
+// ChangeReverseResultByUpperLowerBound is for memex's reverse evaluation.
 // Here is an example for what's effort for the function: CastRealAsInt(t.a),
 // 		if the type of defCausumn `t.a` is allegrosql.TypeDouble, and there is a event that t.a == MaxFloat64
 // 		then the cast function will arrive a result MaxInt64. But when we do the reverse evaluation,

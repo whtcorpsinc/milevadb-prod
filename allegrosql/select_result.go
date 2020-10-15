@@ -42,7 +42,7 @@ import (
 )
 
 var (
-	errQueryInterrupted = terror.ClassExecutor.NewStd(errno.ErrQueryInterrupted)
+	errQueryInterrupted = terror.ClassInterlockingDirectorate.NewStd(errno.ErrQueryInterrupted)
 )
 
 var (
@@ -73,17 +73,17 @@ type selectResult struct {
 	selectResp       *fidelpb.SelectResponse
 	selectRespSize   int64 // record the selectResp.Size() when it is initialized.
 	respChkIdx       int
-	respChunkDecoder *chunk.Decoder
+	respChunkCausetDecoder *chunk.CausetDecoder
 
 	feedback     *statistics.QueryFeedback
 	partialCount int64 // number of partial results.
 	sqlType      string
 	encodeType   fidelpb.EncodeType
 
-	// copPlanIDs contains all CausetTasks' planIDs,
+	// copCausetIDs contains all CausetTasks' planIDs,
 	// which help to defCauslect CausetTasks' runtime stats.
-	copPlanIDs []int
-	rootPlanID int
+	copCausetIDs []int
+	rootCausetID int
 
 	fetchDuration    time.Duration
 	durationReported bool
@@ -148,7 +148,7 @@ func (r *selectResult) fetchResp(ctx context.Context) error {
 			if copStats != nil {
 				r.uFIDelateCopRuntimeStats(ctx, copStats, resultSubset.RespTime())
 				copStats.CopTime = duration
-				sc.MergeExecDetails(&copStats.ExecDetails, nil)
+				sc.MergeInterDircDetails(&copStats.InterDircDetails, nil)
 			}
 		}
 		if len(r.selectResp.Chunks) != 0 {
@@ -210,8 +210,8 @@ func (r *selectResult) readFromDefault(ctx context.Context, chk *chunk.Chunk) er
 }
 
 func (r *selectResult) readFromChunk(ctx context.Context, chk *chunk.Chunk) error {
-	if r.respChunkDecoder == nil {
-		r.respChunkDecoder = chunk.NewDecoder(
+	if r.respChunkCausetDecoder == nil {
+		r.respChunkCausetDecoder = chunk.NewCausetDecoder(
 			chunk.NewChunkWithCapacity(r.fieldTypes, 0),
 			r.fieldTypes,
 		)
@@ -225,21 +225,21 @@ func (r *selectResult) readFromChunk(ctx context.Context, chk *chunk.Chunk) erro
 			}
 		}
 
-		if r.respChunkDecoder.IsFinished() {
-			r.respChunkDecoder.Reset(r.selectResp.Chunks[r.respChkIdx].RowsData)
+		if r.respChunkCausetDecoder.IsFinished() {
+			r.respChunkCausetDecoder.Reset(r.selectResp.Chunks[r.respChkIdx].RowsData)
 		}
 		// If the next chunk size is greater than required rows * 0.8, reuse the memory of the next chunk and return
 		// immediately. Otherwise, splice the data to one chunk and wait the next chunk.
-		if r.respChunkDecoder.RemainedRows() > int(float64(chk.RequiredRows())*0.8) {
+		if r.respChunkCausetDecoder.RemainedRows() > int(float64(chk.RequiredRows())*0.8) {
 			if chk.NumRows() > 0 {
 				return nil
 			}
-			r.respChunkDecoder.ReuseIntermChk(chk)
+			r.respChunkCausetDecoder.ReuseIntermChk(chk)
 			r.respChkIdx++
 			return nil
 		}
-		r.respChunkDecoder.Decode(chk)
-		if r.respChunkDecoder.IsFinished() {
+		r.respChunkCausetDecoder.Decode(chk)
+		if r.respChunkCausetDecoder.IsFinished() {
 			r.respChkIdx++
 		}
 	}
@@ -248,18 +248,18 @@ func (r *selectResult) readFromChunk(ctx context.Context, chk *chunk.Chunk) erro
 
 func (r *selectResult) uFIDelateCopRuntimeStats(ctx context.Context, copStats *einsteindb.CopRuntimeStats, respTime time.Duration) {
 	callee := copStats.CalleeAddress
-	if r.rootPlanID <= 0 || r.ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl == nil || callee == "" {
+	if r.rootCausetID <= 0 || r.ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl == nil || callee == "" {
 		return
 	}
-	if len(r.selectResp.GetExecutionSummaries()) != len(r.copPlanIDs) {
+	if len(r.selectResp.GetInterDircutionSummaries()) != len(r.copCausetIDs) {
 		logutil.Logger(ctx).Error("invalid cop task execution summaries length",
-			zap.Int("expected", len(r.copPlanIDs)),
-			zap.Int("received", len(r.selectResp.GetExecutionSummaries())))
+			zap.Int("expected", len(r.copCausetIDs)),
+			zap.Int("received", len(r.selectResp.GetInterDircutionSummaries())))
 
 		return
 	}
 	if r.stats == nil {
-		id := r.rootPlanID
+		id := r.rootCausetID
 		r.stats = &selectResultRuntimeStats{
 			backoffSleep: make(map[string]time.Duration),
 			rpcStat:      einsteindb.NewRegionRequestRuntimeStats(),
@@ -268,10 +268,10 @@ func (r *selectResult) uFIDelateCopRuntimeStats(ctx context.Context, copStats *e
 	}
 	r.stats.mergeCopRuntimeStats(copStats, respTime)
 
-	for i, detail := range r.selectResp.GetExecutionSummaries() {
+	for i, detail := range r.selectResp.GetInterDircutionSummaries() {
 		if detail != nil && detail.TimeProcessedNs != nil &&
 			detail.NumProducedRows != nil && detail.NumIterations != nil {
-			planID := r.copPlanIDs[i]
+			planID := r.copCausetIDs[i]
 			r.ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl.
 				RecordOneCopTask(planID, callee, detail)
 		}
@@ -280,10 +280,10 @@ func (r *selectResult) uFIDelateCopRuntimeStats(ctx context.Context, copStats *e
 
 func (r *selectResult) readRowsData(chk *chunk.Chunk) (err error) {
 	rowsData := r.selectResp.Chunks[r.respChkIdx].RowsData
-	decoder := codec.NewDecoder(chk, r.ctx.GetStochastikVars().Location())
+	causetDecoder := codec.NewCausetDecoder(chk, r.ctx.GetStochastikVars().Location())
 	for !chk.IsFull() && len(rowsData) > 0 {
 		for i := 0; i < r.rowLen; i++ {
-			rowsData, err = decoder.DecodeOne(rowsData, i, r.fieldTypes[i])
+			rowsData, err = causetDecoder.DecodeOne(rowsData, i, r.fieldTypes[i])
 			if err != nil {
 				return err
 			}

@@ -355,9 +355,9 @@ func (b *Backoffer) BackoffWithMaxSleep(typ backoffType, maxSleepMs int, err err
 	}
 	b.backoffTimes[typ]++
 
-	stmtExec := b.ctx.Value(execdetails.StmtExecDetailKey)
-	if stmtExec != nil {
-		detail := stmtExec.(*execdetails.StmtExecDetails)
+	stmtInterDirc := b.ctx.Value(execdetails.StmtInterDircDetailKey)
+	if stmtInterDirc != nil {
+		detail := stmtInterDirc.(*execdetails.StmtInterDircDetails)
 		atomic.AddInt64(&detail.BackoffDuration, int64(realSleep)*int64(time.Millisecond))
 		atomic.AddInt64(&detail.BackoffCount, 1)
 	}

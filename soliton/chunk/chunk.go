@@ -42,7 +42,7 @@ type Chunk struct {
 	// TODO: replace all usages of capacity to requiredRows and remove this field
 	capacity int
 
-	// requiredRows indicates how many rows the parent executor want.
+	// requiredRows indicates how many rows the parent interlock want.
 	requiredRows int
 }
 
@@ -65,7 +65,7 @@ func New(fields []*types.FieldType, cap, maxChunkSize int) *Chunk {
 		defCausumns:  make([]*DeferredCauset, 0, len(fields)),
 		capacity: mathutil.Min(cap, maxChunkSize),
 		// set the default value of requiredRows to maxChunkSize to let chk.IsFull() behave
-		// like how we judge whether a chunk is full now, then the statement
+		// like how we judge whether a chunk is full now, then the memex
 		// "chk.NumRows() < maxChunkSize"
 		// equals to "!chk.IsFull()".
 		requiredRows: maxChunkSize,
@@ -152,7 +152,7 @@ func newFixedLenDeferredCauset(elemLen, cap int) *DeferredCauset {
 func newVarLenDeferredCauset(cap int, old *DeferredCauset) *DeferredCauset {
 	estimatedElemLen := 8
 	// For varLenDeferredCauset (e.g. varchar), the accurate length of an element is unknown.
-	// Therefore, in the first executor.Next we use an experience value -- 8 (so it may make runtime.growslice)
+	// Therefore, in the first interlock.Next we use an experience value -- 8 (so it may make runtime.growslice)
 	// but in the following Next call we estimate the length as AVG x 1.125 elemLen of the previous call.
 	if old != nil && old.length != 0 {
 		estimatedElemLen = (len(old.data) + len(old.data)/8) / old.length

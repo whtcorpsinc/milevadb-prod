@@ -32,7 +32,7 @@ type testStringUtilSuite struct {
 
 func (s *testStringUtilSuite) TestUnquote(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		str    string
 		expect string
 		ok     bool
@@ -65,7 +65,7 @@ func (s *testStringUtilSuite) TestUnquote(c *C) {
 		{"\"\\a\x18èàø»\x05\"", "a\x18èàø»\x05", true},
 	}
 
-	for _, t := range block {
+	for _, t := range causet {
 		x, err := Unquote(t.str)
 		c.Assert(x, Equals, t.expect)
 		comment := Commentf("source %v", t.str)

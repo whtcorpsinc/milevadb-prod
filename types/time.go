@@ -724,7 +724,7 @@ func (t *Time) Add(sc *stmtctx.StatementContext, d Duration) (Time, error) {
 	return ret, ret.Check(sc)
 }
 
-// TimestamFIDeliff returns t2 - t1 where t1 and t2 are date or datetime expressions.
+// TimestamFIDeliff returns t2 - t1 where t1 and t2 are date or datetime memexs.
 // The unit for the result (an integer) is given by the unit argument.
 // The legal values for unit are "YEAR" "QUARTER" "MONTH" "DAY" "HOUR" "SECOND" and so on.
 func TimestamFIDeliff(unit string, t1 Time, t2 Time) int64 {
@@ -1826,7 +1826,7 @@ func checkTimestampType(sc *stmtctx.StatementContext, t CoreTime) error {
 	}
 
 	if sc == nil {
-		return errors.New("statementContext is required during checkTimestampType")
+		return errors.New("memexContext is required during checkTimestampType")
 	}
 
 	var checkTime CoreTime
@@ -2045,7 +2045,7 @@ func parseSingleTimeValue(unit string, format string, strictCheck bool) (int64, 
 // parseTimeValue gets years, months, days, nanoseconds from a string
 // nanosecond will not exceed length of single day
 // MyALLEGROSQL permits any punctuation delimiter in the expr format.
-// See https://dev.allegrosql.com/doc/refman/8.0/en/expressions.html#temporal-intervals
+// See https://dev.allegrosql.com/doc/refman/8.0/en/memexs.html#temporal-intervals
 func parseTimeValue(format string, index, cnt int) (int64, int64, int64, int64, error) {
 	neg := false
 	originalFmt := format

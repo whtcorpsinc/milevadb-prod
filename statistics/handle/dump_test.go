@@ -27,13 +27,13 @@ import (
 func (s *testStatsSuite) TestConversion(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 
-	tk.MustExec("create block t (a int, b int)")
-	tk.MustExec("create index c on t(a,b)")
-	tk.MustExec("insert into t(a,b) values (3, 1),(2, 1),(1, 10)")
-	tk.MustExec("analyze block t")
-	tk.MustExec("insert into t(a,b) values (1, 1),(3, 1),(5, 10)")
+	tk.MustInterDirc("create causet t (a int, b int)")
+	tk.MustInterDirc("create index c on t(a,b)")
+	tk.MustInterDirc("insert into t(a,b) values (3, 1),(2, 1),(1, 10)")
+	tk.MustInterDirc("analyze causet t")
+	tk.MustInterDirc("insert into t(a,b) values (1, 1),(3, 1),(5, 10)")
 	is := s.do.SchemaReplicant()
 	h := s.do.StatsHandle()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
@@ -66,8 +66,8 @@ func (s *testStatsSuite) TestConversion(c *C) {
 func (s *testStatsSuite) TestDumpPartitions(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
 	createTable := `CREATE TABLE t (a int, b int, primary key(a), index idx(b))
 PARTITION BY RANGE ( a ) (
 		PARTITION p0 VALUES LESS THAN (6),
@@ -75,18 +75,18 @@ PARTITION BY RANGE ( a ) (
 		PARTITION p2 VALUES LESS THAN (16),
 		PARTITION p3 VALUES LESS THAN (21)
 )`
-	tk.MustExec(createTable)
+	tk.MustInterDirc(createTable)
 	for i := 1; i < 21; i++ {
-		tk.MustExec(fmt.Sprintf(`insert into t values (%d, %d)`, i, i))
+		tk.MustInterDirc(fmt.Sprintf(`insert into t values (%d, %d)`, i, i))
 	}
-	tk.MustExec("analyze block t")
+	tk.MustInterDirc("analyze causet t")
 	is := s.do.SchemaReplicant()
 	h := s.do.StatsHandle()
 	c.Assert(h.UFIDelate(is), IsNil)
 
-	block, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	causet, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	blockInfo := block.Meta()
+	blockInfo := causet.Meta()
 	jsonTbl, err := h.DumpStatsToJSON("test", blockInfo, nil)
 	c.Assert(err, IsNil)
 	pi := blockInfo.GetPartitionInfo()
@@ -95,9 +95,9 @@ PARTITION BY RANGE ( a ) (
 		originTables = append(originTables, h.GetPartitionStats(blockInfo, def.ID))
 	}
 
-	tk.MustExec("delete from allegrosql.stats_meta")
-	tk.MustExec("delete from allegrosql.stats_histograms")
-	tk.MustExec("delete from allegrosql.stats_buckets")
+	tk.MustInterDirc("delete from allegrosql.stats_spacetime")
+	tk.MustInterDirc("delete from allegrosql.stats_histograms")
+	tk.MustInterDirc("delete from allegrosql.stats_buckets")
 	h.Clear()
 
 	err = h.LoadStatsFromJSON(s.do.SchemaReplicant(), jsonTbl)
@@ -111,18 +111,18 @@ PARTITION BY RANGE ( a ) (
 func (s *testStatsSuite) TestDumpAlteredTable(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
 	h := s.do.StatsHandle()
 	oriLease := h.Lease()
 	h.SetLease(1)
 	defer func() { h.SetLease(oriLease) }()
-	tk.MustExec("create block t(a int, b int)")
-	tk.MustExec("analyze block t")
-	tk.MustExec("alter block t drop column a")
-	block, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	tk.MustInterDirc("create causet t(a int, b int)")
+	tk.MustInterDirc("analyze causet t")
+	tk.MustInterDirc("alter causet t drop column a")
+	causet, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	_, err = h.DumpStatsToJSON("test", block.Meta(), nil)
+	_, err = h.DumpStatsToJSON("test", causet.Meta(), nil)
 	c.Assert(err, IsNil)
 }
 
@@ -130,10 +130,10 @@ func (s *testStatsSuite) TestDumpCMSketchWithTopN(c *C) {
 	// Just test if we can causetstore and recover the Top N elements stored in database.
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t(a int)")
-	testKit.MustExec("insert into t values (1),(3),(4),(2),(5)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t(a int)")
+	testKit.MustInterDirc("insert into t values (1),(3),(4),(2),(5)")
+	testKit.MustInterDirc("analyze causet t")
 
 	is := s.do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -171,11 +171,11 @@ func (s *testStatsSuite) TestDumpCMSketchWithTopN(c *C) {
 func (s *testStatsSuite) TestDumpPseudoDeferredCausets(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("create block t(a int, b int, index idx(a))")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("create causet t(a int, b int, index idx(a))")
 	// Force adding an pseudo blocks in stats cache.
 	testKit.MustQuery("select * from t")
-	testKit.MustExec("analyze block t index idx")
+	testKit.MustInterDirc("analyze causet t index idx")
 
 	is := s.do.SchemaReplicant()
 	tbl, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))

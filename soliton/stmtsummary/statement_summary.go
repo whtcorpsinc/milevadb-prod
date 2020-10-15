@@ -37,10 +37,10 @@ import (
 
 // stmtSummaryByDigestKey defines key for stmtSummaryByDigestMap.summaryMap.
 type stmtSummaryByDigestKey struct {
-	// Same statements may appear in different schemaReplicant, but they refer to different blocks.
+	// Same memexs may appear in different schemaReplicant, but they refer to different blocks.
 	schemaName string
 	digest     string
-	// The digest of the previous statement.
+	// The digest of the previous memex.
 	prevDigest string
 	// The digest of the plan of this ALLEGROALLEGROSQL.
 	planDigest string
@@ -62,7 +62,7 @@ func (key *stmtSummaryByDigestKey) Hash() []byte {
 	return key.hash
 }
 
-// stmtSummaryByDigestMap is a LRU cache that stores statement summaries.
+// stmtSummaryByDigestMap is a LRU cache that stores memex summaries.
 type stmtSummaryByDigestMap struct {
 	// It's rare to read concurrently, so RWMutex is not needed.
 	sync.Mutex
@@ -70,17 +70,17 @@ type stmtSummaryByDigestMap struct {
 	// beginTimeForCurInterval is the begin time for current summary.
 	beginTimeForCurInterval int64
 
-	// sysVars encapsulates system variables needed to control statement summary.
+	// sysVars encapsulates system variables needed to control memex summary.
 	sysVars *systemVars
 }
 
-// StmtSummaryByDigestMap is a global map containing all statement summaries.
+// StmtSummaryByDigestMap is a global map containing all memex summaries.
 var StmtSummaryByDigestMap = newStmtSummaryByDigestMap()
 
-// stmtSummaryByDigest is the summary for each type of statements.
+// stmtSummaryByDigest is the summary for each type of memexs.
 type stmtSummaryByDigest struct {
 	// It's rare to read concurrently, so RWMutex is not needed.
-	// Mutex is only used to lock `history`.
+	// Mutex is only used to dagger `history`.
 	sync.Mutex
 	initialized bool
 	// Each element in history is a summary in one interval.
@@ -96,7 +96,7 @@ type stmtSummaryByDigest struct {
 	isInternal    bool
 }
 
-// stmtSummaryByDigestElement is the summary for each type of statements in current interval.
+// stmtSummaryByDigestElement is the summary for each type of memexs in current interval.
 type stmtSummaryByDigestElement struct {
 	sync.Mutex
 	// Each summary is summarized between [beginTime, endTime).
@@ -105,7 +105,7 @@ type stmtSummaryByDigestElement struct {
 	// basic
 	sampleALLEGROSQL   string
 	prevALLEGROSQL     string
-	samplePlan  string
+	sampleCauset  string
 	indexNames  []string
 	execCount   int64
 	sumErrors   int
@@ -157,8 +157,8 @@ type stmtSummaryByDigestElement struct {
 	maxPrewriteRegionNum int32
 	sumTxnRetry          int64
 	maxTxnRetry          int
-	sumExecRetryCount    int64
-	sumExecRetryTime     time.Duration
+	sumInterDircRetryCount    int64
+	sumInterDircRetryTime     time.Duration
 	sumBackoffTimes      int64
 	backoffTypes         map[fmt.Stringer]int
 	authUsers            map[string]struct{}
@@ -180,32 +180,32 @@ type stmtSummaryByDigestElement struct {
 	execRetryTime  time.Duration
 }
 
-// StmtExecInfo records execution information of each statement.
-type StmtExecInfo struct {
+// StmtInterDircInfo records execution information of each memex.
+type StmtInterDircInfo struct {
 	SchemaName     string
 	OriginalALLEGROSQL    string
 	NormalizedALLEGROSQL  string
 	Digest         string
 	PrevALLEGROSQL        string
 	PrevALLEGROSQLDigest  string
-	PlanGenerator  func() string
-	PlanDigest     string
-	PlanDigestGen  func() string
+	CausetGenerator  func() string
+	CausetDigest     string
+	CausetDigestGen  func() string
 	User           string
 	TotalLatency   time.Duration
 	ParseLatency   time.Duration
 	CompileLatency time.Duration
 	StmtCtx        *stmtctx.StatementContext
 	CausetTasks       *stmtctx.CausetTasksDetails
-	ExecDetail     *execdetails.ExecDetails
+	InterDircDetail     *execdetails.InterDircDetails
 	MemMax         int64
 	DiskMax        int64
 	StartTime      time.Time
 	IsInternal     bool
 	Succeed        bool
-	PlanInCache    bool
-	ExecRetryCount uint
-	ExecRetryTime  time.Duration
+	CausetInCache    bool
+	InterDircRetryCount uint
+	InterDircRetryTime  time.Duration
 }
 
 // newStmtSummaryByDigestMap creates an empty stmtSummaryByDigestMap.
@@ -218,8 +218,8 @@ func newStmtSummaryByDigestMap() *stmtSummaryByDigestMap {
 	}
 }
 
-// AddStatement adds a statement to StmtSummaryByDigestMap.
-func (ssMap *stmtSummaryByDigestMap) AddStatement(sei *StmtExecInfo) {
+// AddStatement adds a memex to StmtSummaryByDigestMap.
+func (ssMap *stmtSummaryByDigestMap) AddStatement(sei *StmtInterDircInfo) {
 	// All times are counted in seconds.
 	now := time.Now().Unix()
 
@@ -230,12 +230,12 @@ func (ssMap *stmtSummaryByDigestMap) AddStatement(sei *StmtExecInfo) {
 		schemaName: sei.SchemaName,
 		digest:     sei.Digest,
 		prevDigest: sei.PrevALLEGROSQLDigest,
-		planDigest: sei.PlanDigest,
+		planDigest: sei.CausetDigest,
 	}
-	// Calculate hash value in advance, to reduce the time holding the lock.
+	// Calculate hash value in advance, to reduce the time holding the dagger.
 	key.Hash()
 
-	// Enclose the block in a function to ensure the lock will always be released.
+	// Enclose the causet in a function to ensure the dagger will always be released.
 	summary, beginTime := func() (*stmtSummaryByDigest, int64) {
 		ssMap.Lock()
 		defer ssMap.Unlock()
@@ -274,7 +274,7 @@ func (ssMap *stmtSummaryByDigestMap) AddStatement(sei *StmtExecInfo) {
 	}
 }
 
-// Clear removes all statement summaries.
+// Clear removes all memex summaries.
 func (ssMap *stmtSummaryByDigestMap) Clear() {
 	ssMap.Lock()
 	defer ssMap.Unlock()
@@ -283,7 +283,7 @@ func (ssMap *stmtSummaryByDigestMap) Clear() {
 	ssMap.beginTimeForCurInterval = 0
 }
 
-// clearInternal removes all statement summaries which are internal summaries.
+// clearInternal removes all memex summaries which are internal summaries.
 func (ssMap *stmtSummaryByDigestMap) clearInternal() {
 	ssMap.Lock()
 	defer ssMap.Unlock()
@@ -299,7 +299,7 @@ func (ssMap *stmtSummaryByDigestMap) clearInternal() {
 	}
 }
 
-// ToCurrentCauset converts current statement summaries to causet.
+// ToCurrentCauset converts current memex summaries to causet.
 func (ssMap *stmtSummaryByDigestMap) ToCurrentCauset(user *auth.UserIdentity, isSuper bool) [][]types.Causet {
 	ssMap.Lock()
 	values := ssMap.summaryMap.Values()
@@ -316,7 +316,7 @@ func (ssMap *stmtSummaryByDigestMap) ToCurrentCauset(user *auth.UserIdentity, is
 	return rows
 }
 
-// ToHistoryCauset converts history statements summaries to causet.
+// ToHistoryCauset converts history memexs summaries to causet.
 func (ssMap *stmtSummaryByDigestMap) ToHistoryCauset(user *auth.UserIdentity, isSuper bool) [][]types.Causet {
 	ssMap.Lock()
 	values := ssMap.summaryMap.Values()
@@ -362,38 +362,38 @@ func (ssMap *stmtSummaryByDigestMap) GetMoreThanOnceSelect() ([]string, []string
 	return schemas, sqls
 }
 
-// SetEnabled enables or disables statement summary in global(cluster) or stochastik(server) scope.
+// SetEnabled enables or disables memex summary in global(cluster) or stochastik(server) scope.
 func (ssMap *stmtSummaryByDigestMap) SetEnabled(value string, inStochastik bool) error {
 	if err := ssMap.sysVars.setVariable(typeEnable, value, inStochastik); err != nil {
 		return err
 	}
 
-	// Clear all summaries once statement summary is disabled.
+	// Clear all summaries once memex summary is disabled.
 	if ssMap.sysVars.getVariable(typeEnable) == 0 {
 		ssMap.Clear()
 	}
 	return nil
 }
 
-// Enabled returns whether statement summary is enabled.
+// Enabled returns whether memex summary is enabled.
 func (ssMap *stmtSummaryByDigestMap) Enabled() bool {
 	return ssMap.sysVars.getVariable(typeEnable) > 0
 }
 
-// SetEnabledInternalQuery enables or disables internal statement summary in global(cluster) or stochastik(server) scope.
+// SetEnabledInternalQuery enables or disables internal memex summary in global(cluster) or stochastik(server) scope.
 func (ssMap *stmtSummaryByDigestMap) SetEnabledInternalQuery(value string, inStochastik bool) error {
 	if err := ssMap.sysVars.setVariable(typeEnableInternalQuery, value, inStochastik); err != nil {
 		return err
 	}
 
-	// Clear all summaries once statement summary is disabled.
+	// Clear all summaries once memex summary is disabled.
 	if ssMap.sysVars.getVariable(typeEnableInternalQuery) == 0 {
 		ssMap.clearInternal()
 	}
 	return nil
 }
 
-// EnabledInternal returns whether internal statement summary is enabled.
+// EnabledInternal returns whether internal memex summary is enabled.
 func (ssMap *stmtSummaryByDigestMap) EnabledInternal() bool {
 	return ssMap.sysVars.getVariable(typeEnableInternalQuery) > 0
 }
@@ -443,12 +443,12 @@ func (ssMap *stmtSummaryByDigestMap) maxALLEGROSQLLength() int {
 	return int(ssMap.sysVars.getVariable(typeMaxALLEGROSQLLength))
 }
 
-// newStmtSummaryByDigest creates a stmtSummaryByDigest from StmtExecInfo.
-func (ssbd *stmtSummaryByDigest) init(sei *StmtExecInfo, beginTime int64, intervalSeconds int64, historySize int) {
-	// Use "," to separate block names to support FIND_IN_SET.
+// newStmtSummaryByDigest creates a stmtSummaryByDigest from StmtInterDircInfo.
+func (ssbd *stmtSummaryByDigest) init(sei *StmtInterDircInfo, beginTime int64, intervalSeconds int64, historySize int) {
+	// Use "," to separate causet names to support FIND_IN_SET.
 	var buffer bytes.Buffer
 	for i, value := range sei.StmtCtx.Blocks {
-		// In `create database` statement, EDB name is not empty but block name is empty.
+		// In `create database` memex, EDB name is not empty but causet name is empty.
 		if len(value.Block) == 0 {
 			continue
 		}
@@ -461,10 +461,10 @@ func (ssbd *stmtSummaryByDigest) init(sei *StmtExecInfo, beginTime int64, interv
 	}
 	blockNames := buffer.String()
 
-	planDigest := sei.PlanDigest
-	if sei.PlanDigestGen != nil && len(planDigest) == 0 {
+	planDigest := sei.CausetDigest
+	if sei.CausetDigestGen != nil && len(planDigest) == 0 {
 		// It comes here only when the plan is 'Point_Get'.
-		planDigest = sei.PlanDigestGen()
+		planDigest = sei.CausetDigestGen()
 	}
 	ssbd.schemaName = sei.SchemaName
 	ssbd.digest = sei.Digest
@@ -476,8 +476,8 @@ func (ssbd *stmtSummaryByDigest) init(sei *StmtExecInfo, beginTime int64, interv
 	ssbd.initialized = true
 }
 
-func (ssbd *stmtSummaryByDigest) add(sei *StmtExecInfo, beginTime int64, intervalSeconds int64, historySize int) {
-	// Enclose this block in a function to ensure the lock will always be released.
+func (ssbd *stmtSummaryByDigest) add(sei *StmtInterDircInfo, beginTime int64, intervalSeconds int64, historySize int) {
+	// Enclose this causet in a function to ensure the dagger will always be released.
 	ssElement, isElementNew := func() (*stmtSummaryByDigestElement, bool) {
 		ssbd.Lock()
 		defer ssbd.Unlock()
@@ -499,7 +499,7 @@ func (ssbd *stmtSummaryByDigest) add(sei *StmtExecInfo, beginTime int64, interva
 			}
 		}
 		if isElementNew {
-			// If the element is new created, `ssElement.add(sei)` should be done inside the lock of `ssbd`.
+			// If the element is new created, `ssElement.add(sei)` should be done inside the dagger of `ssbd`.
 			ssElement = newStmtSummaryByDigestElement(sei, beginTime, intervalSeconds)
 			ssbd.history.PushBack(ssElement)
 		}
@@ -573,16 +573,16 @@ func (ssbd *stmtSummaryByDigest) defCauslectHistorySummaries(historySize int) []
 	return ssElements
 }
 
-func newStmtSummaryByDigestElement(sei *StmtExecInfo, beginTime int64, intervalSeconds int64) *stmtSummaryByDigestElement {
-	// sampleALLEGROSQL / authUsers(sampleUser) / samplePlan / prevALLEGROSQL / indexNames causetstore the values shown at the first time,
+func newStmtSummaryByDigestElement(sei *StmtInterDircInfo, beginTime int64, intervalSeconds int64) *stmtSummaryByDigestElement {
+	// sampleALLEGROSQL / authUsers(sampleUser) / sampleCauset / prevALLEGROSQL / indexNames causetstore the values shown at the first time,
 	// because it compacts performance to uFIDelate every time.
 	ssElement := &stmtSummaryByDigestElement{
 		beginTime: beginTime,
 		sampleALLEGROSQL: formatALLEGROSQL(sei.OriginalALLEGROSQL),
 		// PrevALLEGROSQL is already truncated to cfg.Log.QueryLogMaxLen.
 		prevALLEGROSQL: sei.PrevALLEGROSQL,
-		// samplePlan needs to be decoded so it can't be truncated.
-		samplePlan:    sei.PlanGenerator(),
+		// sampleCauset needs to be decoded so it can't be truncated.
+		sampleCauset:    sei.CausetGenerator(),
 		indexNames:    sei.StmtCtx.IndexNames,
 		minLatency:    sei.TotalLatency,
 		firstSeen:     sei.StartTime,
@@ -614,7 +614,7 @@ func (ssElement *stmtSummaryByDigestElement) onExpire(intervalSeconds int64) {
 	}
 }
 
-func (ssElement *stmtSummaryByDigestElement) add(sei *StmtExecInfo, intervalSeconds int64) {
+func (ssElement *stmtSummaryByDigestElement) add(sei *StmtInterDircInfo, intervalSeconds int64) {
 	ssElement.Lock()
 	defer ssElement.Unlock()
 
@@ -661,29 +661,29 @@ func (ssElement *stmtSummaryByDigestElement) add(sei *StmtExecInfo, intervalSeco
 	}
 
 	// EinsteinDB
-	ssElement.sumProcessTime += sei.ExecDetail.ProcessTime
-	if sei.ExecDetail.ProcessTime > ssElement.maxProcessTime {
-		ssElement.maxProcessTime = sei.ExecDetail.ProcessTime
+	ssElement.sumProcessTime += sei.InterDircDetail.ProcessTime
+	if sei.InterDircDetail.ProcessTime > ssElement.maxProcessTime {
+		ssElement.maxProcessTime = sei.InterDircDetail.ProcessTime
 	}
-	ssElement.sumWaitTime += sei.ExecDetail.WaitTime
-	if sei.ExecDetail.WaitTime > ssElement.maxWaitTime {
-		ssElement.maxWaitTime = sei.ExecDetail.WaitTime
+	ssElement.sumWaitTime += sei.InterDircDetail.WaitTime
+	if sei.InterDircDetail.WaitTime > ssElement.maxWaitTime {
+		ssElement.maxWaitTime = sei.InterDircDetail.WaitTime
 	}
-	ssElement.sumBackoffTime += sei.ExecDetail.BackoffTime
-	if sei.ExecDetail.BackoffTime > ssElement.maxBackoffTime {
-		ssElement.maxBackoffTime = sei.ExecDetail.BackoffTime
+	ssElement.sumBackoffTime += sei.InterDircDetail.BackoffTime
+	if sei.InterDircDetail.BackoffTime > ssElement.maxBackoffTime {
+		ssElement.maxBackoffTime = sei.InterDircDetail.BackoffTime
 	}
-	ssElement.sumTotalKeys += sei.ExecDetail.TotalKeys
-	if sei.ExecDetail.TotalKeys > ssElement.maxTotalKeys {
-		ssElement.maxTotalKeys = sei.ExecDetail.TotalKeys
+	ssElement.sumTotalKeys += sei.InterDircDetail.TotalKeys
+	if sei.InterDircDetail.TotalKeys > ssElement.maxTotalKeys {
+		ssElement.maxTotalKeys = sei.InterDircDetail.TotalKeys
 	}
-	ssElement.sumProcessedKeys += sei.ExecDetail.ProcessedKeys
-	if sei.ExecDetail.ProcessedKeys > ssElement.maxProcessedKeys {
-		ssElement.maxProcessedKeys = sei.ExecDetail.ProcessedKeys
+	ssElement.sumProcessedKeys += sei.InterDircDetail.ProcessedKeys
+	if sei.InterDircDetail.ProcessedKeys > ssElement.maxProcessedKeys {
+		ssElement.maxProcessedKeys = sei.InterDircDetail.ProcessedKeys
 	}
 
 	// txn
-	commitDetails := sei.ExecDetail.CommitDetail
+	commitDetails := sei.InterDircDetail.CommitDetail
 	if commitDetails != nil {
 		ssElement.commitCount++
 		ssElement.sumPrewriteTime += commitDetails.PrewriteTime
@@ -738,7 +738,7 @@ func (ssElement *stmtSummaryByDigestElement) add(sei *StmtExecInfo, intervalSeco
 	}
 
 	//plan cache
-	if sei.PlanInCache {
+	if sei.CausetInCache {
 		ssElement.planInCache = true
 		ssElement.planCacheHits += 1
 	} else {
@@ -761,9 +761,9 @@ func (ssElement *stmtSummaryByDigestElement) add(sei *StmtExecInfo, intervalSeco
 	if ssElement.lastSeen.Before(sei.StartTime) {
 		ssElement.lastSeen = sei.StartTime
 	}
-	if sei.ExecRetryCount > 0 {
-		ssElement.execRetryCount += sei.ExecRetryCount
-		ssElement.execRetryTime += sei.ExecRetryTime
+	if sei.InterDircRetryCount > 0 {
+		ssElement.execRetryCount += sei.InterDircRetryCount
+		ssElement.execRetryTime += sei.InterDircRetryTime
 	}
 }
 
@@ -771,9 +771,9 @@ func (ssElement *stmtSummaryByDigestElement) toCauset(ssbd *stmtSummaryByDigest)
 	ssElement.Lock()
 	defer ssElement.Unlock()
 
-	plan, err := plancodec.DecodePlan(ssElement.samplePlan)
+	plan, err := plancodec.DecodeCauset(ssElement.sampleCauset)
 	if err != nil {
-		logutil.BgLogger().Error("decode plan in statement summary failed", zap.String("plan", ssElement.samplePlan), zap.Error(err))
+		logutil.BgLogger().Error("decode plan in memex summary failed", zap.String("plan", ssElement.sampleCauset), zap.Error(err))
 		plan = ""
 	}
 

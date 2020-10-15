@@ -75,7 +75,7 @@ func (builder *RequestBuilder) SetCommonHandleRanges(sc *stmtctx.StatementContex
 	return builder
 }
 
-// SetBlockHandles sets "KeyRanges" for "ekv.Request" by converting block handles
+// SetBlockHandles sets "KeyRanges" for "ekv.Request" by converting causet handles
 // "handles" to "KeyRanges" firstly.
 func (builder *RequestBuilder) SetBlockHandles(tid int64, handles []ekv.Handle) *RequestBuilder {
 	builder.Request.KeyRanges = BlockHandlesToKVRanges(tid, handles)
@@ -92,8 +92,8 @@ func (builder *RequestBuilder) SetPosetDagRequest(posetPosetDag *fidelpb.PosetDa
 		builder.Request.Data, builder.err = posetPosetDag.Marshal()
 	}
 	// When the PosetDag is just simple scan and small limit, set concurrency to 1 would be sufficient.
-	if len(posetPosetDag.Executors) == 2 && posetPosetDag.Executors[1].GetLimit() != nil {
-		limit := posetPosetDag.Executors[1].GetLimit()
+	if len(posetPosetDag.InterlockingDirectorates) == 2 && posetPosetDag.InterlockingDirectorates[1].GetLimit() != nil {
+		limit := posetPosetDag.InterlockingDirectorates[1].GetLimit()
 		if limit != nil && limit.Limit < estimatedRegionRowCount {
 			builder.Request.Concurrency = 1
 		}
@@ -213,7 +213,7 @@ func (builder *RequestBuilder) SetConcurrency(concurrency int) *RequestBuilder {
 	return builder
 }
 
-// BlockRangesToKVRanges converts block ranges to "KeyRange".
+// BlockRangesToKVRanges converts causet ranges to "KeyRange".
 func BlockRangesToKVRanges(tid int64, ranges []*ranger.Range, fb *statistics.QueryFeedback) []ekv.KeyRange {
 	if fb == nil || fb.Hist == nil {
 		return blockRangesToKVRangesWithoutSplit(tid, ranges)

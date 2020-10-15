@@ -78,7 +78,7 @@ func (s *testMemDBSuite) TestBigKV(c *C) {
 	EDB.Release(h)
 	c.Assert(EDB.vlog.blockSize, Equals, maxBlockSize)
 	c.Assert(len(EDB.vlog.blocks), Equals, 2)
-	c.Assert(func() { EDB.Set([]byte{3}, make([]byte, maxBlockSize+1)) }, Panics, "alloc size is larger than max block size")
+	c.Assert(func() { EDB.Set([]byte{3}, make([]byte, maxBlockSize+1)) }, Panics, "alloc size is larger than max causet size")
 }
 
 func (s *testMemDBSuite) TestIterator(c *C) {
@@ -732,10 +732,10 @@ func (s *testKVSuite) TestNewIteratorMin(c *C) {
 		key   string
 		value string
 	}{
-		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000001", "lock-version"},
+		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000001", "dagger-version"},
 		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000001_0002", "1"},
 		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000001_0003", "hello"},
-		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000002", "lock-version"},
+		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000002", "dagger-version"},
 		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000002_0002", "2"},
 		{"DATA_test_main_db_tbl_tbl_test_record__00000000000000000002_0003", "hello"},
 	}

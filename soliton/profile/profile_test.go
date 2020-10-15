@@ -53,10 +53,10 @@ func (s *profileSuite) TestProfiles(c *C) {
 		profile.CPUProfileInterval = oldValue
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("select * from performance_schema.milevadb_profile_cpu")
-	tk.MustExec("select * from performance_schema.milevadb_profile_memory")
-	tk.MustExec("select * from performance_schema.milevadb_profile_allocs")
-	tk.MustExec("select * from performance_schema.milevadb_profile_mutex")
-	tk.MustExec("select * from performance_schema.milevadb_profile_block")
-	tk.MustExec("select * from performance_schema.milevadb_profile_goroutines")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_cpu")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_memory")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_allocs")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_mutex")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_block")
+	tk.MustInterDirc("select * from performance_schema.milevadb_profile_goroutines")
 }

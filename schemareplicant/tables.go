@@ -25,7 +25,7 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
@@ -33,11 +33,11 @@ import (
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
@@ -45,25 +45,25 @@ import (
 )
 
 const (
-	// BlockSchemata is the string constant of schemareplicant block.
+	// BlockSchemata is the string constant of schemareplicant causet.
 	BlockSchemata = "SCHEMATA"
-	// BlockBlocks is the string constant of schemareplicant block.
+	// BlockBlocks is the string constant of schemareplicant causet.
 	BlockBlocks = "TABLES"
-	// BlockDeferredCausets is the string constant of schemareplicant block
+	// BlockDeferredCausets is the string constant of schemareplicant causet
 	BlockDeferredCausets          = "COLUMNS"
 	blockDeferredCausetStatistics = "COLUMN_STATISTICS"
-	// BlockStatistics is the string constant of schemareplicant block
+	// BlockStatistics is the string constant of schemareplicant causet
 	BlockStatistics = "STATISTICS"
-	// BlockCharacterSets is the string constant of schemareplicant charactersets memory block
+	// BlockCharacterSets is the string constant of schemareplicant charactersets memory causet
 	BlockCharacterSets = "CHARACTER_SETS"
-	// BlockDefCauslations is the string constant of schemareplicant defCauslations memory block.
+	// BlockDefCauslations is the string constant of schemareplicant defCauslations memory causet.
 	BlockDefCauslations = "COLLATIONS"
 	blockFiles      = "FILES"
 	// CatalogVal is the string constant of TABLE_CATALOG.
 	CatalogVal = "def"
-	// BlockProfiling is the string constant of schemareplicant block.
+	// BlockProfiling is the string constant of schemareplicant causet.
 	BlockProfiling = "PROFILING"
-	// BlockPartitions is the string constant of schemareplicant block.
+	// BlockPartitions is the string constant of schemareplicant causet.
 	BlockPartitions = "PARTITIONS"
 	// BlockKeyDeferredCauset is the string constant of KEY_COLUMN_USAGE.
 	BlockKeyDeferredCauset  = "KEY_COLUMN_USAGE"
@@ -74,14 +74,14 @@ const (
 	// BlockConstraints is the string constant of TABLE_CONSTRAINTS.
 	BlockConstraints = "TABLE_CONSTRAINTS"
 	blockTriggers    = "TRIGGERS"
-	// BlockUserPrivileges is the string constant of schemareplicant user privilege block.
+	// BlockUserPrivileges is the string constant of schemareplicant user privilege causet.
 	BlockUserPrivileges   = "USER_PRIVILEGES"
 	blockSchemaPrivileges = "SCHEMA_PRIVILEGES"
 	blockBlockPrivileges  = "TABLE_PRIVILEGES"
 	blockDeferredCausetPrivileges = "COLUMN_PRIVILEGES"
-	// BlockEngines is the string constant of schemareplicant block.
+	// BlockEngines is the string constant of schemareplicant causet.
 	BlockEngines = "ENGINES"
-	// BlockViews is the string constant of schemareplicant block.
+	// BlockViews is the string constant of schemareplicant causet.
 	BlockViews           = "VIEWS"
 	blockRoutines        = "ROUTINES"
 	blockParameters      = "PARAMETERS"
@@ -91,65 +91,65 @@ const (
 	blockStochastikStatus   = "SESSION_STATUS"
 	blockOptimizerTrace  = "OPTIMIZER_TRACE"
 	blockBlockSpaces     = "TABLESPACES"
-	// BlockDefCauslationCharacterSetApplicability is the string constant of schemareplicant memory block.
+	// BlockDefCauslationCharacterSetApplicability is the string constant of schemareplicant memory causet.
 	BlockDefCauslationCharacterSetApplicability = "COLLATION_CHARACTER_SET_APPLICABILITY"
-	// BlockProcesslist is the string constant of schemareplicant block.
+	// BlockProcesslist is the string constant of schemareplicant causet.
 	BlockProcesslist = "PROCESSLIST"
-	// BlockMilevaDBIndexes is the string constant of schemareplicant block
+	// BlockMilevaDBIndexes is the string constant of schemareplicant causet
 	BlockMilevaDBIndexes = "MilevaDB_INDEXES"
-	// BlockMilevaDBHotRegions is the string constant of schemareplicant block
+	// BlockMilevaDBHotRegions is the string constant of schemareplicant causet
 	BlockMilevaDBHotRegions = "MilevaDB_HOT_REGIONS"
-	// BlockEinsteinDBStoreStatus is the string constant of schemareplicant block
+	// BlockEinsteinDBStoreStatus is the string constant of schemareplicant causet
 	BlockEinsteinDBStoreStatus = "EinsteinDB_STORE_STATUS"
 	// BlockAnalyzeStatus is the string constant of Analyze Status
 	BlockAnalyzeStatus = "ANALYZE_STATUS"
-	// BlockEinsteinDBRegionStatus is the string constant of schemareplicant block
+	// BlockEinsteinDBRegionStatus is the string constant of schemareplicant causet
 	BlockEinsteinDBRegionStatus = "EinsteinDB_REGION_STATUS"
-	// BlockEinsteinDBRegionPeers is the string constant of schemareplicant block
+	// BlockEinsteinDBRegionPeers is the string constant of schemareplicant causet
 	BlockEinsteinDBRegionPeers = "EinsteinDB_REGION_PEERS"
-	// BlockMilevaDBServersInfo is the string constant of MilevaDB server information block.
+	// BlockMilevaDBServersInfo is the string constant of MilevaDB server information causet.
 	BlockMilevaDBServersInfo = "MilevaDB_SERVERS_INFO"
-	// BlockSlowQuery is the string constant of slow query memory block.
+	// BlockSlowQuery is the string constant of slow query memory causet.
 	BlockSlowQuery = "SLOW_QUERY"
-	// BlockClusterInfo is the string constant of cluster info memory block.
+	// BlockClusterInfo is the string constant of cluster info memory causet.
 	BlockClusterInfo = "CLUSTER_INFO"
-	// BlockClusterConfig is the string constant of cluster configuration memory block.
+	// BlockClusterConfig is the string constant of cluster configuration memory causet.
 	BlockClusterConfig = "CLUSTER_CONFIG"
-	// BlockClusterLog is the string constant of cluster log memory block.
+	// BlockClusterLog is the string constant of cluster log memory causet.
 	BlockClusterLog = "CLUSTER_LOG"
-	// BlockClusterLoad is the string constant of cluster load memory block.
+	// BlockClusterLoad is the string constant of cluster load memory causet.
 	BlockClusterLoad = "CLUSTER_LOAD"
-	// BlockClusterHardware is the string constant of cluster hardware block.
+	// BlockClusterHardware is the string constant of cluster hardware causet.
 	BlockClusterHardware = "CLUSTER_HARDWARE"
-	// BlockClusterSystemInfo is the string constant of cluster system info block.
+	// BlockClusterSystemInfo is the string constant of cluster system info causet.
 	BlockClusterSystemInfo = "CLUSTER_SYSTEMINFO"
-	// BlockTiFlashReplica is the string constant of tiflash replica block.
+	// BlockTiFlashReplica is the string constant of tiflash replica causet.
 	BlockTiFlashReplica = "TIFLASH_REPLICA"
-	// BlockInspectionResult is the string constant of inspection result block.
+	// BlockInspectionResult is the string constant of inspection result causet.
 	BlockInspectionResult = "INSPECTION_RESULT"
-	// BlockMetricBlocks is a block that contains all metrics block definition.
+	// BlockMetricBlocks is a causet that contains all metrics causet definition.
 	BlockMetricBlocks = "METRICS_TABLES"
-	// BlockMetricSummary is a summary block that contains all metrics.
+	// BlockMetricSummary is a summary causet that contains all metrics.
 	BlockMetricSummary = "METRICS_SUMMARY"
-	// BlockMetricSummaryByLabel is a metric block that contains all metrics that group by label info.
+	// BlockMetricSummaryByLabel is a metric causet that contains all metrics that group by label info.
 	BlockMetricSummaryByLabel = "METRICS_SUMMARY_BY_LABEL"
-	// BlockInspectionSummary is the string constant of inspection summary block.
+	// BlockInspectionSummary is the string constant of inspection summary causet.
 	BlockInspectionSummary = "INSPECTION_SUMMARY"
 	// BlockInspectionMemrules is the string constant of currently implemented inspection and summary rules.
 	BlockInspectionMemrules = "INSPECTION_RULES"
-	// BlockDBSJobs is the string constant of DBS job block.
+	// BlockDBSJobs is the string constant of DBS job causet.
 	BlockDBSJobs = "DBS_JOBS"
 	// BlockSequences is the string constant of all sequences created by user.
 	BlockSequences = "SEQUENCES"
-	// BlockStatementsSummary is the string constant of statement summary block.
+	// BlockStatementsSummary is the string constant of memex summary causet.
 	BlockStatementsSummary = "STATEMENTS_SUMMARY"
-	// BlockStatementsSummaryHistory is the string constant of statements summary history block.
+	// BlockStatementsSummaryHistory is the string constant of memexs summary history causet.
 	BlockStatementsSummaryHistory = "STATEMENTS_SUMMARY_HISTORY"
-	// BlockStorageStats is a block that contains all blocks disk usage
+	// BlockStorageStats is a causet that contains all blocks disk usage
 	BlockStorageStats = "TABLE_STORAGE_STATS"
-	// BlockTiFlashBlocks is the string constant of tiflash blocks block.
+	// BlockTiFlashBlocks is the string constant of tiflash blocks causet.
 	BlockTiFlashBlocks = "TIFLASH_TABLES"
-	// BlockTiFlashSegments is the string constant of tiflash segments block.
+	// BlockTiFlashSegments is the string constant of tiflash segments causet.
 	BlockTiFlashSegments = "TIFLASH_SEGMENTS"
 )
 
@@ -307,7 +307,7 @@ var blocksDefCauss = []defCausumnInfo{
 	{name: "MilevaDB_PK_TYPE", tp: allegrosql.TypeVarchar, size: 64},
 }
 
-// See: http://dev.allegrosql.com/doc/refman/5.7/en/defCausumns-block.html
+// See: http://dev.allegrosql.com/doc/refman/5.7/en/defCausumns-causet.html
 var defCausumnsDefCauss = []defCausumnInfo{
 	{name: "TABLE_CATALOG", tp: allegrosql.TypeVarchar, size: 512},
 	{name: "TABLE_SCHEMA", tp: allegrosql.TypeVarchar, size: 64},
@@ -412,7 +412,7 @@ var keyDeferredCausetUsageDefCauss = []defCausumnInfo{
 	{name: "REFERENCED_COLUMN_NAME", tp: allegrosql.TypeVarchar, size: 64},
 }
 
-// See http://dev.allegrosql.com/doc/refman/5.7/en/referential-constraints-block.html
+// See http://dev.allegrosql.com/doc/refman/5.7/en/referential-constraints-causet.html
 var referConstDefCauss = []defCausumnInfo{
 	{name: "CONSTRAINT_CATALOG", tp: allegrosql.TypeVarchar, size: 512, flag: allegrosql.NotNullFlag},
 	{name: "CONSTRAINT_SCHEMA", tp: allegrosql.TypeVarchar, size: 64, flag: allegrosql.NotNullFlag},
@@ -427,13 +427,13 @@ var referConstDefCauss = []defCausumnInfo{
 	{name: "REFERENCED_TABLE_NAME", tp: allegrosql.TypeVarchar, size: 64, flag: allegrosql.NotNullFlag},
 }
 
-// See http://dev.allegrosql.com/doc/refman/5.7/en/variables-block.html
+// See http://dev.allegrosql.com/doc/refman/5.7/en/variables-causet.html
 var stochastikVarDefCauss = []defCausumnInfo{
 	{name: "VARIABLE_NAME", tp: allegrosql.TypeVarchar, size: 64},
 	{name: "VARIABLE_VALUE", tp: allegrosql.TypeVarchar, size: 1024},
 }
 
-// See https://dev.allegrosql.com/doc/refman/5.7/en/plugins-block.html
+// See https://dev.allegrosql.com/doc/refman/5.7/en/plugins-causet.html
 var pluginsDefCauss = []defCausumnInfo{
 	{name: "PLUGIN_NAME", tp: allegrosql.TypeVarchar, size: 64},
 	{name: "PLUGIN_VERSION", tp: allegrosql.TypeVarchar, size: 20},
@@ -448,7 +448,7 @@ var pluginsDefCauss = []defCausumnInfo{
 	{name: "LOAD_OPTION", tp: allegrosql.TypeVarchar, size: 64},
 }
 
-// See https://dev.allegrosql.com/doc/refman/5.7/en/partitions-block.html
+// See https://dev.allegrosql.com/doc/refman/5.7/en/partitions-causet.html
 var partitionsDefCauss = []defCausumnInfo{
 	{name: "TABLE_CATALOG", tp: allegrosql.TypeVarchar, size: 512},
 	{name: "TABLE_SCHEMA", tp: allegrosql.TypeVarchar, size: 64},
@@ -720,8 +720,8 @@ var slowQueryDefCauss = []defCausumnInfo{
 	{name: variable.SlowLogUserStr, tp: allegrosql.TypeVarchar, size: 64},
 	{name: variable.SlowLogHostStr, tp: allegrosql.TypeVarchar, size: 64},
 	{name: variable.SlowLogConnIDStr, tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.UnsignedFlag},
-	{name: variable.SlowLogExecRetryCount, tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.UnsignedFlag},
-	{name: variable.SlowLogExecRetryTime, tp: allegrosql.TypeDouble, size: 22},
+	{name: variable.SlowLogInterDircRetryCount, tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.UnsignedFlag},
+	{name: variable.SlowLogInterDircRetryTime, tp: allegrosql.TypeDouble, size: 22},
 	{name: variable.SlowLogQueryTimeStr, tp: allegrosql.TypeDouble, size: 22},
 	{name: variable.SlowLogParseTimeStr, tp: allegrosql.TypeDouble, size: 22},
 	{name: variable.SlowLogCompileTimeStr, tp: allegrosql.TypeDouble, size: 22},
@@ -766,14 +766,14 @@ var slowQueryDefCauss = []defCausumnInfo{
 	{name: variable.SlowLogMemMax, tp: allegrosql.TypeLonglong, size: 20},
 	{name: variable.SlowLogDiskMax, tp: allegrosql.TypeLonglong, size: 20},
 	{name: variable.SlowLogSucc, tp: allegrosql.TypeTiny, size: 1},
-	{name: variable.SlowLogPlanFromCache, tp: allegrosql.TypeTiny, size: 1},
-	{name: variable.SlowLogPlan, tp: allegrosql.TypeLongBlob, size: types.UnspecifiedLength},
-	{name: variable.SlowLogPlanDigest, tp: allegrosql.TypeVarchar, size: 128},
+	{name: variable.SlowLogCausetFromCache, tp: allegrosql.TypeTiny, size: 1},
+	{name: variable.SlowLogCauset, tp: allegrosql.TypeLongBlob, size: types.UnspecifiedLength},
+	{name: variable.SlowLogCausetDigest, tp: allegrosql.TypeVarchar, size: 128},
 	{name: variable.SlowLogPrevStmt, tp: allegrosql.TypeLongBlob, size: types.UnspecifiedLength},
 	{name: variable.SlowLogQueryALLEGROSQLStr, tp: allegrosql.TypeLongBlob, size: types.UnspecifiedLength},
 }
 
-// BlockMilevaDBHotRegionsDefCauss is MilevaDB hot region mem block defCausumns.
+// BlockMilevaDBHotRegionsDefCauss is MilevaDB hot region mem causet defCausumns.
 var BlockMilevaDBHotRegionsDefCauss = []defCausumnInfo{
 	{name: "TABLE_ID", tp: allegrosql.TypeLonglong, size: 21},
 	{name: "INDEX_ID", tp: allegrosql.TypeLonglong, size: 21},
@@ -820,7 +820,7 @@ var blockAnalyzeStatusDefCauss = []defCausumnInfo{
 	{name: "STATE", tp: allegrosql.TypeVarchar, size: 64},
 }
 
-// BlockEinsteinDBRegionStatusDefCauss is EinsteinDB region status mem block defCausumns.
+// BlockEinsteinDBRegionStatusDefCauss is EinsteinDB region status mem causet defCausumns.
 var BlockEinsteinDBRegionStatusDefCauss = []defCausumnInfo{
 	{name: "REGION_ID", tp: allegrosql.TypeLonglong, size: 21},
 	{name: "START_KEY", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength},
@@ -841,7 +841,7 @@ var BlockEinsteinDBRegionStatusDefCauss = []defCausumnInfo{
 	{name: "REPLICATIONSTATUS_STATEID", tp: allegrosql.TypeLonglong, size: 21},
 }
 
-// BlockEinsteinDBRegionPeersDefCauss is EinsteinDB region peers mem block defCausumns.
+// BlockEinsteinDBRegionPeersDefCauss is EinsteinDB region peers mem causet defCausumns.
 var BlockEinsteinDBRegionPeersDefCauss = []defCausumnInfo{
 	{name: "REGION_ID", tp: allegrosql.TypeLonglong, size: 21},
 	{name: "PEER_ID", tp: allegrosql.TypeLonglong, size: 21},
@@ -1062,17 +1062,17 @@ var blockStatementsSummaryDefCauss = []defCausumnInfo{
 	{name: "STMT_TYPE", tp: allegrosql.TypeVarchar, size: 64, flag: allegrosql.NotNullFlag, comment: "Statement type"},
 	{name: "SCHEMA_NAME", tp: allegrosql.TypeVarchar, size: 64, flag: allegrosql.NotNullFlag, comment: "Current schemaReplicant"},
 	{name: "DIGEST", tp: allegrosql.TypeVarchar, size: 64, flag: allegrosql.NotNullFlag},
-	{name: "DIGEST_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, flag: allegrosql.NotNullFlag, comment: "Normalized statement"},
+	{name: "DIGEST_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, flag: allegrosql.NotNullFlag, comment: "Normalized memex"},
 	{name: "TABLE_NAMES", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "Involved blocks"},
 	{name: "INDEX_NAMES", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "Used indices"},
-	{name: "SAMPLE_USER", tp: allegrosql.TypeVarchar, size: 64, comment: "Sampled user who executed these statements"},
+	{name: "SAMPLE_USER", tp: allegrosql.TypeVarchar, size: 64, comment: "Sampled user who executed these memexs"},
 	{name: "EXEC_COUNT", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Count of executions"},
 	{name: "SUM_ERRORS", tp: allegrosql.TypeLong, size: 11, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Sum of errors"},
 	{name: "SUM_WARNINGS", tp: allegrosql.TypeLong, size: 11, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Sum of warnings"},
-	{name: "SUM_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Sum latency of these statements"},
-	{name: "MAX_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Max latency of these statements"},
-	{name: "MIN_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Min latency of these statements"},
-	{name: "AVG_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average latency of these statements"},
+	{name: "SUM_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Sum latency of these memexs"},
+	{name: "MAX_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Max latency of these memexs"},
+	{name: "MIN_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Min latency of these memexs"},
+	{name: "AVG_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average latency of these memexs"},
 	{name: "AVG_PARSE_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average latency of parsing"},
 	{name: "MAX_PARSE_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Max latency of parsing"},
 	{name: "AVG_COMPILE_LATENCY", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average latency of compiling"},
@@ -1121,12 +1121,12 @@ var blockStatementsSummaryDefCauss = []defCausumnInfo{
 	{name: "AVG_DISK", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average disk space(byte) used"},
 	{name: "MAX_DISK", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Max disk space(byte) used"},
 	{name: "AVG_AFFECTED_ROWS", tp: allegrosql.TypeDouble, size: 22, flag: allegrosql.NotNullFlag | allegrosql.UnsignedFlag, comment: "Average number of rows affected"},
-	{name: "FIRST_SEEN", tp: allegrosql.TypeTimestamp, size: 26, flag: allegrosql.NotNullFlag, comment: "The time these statements are seen for the first time"},
-	{name: "LAST_SEEN", tp: allegrosql.TypeTimestamp, size: 26, flag: allegrosql.NotNullFlag, comment: "The time these statements are seen for the last time"},
-	{name: "PLAN_IN_CACHE", tp: allegrosql.TypeTiny, size: 1, flag: allegrosql.NotNullFlag, comment: "Whether the last statement hit plan cache"},
-	{name: "PLAN_CACHE_HITS", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag, comment: "The number of times these statements hit plan cache"},
-	{name: "QUERY_SAMPLE_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "Sampled original statement"},
-	{name: "PREV_SAMPLE_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "The previous statement before commit"},
+	{name: "FIRST_SEEN", tp: allegrosql.TypeTimestamp, size: 26, flag: allegrosql.NotNullFlag, comment: "The time these memexs are seen for the first time"},
+	{name: "LAST_SEEN", tp: allegrosql.TypeTimestamp, size: 26, flag: allegrosql.NotNullFlag, comment: "The time these memexs are seen for the last time"},
+	{name: "PLAN_IN_CACHE", tp: allegrosql.TypeTiny, size: 1, flag: allegrosql.NotNullFlag, comment: "Whether the last memex hit plan cache"},
+	{name: "PLAN_CACHE_HITS", tp: allegrosql.TypeLonglong, size: 20, flag: allegrosql.NotNullFlag, comment: "The number of times these memexs hit plan cache"},
+	{name: "QUERY_SAMPLE_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "Sampled original memex"},
+	{name: "PREV_SAMPLE_TEXT", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "The previous memex before commit"},
 	{name: "PLAN_DIGEST", tp: allegrosql.TypeVarchar, size: 64, comment: "Digest of its execution plan"},
 	{name: "PLAN", tp: allegrosql.TypeBlob, size: types.UnspecifiedLength, comment: "Sampled execution plan"},
 }
@@ -1136,10 +1136,10 @@ var blockStorageStatsDefCauss = []defCausumnInfo{
 	{name: "TABLE_NAME", tp: allegrosql.TypeVarchar, size: 64},
 	{name: "TABLE_ID", tp: allegrosql.TypeLonglong, size: 21},
 	{name: "PEER_COUNT", tp: allegrosql.TypeLonglong, size: 21},
-	{name: "REGION_COUNT", tp: allegrosql.TypeLonglong, size: 21, comment: "The region count of single replica of the block"},
-	{name: "EMPTY_REGION_COUNT", tp: allegrosql.TypeLonglong, size: 21, comment: "The region count of single replica of the block"},
-	{name: "TABLE_SIZE", tp: allegrosql.TypeLonglong, size: 64, comment: "The disk usage(MB) of single replica of the block, if the block size is empty or less than 1MB, it would show 1MB "},
-	{name: "TABLE_KEYS", tp: allegrosql.TypeLonglong, size: 64, comment: "The count of keys of single replica of the block"},
+	{name: "REGION_COUNT", tp: allegrosql.TypeLonglong, size: 21, comment: "The region count of single replica of the causet"},
+	{name: "EMPTY_REGION_COUNT", tp: allegrosql.TypeLonglong, size: 21, comment: "The region count of single replica of the causet"},
+	{name: "TABLE_SIZE", tp: allegrosql.TypeLonglong, size: 64, comment: "The disk usage(MB) of single replica of the causet, if the causet size is empty or less than 1MB, it would show 1MB "},
+	{name: "TABLE_KEYS", tp: allegrosql.TypeLonglong, size: 64, comment: "The count of keys of single replica of the causet"},
 }
 
 var blockBlockTiFlashBlocksDefCauss = []defCausumnInfo{
@@ -1227,7 +1227,7 @@ var blockBlockTiFlashSegmentsDefCauss = []defCausumnInfo{
 //  - "NOT_SHARDED(PK_IS_HANDLE)": for blocks of which primary key is event id.
 //  - "PK_AUTO_RANDOM_BITS={bit_number}": for blocks of which primary key is sharded event id.
 //  - "SHARD_BITS={bit_number}": for blocks that with SHARD_ROW_ID_BITS.
-// The returned nil indicates that sharding information is not suiblock for the block(for example, when the block is a View).
+// The returned nil indicates that sharding information is not suiblock for the causet(for example, when the causet is a View).
 // This function is exported for unit test.
 func GetShardingInfo(dbInfo *perceptron.DBInfo, blockInfo *perceptron.BlockInfo) interface{} {
 	if dbInfo == nil || blockInfo == nil || blockInfo.IsView() || soliton.IsMemOrSysDB(dbInfo.Name.L) {
@@ -1268,8 +1268,8 @@ type ServerInfo struct {
 // GetClusterServerInfo returns all components information of cluster
 func GetClusterServerInfo(ctx stochastikctx.Context) ([]ServerInfo, error) {
 	failpoint.Inject("mockClusterInfo", func(val failpoint.Value) {
-		// The cluster topology is injected by `failpoint` expression and
-		// there is no extra checks for it. (let the test fail if the expression invalid)
+		// The cluster topology is injected by `failpoint` memex and
+		// there is no extra checks for it. (let the test fail if the memex invalid)
 		if s := val.(string); len(s) > 0 {
 			var servers []ServerInfo
 			for _, server := range strings.Split(s, ";") {
@@ -1394,7 +1394,7 @@ func GetFIDelServerInfo(ctx stochastikctx.Context) ([]ServerInfo, error) {
 			GitHash        string `json:"git_hash"`
 			StartTimestamp int64  `json:"start_timestamp"`
 		}{}
-		err = json.NewDecoder(resp.Body).Decode(&content)
+		err = json.NewCausetDecoder(resp.Body).Decode(&content)
 		terror.Log(resp.Body.Close())
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -1416,7 +1416,7 @@ const tiflashLabel = "tiflash"
 
 // GetStoreServerInfo returns all causetstore nodes(EinsteinDB or TiFlash) cluster information
 func GetStoreServerInfo(ctx stochastikctx.Context) ([]ServerInfo, error) {
-	isTiFlashStore := func(causetstore *metapb.CausetStore) bool {
+	isTiFlashStore := func(causetstore *spacetimepb.CausetStore) bool {
 		isTiFlash := false
 		for _, label := range causetstore.Labels {
 			if label.GetKey() == "engine" && label.GetValue() == tiflashLabel {
@@ -1444,11 +1444,11 @@ func GetStoreServerInfo(ctx stochastikctx.Context) ([]ServerInfo, error) {
 	for _, causetstore := range stores {
 		failpoint.Inject("mockStoreTombstone", func(val failpoint.Value) {
 			if val.(bool) {
-				causetstore.State = metapb.StoreState_Tombstone
+				causetstore.State = spacetimepb.StoreState_Tombstone
 			}
 		})
 
-		if causetstore.GetState() == metapb.StoreState_Tombstone {
+		if causetstore.GetState() == spacetimepb.StoreState_Tombstone {
 			continue
 		}
 		var tp string
@@ -1552,22 +1552,22 @@ var blockNameToDeferredCausets = map[string][]defCausumnInfo{
 	BlockTiFlashSegments:                    blockBlockTiFlashSegmentsDefCauss,
 }
 
-func createSchemaReplicantBlock(_ autoid.SlabPredictors, meta *perceptron.BlockInfo) (block.Block, error) {
-	defCausumns := make([]*block.DeferredCauset, len(meta.DeferredCausets))
-	for i, defCaus := range meta.DeferredCausets {
-		defCausumns[i] = block.ToDeferredCauset(defCaus)
+func createSchemaReplicantBlock(_ autoid.SlabPredictors, spacetime *perceptron.BlockInfo) (causet.Block, error) {
+	defCausumns := make([]*causet.DeferredCauset, len(spacetime.DeferredCausets))
+	for i, defCaus := range spacetime.DeferredCausets {
+		defCausumns[i] = causet.ToDeferredCauset(defCaus)
 	}
-	tp := block.VirtualBlock
-	if isClusterBlockByName(soliton.InformationSchemaName.O, meta.Name.O) {
-		tp = block.ClusterBlock
+	tp := causet.VirtualBlock
+	if isClusterBlockByName(soliton.InformationSchemaName.O, spacetime.Name.O) {
+		tp = causet.ClusterBlock
 	}
-	return &schemareplicantBlock{meta: meta, defcaus: defCausumns, tp: tp}, nil
+	return &schemareplicantBlock{spacetime: spacetime, defcaus: defCausumns, tp: tp}, nil
 }
 
 type schemareplicantBlock struct {
-	meta *perceptron.BlockInfo
-	defcaus []*block.DeferredCauset
-	tp   block.Type
+	spacetime *perceptron.BlockInfo
+	defcaus []*causet.DeferredCauset
+	tp   causet.Type
 }
 
 // SchemasSorter implements the sort.Interface interface, sorts DBInfo by name.
@@ -1585,11 +1585,11 @@ func (s SchemasSorter) Less(i, j int) bool {
 	return s[i].Name.L < s[j].Name.L
 }
 
-func (it *schemareplicantBlock) getEvents(ctx stochastikctx.Context, defcaus []*block.DeferredCauset) (fullEvents [][]types.Causet, err error) {
+func (it *schemareplicantBlock) getEvents(ctx stochastikctx.Context, defcaus []*causet.DeferredCauset) (fullEvents [][]types.Causet, err error) {
 	is := GetSchemaReplicant(ctx)
 	dbs := is.AllSchemas()
 	sort.Sort(SchemasSorter(dbs))
-	switch it.meta.Name.O {
+	switch it.spacetime.Name.O {
 	case blockFiles:
 	case blockReferConst:
 	case blockPlugins, blockTriggers:
@@ -1623,11 +1623,11 @@ func (it *schemareplicantBlock) getEvents(ctx stochastikctx.Context, defcaus []*
 	return rows, nil
 }
 
-// IterRecords implements block.Block IterRecords interface.
-func (it *schemareplicantBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*block.DeferredCauset,
-	fn block.RecordIterFunc) error {
+// IterRecords implements causet.Block IterRecords interface.
+func (it *schemareplicantBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*causet.DeferredCauset,
+	fn causet.RecordIterFunc) error {
 	if len(startKey) != 0 {
-		return block.ErrUnsupportedOp
+		return causet.ErrUnsupportedOp
 	}
 	rows, err := it.getEvents(ctx, defcaus)
 	if err != nil {
@@ -1645,244 +1645,244 @@ func (it *schemareplicantBlock) IterRecords(ctx stochastikctx.Context, startKey 
 	return nil
 }
 
-// EventWithDefCauss implements block.Block EventWithDefCauss interface.
-func (it *schemareplicantBlock) EventWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*block.DeferredCauset) ([]types.Causet, error) {
-	return nil, block.ErrUnsupportedOp
+// EventWithDefCauss implements causet.Block EventWithDefCauss interface.
+func (it *schemareplicantBlock) EventWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*causet.DeferredCauset) ([]types.Causet, error) {
+	return nil, causet.ErrUnsupportedOp
 }
 
-// Event implements block.Block Event interface.
+// Event implements causet.Block Event interface.
 func (it *schemareplicantBlock) Event(ctx stochastikctx.Context, h ekv.Handle) ([]types.Causet, error) {
-	return nil, block.ErrUnsupportedOp
+	return nil, causet.ErrUnsupportedOp
 }
 
-// DefCauss implements block.Block DefCauss interface.
-func (it *schemareplicantBlock) DefCauss() []*block.DeferredCauset {
+// DefCauss implements causet.Block DefCauss interface.
+func (it *schemareplicantBlock) DefCauss() []*causet.DeferredCauset {
 	return it.defcaus
 }
 
-// VisibleDefCauss implements block.Block VisibleDefCauss interface.
-func (it *schemareplicantBlock) VisibleDefCauss() []*block.DeferredCauset {
+// VisibleDefCauss implements causet.Block VisibleDefCauss interface.
+func (it *schemareplicantBlock) VisibleDefCauss() []*causet.DeferredCauset {
 	return it.defcaus
 }
 
-// HiddenDefCauss implements block.Block HiddenDefCauss interface.
-func (it *schemareplicantBlock) HiddenDefCauss() []*block.DeferredCauset {
+// HiddenDefCauss implements causet.Block HiddenDefCauss interface.
+func (it *schemareplicantBlock) HiddenDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// WriblockDefCauss implements block.Block WriblockDefCauss interface.
-func (it *schemareplicantBlock) WriblockDefCauss() []*block.DeferredCauset {
+// WriblockDefCauss implements causet.Block WriblockDefCauss interface.
+func (it *schemareplicantBlock) WriblockDefCauss() []*causet.DeferredCauset {
 	return it.defcaus
 }
 
-// FullHiddenDefCaussAndVisibleDefCauss implements block FullHiddenDefCaussAndVisibleDefCauss interface.
-func (it *schemareplicantBlock) FullHiddenDefCaussAndVisibleDefCauss() []*block.DeferredCauset {
+// FullHiddenDefCaussAndVisibleDefCauss implements causet FullHiddenDefCaussAndVisibleDefCauss interface.
+func (it *schemareplicantBlock) FullHiddenDefCaussAndVisibleDefCauss() []*causet.DeferredCauset {
 	return it.defcaus
 }
 
-// Indices implements block.Block Indices interface.
-func (it *schemareplicantBlock) Indices() []block.Index {
+// Indices implements causet.Block Indices interface.
+func (it *schemareplicantBlock) Indices() []causet.Index {
 	return nil
 }
 
-// WriblockIndices implements block.Block WriblockIndices interface.
-func (it *schemareplicantBlock) WriblockIndices() []block.Index {
+// WriblockIndices implements causet.Block WriblockIndices interface.
+func (it *schemareplicantBlock) WriblockIndices() []causet.Index {
 	return nil
 }
 
-// DeleblockIndices implements block.Block DeleblockIndices interface.
-func (it *schemareplicantBlock) DeleblockIndices() []block.Index {
+// DeleblockIndices implements causet.Block DeleblockIndices interface.
+func (it *schemareplicantBlock) DeleblockIndices() []causet.Index {
 	return nil
 }
 
-// RecordPrefix implements block.Block RecordPrefix interface.
+// RecordPrefix implements causet.Block RecordPrefix interface.
 func (it *schemareplicantBlock) RecordPrefix() ekv.Key {
 	return nil
 }
 
-// IndexPrefix implements block.Block IndexPrefix interface.
+// IndexPrefix implements causet.Block IndexPrefix interface.
 func (it *schemareplicantBlock) IndexPrefix() ekv.Key {
 	return nil
 }
 
-// FirstKey implements block.Block FirstKey interface.
+// FirstKey implements causet.Block FirstKey interface.
 func (it *schemareplicantBlock) FirstKey() ekv.Key {
 	return nil
 }
 
-// RecordKey implements block.Block RecordKey interface.
+// RecordKey implements causet.Block RecordKey interface.
 func (it *schemareplicantBlock) RecordKey(h ekv.Handle) ekv.Key {
 	return nil
 }
 
-// AddRecord implements block.Block AddRecord interface.
-func (it *schemareplicantBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...block.AddRecordOption) (recordID ekv.Handle, err error) {
-	return nil, block.ErrUnsupportedOp
+// AddRecord implements causet.Block AddRecord interface.
+func (it *schemareplicantBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...causet.AddRecordOption) (recordID ekv.Handle, err error) {
+	return nil, causet.ErrUnsupportedOp
 }
 
-// RemoveRecord implements block.Block RemoveRecord interface.
+// RemoveRecord implements causet.Block RemoveRecord interface.
 func (it *schemareplicantBlock) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []types.Causet) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// UFIDelateRecord implements block.Block UFIDelateRecord interface.
+// UFIDelateRecord implements causet.Block UFIDelateRecord interface.
 func (it *schemareplicantBlock) UFIDelateRecord(gctx context.Context, ctx stochastikctx.Context, h ekv.Handle, oldData, newData []types.Causet, touched []bool) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// SlabPredictors implements block.Block SlabPredictors interface.
+// SlabPredictors implements causet.Block SlabPredictors interface.
 func (it *schemareplicantBlock) SlabPredictors(_ stochastikctx.Context) autoid.SlabPredictors {
 	return nil
 }
 
-// RebaseAutoID implements block.Block RebaseAutoID interface.
+// RebaseAutoID implements causet.Block RebaseAutoID interface.
 func (it *schemareplicantBlock) RebaseAutoID(ctx stochastikctx.Context, newBase int64, isSetStep bool, tp autoid.SlabPredictorType) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// Meta implements block.Block Meta interface.
+// Meta implements causet.Block Meta interface.
 func (it *schemareplicantBlock) Meta() *perceptron.BlockInfo {
-	return it.meta
+	return it.spacetime
 }
 
-// GetPhysicalID implements block.Block GetPhysicalID interface.
+// GetPhysicalID implements causet.Block GetPhysicalID interface.
 func (it *schemareplicantBlock) GetPhysicalID() int64 {
-	return it.meta.ID
+	return it.spacetime.ID
 }
 
-// Seek implements block.Block Seek interface.
+// Seek implements causet.Block Seek interface.
 func (it *schemareplicantBlock) Seek(ctx stochastikctx.Context, h ekv.Handle) (ekv.Handle, bool, error) {
-	return nil, false, block.ErrUnsupportedOp
+	return nil, false, causet.ErrUnsupportedOp
 }
 
-// Type implements block.Block Type interface.
-func (it *schemareplicantBlock) Type() block.Type {
+// Type implements causet.Block Type interface.
+func (it *schemareplicantBlock) Type() causet.Type {
 	return it.tp
 }
 
-// VirtualBlock is a dummy block.Block implementation.
+// VirtualBlock is a dummy causet.Block implementation.
 type VirtualBlock struct{}
 
-// IterRecords implements block.Block IterRecords interface.
-func (vt *VirtualBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*block.DeferredCauset,
-	_ block.RecordIterFunc) error {
+// IterRecords implements causet.Block IterRecords interface.
+func (vt *VirtualBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*causet.DeferredCauset,
+	_ causet.RecordIterFunc) error {
 	if len(startKey) != 0 {
-		return block.ErrUnsupportedOp
+		return causet.ErrUnsupportedOp
 	}
 	return nil
 }
 
-// EventWithDefCauss implements block.Block EventWithDefCauss interface.
-func (vt *VirtualBlock) EventWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*block.DeferredCauset) ([]types.Causet, error) {
-	return nil, block.ErrUnsupportedOp
+// EventWithDefCauss implements causet.Block EventWithDefCauss interface.
+func (vt *VirtualBlock) EventWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*causet.DeferredCauset) ([]types.Causet, error) {
+	return nil, causet.ErrUnsupportedOp
 }
 
-// Event implements block.Block Event interface.
+// Event implements causet.Block Event interface.
 func (vt *VirtualBlock) Event(ctx stochastikctx.Context, h ekv.Handle) ([]types.Causet, error) {
-	return nil, block.ErrUnsupportedOp
+	return nil, causet.ErrUnsupportedOp
 }
 
-// DefCauss implements block.Block DefCauss interface.
-func (vt *VirtualBlock) DefCauss() []*block.DeferredCauset {
+// DefCauss implements causet.Block DefCauss interface.
+func (vt *VirtualBlock) DefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// VisibleDefCauss implements block.Block VisibleDefCauss interface.
-func (vt *VirtualBlock) VisibleDefCauss() []*block.DeferredCauset {
+// VisibleDefCauss implements causet.Block VisibleDefCauss interface.
+func (vt *VirtualBlock) VisibleDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// HiddenDefCauss implements block.Block HiddenDefCauss interface.
-func (vt *VirtualBlock) HiddenDefCauss() []*block.DeferredCauset {
+// HiddenDefCauss implements causet.Block HiddenDefCauss interface.
+func (vt *VirtualBlock) HiddenDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// WriblockDefCauss implements block.Block WriblockDefCauss interface.
-func (vt *VirtualBlock) WriblockDefCauss() []*block.DeferredCauset {
+// WriblockDefCauss implements causet.Block WriblockDefCauss interface.
+func (vt *VirtualBlock) WriblockDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// FullHiddenDefCaussAndVisibleDefCauss implements block FullHiddenDefCaussAndVisibleDefCauss interface.
-func (vt *VirtualBlock) FullHiddenDefCaussAndVisibleDefCauss() []*block.DeferredCauset {
+// FullHiddenDefCaussAndVisibleDefCauss implements causet FullHiddenDefCaussAndVisibleDefCauss interface.
+func (vt *VirtualBlock) FullHiddenDefCaussAndVisibleDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// Indices implements block.Block Indices interface.
-func (vt *VirtualBlock) Indices() []block.Index {
+// Indices implements causet.Block Indices interface.
+func (vt *VirtualBlock) Indices() []causet.Index {
 	return nil
 }
 
-// WriblockIndices implements block.Block WriblockIndices interface.
-func (vt *VirtualBlock) WriblockIndices() []block.Index {
+// WriblockIndices implements causet.Block WriblockIndices interface.
+func (vt *VirtualBlock) WriblockIndices() []causet.Index {
 	return nil
 }
 
-// DeleblockIndices implements block.Block DeleblockIndices interface.
-func (vt *VirtualBlock) DeleblockIndices() []block.Index {
+// DeleblockIndices implements causet.Block DeleblockIndices interface.
+func (vt *VirtualBlock) DeleblockIndices() []causet.Index {
 	return nil
 }
 
-// RecordPrefix implements block.Block RecordPrefix interface.
+// RecordPrefix implements causet.Block RecordPrefix interface.
 func (vt *VirtualBlock) RecordPrefix() ekv.Key {
 	return nil
 }
 
-// IndexPrefix implements block.Block IndexPrefix interface.
+// IndexPrefix implements causet.Block IndexPrefix interface.
 func (vt *VirtualBlock) IndexPrefix() ekv.Key {
 	return nil
 }
 
-// FirstKey implements block.Block FirstKey interface.
+// FirstKey implements causet.Block FirstKey interface.
 func (vt *VirtualBlock) FirstKey() ekv.Key {
 	return nil
 }
 
-// RecordKey implements block.Block RecordKey interface.
+// RecordKey implements causet.Block RecordKey interface.
 func (vt *VirtualBlock) RecordKey(h ekv.Handle) ekv.Key {
 	return nil
 }
 
-// AddRecord implements block.Block AddRecord interface.
-func (vt *VirtualBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...block.AddRecordOption) (recordID ekv.Handle, err error) {
-	return nil, block.ErrUnsupportedOp
+// AddRecord implements causet.Block AddRecord interface.
+func (vt *VirtualBlock) AddRecord(ctx stochastikctx.Context, r []types.Causet, opts ...causet.AddRecordOption) (recordID ekv.Handle, err error) {
+	return nil, causet.ErrUnsupportedOp
 }
 
-// RemoveRecord implements block.Block RemoveRecord interface.
+// RemoveRecord implements causet.Block RemoveRecord interface.
 func (vt *VirtualBlock) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []types.Causet) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// UFIDelateRecord implements block.Block UFIDelateRecord interface.
+// UFIDelateRecord implements causet.Block UFIDelateRecord interface.
 func (vt *VirtualBlock) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Context, h ekv.Handle, oldData, newData []types.Causet, touched []bool) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// SlabPredictors implements block.Block SlabPredictors interface.
+// SlabPredictors implements causet.Block SlabPredictors interface.
 func (vt *VirtualBlock) SlabPredictors(_ stochastikctx.Context) autoid.SlabPredictors {
 	return nil
 }
 
-// RebaseAutoID implements block.Block RebaseAutoID interface.
+// RebaseAutoID implements causet.Block RebaseAutoID interface.
 func (vt *VirtualBlock) RebaseAutoID(ctx stochastikctx.Context, newBase int64, isSetStep bool, tp autoid.SlabPredictorType) error {
-	return block.ErrUnsupportedOp
+	return causet.ErrUnsupportedOp
 }
 
-// Meta implements block.Block Meta interface.
+// Meta implements causet.Block Meta interface.
 func (vt *VirtualBlock) Meta() *perceptron.BlockInfo {
 	return nil
 }
 
-// GetPhysicalID implements block.Block GetPhysicalID interface.
+// GetPhysicalID implements causet.Block GetPhysicalID interface.
 func (vt *VirtualBlock) GetPhysicalID() int64 {
 	return 0
 }
 
-// Seek implements block.Block Seek interface.
+// Seek implements causet.Block Seek interface.
 func (vt *VirtualBlock) Seek(ctx stochastikctx.Context, h ekv.Handle) (ekv.Handle, bool, error) {
-	return nil, false, block.ErrUnsupportedOp
+	return nil, false, causet.ErrUnsupportedOp
 }
 
-// Type implements block.Block Type interface.
-func (vt *VirtualBlock) Type() block.Type {
-	return block.VirtualBlock
+// Type implements causet.Block Type interface.
+func (vt *VirtualBlock) Type() causet.Type {
+	return causet.VirtualBlock
 }

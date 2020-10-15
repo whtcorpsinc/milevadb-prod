@@ -378,7 +378,7 @@ func (t *TestData) GenerateOutputIfNeeded() error {
 	}
 
 	buf := new(bytes.Buffer)
-	enc := json.NewEncoder(buf)
+	enc := json.NewCausetEncoder(buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	for i, test := range t.output {

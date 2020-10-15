@@ -30,7 +30,7 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
@@ -286,7 +286,7 @@ func (w *GCWorker) prepare() (bool, uint64, error) {
 	ctx := context.Background()
 	se := createStochastik(w.causetstore)
 	defer se.Close()
-	_, err := se.Execute(ctx, "BEGIN")
+	_, err := se.InterDircute(ctx, "BEGIN")
 	if err != nil {
 		return false, 0, errors.Trace(err)
 	}
@@ -615,7 +615,7 @@ func (w *GCWorker) runGCJob(ctx context.Context, safePoint uint64, concurrency i
 	return nil
 }
 
-// deleteRanges processes all delete range records whose ts < safePoint in block `gc_delete_range`
+// deleteRanges processes all delete range records whose ts < safePoint in causet `gc_delete_range`
 // `concurrency` specifies the concurrency to send NotifyDeleteRange.
 func (w *GCWorker) deleteRanges(ctx context.Context, safePoint uint64, concurrency int) error {
 	metrics.GCWorkerCounter.WithLabelValues("delete_range").Inc()
@@ -777,7 +777,7 @@ func (w *GCWorker) doUnsafeDestroyRangeRequest(ctx context.Context, startKey []b
 
 	// Notify all affected regions in the range that UnsafeDestroyRange occurs.
 	notifyTask := einsteindb.NewNotifyDeleteRangeTask(w.causetstore, startKey, endKey, concurrency)
-	err = notifyTask.Execute(ctx)
+	err = notifyTask.InterDircute(ctx)
 	if err != nil {
 		return errors.Annotate(err, "[gc worker] failed notifying regions affected by UnsafeDestroyRange")
 	}
@@ -793,11 +793,11 @@ const (
 
 // needsGCOperationForStore checks if the causetstore-level requests related to GC needs to be sent to the causetstore. The causetstore-level
 // requests includes UnsafeDestroyRange, PhysicalScanLock, etc.
-func needsGCOperationForStore(causetstore *metapb.CausetStore) (bool, error) {
+func needsGCOperationForStore(causetstore *spacetimepb.CausetStore) (bool, error) {
 	// TombStone means the causetstore has been removed from the cluster and there isn't any peer on the causetstore, so needn't do GC for it.
 	// Offline means the causetstore is being removed from the cluster and it becomes tombstone after all peers are removed from it,
 	// so we need to do GC for it.
-	if causetstore.State == metapb.StoreState_Tombstone {
+	if causetstore.State == spacetimepb.StoreState_Tombstone {
 		return false, nil
 	}
 
@@ -831,13 +831,13 @@ func needsGCOperationForStore(causetstore *metapb.CausetStore) (bool, error) {
 }
 
 // getStoresForGC gets the list of stores that needs to be processed during GC.
-func (w *GCWorker) getStoresForGC(ctx context.Context) ([]*metapb.CausetStore, error) {
+func (w *GCWorker) getStoresForGC(ctx context.Context) ([]*spacetimepb.CausetStore, error) {
 	stores, err := w.FIDelClient.GetAllStores(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	upStores := make([]*metapb.CausetStore, 0, len(stores))
+	upStores := make([]*spacetimepb.CausetStore, 0, len(stores))
 	for _, causetstore := range stores {
 		needsGCOp, err := needsGCOperationForStore(causetstore)
 		if err != nil {
@@ -850,13 +850,13 @@ func (w *GCWorker) getStoresForGC(ctx context.Context) ([]*metapb.CausetStore, e
 	return upStores, nil
 }
 
-func (w *GCWorker) getStoresMapForGC(ctx context.Context) (map[uint64]*metapb.CausetStore, error) {
+func (w *GCWorker) getStoresMapForGC(ctx context.Context) (map[uint64]*spacetimepb.CausetStore, error) {
 	stores, err := w.getStoresForGC(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	storesMap := make(map[uint64]*metapb.CausetStore, len(stores))
+	storesMap := make(map[uint64]*spacetimepb.CausetStore, len(stores))
 	for _, causetstore := range stores {
 		storesMap[causetstore.Id] = causetstore
 	}
@@ -934,8 +934,8 @@ func (w *GCWorker) checkUsePhysicalScanLock() (bool, error) {
 	if strings.EqualFold(str, gcScanLockModeLegacy) {
 		return false, nil
 	}
-	logutil.BgLogger().Warn("[gc worker] legacy scan lock mode will be used",
-		zap.String("invalid scan lock mode", str))
+	logutil.BgLogger().Warn("[gc worker] legacy scan dagger mode will be used",
+		zap.String("invalid scan dagger mode", str))
 	return false, nil
 }
 
@@ -950,7 +950,7 @@ func (w *GCWorker) resolveLocks(ctx context.Context, safePoint uint64, concurren
 		return true, nil
 	}
 
-	logutil.Logger(ctx).Error("[gc worker] resolve locks with physical scan failed, trying fallback to legacy resolve lock",
+	logutil.Logger(ctx).Error("[gc worker] resolve locks with physical scan failed, trying fallback to legacy resolve dagger",
 		zap.String("uuid", w.uuid),
 		zap.Uint64("safePoint", safePoint),
 		zap.Error(err))
@@ -971,7 +971,7 @@ func (w *GCWorker) legacyResolveLocks(ctx context.Context, safePoint uint64, con
 	}
 
 	runner := einsteindb.NewRangeTaskRunner("resolve-locks-runner", w.causetstore, concurrency, handler)
-	// Run resolve lock on the whole EinsteinDB cluster. Empty keys means the range is unbounded.
+	// Run resolve dagger on the whole EinsteinDB cluster. Empty keys means the range is unbounded.
 	err := runner.RunOnRange(ctx, []byte(""), []byte(""))
 	if err != nil {
 		logutil.Logger(ctx).Error("[gc worker] resolve locks failed",
@@ -990,7 +990,7 @@ func (w *GCWorker) legacyResolveLocks(ctx context.Context, safePoint uint64, con
 }
 
 func (w *GCWorker) resolveLocksForRange(ctx context.Context, safePoint uint64, startKey []byte, endKey []byte) (einsteindb.RangeTaskStat, error) {
-	// for scan lock request, we must return all locks even if they are generated
+	// for scan dagger request, we must return all locks even if they are generated
 	// by the same transaction. because gc worker need to make sure all locks have been
 	// cleaned.
 	req := einsteindbrpc.NewRequest(einsteindbrpc.CmdScanLock, &kvrpcpb.ScanLockRequest{
@@ -1082,7 +1082,7 @@ retryScanAndResolve:
 			logutil.Logger(ctx).Info("[gc worker] region has more than limit locks",
 				zap.String("uuid", w.uuid),
 				zap.Uint64("region", loc.Region.GetID()),
-				zap.Int("scan lock limit", gcScanLockLimit))
+				zap.Int("scan dagger limit", gcScanLockLimit))
 			metrics.GCRegionTooManyLocksCounter.Inc()
 			key = locks[len(locks)-1].Key
 		}
@@ -1112,7 +1112,7 @@ func (w *GCWorker) tryRelocateLocksRegion(bo *einsteindb.Backoffer, locks []*ein
 }
 
 // resolveLocksPhysical uses EinsteinDB's `PhysicalScanLock` to scan stale locks in the cluster and resolve them. It tries to
-// ensure no lock whose ts <= safePoint is left.
+// ensure no dagger whose ts <= safePoint is left.
 func (w *GCWorker) resolveLocksPhysical(ctx context.Context, safePoint uint64) error {
 	metrics.GCWorkerCounter.WithLabelValues("resolve_locks_physical").Inc()
 	logutil.Logger(ctx).Info("[gc worker] start resolve locks with physical scan locks",
@@ -1120,7 +1120,7 @@ func (w *GCWorker) resolveLocksPhysical(ctx context.Context, safePoint uint64) e
 		zap.Uint64("safePoint", safePoint))
 	startTime := time.Now()
 
-	registeredStores := make(map[uint64]*metapb.CausetStore)
+	registeredStores := make(map[uint64]*spacetimepb.CausetStore)
 	defer w.removeLockObservers(ctx, safePoint, registeredStores)
 
 	dirtyStores, err := w.getStoresMapForGC(ctx)
@@ -1167,9 +1167,9 @@ func (w *GCWorker) resolveLocksPhysical(ctx context.Context, safePoint uint64) e
 				// If the causetstore is checked and not resolved, we can retry to resolve it again, so leave it in dirtyStores.
 			} else if _, ok := registeredStores[causetstore]; ok {
 				// The causetstore has been registered and it's dirty due to too many collected locks. Fall back to legacy mode.
-				// We can't remove the lock observer from the causetstore and retry the whole procedure because if the causetstore
+				// We can't remove the dagger observer from the causetstore and retry the whole procedure because if the causetstore
 				// receives duplicated remove and register requests during resolving locks, the causetstore will be cleaned
-				// when checking but the lock observer drops some locks. It may results in missing locks.
+				// when checking but the dagger observer drops some locks. It may results in missing locks.
 				return errors.Errorf("causetstore %v is dirty", causetstore)
 			}
 		}
@@ -1194,8 +1194,8 @@ func (w *GCWorker) resolveLocksPhysical(ctx context.Context, safePoint uint64) e
 	return nil
 }
 
-func (w *GCWorker) registerLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*metapb.CausetStore) error {
-	logutil.Logger(ctx).Info("[gc worker] registering lock observers to einsteindb",
+func (w *GCWorker) registerLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*spacetimepb.CausetStore) error {
+	logutil.Logger(ctx).Info("[gc worker] registering dagger observers to einsteindb",
 		zap.String("uuid", w.uuid),
 		zap.Uint64("safePoint", safePoint))
 
@@ -1215,17 +1215,17 @@ func (w *GCWorker) registerLockObservers(ctx context.Context, safePoint uint64, 
 		}
 		errStr := resp.Resp.(*kvrpcpb.RegisterLockObserverResponse).Error
 		if len(errStr) > 0 {
-			return errors.Errorf("register lock observer on causetstore %v returns error: %v", causetstore.Id, errStr)
+			return errors.Errorf("register dagger observer on causetstore %v returns error: %v", causetstore.Id, errStr)
 		}
 	}
 
 	return nil
 }
 
-// checkLockObservers checks the state of each causetstore's lock observer. If any lock collected by the observers, resolve
+// checkLockObservers checks the state of each causetstore's dagger observer. If any dagger collected by the observers, resolve
 // them. Returns ids of clean stores.
-func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*metapb.CausetStore) (map[uint64]interface{}, error) {
-	logutil.Logger(ctx).Info("[gc worker] checking lock observers",
+func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*spacetimepb.CausetStore) (map[uint64]interface{}, error) {
+	logutil.Logger(ctx).Info("[gc worker] checking dagger observers",
 		zap.String("uuid", w.uuid),
 		zap.Uint64("safePoint", safePoint))
 
@@ -1234,8 +1234,8 @@ func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, sto
 	})
 	cleanStores := make(map[uint64]interface{}, len(stores))
 
-	logError := func(causetstore *metapb.CausetStore, err error) {
-		logutil.Logger(ctx).Error("[gc worker] failed to check lock observer for causetstore",
+	logError := func(causetstore *spacetimepb.CausetStore, err error) {
+		logutil.Logger(ctx).Error("[gc worker] failed to check dagger observer for causetstore",
 			zap.String("uuid", w.uuid),
 			zap.Any("causetstore", causetstore),
 			zap.Error(err))
@@ -1257,14 +1257,14 @@ func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, sto
 		}
 		respInner := resp.Resp.(*kvrpcpb.CheckLockObserverResponse)
 		if len(respInner.Error) > 0 {
-			err = errors.Errorf("check lock observer on causetstore %v returns error: %v", causetstore.Id, respInner.Error)
+			err = errors.Errorf("check dagger observer on causetstore %v returns error: %v", causetstore.Id, respInner.Error)
 			logError(causetstore, err)
 			continue
 		}
 
 		// No need to resolve observed locks on uncleaned stores.
 		if !respInner.IsClean {
-			logutil.Logger(ctx).Warn("[gc worker] check lock observer: causetstore is not clean",
+			logutil.Logger(ctx).Warn("[gc worker] check dagger observer: causetstore is not clean",
 				zap.String("uuid", w.uuid),
 				zap.Any("causetstore", causetstore))
 			continue
@@ -1282,7 +1282,7 @@ func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, sto
 			err = w.resolveLocksAcrossRegions(ctx, locks)
 
 			if err != nil {
-				err = errors.Errorf("check lock observer on causetstore %v returns error: %v", causetstore.Id, respInner.Error)
+				err = errors.Errorf("check dagger observer on causetstore %v returns error: %v", causetstore.Id, respInner.Error)
 				logError(causetstore, err)
 				continue
 			}
@@ -1293,8 +1293,8 @@ func (w *GCWorker) checkLockObservers(ctx context.Context, safePoint uint64, sto
 	return cleanStores, nil
 }
 
-func (w *GCWorker) removeLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*metapb.CausetStore) {
-	logutil.Logger(ctx).Info("[gc worker] removing lock observers",
+func (w *GCWorker) removeLockObservers(ctx context.Context, safePoint uint64, stores map[uint64]*spacetimepb.CausetStore) {
+	logutil.Logger(ctx).Info("[gc worker] removing dagger observers",
 		zap.String("uuid", w.uuid),
 		zap.Uint64("safePoint", safePoint))
 
@@ -1302,8 +1302,8 @@ func (w *GCWorker) removeLockObservers(ctx context.Context, safePoint uint64, st
 		MaxTs: safePoint,
 	})
 
-	logError := func(causetstore *metapb.CausetStore, err error) {
-		logutil.Logger(ctx).Warn("[gc worker] failed to remove lock observer from causetstore",
+	logError := func(causetstore *spacetimepb.CausetStore, err error) {
+		logutil.Logger(ctx).Warn("[gc worker] failed to remove dagger observer from causetstore",
 			zap.String("uuid", w.uuid),
 			zap.Any("causetstore", causetstore),
 			zap.Error(err))
@@ -1323,16 +1323,16 @@ func (w *GCWorker) removeLockObservers(ctx context.Context, safePoint uint64, st
 		}
 		errStr := resp.Resp.(*kvrpcpb.RemoveLockObserverResponse).Error
 		if len(errStr) > 0 {
-			err = errors.Errorf("remove lock observer on causetstore %v returns error: %v", causetstore.Id, errStr)
+			err = errors.Errorf("remove dagger observer on causetstore %v returns error: %v", causetstore.Id, errStr)
 			logError(causetstore, err)
 		}
 	}
 }
 
-// physicalScanAndResolveLocks performs physical scan lock and resolves these locks. Returns successful stores
-func (w *GCWorker) physicalScanAndResolveLocks(ctx context.Context, safePoint uint64, stores map[uint64]*metapb.CausetStore) (map[uint64]interface{}, error) {
+// physicalScanAndResolveLocks performs physical scan dagger and resolves these locks. Returns successful stores
+func (w *GCWorker) physicalScanAndResolveLocks(ctx context.Context, safePoint uint64, stores map[uint64]*spacetimepb.CausetStore) (map[uint64]interface{}, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	// Cancel all spawned goroutines for lock scanning and resolving.
+	// Cancel all spawned goroutines for dagger scanning and resolving.
 	defer cancel()
 
 	scanner := newMergeLockScanner(safePoint, w.causetstore.GetEinsteinDBClient(), stores)
@@ -1418,9 +1418,9 @@ func (w *GCWorker) resolveLocksAcrossRegions(ctx context.Context, locks []*einst
 
 		locksInRegion := make([]*einsteindb.Lock, 0)
 
-		for _, lock := range locks {
-			if loc.Contains(lock.Key) {
-				locksInRegion = append(locksInRegion, lock)
+		for _, dagger := range locks {
+			if loc.Contains(dagger.Key) {
+				locksInRegion = append(locksInRegion, dagger)
 			} else {
 				break
 			}
@@ -1600,7 +1600,7 @@ func (w *GCWorker) checkLeader() (bool, error) {
 	defer se.Close()
 
 	ctx := context.Background()
-	_, err := se.Execute(ctx, "BEGIN")
+	_, err := se.InterDircute(ctx, "BEGIN")
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -1625,7 +1625,7 @@ func (w *GCWorker) checkLeader() (bool, error) {
 
 	se.RollbackTxn(ctx)
 
-	_, err = se.Execute(ctx, "BEGIN")
+	_, err = se.InterDircute(ctx, "BEGIN")
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -1734,7 +1734,7 @@ func (w *GCWorker) loadValueFromSysTable(key string) (string, error) {
 	se := createStochastik(w.causetstore)
 	defer se.Close()
 	stmt := fmt.Sprintf(`SELECT HIGH_PRIORITY (variable_value) FROM allegrosql.milevadb WHERE variable_name='%s' FOR UFIDelATE`, key)
-	rs, err := se.Execute(ctx, stmt)
+	rs, err := se.InterDircute(ctx, stmt)
 	if len(rs) > 0 {
 		defer terror.Call(rs[0].Close)
 	}
@@ -1765,7 +1765,7 @@ func (w *GCWorker) saveValueToSysTable(key, value string) error {
 		key, value, gcVariableComments[key])
 	se := createStochastik(w.causetstore)
 	defer se.Close()
-	_, err := se.Execute(context.Background(), stmt)
+	_, err := se.InterDircute(context.Background(), stmt)
 	logutil.BgLogger().Debug("[gc worker] save ekv",
 		zap.String("key", key),
 		zap.String("value", value),
@@ -1893,7 +1893,7 @@ const scanLockResultBufferSize = 128
 type mergeLockScanner struct {
 	safePoint     uint64
 	client        einsteindb.Client
-	stores        map[uint64]*metapb.CausetStore
+	stores        map[uint64]*spacetimepb.CausetStore
 	receivers     mergeReceiver
 	currentLock   *einsteindb.Lock
 	scanLockLimit uint32
@@ -1920,9 +1920,9 @@ func (r *receiver) PeekNextLock() *einsteindb.Lock {
 }
 
 func (r *receiver) TakeNextLock() *einsteindb.Lock {
-	lock := r.PeekNextLock()
+	dagger := r.PeekNextLock()
 	r.NextLock = nil
-	return lock
+	return dagger
 }
 
 // mergeReceiver is a list of receivers
@@ -1968,7 +1968,7 @@ type scanLockResult struct {
 	Err  error
 }
 
-func newMergeLockScanner(safePoint uint64, client einsteindb.Client, stores map[uint64]*metapb.CausetStore) *mergeLockScanner {
+func newMergeLockScanner(safePoint uint64, client einsteindb.Client, stores map[uint64]*spacetimepb.CausetStore) *mergeLockScanner {
 	return &mergeLockScanner{
 		safePoint:     safePoint,
 		client:        client,
@@ -1989,7 +1989,7 @@ func (s *mergeLockScanner) Start(ctx context.Context) error {
 
 			err := s.physicalScanLocksForStore(ctx, s.safePoint, store1, ch)
 			if err != nil {
-				logutil.Logger(ctx).Error("physical scan lock for causetstore encountered error",
+				logutil.Logger(ctx).Error("physical scan dagger for causetstore encountered error",
 					zap.Uint64("safePoint", s.safePoint),
 					zap.Any("causetstore", store1),
 					zap.Error(err))
@@ -2032,11 +2032,11 @@ func (s *mergeLockScanner) Next() *einsteindb.Lock {
 func (s *mergeLockScanner) NextBatch(batchSize int) []*einsteindb.Lock {
 	result := make([]*einsteindb.Lock, 0, batchSize)
 	for len(result) < batchSize {
-		lock := s.Next()
-		if lock == nil {
+		dagger := s.Next()
+		if dagger == nil {
 			break
 		}
-		result = append(result, lock)
+		result = append(result, dagger)
 	}
 	return result
 }
@@ -2052,7 +2052,7 @@ func (s *mergeLockScanner) GetSucceededStores() map[uint64]interface{} {
 	return stores
 }
 
-func (s *mergeLockScanner) physicalScanLocksForStore(ctx context.Context, safePoint uint64, causetstore *metapb.CausetStore, lockCh chan<- scanLockResult) error {
+func (s *mergeLockScanner) physicalScanLocksForStore(ctx context.Context, safePoint uint64, causetstore *spacetimepb.CausetStore, lockCh chan<- scanLockResult) error {
 	address := causetstore.Address
 	req := einsteindbrpc.NewRequest(einsteindbrpc.CmdPhysicalScanLock, &kvrpcpb.PhysicalScanLockRequest{
 		MaxTs: safePoint,
@@ -2073,7 +2073,7 @@ func (s *mergeLockScanner) physicalScanLocksForStore(ctx context.Context, safePo
 		}
 		resp := response.Resp.(*kvrpcpb.PhysicalScanLockResponse)
 		if len(resp.Error) > 0 {
-			return errors.Errorf("physical scan lock received error from causetstore: %v", resp.Error)
+			return errors.Errorf("physical scan dagger received error from causetstore: %v", resp.Error)
 		}
 
 		if len(resp.Locks) == 0 {

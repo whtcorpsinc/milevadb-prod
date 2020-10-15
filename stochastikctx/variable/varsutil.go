@@ -149,20 +149,20 @@ func GetStochastikOnlySysVars(s *StochastikVars, key string) (string, bool, erro
 		return config.GetGlobalConfig().Plugin.Load, true, nil
 	case MilevaDBSlowLogThreshold:
 		return strconv.FormatUint(atomic.LoadUint64(&config.GetGlobalConfig().Log.SlowThreshold), 10), true, nil
-	case MilevaDBRecordPlanInSlowLog:
-		return strconv.FormatUint(uint64(atomic.LoadUint32(&config.GetGlobalConfig().Log.RecordPlanInSlowLog)), 10), true, nil
+	case MilevaDBRecordCausetInSlowLog:
+		return strconv.FormatUint(uint64(atomic.LoadUint32(&config.GetGlobalConfig().Log.RecordCausetInSlowLog)), 10), true, nil
 	case MilevaDBEnableSlowLog:
 		return BoolToIntStr(config.GetGlobalConfig().Log.EnableSlowLog), true, nil
 	case MilevaDBQueryLogMaxLen:
 		return strconv.FormatUint(atomic.LoadUint64(&config.GetGlobalConfig().Log.QueryLogMaxLen), 10), true, nil
 	case MilevaDBCheckMb4ValueInUTF8:
 		return BoolToIntStr(config.GetGlobalConfig().CheckMb4ValueInUTF8), true, nil
-	case MilevaDBCapturePlanBaseline:
-		return CapturePlanBaseline.GetVal(), true, nil
-	case MilevaDBFoundInPlanCache:
-		return BoolToIntStr(s.PrevFoundInPlanCache), true, nil
-	case MilevaDBEnableDefCauslectExecutionInfo:
-		return BoolToIntStr(config.GetGlobalConfig().EnableDefCauslectExecutionInfo), true, nil
+	case MilevaDBCaptureCausetBaseline:
+		return CaptureCausetBaseline.GetVal(), true, nil
+	case MilevaDBFoundInCausetCache:
+		return BoolToIntStr(s.PrevFoundInCausetCache), true, nil
+	case MilevaDBEnableDefCauslectInterDircutionInfo:
+		return BoolToIntStr(config.GetGlobalConfig().EnableDefCauslectInterDircutionInfo), true, nil
 	}
 	sVal, ok := s.GetSystemVar(key)
 	if ok {
@@ -314,7 +314,7 @@ func CheckDeprecationSetSystemVar(s *StochastikVars, name string) {
 	case MilevaDBIndexLookupConcurrency, MilevaDBIndexLookupJoinConcurrency,
 		MilevaDBHashJoinConcurrency, MilevaDBHashAggPartialConcurrency, MilevaDBHashAggFinalConcurrency,
 		MilevaDBProjectionConcurrency, MilevaDBWindowConcurrency:
-		s.StmtCtx.AppendWarning(errWarnDeprecatedSyntax.FastGenByArgs(name, MilevaDBExecutorConcurrency))
+		s.StmtCtx.AppendWarning(errWarnDeprecatedSyntax.FastGenByArgs(name, MilevaDBInterlockingDirectorateConcurrency))
 	case MilevaDBMemQuotaHashJoin, MilevaDBMemQuotaMergeJoin,
 		MilevaDBMemQuotaSort, MilevaDBMemQuotaTopn,
 		MilevaDBMemQuotaIndexLookupReader, MilevaDBMemQuotaIndexLookupJoin,
@@ -465,11 +465,11 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 	case MilevaDBSkipUTF8Check, MilevaDBSkipASCIICheck, MilevaDBOptAggPushDown,
 		MilevaDBOptDistinctAggPushDown, MilevaDBOptInSubqToJoinAnPosetDagg, MilevaDBEnableFastAnalyze,
 		MilevaDBBatchInsert, MilevaDBDisableTxnAutoRetry, MilevaDBEnableStreaming, MilevaDBEnableChunkRPC,
-		MilevaDBBatchDelete, MilevaDBBatchCommit, MilevaDBEnableCascadesPlanner, MilevaDBEnableWindowFunction, MilevaDBPProfALLEGROSQLCPU,
+		MilevaDBBatchDelete, MilevaDBBatchCommit, MilevaDBEnableCascadesCausetAppend, MilevaDBEnableWindowFunction, MilevaDBPProfALLEGROSQLCPU,
 		MilevaDBLowResolutionTSO, MilevaDBEnableIndexMerge, MilevaDBEnableNoopFuncs,
-		MilevaDBCheckMb4ValueInUTF8, MilevaDBEnableSlowLog, MilevaDBRecordPlanInSlowLog,
+		MilevaDBCheckMb4ValueInUTF8, MilevaDBEnableSlowLog, MilevaDBRecordCausetInSlowLog,
 		MilevaDBScatterRegion, MilevaDBGeneralLog, MilevaDBConstraintCheckInPlace, MilevaDBEnableVectorizedExpression,
-		MilevaDBFoundInPlanCache, MilevaDBEnableDefCauslectExecutionInfo, MilevaDBAllowAutoRandExplicitInsert,
+		MilevaDBFoundInCausetCache, MilevaDBEnableDefCauslectInterDircutionInfo, MilevaDBAllowAutoRandExplicitInsert,
 		MilevaDBEnableClusteredIndex, MilevaDBEnableTelemetry, MilevaDBEnableChangeDeferredCausetType, MilevaDBEnableAmendPessimisticTxn:
 		fallthrough
 	case GeneralLog, AvoidTemporalUpgrade, BigBlocks, CheckProxyUsers, LogBin,
@@ -513,7 +513,7 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 			}
 		}
 		return value, ErrWrongValueForVar.GenWithStackByArgs(name, value)
-	case MaxExecutionTime:
+	case MaxInterDircutionTime:
 		return checkUInt64SystemVar(name, value, 0, math.MaxUint64, vars)
 	case ThreadPoolSize:
 		return checkUInt64SystemVar(name, value, 1, 64, vars)
@@ -547,7 +547,7 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 			return value, ErrWrongValueForVar.GenWithStackByArgs(name, value)
 		}
 		return value, nil
-	case MilevaDBExecutorConcurrency,
+	case MilevaDBInterlockingDirectorateConcurrency,
 		MilevaDBDistALLEGROSQLScanConcurrency,
 		MilevaDBIndexSerialScanConcurrency,
 		MilevaDBIndexJoinBatchSize,
@@ -623,13 +623,13 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 		MilevaDBRetryLimit,
 		MilevaDBSlowLogThreshold,
 		MilevaDBQueryLogMaxLen,
-		MilevaDBEvolvePlanTaskMaxTime:
+		MilevaDBEvolveCausetTaskMaxTime:
 		_, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return value, ErrWrongValueForVar.GenWithStackByArgs(name)
 		}
 		return value, nil
-	case MilevaDBAutoAnalyzeStartTime, MilevaDBAutoAnalyzeEndTime, MilevaDBEvolvePlanTaskStartTime, MilevaDBEvolvePlanTaskEndTime:
+	case MilevaDBAutoAnalyzeStartTime, MilevaDBAutoAnalyzeEndTime, MilevaDBEvolveCausetTaskStartTime, MilevaDBEvolveCausetTaskEndTime:
 		v, err := setDayTime(vars, value)
 		if err != nil {
 			return "", err
@@ -730,7 +730,7 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 		if !PartitionPruneMode(value).Valid() {
 			return value, ErrWrongTypeForVar.GenWithStackByArgs(name)
 		}
-	case MilevaDBAllowRemoveAutoInc, MilevaDBUsePlanBaselines, MilevaDBEvolvePlanBaselines, MilevaDBEnableParallelApply:
+	case MilevaDBAllowRemoveAutoInc, MilevaDBUseCausetBaselines, MilevaDBEvolveCausetBaselines, MilevaDBEnableParallelApply:
 		switch {
 		case strings.EqualFold(value, "ON") || value == "1":
 			return "on", nil
@@ -738,7 +738,7 @@ func ValidateSetSystemVar(vars *StochastikVars, name string, value string, scope
 			return "off", nil
 		}
 		return value, ErrWrongValueForVar.GenWithStackByArgs(name, value)
-	case MilevaDBCapturePlanBaseline:
+	case MilevaDBCaptureCausetBaseline:
 		switch {
 		case strings.EqualFold(value, "ON") || value == "1":
 			return "on", nil

@@ -87,9 +87,9 @@ func (*testSuite) TestSchemaValidator(c *C) {
 
 	// Make sure newItem's version is greater than currVer.
 	newItem = getGreaterVersionItem(c, lease, leaseGrantCh, currVer)
-	// UFIDelate current schemaReplicant version to newItem's version and the delta block IDs is 1, 2, 3.
+	// UFIDelate current schemaReplicant version to newItem's version and the delta causet IDs is 1, 2, 3.
 	validator.UFIDelate(ts, currVer, newItem.schemaVer, &einsteindb.RelatedSchemaChange{PhyTblIDS: []int64{1, 2, 3}, CausetActionTypes: []uint64{1, 2, 3}})
-	// Make sure the uFIDelated block IDs don't be covered with the same schemaReplicant version.
+	// Make sure the uFIDelated causet IDs don't be covered with the same schemaReplicant version.
 	validator.UFIDelate(ts, newItem.schemaVer, newItem.schemaVer, nil)
 	_, isBlocksChanged = validator.isRelatedBlocksChanged(currVer, nil)
 	c.Assert(isBlocksChanged, IsFalse)

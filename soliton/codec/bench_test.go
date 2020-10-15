@@ -82,8 +82,8 @@ func BenchmarkDecodeOneToChunk(b *testing.B) {
 	raw = EncodeBytes(raw, str.GetBytes())
 	intType := types.NewFieldType(allegrosql.TypeLonglong)
 	b.ResetTimer()
-	decoder := NewDecoder(chunk.New([]*types.FieldType{intType}, 32, 32), nil)
+	causetDecoder := NewCausetDecoder(chunk.New([]*types.FieldType{intType}, 32, 32), nil)
 	for i := 0; i < b.N; i++ {
-		decoder.DecodeOne(raw, 0, intType)
+		causetDecoder.DecodeOne(raw, 0, intType)
 	}
 }

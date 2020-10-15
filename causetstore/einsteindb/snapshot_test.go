@@ -199,8 +199,8 @@ func (s *testSnapshotSuite) TestWriteConflictPrettyFormat(c *C) {
 	}
 	expectedStr = "[ekv:9007]Write conflict, " +
 		"txnStartTS=399402937522847774, conflictStartTS=399402937719455772, conflictCommitTS=399402937719455773, " +
-		"key={metaKey=true, key=EDB:56, field=TID:108} " +
-		"primary={metaKey=true, key=EDB:56, field=TID:108} " +
+		"key={spacetimeKey=true, key=EDB:56, field=TID:108} " +
+		"primary={spacetimeKey=true, key=EDB:56, field=TID:108} " +
 		ekv.TxnRetryableMark
 	c.Assert(newWriteConflictError(conflict).Error(), Equals, expectedStr)
 }
@@ -259,7 +259,7 @@ func (s *testSnapshotSuite) TestPointGetSkipTxnLock(c *C) {
 	snapshot := newEinsteinDBSnapshot(s.causetstore, ekv.MaxVersion, 0)
 	start := time.Now()
 	c.Assert(committer.primary(), BytesEquals, []byte(x))
-	// Point get secondary key. Shouldn't be blocked by the lock and read old data.
+	// Point get secondary key. Shouldn't be blocked by the dagger and read old data.
 	_, err = snapshot.Get(ctx, y)
 	c.Assert(ekv.IsErrNotFound(errors.Trace(err)), IsTrue)
 	c.Assert(time.Since(start), Less, 500*time.Millisecond)

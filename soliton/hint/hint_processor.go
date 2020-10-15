@@ -42,7 +42,7 @@ type HintsSet struct {
 	indexHints [][]*ast.IndexHint          // Slice offset is the traversal order of `BlockName` in the ast.
 }
 
-// GetFirstBlockHints gets the first block hints.
+// GetFirstBlockHints gets the first causet hints.
 func (hs *HintsSet) GetFirstBlockHints() []*ast.BlockOptimizerHint {
 	if len(hs.blockHints) > 0 {
 		return hs.blockHints[0]
@@ -50,7 +50,7 @@ func (hs *HintsSet) GetFirstBlockHints() []*ast.BlockOptimizerHint {
 	return nil
 }
 
-// ContainBlockHint checks whether the block hint set contains a hint.
+// ContainBlockHint checks whether the causet hint set contains a hint.
 func (hs *HintsSet) ContainBlockHint(hint string) bool {
 	for _, blockHintsForBlock := range hs.blockHints {
 		for _, blockHint := range blockHintsForBlock {
@@ -62,7 +62,7 @@ func (hs *HintsSet) ContainBlockHint(hint string) bool {
 	return false
 }
 
-// ExtractBlockHintsFromStmtNode extracts block hints from this node.
+// ExtractBlockHintsFromStmtNode extracts causet hints from this node.
 func ExtractBlockHintsFromStmtNode(node ast.Node, sctx stochastikctx.Context) []*ast.BlockOptimizerHint {
 	switch x := node.(type) {
 	case *ast.SelectStmt:
@@ -214,7 +214,7 @@ func (hp *hintProcessor) Leave(in ast.Node) (ast.Node, bool) {
 	return in, true
 }
 
-// DefCauslectHint defCauslects hints for a statement.
+// DefCauslectHint defCauslects hints for a memex.
 func DefCauslectHint(in ast.StmtNode) *HintsSet {
 	hp := hintProcessor{HintsSet: &HintsSet{blockHints: make([][]*ast.BlockOptimizerHint, 0, 4), indexHints: make([][]*ast.IndexHint, 0, 4)}}
 	in.Accept(&hp)
@@ -235,7 +235,7 @@ func ParseHintsSet(p *BerolinaSQL.BerolinaSQL, allegrosql, charset, defCauslatio
 		return nil, nil, err
 	}
 	if len(stmtNodes) != 1 {
-		return nil, nil, errors.New(fmt.Sprintf("bind_sql must be a single statement: %s", allegrosql))
+		return nil, nil, errors.New(fmt.Sprintf("bind_sql must be a single memex: %s", allegrosql))
 	}
 	hs := DefCauslectHint(stmtNodes[0])
 	processor := &BlockHintProcessor{}
@@ -249,7 +249,7 @@ func ParseHintsSet(p *BerolinaSQL.BerolinaSQL, allegrosql, charset, defCauslatio
 			offset := processor.GetHintOffset(tblHint.QBName, TypeSelect, i+1)
 			if offset < 0 || !processor.checkBlockQBName(tblHint.Blocks, TypeSelect) {
 				hintStr := RestoreBlockOptimizerHint(tblHint)
-				return nil, nil, errors.New(fmt.Sprintf("Unknown query block name in hint %s", hintStr))
+				return nil, nil, errors.New(fmt.Sprintf("Unknown query causet name in hint %s", hintStr))
 			}
 			tblHint.QBName = GenerateQBName(TypeSelect, offset)
 			for i, tbl := range tblHint.Blocks {
@@ -279,10 +279,10 @@ func extractHintWarns(warns []error) []error {
 	return nil
 }
 
-// BlockHintProcessor processes hints at different level of allegrosql statement.
+// BlockHintProcessor processes hints at different level of allegrosql memex.
 type BlockHintProcessor struct {
-	QbNameMap        map[string]int                    // Map from query block name to select stmt offset.
-	QbHints          map[int][]*ast.BlockOptimizerHint // Group all hints at same query block.
+	QbNameMap        map[string]int                    // Map from query causet name to select stmt offset.
+	QbHints          map[int][]*ast.BlockOptimizerHint // Group all hints at same query causet.
 	Ctx              stochastikctx.Context
 	selectStmtOffset int
 }
@@ -314,7 +314,7 @@ func (p *BlockHintProcessor) Leave(in ast.Node) (ast.Node, bool) {
 
 const hintQBName = "qb_name"
 
-// checkQueryBlockHints checks the validity of query blocks and records the map of query block name to select offset.
+// checkQueryBlockHints checks the validity of query blocks and records the map of query causet name to select offset.
 func (p *BlockHintProcessor) checkQueryBlockHints(hints []*ast.BlockOptimizerHint, offset int) {
 	var qbName string
 	for _, hint := range hints {
@@ -323,7 +323,7 @@ func (p *BlockHintProcessor) checkQueryBlockHints(hints []*ast.BlockOptimizerHin
 		}
 		if qbName != "" {
 			if p.Ctx != nil {
-				p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("There are more than two query names in same query block,, using the first one %s", qbName)))
+				p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("There are more than two query names in same query causet,, using the first one %s", qbName)))
 			}
 		} else {
 			qbName = hint.QBName.L
@@ -337,7 +337,7 @@ func (p *BlockHintProcessor) checkQueryBlockHints(hints []*ast.BlockOptimizerHin
 	}
 	if _, ok := p.QbNameMap[qbName]; ok {
 		if p.Ctx != nil {
-			p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("Duplicate query block name %s, only the first one is effective", qbName)))
+			p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("Duplicate query causet name %s, only the first one is effective", qbName)))
 		}
 	} else {
 		p.QbNameMap[qbName] = offset
@@ -362,8 +362,8 @@ const (
 	TypeSelect
 )
 
-// getBlockName finds the offset of query block name. It use 0 as offset for top level uFIDelate or delete,
-// -1 for invalid block name.
+// getBlockName finds the offset of query causet name. It use 0 as offset for top level uFIDelate or delete,
+// -1 for invalid causet name.
 func (p *BlockHintProcessor) getBlockOffset(blockName perceptron.CIStr, nodeType NodeType) int {
 	if p.QbNameMap != nil {
 		level, ok := p.QbNameMap[blockName.L]
@@ -371,7 +371,7 @@ func (p *BlockHintProcessor) getBlockOffset(blockName perceptron.CIStr, nodeType
 			return level
 		}
 	}
-	// Handle the default query block name.
+	// Handle the default query causet name.
 	if nodeType == TypeUFIDelate && blockName.L == defaultUFIDelateBlockName {
 		return 0
 	}
@@ -398,8 +398,8 @@ func (p *BlockHintProcessor) GetHintOffset(qbName perceptron.CIStr, nodeType Nod
 }
 
 func (p *BlockHintProcessor) checkBlockQBName(blocks []ast.HintBlock, nodeType NodeType) bool {
-	for _, block := range blocks {
-		if block.QBName.L != "" && p.getBlockOffset(block.QBName, nodeType) < 0 {
+	for _, causet := range blocks {
+		if causet.QBName.L != "" && p.getBlockOffset(causet.QBName, nodeType) < 0 {
 			return false
 		}
 	}
@@ -418,7 +418,7 @@ func (p *BlockHintProcessor) GetCurrentStmtHints(hints []*ast.BlockOptimizerHint
 		offset := p.GetHintOffset(hint.QBName, nodeType, currentOffset)
 		if offset < 0 || !p.checkBlockQBName(hint.Blocks, nodeType) {
 			hintStr := RestoreBlockOptimizerHint(hint)
-			p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("Hint %s is ignored due to unknown query block name", hintStr)))
+			p.Ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.New(fmt.Sprintf("Hint %s is ignored due to unknown query causet name", hintStr)))
 			continue
 		}
 		p.QbHints[offset] = append(p.QbHints[offset], hint)

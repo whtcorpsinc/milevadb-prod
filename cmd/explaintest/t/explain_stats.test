@@ -1,5 +1,5 @@
-drop block if exists t;
-create block t (id int, c1 timestamp);
+drop causet if exists t;
+create causet t (id int, c1 timestamp);
 load stats 's/explain_stats_t.json';
 show columns from t;
 explain t;

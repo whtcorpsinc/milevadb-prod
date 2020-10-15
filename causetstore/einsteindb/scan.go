@@ -115,9 +115,9 @@ func (s *Scanner) Next() error {
 			s.Close()
 			return nil
 		}
-		// Try to resolve the lock
+		// Try to resolve the dagger
 		if current.GetError() != nil {
-			// 'current' would be modified if the lock being resolved
+			// 'current' would be modified if the dagger being resolved
 			if err := s.resolveCurrentLock(bo, current); err != nil {
 				s.Close()
 				return errors.Trace(err)
@@ -239,11 +239,11 @@ func (s *Scanner) getData(bo *Backoffer) error {
 		// Check if kvPair contains error, it should be a Lock.
 		for _, pair := range kvPairs {
 			if keyErr := pair.GetError(); keyErr != nil && len(pair.Key) == 0 {
-				lock, err := extractLockFromKeyErr(keyErr)
+				dagger, err := extractLockFromKeyErr(keyErr)
 				if err != nil {
 					return errors.Trace(err)
 				}
-				pair.Key = lock.Key
+				pair.Key = dagger.Key
 			}
 		}
 

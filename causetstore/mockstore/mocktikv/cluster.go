@@ -23,7 +23,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	fidel "github.com/einsteindb/fidel/client"
@@ -31,7 +31,7 @@ import (
 )
 
 // Cluster simulates a EinsteinDB cluster. It focuses on management and the change of
-// meta data. A Cluster mainly includes following 3 HoTTs of meta data:
+// spacetime data. A Cluster mainly includes following 3 HoTTs of spacetime data:
 // 1) Region: A Region is a fragment of EinsteinDB's data whose range is [start, end).
 //    The data of a Region is duplicated to multiple Peers and distributed in
 //    multiple Stores.
@@ -104,25 +104,25 @@ func (c *Cluster) GetAllRegions() []*Region {
 	return regions
 }
 
-// GetStore returns a CausetStore's meta.
-func (c *Cluster) GetStore(storeID uint64) *metapb.CausetStore {
+// GetStore returns a CausetStore's spacetime.
+func (c *Cluster) GetStore(storeID uint64) *spacetimepb.CausetStore {
 	c.RLock()
 	defer c.RUnlock()
 
 	if causetstore := c.stores[storeID]; causetstore != nil {
-		return proto.Clone(causetstore.meta).(*metapb.CausetStore)
+		return proto.Clone(causetstore.spacetime).(*spacetimepb.CausetStore)
 	}
 	return nil
 }
 
-// GetAllStores returns all Stores' meta.
-func (c *Cluster) GetAllStores() []*metapb.CausetStore {
+// GetAllStores returns all Stores' spacetime.
+func (c *Cluster) GetAllStores() []*spacetimepb.CausetStore {
 	c.RLock()
 	defer c.RUnlock()
 
-	stores := make([]*metapb.CausetStore, 0, len(c.stores))
+	stores := make([]*spacetimepb.CausetStore, 0, len(c.stores))
 	for _, causetstore := range c.stores {
-		stores = append(stores, proto.Clone(causetstore.meta).(*metapb.CausetStore))
+		stores = append(stores, proto.Clone(causetstore.spacetime).(*spacetimepb.CausetStore))
 	}
 	return stores
 }
@@ -133,7 +133,7 @@ func (c *Cluster) StopStore(storeID uint64) {
 	defer c.Unlock()
 
 	if causetstore := c.stores[storeID]; causetstore != nil {
-		causetstore.meta.State = metapb.StoreState_Offline
+		causetstore.spacetime.State = spacetimepb.StoreState_Offline
 	}
 }
 
@@ -143,7 +143,7 @@ func (c *Cluster) StartStore(storeID uint64) {
 	defer c.Unlock()
 
 	if causetstore := c.stores[storeID]; causetstore != nil {
-		causetstore.meta.State = metapb.StoreState_Up
+		causetstore.spacetime.State = spacetimepb.StoreState_Up
 	}
 }
 
@@ -168,21 +168,21 @@ func (c *Cluster) UnCancelStore(storeID uint64) {
 	}
 }
 
-// GetStoreByAddr returns a CausetStore's meta by an addr.
-func (c *Cluster) GetStoreByAddr(addr string) *metapb.CausetStore {
+// GetStoreByAddr returns a CausetStore's spacetime by an addr.
+func (c *Cluster) GetStoreByAddr(addr string) *spacetimepb.CausetStore {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, s := range c.stores {
-		if s.meta.GetAddress() == addr {
-			return proto.Clone(s.meta).(*metapb.CausetStore)
+		if s.spacetime.GetAddress() == addr {
+			return proto.Clone(s.spacetime).(*spacetimepb.CausetStore)
 		}
 	}
 	return nil
 }
 
-// GetAndCheckStoreByAddr checks and returns a CausetStore's meta by an addr
-func (c *Cluster) GetAndCheckStoreByAddr(addr string) (*metapb.CausetStore, error) {
+// GetAndCheckStoreByAddr checks and returns a CausetStore's spacetime by an addr
+func (c *Cluster) GetAndCheckStoreByAddr(addr string) (*spacetimepb.CausetStore, error) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -190,8 +190,8 @@ func (c *Cluster) GetAndCheckStoreByAddr(addr string) (*metapb.CausetStore, erro
 		if s.cancel {
 			return nil, context.Canceled
 		}
-		if s.meta.GetAddress() == addr {
-			return proto.Clone(s.meta).(*metapb.CausetStore), nil
+		if s.spacetime.GetAddress() == addr {
+			return proto.Clone(s.spacetime).(*spacetimepb.CausetStore), nil
 		}
 	}
 	return nil, nil
@@ -214,14 +214,14 @@ func (c *Cluster) RemoveStore(storeID uint64) {
 }
 
 // UFIDelateStoreAddr uFIDelates causetstore address for cluster.
-func (c *Cluster) UFIDelateStoreAddr(storeID uint64, addr string, labels ...*metapb.StoreLabel) {
+func (c *Cluster) UFIDelateStoreAddr(storeID uint64, addr string, labels ...*spacetimepb.StoreLabel) {
 	c.Lock()
 	defer c.Unlock()
 	c.stores[storeID] = newStore(storeID, addr, labels...)
 }
 
-// GetRegion returns a Region's meta and leader ID.
-func (c *Cluster) GetRegion(regionID uint64) (*metapb.Region, uint64) {
+// GetRegion returns a Region's spacetime and leader ID.
+func (c *Cluster) GetRegion(regionID uint64) (*spacetimepb.Region, uint64) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -229,24 +229,24 @@ func (c *Cluster) GetRegion(regionID uint64) (*metapb.Region, uint64) {
 	if r == nil {
 		return nil, 0
 	}
-	return proto.Clone(r.Meta).(*metapb.Region), r.leader
+	return proto.Clone(r.Meta).(*spacetimepb.Region), r.leader
 }
 
 // GetRegionByKey returns the Region and its leader whose range contains the key.
-func (c *Cluster) GetRegionByKey(key []byte) (*metapb.Region, *metapb.Peer) {
+func (c *Cluster) GetRegionByKey(key []byte) (*spacetimepb.Region, *spacetimepb.Peer) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, r := range c.regions {
 		if regionContains(r.Meta.StartKey, r.Meta.EndKey, key) {
-			return proto.Clone(r.Meta).(*metapb.Region), proto.Clone(r.leaderPeer()).(*metapb.Peer)
+			return proto.Clone(r.Meta).(*spacetimepb.Region), proto.Clone(r.leaderPeer()).(*spacetimepb.Peer)
 		}
 	}
 	return nil, nil
 }
 
 // GetPrevRegionByKey returns the previous Region and its leader whose range contains the key.
-func (c *Cluster) GetPrevRegionByKey(key []byte) (*metapb.Region, *metapb.Peer) {
+func (c *Cluster) GetPrevRegionByKey(key []byte) (*spacetimepb.Region, *spacetimepb.Peer) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -256,20 +256,20 @@ func (c *Cluster) GetPrevRegionByKey(key []byte) (*metapb.Region, *metapb.Peer) 
 	}
 	for _, r := range c.regions {
 		if bytes.Equal(r.Meta.EndKey, currentRegion.StartKey) {
-			return proto.Clone(r.Meta).(*metapb.Region), proto.Clone(r.leaderPeer()).(*metapb.Peer)
+			return proto.Clone(r.Meta).(*spacetimepb.Region), proto.Clone(r.leaderPeer()).(*spacetimepb.Peer)
 		}
 	}
 	return nil, nil
 }
 
 // GetRegionByID returns the Region and its leader whose ID is regionID.
-func (c *Cluster) GetRegionByID(regionID uint64) (*metapb.Region, *metapb.Peer) {
+func (c *Cluster) GetRegionByID(regionID uint64) (*spacetimepb.Region, *spacetimepb.Peer) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, r := range c.regions {
 		if r.Meta.GetId() == regionID {
-			return proto.Clone(r.Meta).(*metapb.Region), proto.Clone(r.leaderPeer()).(*metapb.Peer)
+			return proto.Clone(r.Meta).(*spacetimepb.Region), proto.Clone(r.leaderPeer()).(*spacetimepb.Peer)
 		}
 	}
 	return nil, nil
@@ -312,13 +312,13 @@ func (c *Cluster) ScanRegions(startKey, endKey []byte, limit int) []*fidel.Regio
 	for _, region := range regions {
 		leader := region.leaderPeer()
 		if leader == nil {
-			leader = &metapb.Peer{}
+			leader = &spacetimepb.Peer{}
 		} else {
-			leader = proto.Clone(leader).(*metapb.Peer)
+			leader = proto.Clone(leader).(*spacetimepb.Peer)
 		}
 
 		r := &fidel.Region{
-			Meta:   proto.Clone(region.Meta).(*metapb.Region),
+			Meta:   proto.Clone(region.Meta).(*spacetimepb.Region),
 			Leader: leader,
 		}
 		result = append(result, r)
@@ -377,15 +377,15 @@ func (c *Cluster) Split(regionID, newRegionID uint64, key []byte, peerIDs []uint
 }
 
 // SplitRaw splits a Region at the key (not encoded) and creates new Region.
-func (c *Cluster) SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *metapb.Region {
+func (c *Cluster) SplitRaw(regionID, newRegionID uint64, rawKey []byte, peerIDs []uint64, leaderPeerID uint64) *spacetimepb.Region {
 	c.Lock()
 	defer c.Unlock()
 
 	newRegion := c.regions[regionID].split(newRegionID, rawKey, peerIDs, leaderPeerID)
 	c.regions[newRegionID] = newRegion
-	// The mockeinsteindb should return a deep copy of meta info to avoid data race
-	meta := proto.Clone(newRegion.Meta)
-	return meta.(*metapb.Region)
+	// The mockeinsteindb should return a deep copy of spacetime info to avoid data race
+	spacetime := proto.Clone(newRegion.Meta)
+	return spacetime.(*spacetimepb.Region)
 }
 
 // Merge merges 2 regions, their key ranges should be adjacent.
@@ -397,7 +397,7 @@ func (c *Cluster) Merge(regionID1, regionID2 uint64) {
 	delete(c.regions, regionID2)
 }
 
-// SplitTable evenly splits the data in block into count regions.
+// SplitTable evenly splits the data in causet into count regions.
 // Only works for single causetstore.
 func (c *Cluster) SplitTable(blockID int64, count int) {
 	blockStart := blockcodec.GenTableRecordPrefix(blockID)
@@ -501,10 +501,10 @@ func (c *Cluster) evacuateOldRegionRanges(start, end MvccKey) {
 			endCmp = 1
 		}
 		if startCmp >= 0 && endCmp <= 0 {
-			// The region is within block data, it will be replaced by new regions.
+			// The region is within causet data, it will be replaced by new regions.
 			delete(c.regions, oldRegion.Meta.Id)
 		} else if startCmp < 0 && endCmp > 0 {
-			// A single Region covers block data, split into two regions that do not overlap block data.
+			// A single Region covers causet data, split into two regions that do not overlap causet data.
 			oldEnd := oldRegion.Meta.EndKey
 			oldRegion.uFIDelateKeyRange(oldRegion.Meta.StartKey, start)
 			peerID := c.allocID()
@@ -543,14 +543,14 @@ func (c *Cluster) getRegionsCoverRange(start, end MvccKey) []*Region {
 	return regions
 }
 
-// Region is the Region meta data.
+// Region is the Region spacetime data.
 type Region struct {
-	Meta   *metapb.Region
+	Meta   *spacetimepb.Region
 	leader uint64
 }
 
-func newPeerMeta(peerID, storeID uint64) *metapb.Peer {
-	return &metapb.Peer{
+func newPeerMeta(peerID, storeID uint64) *spacetimepb.Peer {
+	return &spacetimepb.Peer{
 		Id:      peerID,
 		StoreId: storeID,
 	}
@@ -560,16 +560,16 @@ func newRegion(regionID uint64, storeIDs, peerIDs []uint64, leaderPeerID uint64)
 	if len(storeIDs) != len(peerIDs) {
 		panic("len(storeIDs) != len(peerIds)")
 	}
-	peers := make([]*metapb.Peer, 0, len(storeIDs))
+	peers := make([]*spacetimepb.Peer, 0, len(storeIDs))
 	for i := range storeIDs {
 		peers = append(peers, newPeerMeta(peerIDs[i], storeIDs[i]))
 	}
-	meta := &metapb.Region{
+	spacetime := &spacetimepb.Region{
 		Id:    regionID,
 		Peers: peers,
 	}
 	return &Region{
-		Meta:   meta,
+		Meta:   spacetime,
 		leader: leaderPeerID,
 	}
 }
@@ -596,7 +596,7 @@ func (r *Region) changeLeader(leaderID uint64) {
 	r.leader = leaderID
 }
 
-func (r *Region) leaderPeer() *metapb.Peer {
+func (r *Region) leaderPeer() *spacetimepb.Peer {
 	for _, p := range r.Meta.Peers {
 		if p.GetId() == r.leader {
 			return p
@@ -607,7 +607,7 @@ func (r *Region) leaderPeer() *metapb.Peer {
 
 func (r *Region) split(newRegionID uint64, key MvccKey, peerIDs []uint64, leaderPeerID uint64) *Region {
 	if len(r.Meta.Peers) != len(peerIDs) {
-		panic("len(r.meta.Peers) != len(peerIDs)")
+		panic("len(r.spacetime.Peers) != len(peerIDs)")
 	}
 	storeIDs := make([]uint64, 0, len(r.Meta.Peers))
 	for _, peer := range r.Meta.Peers {
@@ -631,29 +631,29 @@ func (r *Region) uFIDelateKeyRange(start, end MvccKey) {
 }
 
 func (r *Region) incConfVer() {
-	r.Meta.RegionEpoch = &metapb.RegionEpoch{
+	r.Meta.RegionEpoch = &spacetimepb.RegionEpoch{
 		ConfVer: r.Meta.GetRegionEpoch().GetConfVer() + 1,
 		Version: r.Meta.GetRegionEpoch().GetVersion(),
 	}
 }
 
 func (r *Region) incVersion() {
-	r.Meta.RegionEpoch = &metapb.RegionEpoch{
+	r.Meta.RegionEpoch = &spacetimepb.RegionEpoch{
 		ConfVer: r.Meta.GetRegionEpoch().GetConfVer(),
 		Version: r.Meta.GetRegionEpoch().GetVersion() + 1,
 	}
 }
 
-// CausetStore is the CausetStore's meta data.
+// CausetStore is the CausetStore's spacetime data.
 type CausetStore struct {
-	meta       *metapb.CausetStore
+	spacetime       *spacetimepb.CausetStore
 	cancel     bool // return context.Cancelled error when cancel is true.
 	tokenCount atomic.Int64
 }
 
-func newStore(storeID uint64, addr string, labels ...*metapb.StoreLabel) *CausetStore {
+func newStore(storeID uint64, addr string, labels ...*spacetimepb.StoreLabel) *CausetStore {
 	return &CausetStore{
-		meta: &metapb.CausetStore{
+		spacetime: &spacetimepb.CausetStore{
 			Id:      storeID,
 			Address: addr,
 			Labels:  labels,

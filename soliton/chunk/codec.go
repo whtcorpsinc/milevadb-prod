@@ -191,7 +191,7 @@ func GetFixedLen(defCausType *types.FieldType) int {
 }
 
 // EstimateTypeWidth estimates the average width of values of the type.
-// This is used by the planner, which doesn't require absolutely correct results;
+// This is used by the causet, which doesn't require absolutely correct results;
 // it's OK (and expected) to guess if we don't know for sure.
 //
 // mostly study from https://github.com/postgres/postgres/blob/REL_12_STABLE/src/backend/utils/cache/lsyscache.c#L2356
@@ -227,9 +227,9 @@ func init() {
 	}
 }
 
-// Decoder decodes the data returned from the interlock and stores the result in Chunk.
-// How Decoder works:
-// 1. Initialization phase: Decode a whole input byte slice to Decoder.intermChk(intermediate chunk) using Codec.Decode.
+// CausetDecoder decodes the data returned from the interlock and stores the result in Chunk.
+// How CausetDecoder works:
+// 1. Initialization phase: Decode a whole input byte slice to CausetDecoder.intermChk(intermediate chunk) using Codec.Decode.
 //    intermChk is introduced to simplify the implementation of decode phase. This phase uses pointer operations with
 //    less CPU and memory cost.
 // 2. Decode phase:
@@ -240,19 +240,19 @@ func init() {
 //        offsets according to descDefCaus.offsets[destDefCaus.length]-srcDefCaus.offsets[0].
 //    2.3 Append srcDefCaus.nullBitMap to destDefCaus.nullBitMap.
 // 3. Go to step 1 when the input byte slice is consumed.
-type Decoder struct {
+type CausetDecoder struct {
 	intermChk    *Chunk
 	codec        *Codec
 	remainedRows int
 }
 
-// NewDecoder creates a new Decoder object for decode a Chunk.
-func NewDecoder(chk *Chunk, defCausTypes []*types.FieldType) *Decoder {
-	return &Decoder{intermChk: chk, codec: NewCodec(defCausTypes), remainedRows: 0}
+// NewCausetDecoder creates a new CausetDecoder object for decode a Chunk.
+func NewCausetDecoder(chk *Chunk, defCausTypes []*types.FieldType) *CausetDecoder {
+	return &CausetDecoder{intermChk: chk, codec: NewCodec(defCausTypes), remainedRows: 0}
 }
 
-// Decode decodes multiple rows of Decoder.intermChk and stores the result in chk.
-func (c *Decoder) Decode(chk *Chunk) {
+// Decode decodes multiple rows of CausetDecoder.intermChk and stores the result in chk.
+func (c *CausetDecoder) Decode(chk *Chunk) {
 	requiredRows := chk.RequiredRows() - chk.NumRows()
 	// Set the requiredRows to a multiple of 8.
 	requiredRows = (requiredRows + 7) >> 3 << 3
@@ -265,28 +265,28 @@ func (c *Decoder) Decode(chk *Chunk) {
 	c.remainedRows -= requiredRows
 }
 
-// Reset decodes data and causetstore the result in Decoder.intermChk. This decode phase uses pointer operations with less
+// Reset decodes data and causetstore the result in CausetDecoder.intermChk. This decode phase uses pointer operations with less
 // CPU and memory costs.
-func (c *Decoder) Reset(data []byte) {
+func (c *CausetDecoder) Reset(data []byte) {
 	c.codec.DecodeToChunk(data, c.intermChk)
 	c.remainedRows = c.intermChk.NumRows()
 }
 
-// IsFinished indicates whether Decoder.intermChk has been dried up.
-func (c *Decoder) IsFinished() bool {
+// IsFinished indicates whether CausetDecoder.intermChk has been dried up.
+func (c *CausetDecoder) IsFinished() bool {
 	return c.remainedRows == 0
 }
 
-// RemainedRows indicates Decoder.intermChk has remained rows.
-func (c *Decoder) RemainedRows() int {
+// RemainedRows indicates CausetDecoder.intermChk has remained rows.
+func (c *CausetDecoder) RemainedRows() int {
 	return c.remainedRows
 }
 
-// ReuseIntermChk swaps `Decoder.intermChk` with `chk` directly when `Decoder.intermChk.NumRows()` is no less
+// ReuseIntermChk swaps `CausetDecoder.intermChk` with `chk` directly when `CausetDecoder.intermChk.NumRows()` is no less
 // than `chk.requiredRows * factor` where `factor` is 0.8 now. This can avoid the overhead of appending the
-// data from `Decoder.intermChk` to `chk`. Moreover, the defCausumn.offsets needs to be further adjusted
+// data from `CausetDecoder.intermChk` to `chk`. Moreover, the defCausumn.offsets needs to be further adjusted
 // according to defCausumn.offset[0].
-func (c *Decoder) ReuseIntermChk(chk *Chunk) {
+func (c *CausetDecoder) ReuseIntermChk(chk *Chunk) {
 	for i, defCaus := range c.intermChk.defCausumns {
 		defCaus.length = c.remainedRows
 		elemLen := getFixedLen(c.codec.defCausTypes[i])
@@ -303,7 +303,7 @@ func (c *Decoder) ReuseIntermChk(chk *Chunk) {
 	c.remainedRows = 0
 }
 
-func (c *Decoder) decodeDeferredCauset(chk *Chunk, ordinal int, requiredRows int) {
+func (c *CausetDecoder) decodeDeferredCauset(chk *Chunk, ordinal int, requiredRows int) {
 	elemLen := getFixedLen(c.codec.defCausTypes[ordinal])
 	numDataBytes := int64(elemLen * requiredRows)
 	srcDefCaus := c.intermChk.defCausumns[ordinal]

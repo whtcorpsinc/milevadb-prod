@@ -35,9 +35,9 @@ import (
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/schemareplicant/perfschema"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"github.com/whtcorpsinc/milevadb/privilege/privileges"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
@@ -82,14 +82,14 @@ type Petri struct {
 
 // loadSchemaReplicant loads schemareplicant at startTS into handle, usedSchemaVersion is the currently used
 // schemareplicant version, if it is the same as the schemaReplicant version at startTS, we don't need to reload again.
-// It returns the latest schemaReplicant version, the changed block IDs, whether it's a full load and an error.
+// It returns the latest schemaReplicant version, the changed causet IDs, whether it's a full load and an error.
 func (do *Petri) loadSchemaReplicant(handle *schemareplicant.Handle, usedSchemaVersion int64,
 	startTS uint64) (neededSchemaVersion int64, change *einsteindb.RelatedSchemaChange, fullLoad bool, err error) {
 	snapshot, err := do.causetstore.GetSnapshot(ekv.NewVersion(startTS))
 	if err != nil {
 		return 0, nil, fullLoad, err
 	}
-	m := meta.NewSnapshotMeta(snapshot)
+	m := spacetime.NewSnapshotMeta(snapshot)
 	neededSchemaVersion, err = m.GetSchemaVersion()
 	if err != nil {
 		return 0, nil, fullLoad, err
@@ -152,7 +152,7 @@ func (do *Petri) loadSchemaReplicant(handle *schemareplicant.Handle, usedSchemaV
 	return neededSchemaVersion, nil, fullLoad, nil
 }
 
-func (do *Petri) fetchAllSchemasWithBlocks(m *meta.Meta) ([]*perceptron.DBInfo, error) {
+func (do *Petri) fetchAllSchemasWithBlocks(m *spacetime.Meta) ([]*perceptron.DBInfo, error) {
 	allSchemas, err := m.ListDatabases()
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (do *Petri) splitForConcurrentFetch(schemas []*perceptron.DBInfo) [][]*perc
 	return splitted
 }
 
-func (do *Petri) fetchSchemasWithBlocks(schemas []*perceptron.DBInfo, m *meta.Meta, done chan error) {
+func (do *Petri) fetchSchemasWithBlocks(schemas []*perceptron.DBInfo, m *spacetime.Meta, done chan error) {
 	for _, di := range schemas {
 		if di.State != perceptron.StatePublic {
 			// schemaReplicant is not public, can't be used outside.
@@ -214,7 +214,7 @@ func (do *Petri) fetchSchemasWithBlocks(schemas []*perceptron.DBInfo, m *meta.Me
 				continue
 			}
 			schemareplicant.ConvertCharsetDefCauslateToLowerCaseIfNeed(tbl)
-			// Check whether the block is in repair mode.
+			// Check whether the causet is in repair mode.
 			if petriutil.RepairInfo.InRepairMode() && petriutil.RepairInfo.CheckAndFetchRepairedBlock(di, tbl) {
 				continue
 			}
@@ -239,8 +239,8 @@ func isTooOldSchema(usedVersion, newVersion int64) bool {
 // tryLoadSchemaDiffs tries to only load latest schemaReplicant changes.
 // Return true if the schemaReplicant is loaded successfully.
 // Return false if the schemaReplicant can not be loaded by schemaReplicant diff, then we need to do full load.
-// The second returned value is the delta uFIDelated block and partition IDs.
-func (do *Petri) tryLoadSchemaDiffs(m *meta.Meta, usedVersion, newVersion int64) (bool, *einsteindb.RelatedSchemaChange, error) {
+// The second returned value is the delta uFIDelated causet and partition IDs.
+func (do *Petri) tryLoadSchemaDiffs(m *spacetime.Meta, usedVersion, newVersion int64) (bool, *einsteindb.RelatedSchemaChange, error) {
 	// If there isn't any used version, or used version is too old, we do full load.
 	// And when users use history read feature, we will set usedVersion to initialVersion, then full load is needed.
 	if isTooOldSchema(usedVersion, newVersion) {
@@ -306,13 +306,13 @@ func (do *Petri) GetSnapshotSchemaReplicant(snapshotTS uint64) (schemareplicant.
 	return snapHandle.Get(), nil
 }
 
-// GetSnapshotMeta gets a new snapshot meta at startTS.
-func (do *Petri) GetSnapshotMeta(startTS uint64) (*meta.Meta, error) {
+// GetSnapshotMeta gets a new snapshot spacetime at startTS.
+func (do *Petri) GetSnapshotMeta(startTS uint64) (*spacetime.Meta, error) {
 	snapshot, err := do.causetstore.GetSnapshot(ekv.NewVersion(startTS))
 	if err != nil {
 		return nil, err
 	}
-	return meta.NewSnapshotMeta(snapshot), nil
+	return spacetime.NewSnapshotMeta(snapshot), nil
 }
 
 // DBS gets DBS from petri.
@@ -540,7 +540,7 @@ func (do *Petri) loadSchemaInLoop(ctx context.Context, lease time.Duration) {
 			// The etcd is responsible for schemaReplicant synchronization, we should ensure there is at most two different schemaReplicant version
 			// in the MilevaDB cluster, to make the data/schemaReplicant be consistent. If we lost connection/stochastik to etcd, the cluster
 			// will treats this MilevaDB as a down instance, and etcd will remove the key of `/milevadb/dbs/all_schema_versions/milevadb-id`.
-			// Say the schemaReplicant version now is 1, the owner is changing the schemaReplicant version to 2, it will not wait for this down MilevaDB syncing the schemaReplicant,
+			// Say the schemaReplicant version now is 1, the tenant is changing the schemaReplicant version to 2, it will not wait for this down MilevaDB syncing the schemaReplicant,
 			// then continue to change the MilevaDB schemaReplicant to version 3. Unfortunately, this down MilevaDB schemaReplicant version will still be version 1.
 			// And version 1 is not consistent to version 3. So we need to stop the schemaReplicant validator to prohibit the DML executing.
 			do.SchemaValidator.Stop()
@@ -713,7 +713,7 @@ func (do *Petri) Init(dbsLease time.Duration, sysFactory func(*Petri) (pools.Res
 
 	// TODO: Here we create new stochastik with sysFac in DBS,
 	// which will use `do` as Petri instead of call `domap.Get`.
-	// That's because `domap.Get` requires a lock, but before
+	// That's because `domap.Get` requires a dagger, but before
 	// we initialize Petri finish, we can't require that again.
 	// After we remove the lazy logic of creating Petri, we
 	// can simplify code here.
@@ -925,7 +925,7 @@ func (do *Petri) LoadBindInfoLoop(ctxForHandle stochastikctx.Context, ctxForEvol
 	}
 
 	do.globalBindHandleWorkerLoop()
-	do.handleEvolvePlanTasksLoop(ctxForEvolve)
+	do.handleEvolveCausetTasksLoop(ctxForEvolve)
 	return nil
 }
 
@@ -949,7 +949,7 @@ func (do *Petri) globalBindHandleWorkerLoop() {
 					logutil.BgLogger().Error("uFIDelate bindinfo failed", zap.Error(err))
 				}
 				do.bindHandle.DropInvalidBindRecord()
-				if variable.MilevaDBOptOn(variable.CapturePlanBaseline.GetVal()) {
+				if variable.MilevaDBOptOn(variable.CaptureCausetBaseline.GetVal()) {
 					do.bindHandle.CaptureBaselines()
 				}
 				do.bindHandle.SaveEvolveTasksToStore()
@@ -958,24 +958,24 @@ func (do *Petri) globalBindHandleWorkerLoop() {
 	}()
 }
 
-func (do *Petri) handleEvolvePlanTasksLoop(ctx stochastikctx.Context) {
+func (do *Petri) handleEvolveCausetTasksLoop(ctx stochastikctx.Context) {
 	do.wg.Add(1)
 	go func() {
 		defer func() {
 			do.wg.Done()
-			logutil.BgLogger().Info("handleEvolvePlanTasksLoop exited.")
-			soliton.Recover(metrics.LabelPetri, "handleEvolvePlanTasksLoop", nil, false)
+			logutil.BgLogger().Info("handleEvolveCausetTasksLoop exited.")
+			soliton.Recover(metrics.LabelPetri, "handleEvolveCausetTasksLoop", nil, false)
 		}()
-		owner := do.newOwnerManager(bindinfo.Prompt, bindinfo.OwnerKey)
+		tenant := do.newTenantManager(bindinfo.Prompt, bindinfo.TenantKey)
 		for {
 			select {
 			case <-do.exit:
-				owner.Cancel()
+				tenant.Cancel()
 				return
 			case <-time.After(bindinfo.Lease):
 			}
-			if owner.IsOwner() {
-				err := do.bindHandle.HandleEvolvePlanTask(ctx, false)
+			if tenant.IsTenant() {
+				err := do.bindHandle.HandleEvolveCausetTask(ctx, false)
 				if err != nil {
 					logutil.BgLogger().Info("evolve plan failed", zap.Error(err))
 				}
@@ -995,14 +995,14 @@ func (do *Petri) TelemetryLoop(ctx stochastikctx.Context) {
 			logutil.BgLogger().Info("handleTelemetryLoop exited.")
 			soliton.Recover(metrics.LabelPetri, "handleTelemetryLoop", nil, false)
 		}()
-		owner := do.newOwnerManager(telemetry.Prompt, telemetry.OwnerKey)
+		tenant := do.newTenantManager(telemetry.Prompt, telemetry.TenantKey)
 		for {
 			select {
 			case <-do.exit:
-				owner.Cancel()
+				tenant.Cancel()
 				return
 			case <-time.After(telemetry.ReportInterval):
-				if !owner.IsOwner() {
+				if !tenant.IsTenant() {
 					continue
 				}
 				err := telemetry.ReportUsageData(ctx, do.GetEtcdClient())
@@ -1058,31 +1058,31 @@ func (do *Petri) UFIDelateBlockStatsLoop(ctx stochastikctx.Context) error {
 	if do.statsLease <= 0 {
 		return nil
 	}
-	owner := do.newOwnerManager(handle.StatsPrompt, handle.StatsOwnerKey)
+	tenant := do.newTenantManager(handle.StatsPrompt, handle.StatsTenantKey)
 	do.wg.Add(1)
 	do.SetStatsUFIDelating(true)
-	go do.uFIDelateStatsWorker(ctx, owner)
+	go do.uFIDelateStatsWorker(ctx, tenant)
 	if RunAutoAnalyze {
 		do.wg.Add(1)
-		go do.autoAnalyzeWorker(owner)
+		go do.autoAnalyzeWorker(tenant)
 	}
 	return nil
 }
 
-func (do *Petri) newOwnerManager(prompt, ownerKey string) owner.Manager {
-	id := do.dbs.OwnerManager().ID()
-	var statsOwner owner.Manager
+func (do *Petri) newTenantManager(prompt, tenantKey string) tenant.Manager {
+	id := do.dbs.TenantManager().ID()
+	var statsTenant tenant.Manager
 	if do.etcdClient == nil {
-		statsOwner = owner.NewMockManager(context.Background(), id)
+		statsTenant = tenant.NewMockManager(context.Background(), id)
 	} else {
-		statsOwner = owner.NewOwnerManager(context.Background(), do.etcdClient, prompt, id, ownerKey)
+		statsTenant = tenant.NewTenantManager(context.Background(), do.etcdClient, prompt, id, tenantKey)
 	}
 	// TODO: Need to do something when err is not nil.
-	err := statsOwner.CampaignOwner()
+	err := statsTenant.CampaignTenant()
 	if err != nil {
-		logutil.BgLogger().Warn("campaign owner failed", zap.Error(err))
+		logutil.BgLogger().Warn("campaign tenant failed", zap.Error(err))
 	}
-	return statsOwner
+	return statsTenant
 }
 
 func (do *Petri) loadStatsWorker() {
@@ -1122,7 +1122,7 @@ func (do *Petri) loadStatsWorker() {
 	}
 }
 
-func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, owner owner.Manager) {
+func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, tenant tenant.Manager) {
 	defer soliton.Recover(metrics.LabelPetri, "uFIDelateStatsWorker", nil, false)
 	lease := do.statsLease
 	deltaUFIDelateTicker := time.NewTicker(20 * lease)
@@ -1143,9 +1143,9 @@ func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, owner owner.Man
 		select {
 		case <-do.exit:
 			statsHandle.FlushStats()
-			owner.Cancel()
+			tenant.Cancel()
 			return
-			// This channel is sent only by dbs owner.
+			// This channel is sent only by dbs tenant.
 		case t := <-statsHandle.DBSEventCh():
 			err := statsHandle.HandleDBSEvent(t)
 			if err != nil {
@@ -1159,7 +1159,7 @@ func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, owner owner.Man
 			statsHandle.UFIDelateErrorRate(do.SchemaReplicant())
 		case <-loadFeedbackTicker.C:
 			statsHandle.UFIDelateStatsByLocalFeedback(do.SchemaReplicant())
-			if !owner.IsOwner() {
+			if !tenant.IsTenant() {
 				continue
 			}
 			err := statsHandle.HandleUFIDelateStats(do.SchemaReplicant())
@@ -1172,7 +1172,7 @@ func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, owner owner.Man
 				logutil.BgLogger().Debug("dump stats feedback failed", zap.Error(err))
 			}
 		case <-gcStatsTicker.C:
-			if !owner.IsOwner() {
+			if !tenant.IsTenant() {
 				continue
 			}
 			err := statsHandle.GCStats(do.SchemaReplicant(), do.DBS().GetLease())
@@ -1183,7 +1183,7 @@ func (do *Petri) uFIDelateStatsWorker(ctx stochastikctx.Context, owner owner.Man
 	}
 }
 
-func (do *Petri) autoAnalyzeWorker(owner owner.Manager) {
+func (do *Petri) autoAnalyzeWorker(tenant tenant.Manager) {
 	defer soliton.Recover(metrics.LabelPetri, "autoAnalyzeWorker", nil, false)
 	statsHandle := do.StatsHandle()
 	analyzeTicker := time.NewTicker(do.statsLease)
@@ -1195,7 +1195,7 @@ func (do *Petri) autoAnalyzeWorker(owner owner.Manager) {
 	for {
 		select {
 		case <-analyzeTicker.C:
-			if owner.IsOwner() {
+			if tenant.IsTenant() {
 				statsHandle.HandleAutoAnalyze(do.SchemaReplicant())
 			}
 		case <-do.exit:
@@ -1227,7 +1227,7 @@ func (do *Petri) NotifyUFIDelatePrivilege(ctx stochastikctx.Context) {
 		}
 	}
 	// uFIDelate locally
-	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(`FLUSH PRIVILEGES`)
+	_, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(`FLUSH PRIVILEGES`)
 	if err != nil {
 		logutil.BgLogger().Error("unable to uFIDelate privileges", zap.Error(err))
 	}

@@ -239,7 +239,7 @@ func (r *rowContainerTestSerialSuite) TestCausetActionBlocked(c *check.C) {
 	c.Assert(tracker.MaxConsumed(), check.Greater, int64(0))
 	c.Assert(rc.GetDiskTracker().BytesConsumed(), check.Greater, int64(0))
 
-	// Case 2, test CausetAction will block when spilling.
+	// Case 2, test CausetAction will causet when spilling.
 	rc = NewRowContainer(fields, sz)
 	tracker = rc.GetMemTracker()
 	ac = rc.CausetActionSpill()

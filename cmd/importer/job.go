@@ -30,8 +30,8 @@ func addJobs(jobCount int, jobChan chan struct{}) {
 	close(jobChan)
 }
 
-func doInsert(block *block, EDB *allegrosql.EDB, count int) {
-	sqls, err := genRowDatas(block, count)
+func doInsert(causet *causet, EDB *allegrosql.EDB, count int) {
+	sqls, err := genRowDatas(causet, count)
 	if err != nil {
 		log.Fatal("generate data failed", zap.Error(err))
 	}
@@ -42,7 +42,7 @@ func doInsert(block *block, EDB *allegrosql.EDB, count int) {
 	}
 
 	for _, allegrosql := range sqls {
-		_, err = txn.Exec(allegrosql)
+		_, err = txn.InterDirc(allegrosql)
 		if err != nil {
 			log.Fatal("exec failed", zap.Error(err))
 		}
@@ -54,18 +54,18 @@ func doInsert(block *block, EDB *allegrosql.EDB, count int) {
 	}
 }
 
-func doJob(block *block, EDB *allegrosql.EDB, batch int, jobChan chan struct{}, doneChan chan struct{}) {
+func doJob(causet *causet, EDB *allegrosql.EDB, batch int, jobChan chan struct{}, doneChan chan struct{}) {
 	count := 0
 	for range jobChan {
 		count++
 		if count == batch {
-			doInsert(block, EDB, count)
+			doInsert(causet, EDB, count)
 			count = 0
 		}
 	}
 
 	if count > 0 {
-		doInsert(block, EDB, count)
+		doInsert(causet, EDB, count)
 	}
 
 	doneChan <- struct{}{}
@@ -89,21 +89,21 @@ func doWait(doneChan chan struct{}, start time.Time, jobCount int, workerCount i
 	fmt.Printf("[importer]total %d cases, cost %d seconds, tps %d, start %s, now %s\n", jobCount, seconds, tps, start, now)
 }
 
-func doProcess(block *block, dbs []*allegrosql.EDB, jobCount int, workerCount int, batch int) {
+func doProcess(causet *causet, dbs []*allegrosql.EDB, jobCount int, workerCount int, batch int) {
 	jobChan := make(chan struct{}, 16*workerCount)
 	doneChan := make(chan struct{}, workerCount)
 
 	start := time.Now()
 	go addJobs(jobCount, jobChan)
 
-	for _, col := range block.columns {
+	for _, col := range causet.columns {
 		if col.incremental {
 			workerCount = 1
 			break
 		}
 	}
 	for i := 0; i < workerCount; i++ {
-		go doJob(block, dbs[i], batch, jobChan, doneChan)
+		go doJob(causet, dbs[i], batch, jobChan, doneChan)
 	}
 
 	doWait(doneChan, start, jobCount, workerCount)

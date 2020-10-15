@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	// ResetblockPlanCacheCounterFortTest be used to support reset counter in test.
-	ResetblockPlanCacheCounterFortTest = false
+	// ResetblockCausetCacheCounterFortTest be used to support reset counter in test.
+	ResetblockCausetCacheCounterFortTest = false
 )
 
 // Metrics
@@ -72,10 +72,10 @@ var (
 		Namespace: "milevadb",
 		Subsystem: "server",
 		Name:      "prepared_stmts",
-		Help:      "number of prepared statements.",
+		Help:      "number of prepared memexs.",
 	})
 
-	ExecuteErrorCounter = prometheus.NewCounterVec(
+	InterDircuteErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
 			Subsystem: "server",
@@ -120,7 +120,7 @@ var (
 			Help:      "Counter of MilevaDB keep alive.",
 		})
 
-	PlanCacheCounter = prometheus.NewCounterVec(
+	CausetCacheCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
 			Subsystem: "server",
@@ -180,8 +180,8 @@ var (
 		})
 )
 
-// ExecuteErrorToLabel converts an execute error to label.
-func ExecuteErrorToLabel(err error) string {
+// InterDircuteErrorToLabel converts an execute error to label.
+func InterDircuteErrorToLabel(err error) string {
 	err = errors.Cause(err)
 	switch x := err.(type) {
 	case *terror.Error:

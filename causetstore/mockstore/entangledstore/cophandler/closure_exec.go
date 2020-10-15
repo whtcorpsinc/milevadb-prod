@@ -26,8 +26,8 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/expression"
-	"github.com/whtcorpsinc/milevadb/expression/aggregation"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/memex/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -61,45 +61,45 @@ func mapPkStatusToHandleStatus(pkStatus int) blockcodec.HandleStatus {
 	return blockcodec.HandleDefault
 }
 
-// buildClosureExecutor build a closureExecutor for the PosetDagRequest.
-// Currently the composition of executors are:
+// buildClosureInterlockingDirectorate build a closureInterlockingDirectorate for the PosetDagRequest.
+// Currently the composition of interlocks are:
 // 	blockScan|indexScan [selection] [topN | limit | agg]
-func buildClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq *fidelpb.PosetDagRequest) (*closureExecutor, error) {
-	ce, err := newClosureExecutor(posetPosetDagCtx, posetPosetDagReq)
+func buildClosureInterlockingDirectorate(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq *fidelpb.PosetDagRequest) (*closureInterlockingDirectorate, error) {
+	ce, err := newClosureInterlockingDirectorate(posetPosetDagCtx, posetPosetDagReq)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	executors := posetPosetDagReq.Executors
-	scanExec := executors[0]
-	if scanExec.Tp == fidelpb.ExecType_TypeTableScan {
-		ce.processor = &blockScanProcessor{closureExecutor: ce}
+	interlocks := posetPosetDagReq.InterlockingDirectorates
+	scanInterDirc := interlocks[0]
+	if scanInterDirc.Tp == fidelpb.InterDircType_TypeTableScan {
+		ce.processor = &blockScanProcessor{closureInterlockingDirectorate: ce}
 	} else {
-		ce.processor = &indexScanProcessor{closureExecutor: ce}
+		ce.processor = &indexScanProcessor{closureInterlockingDirectorate: ce}
 	}
-	if len(executors) == 1 {
+	if len(interlocks) == 1 {
 		return ce, nil
 	}
-	if secondExec := executors[1]; secondExec.Tp == fidelpb.ExecType_TypeSelection {
-		ce.selectionCtx.conditions, err = convertToExprs(ce.sc, ce.fieldTps, secondExec.Selection.Conditions)
+	if secondInterDirc := interlocks[1]; secondInterDirc.Tp == fidelpb.InterDircType_TypeSelection {
+		ce.selectionCtx.conditions, err = convertToExprs(ce.sc, ce.fieldTps, secondInterDirc.Selection.Conditions)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		ce.processor = &selectionProcessor{closureExecutor: ce}
+		ce.processor = &selectionProcessor{closureInterlockingDirectorate: ce}
 	}
-	lastExecutor := executors[len(executors)-1]
-	switch lastExecutor.Tp {
-	case fidelpb.ExecType_TypeLimit:
-		ce.limit = int(lastExecutor.Limit.Limit)
-	case fidelpb.ExecType_TypeTopN:
-		err = buildTopNProcessor(ce, lastExecutor.TopN)
-	case fidelpb.ExecType_TypeAggregation:
-		err = buildHashAggProcessor(ce, posetPosetDagCtx, lastExecutor.Aggregation)
-	case fidelpb.ExecType_TypeStreamAgg:
-		err = buildStreamAggProcessor(ce, posetPosetDagCtx, executors)
-	case fidelpb.ExecType_TypeSelection:
-		ce.processor = &selectionProcessor{closureExecutor: ce}
+	lastInterlockingDirectorate := interlocks[len(interlocks)-1]
+	switch lastInterlockingDirectorate.Tp {
+	case fidelpb.InterDircType_TypeLimit:
+		ce.limit = int(lastInterlockingDirectorate.Limit.Limit)
+	case fidelpb.InterDircType_TypeTopN:
+		err = buildTopNProcessor(ce, lastInterlockingDirectorate.TopN)
+	case fidelpb.InterDircType_TypeAggregation:
+		err = buildHashAggProcessor(ce, posetPosetDagCtx, lastInterlockingDirectorate.Aggregation)
+	case fidelpb.InterDircType_TypeStreamAgg:
+		err = buildStreamAggProcessor(ce, posetPosetDagCtx, interlocks)
+	case fidelpb.InterDircType_TypeSelection:
+		ce.processor = &selectionProcessor{closureInterlockingDirectorate: ce}
 	default:
-		panic("unknown executor type " + lastExecutor.Tp.String())
+		panic("unknown interlock type " + lastInterlockingDirectorate.Tp.String())
 	}
 	if err != nil {
 		return nil, err
@@ -107,10 +107,10 @@ func buildClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagR
 	return ce, nil
 }
 
-func convertToExprs(sc *stmtctx.StatementContext, fieldTps []*types.FieldType, pbExprs []*fidelpb.Expr) ([]expression.Expression, error) {
-	exprs := make([]expression.Expression, 0, len(pbExprs))
+func convertToExprs(sc *stmtctx.StatementContext, fieldTps []*types.FieldType, pbExprs []*fidelpb.Expr) ([]memex.Expression, error) {
+	exprs := make([]memex.Expression, 0, len(pbExprs))
 	for _, expr := range pbExprs {
-		e, err := expression.PBToExpr(expr, fieldTps, sc)
+		e, err := memex.PBToExpr(expr, fieldTps, sc)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -119,8 +119,8 @@ func convertToExprs(sc *stmtctx.StatementContext, fieldTps []*types.FieldType, p
 	return exprs, nil
 }
 
-func newClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq *fidelpb.PosetDagRequest) (*closureExecutor, error) {
-	e := &closureExecutor{
+func newClosureInterlockingDirectorate(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq *fidelpb.PosetDagRequest) (*closureInterlockingDirectorate, error) {
+	e := &closureInterlockingDirectorate{
 		posetPosetDagContext: posetPosetDagCtx,
 		outputOff:  posetPosetDagReq.OutputOffsets,
 		startTS:    posetPosetDagCtx.startTS,
@@ -129,20 +129,20 @@ func newClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq
 	seCtx := mockpkg.NewContext()
 	seCtx.GetStochastikVars().StmtCtx = e.sc
 	e.seCtx = seCtx
-	executors := posetPosetDagReq.Executors
-	scanExec := executors[0]
-	switch scanExec.Tp {
-	case fidelpb.ExecType_TypeTableScan:
-		tblScan := executors[0].TblScan
+	interlocks := posetPosetDagReq.InterlockingDirectorates
+	scanInterDirc := interlocks[0]
+	switch scanInterDirc.Tp {
+	case fidelpb.InterDircType_TypeTableScan:
+		tblScan := interlocks[0].TblScan
 		e.unique = true
 		e.scanCtx.desc = tblScan.Desc
-	case fidelpb.ExecType_TypeIndexScan:
-		idxScan := executors[0].IdxScan
+	case fidelpb.InterDircType_TypeIndexScan:
+		idxScan := interlocks[0].IdxScan
 		e.unique = idxScan.GetUnique()
 		e.scanCtx.desc = idxScan.Desc
 		e.initIdxScanCtx(idxScan)
 	default:
-		panic(fmt.Sprintf("unknown first executor type %s", executors[0].Tp))
+		panic(fmt.Sprintf("unknown first interlock type %s", interlocks[0].Tp))
 	}
 	ranges, err := extractKVRanges(posetPosetDagCtx.dbReader.StartKey, posetPosetDagCtx.dbReader.EndKey, posetPosetDagCtx.keyRanges, e.scanCtx.desc)
 	if err != nil {
@@ -154,7 +154,7 @@ func newClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq
 	e.kvRanges = ranges
 	e.scanCtx.chk = chunk.NewChunkWithCapacity(e.fieldTps, 32)
 	if e.idxScanCtx == nil {
-		e.scanCtx.decoder, err = e.evalContext.newRowDecoder()
+		e.scanCtx.causetDecoder, err = e.evalContext.newRowCausetDecoder()
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -162,7 +162,7 @@ func newClosureExecutor(posetPosetDagCtx *posetPosetDagContext, posetPosetDagReq
 	return e, nil
 }
 
-func (e *closureExecutor) initIdxScanCtx(idxScan *fidelpb.IndexScan) {
+func (e *closureInterlockingDirectorate) initIdxScanCtx(idxScan *fidelpb.IndexScan) {
 	e.idxScanCtx = new(idxScanCtx)
 	e.idxScanCtx.columnLen = len(e.columnInfos)
 	e.idxScanCtx.pkStatus = pkDefCausNotExists
@@ -206,7 +206,7 @@ func (e *closureExecutor) initIdxScanCtx(idxScan *fidelpb.IndexScan) {
 	e.scanCtx.newDefCauslationIds = colIDs
 
 	// We don't need to decode handle here, and colIDs >= 0 always.
-	e.scanCtx.newDefCauslationRd = rowcodec.NewByteDecoder(colInfos[:e.idxScanCtx.columnLen], []int64{-1}, nil, nil)
+	e.scanCtx.newDefCauslationRd = rowcodec.NewByteCausetDecoder(colInfos[:e.idxScanCtx.columnLen], []int64{-1}, nil, nil)
 }
 
 func isCountAgg(pbAgg *fidelpb.Aggregation) bool {
@@ -219,11 +219,11 @@ func isCountAgg(pbAgg *fidelpb.Aggregation) bool {
 	return false
 }
 
-func tryBuildCountProcessor(e *closureExecutor, executors []*fidelpb.Executor) (bool, error) {
-	if len(executors) > 2 {
+func tryBuildCountProcessor(e *closureInterlockingDirectorate, interlocks []*fidelpb.InterlockingDirectorate) (bool, error) {
+	if len(interlocks) > 2 {
 		return false, nil
 	}
-	agg := executors[1].Aggregation
+	agg := interlocks[1].Aggregation
 	if !isCountAgg(agg) {
 		return false, nil
 	}
@@ -236,19 +236,19 @@ func tryBuildCountProcessor(e *closureExecutor, executors []*fidelpb.Executor) (
 		}
 		e.aggCtx.col = e.columnInfos[idx]
 		if e.aggCtx.col.PkHandle {
-			e.processor = &countStarProcessor{skipVal: skipVal(true), closureExecutor: e}
+			e.processor = &countStarProcessor{skipVal: skipVal(true), closureInterlockingDirectorate: e}
 		} else {
-			e.processor = &countDeferredCausetProcessor{closureExecutor: e}
+			e.processor = &countDeferredCausetProcessor{closureInterlockingDirectorate: e}
 		}
 	case fidelpb.ExprType_Null, fidelpb.ExprType_ScalarFunc:
 		return false, nil
 	default:
-		e.processor = &countStarProcessor{skipVal: skipVal(true), closureExecutor: e}
+		e.processor = &countStarProcessor{skipVal: skipVal(true), closureInterlockingDirectorate: e}
 	}
 	return true, nil
 }
 
-func buildTopNProcessor(e *closureExecutor, topN *fidelpb.TopN) error {
+func buildTopNProcessor(e *closureInterlockingDirectorate, topN *fidelpb.TopN) error {
 	heap, conds, err := getTopNInfo(e.evalContext, topN)
 	if err != nil {
 		return errors.Trace(err)
@@ -261,17 +261,17 @@ func buildTopNProcessor(e *closureExecutor, topN *fidelpb.TopN) error {
 	}
 
 	e.topNCtx = ctx
-	e.processor = &topNProcessor{closureExecutor: e}
+	e.processor = &topNProcessor{closureInterlockingDirectorate: e}
 	return nil
 }
 
-func buildHashAggProcessor(e *closureExecutor, ctx *posetPosetDagContext, agg *fidelpb.Aggregation) error {
+func buildHashAggProcessor(e *closureInterlockingDirectorate, ctx *posetPosetDagContext, agg *fidelpb.Aggregation) error {
 	aggs, groupBys, err := getAggInfo(ctx, agg)
 	if err != nil {
 		return err
 	}
 	e.processor = &hashAggProcessor{
-		closureExecutor: e,
+		closureInterlockingDirectorate: e,
 		aggExprs:        aggs,
 		groupByExprs:    groupBys,
 		groups:          map[string]struct{}{},
@@ -281,18 +281,18 @@ func buildHashAggProcessor(e *closureExecutor, ctx *posetPosetDagContext, agg *f
 	return nil
 }
 
-func buildStreamAggProcessor(e *closureExecutor, ctx *posetPosetDagContext, executors []*fidelpb.Executor) error {
-	ok, err := tryBuildCountProcessor(e, executors)
+func buildStreamAggProcessor(e *closureInterlockingDirectorate, ctx *posetPosetDagContext, interlocks []*fidelpb.InterlockingDirectorate) error {
+	ok, err := tryBuildCountProcessor(e, interlocks)
 	if err != nil || ok {
 		return err
 	}
-	return buildHashAggProcessor(e, ctx, executors[len(executors)-1].Aggregation)
+	return buildHashAggProcessor(e, ctx, interlocks[len(interlocks)-1].Aggregation)
 }
 
-// closureExecutor is an execution engine that flatten the PosetDagRequest.Executors to a single closure `processor` that
+// closureInterlockingDirectorate is an execution engine that flatten the PosetDagRequest.InterlockingDirectorates to a single closure `processor` that
 // process key/value pairs. We can define many closures for different HoTTs of requests, try to use the specially
 // optimized one for some frequently used query.
-type closureExecutor struct {
+type closureInterlockingDirectorate struct {
 	*posetPosetDagContext
 	outputOff    []uint32
 	seCtx        stochastikctx.Context
@@ -327,10 +327,10 @@ type scanCtx struct {
 	limit            int
 	chk              *chunk.Chunk
 	desc             bool
-	decoder          *rowcodec.ChunkDecoder
+	causetDecoder          *rowcodec.ChunkCausetDecoder
 	primaryDeferredCausetIds []int64
 
-	newDefCauslationRd  *rowcodec.BytesDecoder
+	newDefCauslationRd  *rowcodec.BytesCausetDecoder
 	newDefCauslationIds map[int64]int
 }
 
@@ -346,16 +346,16 @@ type aggCtx struct {
 }
 
 type selectionCtx struct {
-	conditions []expression.Expression
+	conditions []memex.Expression
 }
 
 type topNCtx struct {
 	heap         *topNHeap
-	orderByExprs []expression.Expression
+	orderByExprs []memex.Expression
 	sortRow      *sortRow
 }
 
-func (e *closureExecutor) execute() ([]fidelpb.Chunk, error) {
+func (e *closureInterlockingDirectorate) execute() ([]fidelpb.Chunk, error) {
 	err := e.checkRangeLock()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -400,14 +400,14 @@ func (e *closureExecutor) execute() ([]fidelpb.Chunk, error) {
 	return e.oldChunks, err
 }
 
-func (e *closureExecutor) isPointGetRange(ran ekv.KeyRange) bool {
+func (e *closureInterlockingDirectorate) isPointGetRange(ran ekv.KeyRange) bool {
 	if len(e.primaryDefCauss) > 0 {
 		return false
 	}
 	return e.unique && ran.IsPoint()
 }
 
-func (e *closureExecutor) checkRangeLock() error {
+func (e *closureInterlockingDirectorate) checkRangeLock() error {
 	if !e.ignoreLock && !e.lockChecked {
 		for _, ran := range e.kvRanges {
 			err := e.checkRangeLockForRange(ran)
@@ -420,14 +420,14 @@ func (e *closureExecutor) checkRangeLock() error {
 	return nil
 }
 
-func (e *closureExecutor) checkRangeLockForRange(ran ekv.KeyRange) error {
+func (e *closureInterlockingDirectorate) checkRangeLockForRange(ran ekv.KeyRange) error {
 	it := e.lockStore.NewIterator()
 	for it.Seek(ran.StartKey); it.Valid(); it.Next() {
 		if exceedEndKey(it.Key(), ran.EndKey) {
 			break
 		}
-		lock := mvcc.DecodeLock(it.Value())
-		err := checkLock(lock, it.Key(), e.startTS, e.resolvedLocks)
+		dagger := mvcc.DecodeLock(it.Value())
+		err := checkLock(dagger, it.Key(), e.startTS, e.resolvedLocks)
 		if err != nil {
 			return err
 		}
@@ -437,7 +437,7 @@ func (e *closureExecutor) checkRangeLockForRange(ran ekv.KeyRange) error {
 
 type countStarProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 // countStarProcess is used for `count(*)`.
@@ -451,7 +451,7 @@ func (e *countStarProcessor) Finish() error {
 }
 
 // countFinish is used for `count(*)`.
-func (e *closureExecutor) countFinish() error {
+func (e *closureInterlockingDirectorate) countFinish() error {
 	d := types.NewIntCauset(int64(e.rowCount))
 	rowData, err := codec.EncodeValue(e.sc, nil, d)
 	if err != nil {
@@ -463,7 +463,7 @@ func (e *closureExecutor) countFinish() error {
 
 type countDeferredCausetProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 func (e *countDeferredCausetProcessor) Process(key, value []byte) error {
@@ -477,7 +477,7 @@ func (e *countDeferredCausetProcessor) Process(key, value []byte) error {
 		}
 	} else {
 		// Since the handle value doesn't affect the count result, we don't need to decode the handle.
-		isNull, err := e.scanCtx.decoder.DeferredCausetIsNull(value, e.aggCtx.col.DeferredCausetId, e.aggCtx.col.DefaultVal)
+		isNull, err := e.scanCtx.causetDecoder.DeferredCausetIsNull(value, e.aggCtx.col.DeferredCausetId, e.aggCtx.col.DefaultVal)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -500,7 +500,7 @@ func (s skipVal) SkipValue() bool {
 
 type blockScanProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 func (e *blockScanProcessor) Process(key, value []byte) error {
@@ -519,18 +519,18 @@ func (e *blockScanProcessor) Finish() error {
 	return e.scanFinish()
 }
 
-func (e *closureExecutor) processCore(key, value []byte) error {
+func (e *closureInterlockingDirectorate) processCore(key, value []byte) error {
 	if e.idxScanCtx != nil {
 		return e.indexScanProcessCore(key, value)
 	}
 	return e.blockScanProcessCore(key, value)
 }
 
-func (e *closureExecutor) hasSelection() bool {
+func (e *closureInterlockingDirectorate) hasSelection() bool {
 	return len(e.selectionCtx.conditions) > 0
 }
 
-func (e *closureExecutor) processSelection() (gotRow bool, err error) {
+func (e *closureInterlockingDirectorate) processSelection() (gotRow bool, err error) {
 	chk := e.scanCtx.chk
 	event := chk.GetRow(chk.NumRows() - 1)
 	gotRow = true
@@ -545,7 +545,7 @@ func (e *closureExecutor) processSelection() (gotRow bool, err error) {
 			gotRow = false
 		} else {
 			isBool, err := d.ToBool(e.sc)
-			isBool, err = expression.HandleOverflowOnSelection(e.sc, isBool, err)
+			isBool, err = memex.HandleOverflowOnSelection(e.sc, isBool, err)
 			if err != nil {
 				return false, errors.Trace(err)
 			}
@@ -567,7 +567,7 @@ func (e *closureExecutor) processSelection() (gotRow bool, err error) {
 	return
 }
 
-func (e *closureExecutor) copyError(err error) error {
+func (e *closureInterlockingDirectorate) copyError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -582,25 +582,25 @@ func (e *closureExecutor) copyError(err error) error {
 	return ret
 }
 
-func (e *closureExecutor) blockScanProcessCore(key, value []byte) error {
+func (e *closureInterlockingDirectorate) blockScanProcessCore(key, value []byte) error {
 	handle, err := blockcodec.DecodeRowKey(key)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	err = e.scanCtx.decoder.DecodeToChunk(value, handle, e.scanCtx.chk)
+	err = e.scanCtx.causetDecoder.DecodeToChunk(value, handle, e.scanCtx.chk)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (e *closureExecutor) scanFinish() error {
+func (e *closureInterlockingDirectorate) scanFinish() error {
 	return e.chunkToOldChunk(e.scanCtx.chk)
 }
 
 type indexScanProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 func (e *indexScanProcessor) Process(key, value []byte) error {
@@ -619,7 +619,7 @@ func (e *indexScanProcessor) Finish() error {
 	return e.scanFinish()
 }
 
-func (e *closureExecutor) indexScanProcessCore(key, value []byte) error {
+func (e *closureInterlockingDirectorate) indexScanProcessCore(key, value []byte) error {
 	handleStatus := mapPkStatusToHandleStatus(e.idxScanCtx.pkStatus)
 	restoredDefCauss := make([]rowcodec.DefCausInfo, 0, len(e.idxScanCtx.colInfos))
 	for _, c := range e.idxScanCtx.colInfos {
@@ -632,10 +632,10 @@ func (e *closureExecutor) indexScanProcessCore(key, value []byte) error {
 		return err
 	}
 	chk := e.scanCtx.chk
-	decoder := codec.NewDecoder(chk, e.sc.TimeZone)
+	causetDecoder := codec.NewCausetDecoder(chk, e.sc.TimeZone)
 	for i, colVal := range values {
 		if i < len(e.fieldTps) {
-			_, err = decoder.DecodeOne(colVal, i, e.fieldTps[i])
+			_, err = causetDecoder.DecodeOne(colVal, i, e.fieldTps[i])
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -644,7 +644,7 @@ func (e *closureExecutor) indexScanProcessCore(key, value []byte) error {
 	return nil
 }
 
-func (e *closureExecutor) chunkToOldChunk(chk *chunk.Chunk) error {
+func (e *closureInterlockingDirectorate) chunkToOldChunk(chk *chunk.Chunk) error {
 	var oldRow []types.Causet
 	for i := 0; i < chk.NumRows(); i++ {
 		oldRow = oldRow[:0]
@@ -665,7 +665,7 @@ func (e *closureExecutor) chunkToOldChunk(chk *chunk.Chunk) error {
 
 type selectionProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 func (e *selectionProcessor) Process(key, value []byte) error {
@@ -695,7 +695,7 @@ func (e *selectionProcessor) Finish() error {
 
 type topNProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 }
 
 func (e *topNProcessor) Process(key, value []byte) (err error) {
@@ -728,7 +728,7 @@ func (e *topNProcessor) Process(key, value []byte) (err error) {
 	return errors.Trace(ctx.heap.err)
 }
 
-func (e *closureExecutor) newTopNSortRow() *sortRow {
+func (e *closureInterlockingDirectorate) newTopNSortRow() *sortRow {
 	return &sortRow{
 		key:  make([]types.Causet, len(e.evalContext.columnInfos)),
 		data: make([][]byte, 2),
@@ -755,10 +755,10 @@ func (e *topNProcessor) Finish() error {
 
 type hashAggProcessor struct {
 	skipVal
-	*closureExecutor
+	*closureInterlockingDirectorate
 
 	aggExprs     []aggregation.Aggregation
-	groupByExprs []expression.Expression
+	groupByExprs []memex.Expression
 	groups       map[string]struct{}
 	groupKeys    [][]byte
 	aggCtxsMap   map[string][]*aggregation.AggEvaluateContext
@@ -781,7 +781,7 @@ func (e *hashAggProcessor) Process(key, value []byte) (err error) {
 		e.groups[string(gk)] = struct{}{}
 		e.groupKeys = append(e.groupKeys, gk)
 	}
-	// UFIDelate aggregate expressions.
+	// UFIDelate aggregate memexs.
 	aggCtxs := e.getContexts(gk)
 	for i, agg := range e.aggExprs {
 		err = agg.UFIDelate(aggCtxs[i], e.sc, event)
@@ -847,15 +847,15 @@ func safeCopy(b []byte) []byte {
 	return append([]byte{}, b...)
 }
 
-func checkLock(lock mvcc.MvccLock, key []byte, startTS uint64, resolved []uint64) error {
+func checkLock(dagger mvcc.MvccLock, key []byte, startTS uint64, resolved []uint64) error {
 	if isResolved(startTS, resolved) {
 		return nil
 	}
-	lockVisible := lock.StartTS < startTS
-	isWriteLock := lock.Op == uint8(kvrpcpb.Op_Put) || lock.Op == uint8(kvrpcpb.Op_Del)
-	isPrimaryGet := startTS == math.MaxUint64 && bytes.Equal(lock.Primary, key)
+	lockVisible := dagger.StartTS < startTS
+	isWriteLock := dagger.Op == uint8(kvrpcpb.Op_Put) || dagger.Op == uint8(kvrpcpb.Op_Del)
+	isPrimaryGet := startTS == math.MaxUint64 && bytes.Equal(dagger.Primary, key)
 	if lockVisible && isWriteLock && !isPrimaryGet {
-		return BuildLockErr(key, lock.Primary, lock.StartTS, uint64(lock.TTL), lock.Op)
+		return BuildLockErr(key, dagger.Primary, dagger.StartTS, uint64(dagger.TTL), dagger.Op)
 	}
 	return nil
 }

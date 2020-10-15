@@ -50,7 +50,7 @@ func CanRuntimePruneTbl(ctx stochastikctx.Context, tbl *perceptron.BlockInfo) bo
 	return GetPetri(ctx).StatsHandle().CanRuntimePrune(tbl.ID, tbl.Partition.Definitions[0].ID)
 }
 
-// CanRuntimePrune indicates whether tbl support runtime prune for block and first partition id.
+// CanRuntimePrune indicates whether tbl support runtime prune for causet and first partition id.
 func CanRuntimePrune(ctx stochastikctx.Context, tid, p0Id int64) bool {
 	return GetPetri(ctx).StatsHandle().CanRuntimePrune(tid, p0Id)
 }

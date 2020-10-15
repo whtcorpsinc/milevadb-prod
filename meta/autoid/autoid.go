@@ -25,7 +25,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -33,11 +33,11 @@ import (
 )
 
 // Attention:
-// For reading cluster MilevaDB memory blocks, the system schemaReplicant/block should be same.
-// Once the system schemaReplicant/block id been allocated, it can't be changed any more.
-// Change the system schemaReplicant/block id may have the compatibility problem.
+// For reading cluster MilevaDB memory blocks, the system schemaReplicant/causet should be same.
+// Once the system schemaReplicant/causet id been allocated, it can't be changed any more.
+// Change the system schemaReplicant/causet id may have the compatibility problem.
 const (
-	// SystemSchemaIDFlag is the system schemaReplicant/block id flag, uses the highest bit position as system schemaReplicant ID flag, it's exports for test.
+	// SystemSchemaIDFlag is the system schemaReplicant/causet id flag, uses the highest bit position as system schemaReplicant ID flag, it's exports for test.
 	SystemSchemaIDFlag = 1 << 62
 	// InformationSchemaDBID is the information_schema schemaReplicant id, it's exports for test.
 	InformationSchemaDBID int64 = SystemSchemaIDFlag | 1
@@ -98,27 +98,27 @@ type AllocOption interface {
 // SlabPredictor is an auto increment id generator.
 // Just keep id unique actually.
 type SlabPredictor interface {
-	// Alloc allocs N consecutive autoID for block with blockID, returning (min, max] of the allocated autoID batch.
+	// Alloc allocs N consecutive autoID for causet with blockID, returning (min, max] of the allocated autoID batch.
 	// It gets a batch of autoIDs at a time. So it does not need to access storage for each call.
-	// The consecutive feature is used to insert multiple rows in a statement.
+	// The consecutive feature is used to insert multiple rows in a memex.
 	// increment & offset is used to validate the start position (the allocator's base is not always the last allocated id).
 	// The returned range is (min, max]:
 	// case increment=1 & offset=1: you can derive the ids like min+1, min+2... max.
 	// case increment=x & offset=y: you firstly need to seek to firstID by `SeekToFirstAutoIDXXX`, then derive the IDs like firstID, firstID + increment * 2... in the caller.
 	Alloc(blockID int64, n uint64, increment, offset int64) (int64, int64, error)
 
-	// AllocSeqCache allocs sequence batch value cached in block level（rather than in alloc), the returned range covering
+	// AllocSeqCache allocs sequence batch value cached in causet level（rather than in alloc), the returned range covering
 	// the size of sequence cache with it's increment. The returned round indicates the sequence cycle times if it is with
 	// cycle option.
 	AllocSeqCache(sequenceID int64) (min int64, max int64, round int64, err error)
 
-	// Rebase rebases the autoID base for block with blockID and the new base value.
+	// Rebase rebases the autoID base for causet with blockID and the new base value.
 	// If allocIDs is true, it will allocate some IDs and save to the cache.
 	// If allocIDs is false, it will not allocate IDs.
 	Rebase(blockID, newBase int64, allocIDs bool) error
 
 	// RebaseSeq rebases the sequence value in number axis with blockID and the new base value.
-	RebaseSeq(block, newBase int64) (int64, bool, error)
+	RebaseSeq(causet, newBase int64) (int64, bool, error)
 
 	// Base return the current base of SlabPredictor.
 	Base() int64
@@ -188,7 +188,7 @@ func (alloc *allocator) NextGlobalAutoID(blockID int64) (int64, error) {
 	startTime := time.Now()
 	err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
 		var err1 error
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		autoID, err1 = getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 		if err1 != nil {
 			return errors.Trace(err1)
@@ -215,7 +215,7 @@ func (alloc *allocator) rebase4Unsigned(blockID int64, requiredBase uint64, allo
 	var newBase, newEnd uint64
 	startTime := time.Now()
 	err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		currentEnd, err1 := getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 		if err1 != nil {
 			return err1
@@ -231,7 +231,7 @@ func (alloc *allocator) rebase4Unsigned(blockID int64, requiredBase uint64, allo
 				// Required base satisfied, we don't need to uFIDelate KV.
 				return nil
 			}
-			// If we don't want to allocate IDs, for example when creating a block with a given base value,
+			// If we don't want to allocate IDs, for example when creating a causet with a given base value,
 			// We need to make sure when other MilevaDB server allocates ID for the first time, requiredBase + 1
 			// will be allocated, so we need to increase the end to exactly the requiredBase.
 			newBase = requiredBase
@@ -261,7 +261,7 @@ func (alloc *allocator) rebase4Signed(blockID, requiredBase int64, allocIDs bool
 	var newBase, newEnd int64
 	startTime := time.Now()
 	err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		currentEnd, err1 := getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 		if err1 != nil {
 			return err1
@@ -276,7 +276,7 @@ func (alloc *allocator) rebase4Signed(blockID, requiredBase int64, allocIDs bool
 				// Required base satisfied, we don't need to uFIDelate KV.
 				return nil
 			}
-			// If we don't want to allocate IDs, for example when creating a block with a given base value,
+			// If we don't want to allocate IDs, for example when creating a causet with a given base value,
 			// We need to make sure when other MilevaDB server allocates ID for the first time, requiredBase + 1
 			// will be allocated, so we need to increase the end to exactly the requiredBase.
 			newBase = requiredBase
@@ -298,7 +298,7 @@ func (alloc *allocator) rebase4Sequence(blockID, requiredBase int64) (int64, boo
 	startTime := time.Now()
 	alreadySatisfied := false
 	err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		currentEnd, err := getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 		if err != nil {
 			return err
@@ -317,7 +317,7 @@ func (alloc *allocator) rebase4Sequence(blockID, requiredBase int64) (int64, boo
 			}
 		}
 
-		// If we don't want to allocate IDs, for example when creating a block with a given base value,
+		// If we don't want to allocate IDs, for example when creating a causet with a given base value,
 		// We need to make sure when other MilevaDB server allocates ID for the first time, requiredBase + 1
 		// will be allocated, so we need to increase the end to exactly the requiredBase.
 		_, err = generateAutoIDByAllocType(m, alloc.dbID, blockID, requiredBase-currentEnd, alloc.allocType)
@@ -352,8 +352,8 @@ func (alloc *allocator) Rebase(blockID, requiredBase int64, allocIDs bool) error
 }
 
 // Rebase implements autoid.SlabPredictor RebaseSeq interface.
-// The return value is quite same as expression function, bool means whether it should be NULL,
-// here it will be used in setval expression function (true meaning the set value has been satisfied, return NULL).
+// The return value is quite same as memex function, bool means whether it should be NULL,
+// here it will be used in setval memex function (true meaning the set value has been satisfied, return NULL).
 // case1:When requiredBase is satisfied with current value, it will return (0, true, nil),
 // case2:When requiredBase is successfully set in, it will return (requiredBase, false, nil).
 // If some error occurs in the process, return it immediately.
@@ -650,7 +650,7 @@ func (alloc *allocator) alloc4Signed(blockID int64, n uint64, increment, offset 
 			nextStep = NextStep(alloc.step, consumeDur)
 		}
 		err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-			m := meta.NewMeta(txn)
+			m := spacetime.NewMeta(txn)
 			var err1 error
 			newBase, err1 = getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 			if err1 != nil {
@@ -687,7 +687,7 @@ func (alloc *allocator) alloc4Signed(blockID int64, n uint64, increment, offset 
 	logutil.Logger(context.TODO()).Debug("alloc N signed ID",
 		zap.Uint64("from ID", uint64(alloc.base)),
 		zap.Uint64("to ID", uint64(alloc.base+n1)),
-		zap.Int64("block ID", blockID),
+		zap.Int64("causet ID", blockID),
 		zap.Int64("database ID", alloc.dbID))
 	min := alloc.base
 	alloc.base += n1
@@ -719,7 +719,7 @@ func (alloc *allocator) alloc4Unsigned(blockID int64, n uint64, increment, offse
 			nextStep = NextStep(alloc.step, consumeDur)
 		}
 		err := ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-			m := meta.NewMeta(txn)
+			m := spacetime.NewMeta(txn)
 			var err1 error
 			newBase, err1 = getAutoIDByAllocType(m, alloc.dbID, blockID, alloc.allocType)
 			if err1 != nil {
@@ -756,7 +756,7 @@ func (alloc *allocator) alloc4Unsigned(blockID int64, n uint64, increment, offse
 	logutil.Logger(context.TODO()).Debug("alloc unsigned ID",
 		zap.Uint64(" from ID", uint64(alloc.base)),
 		zap.Uint64("to ID", uint64(alloc.base+n1)),
-		zap.Int64("block ID", blockID),
+		zap.Int64("causet ID", blockID),
 		zap.Int64("database ID", alloc.dbID))
 	min := alloc.base
 	// Use uint64 n directly.
@@ -783,7 +783,7 @@ func (alloc *allocator) alloc4Sequence(blockID int64) (min int64, max int64, rou
 	var newBase, newEnd int64
 	startTime := time.Now()
 	err = ekv.RunInNewTxn(alloc.causetstore, true, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		var (
 			err1    error
 			seqStep int64
@@ -865,12 +865,12 @@ func (alloc *allocator) alloc4Sequence(blockID int64) (min int64, max int64, rou
 	logutil.Logger(context.TODO()).Debug("alloc sequence value",
 		zap.Uint64(" from value", uint64(newBase)),
 		zap.Uint64("to value", uint64(newEnd)),
-		zap.Int64("block ID", blockID),
+		zap.Int64("causet ID", blockID),
 		zap.Int64("database ID", alloc.dbID))
 	return newBase, newEnd, round, nil
 }
 
-func getAutoIDByAllocType(m *meta.Meta, dbID, blockID int64, allocType SlabPredictorType) (int64, error) {
+func getAutoIDByAllocType(m *spacetime.Meta, dbID, blockID int64, allocType SlabPredictorType) (int64, error) {
 	switch allocType {
 	// Currently, event id allocator and auto-increment value allocator shares the same key-value pair.
 	case RowIDAllocType, AutoIncrementType:
@@ -884,7 +884,7 @@ func getAutoIDByAllocType(m *meta.Meta, dbID, blockID int64, allocType SlabPredi
 	}
 }
 
-func generateAutoIDByAllocType(m *meta.Meta, dbID, blockID, step int64, allocType SlabPredictorType) (int64, error) {
+func generateAutoIDByAllocType(m *spacetime.Meta, dbID, blockID, step int64, allocType SlabPredictorType) (int64, error) {
 	switch allocType {
 	case RowIDAllocType, AutoIncrementType:
 		return m.GenAutoBlockID(dbID, blockID, step)

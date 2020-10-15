@@ -181,7 +181,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MyALLEGROSQL commands processing numbers per second. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-statements.html",
+          "description": "MyALLEGROSQL commands processing numbers per second. See https://dev.allegrosql.com/doc/internals/en/text-protocol.html and https://dev.allegrosql.com/doc/internals/en/prepared-memexs.html",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -302,7 +302,7 @@
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
           "decimals": null,
-          "description": "MilevaDB statement statistics",
+          "description": "MilevaDB memex statistics",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -343,7 +343,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_executor_statement_total[1m])) by (type)",
+              "expr": "sum(rate(milevadb_interlock_memex_total[1m])) by (type)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",
@@ -351,7 +351,7 @@
               "step": 30
             },
             {
-              "expr": "sum(rate(milevadb_executor_statement_total[1m]))",
+              "expr": "sum(rate(milevadb_interlock_memex_total[1m]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "total",
@@ -2460,7 +2460,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB instance prepare statements count",
+          "description": "MilevaDB instance prepare memexs count",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -3428,7 +3428,7 @@
           },
           "dataFormat": "tsbuckets",
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB statements numbers within one transaction.",
+          "description": "MilevaDB memexs numbers within one transaction.",
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -3447,7 +3447,7 @@
           "reverseYBuckets": false,
           "targets": [
             {
-              "expr": "sum(increase(milevadb_stochastik_transaction_statement_num_bucket[1m])) by (le)",
+              "expr": "sum(increase(milevadb_stochastik_transaction_memex_num_bucket[1m])) by (le)",
               "format": "heatmap",
               "intervalFactor": 2,
               "legendFormat": "{{le}}",
@@ -3686,21 +3686,21 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(0.99, sum(rate(milevadb_einsteindbclient_batch_executor_token_wait_duration_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.99, sum(rate(milevadb_einsteindbclient_batch_interlock_token_wait_duration_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "99",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.95, sum(rate(milevadb_einsteindbclient_batch_executor_token_wait_duration_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.95, sum(rate(milevadb_einsteindbclient_batch_interlock_token_wait_duration_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "95",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.80, sum(rate(milevadb_einsteindbclient_batch_executor_token_wait_duration_bucket[1m])) by (le))",
+              "expr": "histogram_quantile(0.80, sum(rate(milevadb_einsteindbclient_batch_interlock_token_wait_duration_bucket[1m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "80",
@@ -4209,7 +4209,7 @@
           },
           "dataFormat": "tsbuckets",
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The number of statement acquires locks.",
+          "description": "The number of memex acquires locks.",
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -4228,7 +4228,7 @@
           "reverseYBuckets": false,
           "targets": [
             {
-              "expr": "sum(increase(milevadb_stochastik_statement_lock_keys_count_bucket[1m])) by (le)",
+              "expr": "sum(increase(milevadb_stochastik_memex_lock_keys_count_bucket[1m])) by (le)",
               "format": "heatmap",
               "instant": false,
               "intervalFactor": 2,
@@ -4560,7 +4560,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The duration of a statement acquiring all pessimistic locks at a time.",
+          "description": "The duration of a memex acquiring all pessimistic locks at a time.",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -4876,7 +4876,7 @@
           },
           "dataFormat": "tsbuckets",
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "When the pessimistic statement is executed, the lock fails and it can retry automatically. The number of times the statement is retried is recorded.",
+          "description": "When the pessimistic memex is executed, the dagger fails and it can retry automatically. The number of times the memex is retried is recorded.",
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -4895,7 +4895,7 @@
           "reverseYBuckets": false,
           "targets": [
             {
-              "expr": "sum(increase(milevadb_stochastik_statement_pessimistic_retry_count_bucket[1m])) by (le)",
+              "expr": "sum(increase(milevadb_stochastik_memex_pessimistic_retry_count_bucket[1m])) by (le)",
               "format": "heatmap",
               "intervalFactor": 2,
               "legendFormat": "{{le}}",
@@ -5208,7 +5208,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Execution Duration",
+          "title": "InterDircution Duration",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -5254,7 +5254,7 @@
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
           "decimals": null,
-          "description": "MilevaDB executors using more cpu and memory resources",
+          "description": "MilevaDB interlocks using more cpu and memory resources",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -5295,7 +5295,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_executor_expensive_total[1m])) by (type)",
+              "expr": "sum(rate(milevadb_interlock_expensive_total[1m])) by (type)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",
@@ -5307,7 +5307,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Expensive Executors OPS",
+          "title": "Expensive InterlockingDirectorates OPS",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -5405,7 +5405,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Queries Using Plan Cache OPS",
+          "title": "Queries Using Causet Cache OPS",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -5445,7 +5445,7 @@
         }
       ],
       "repeat": null,
-      "title": "Executor",
+      "title": "InterlockingDirectorate",
       "type": "event"
     },
     {
@@ -6485,7 +6485,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "lock resolve times",
+          "description": "dagger resolve times",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -6581,7 +6581,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "lock cleanup failed times and safe point uFIDelate times",
+          "description": "dagger cleanup failed times and safe point uFIDelate times",
           "ediblock": true,
           "error": false,
           "fill": 1,
@@ -8667,7 +8667,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB dbs owner time operations on etcd duration statistics ",
+          "description": "MilevaDB dbs tenant time operations on etcd duration statistics ",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -8701,7 +8701,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1, sum(rate(milevadb_dbs_owner_handle_syncer_duration_seconds_bucket[2m])) by (le, type, result))",
+              "expr": "histogram_quantile(1, sum(rate(milevadb_dbs_tenant_handle_syncer_duration_seconds_bucket[2m])) by (le, type, result))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}-{{result}}",
@@ -8712,7 +8712,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Owner Handle Syncer Duration",
+          "title": "Tenant Handle Syncer Duration",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -9897,7 +9897,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum(rate(milevadb_owner_new_stochastik_duration_seconds_bucket[1m])) by (le, instance, result))",
+              "expr": "histogram_quantile(0.95, sum(rate(milevadb_tenant_new_stochastik_duration_seconds_bucket[1m])) by (le, instance, result))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{instance}}-{{result}}",
@@ -9953,7 +9953,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB owner  watcher counts",
+          "description": "MilevaDB tenant  watcher counts",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -9985,7 +9985,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_owner_watch_owner_total[1m])) by (type, result, instance)",
+              "expr": "sum(rate(milevadb_tenant_watch_tenant_total[1m])) by (type, result, instance)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}-{{result}}-{{instance}}",
@@ -9997,7 +9997,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Owner Watcher OPS",
+          "title": "Tenant Watcher OPS",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -10071,7 +10071,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(milevadb_owner_watch_owner_total[1m])) by (type, result, instance)",
+              "expr": "sum(rate(milevadb_tenant_watch_tenant_total[1m])) by (type, result, instance)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}-{{result}}-{{instance}}",
@@ -10083,7 +10083,7 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Owner Watcher OPS",
+          "title": "Tenant Watcher OPS",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -10121,7 +10121,7 @@
           }
         }
       ],
-      "title": "Owner",
+      "title": "Tenant",
       "type": "event"
     },
     {
@@ -10140,7 +10140,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB auto id requests per second including  single block/global auto id processing and single block auto id rebase processing",
+          "description": "MilevaDB auto id requests per second including  single causet/global auto id processing and single causet auto id rebase processing",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -10410,7 +10410,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "MilevaDB meta operation durations including get/set schemaReplicant and dbs jobs",
+          "description": "MilevaDB spacetime operation durations including get/set schemaReplicant and dbs jobs",
           "fill": 1,
           "gridPos": {
             "h": 7,
@@ -10444,7 +10444,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(0.99, sum(rate(milevadb_meta_operation_duration_seconds_bucket[1m])) by (le, type))",
+              "expr": "histogram_quantile(0.99, sum(rate(milevadb_spacetime_operation_duration_seconds_bucket[1m])) by (le, type))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{type}}",

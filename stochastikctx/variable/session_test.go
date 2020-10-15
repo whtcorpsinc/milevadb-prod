@@ -135,7 +135,7 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 	seVar.InRestrictedALLEGROSQL = true
 	txnTS := uint64(406649736972468225)
 	costTime := time.Second
-	execDetail := execdetails.ExecDetails{
+	execDetail := execdetails.InterDircDetails{
 		ProcessTime:   time.Second * time.Duration(2),
 		WaitTime:      time.Minute,
 		BackoffTime:   time.Millisecond,
@@ -178,7 +178,7 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 	resultFields := `# Txn_start_ts: 406649736972468225
 # User@Host: root[root] @ 192.168.0.1 [192.168.0.1]
 # Conn_ID: 1
-# Exec_retry_time: 5.1 Exec_retry_count: 3
+# InterDirc_retry_time: 5.1 InterDirc_retry_count: 3
 # Query_time: 1
 # Parse_time: 0.00000001
 # Compile_time: 0.00000001
@@ -200,7 +200,7 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 # Mem_max: 2333
 # Disk_max: 6666
 # Prepared: true
-# Plan_from_cache: true
+# Causet_from_cache: true
 # Has_more_results: true
 # KV_total: 10
 # FIDel_total: 11
@@ -221,11 +221,11 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 		IndexNames:        "[t1:a,t2:b]",
 		StatsInfos:        statsInfos,
 		CausetTasks:          CausetTasks,
-		ExecDetail:        execDetail,
+		InterDircDetail:        execDetail,
 		MemMax:            memMax,
 		DiskMax:           diskMax,
 		Prepared:          true,
-		PlanFromCache:     true,
+		CausetFromCache:     true,
 		HasMoreResults:    true,
 		KVTotal:           10 * time.Second,
 		FIDelTotal:           11 * time.Second,
@@ -237,8 +237,8 @@ func (*testStochastikSuite) TestSlowLogFormat(c *C) {
 			DurationPreprocessSubQuery: 2,
 			PreprocessSubQueries:       2,
 		},
-		ExecRetryCount: 3,
-		ExecRetryTime:  5*time.Second + time.Millisecond*100,
+		InterDircRetryCount: 3,
+		InterDircRetryTime:  5*time.Second + time.Millisecond*100,
 	}
 	logString := seVar.SlowLogFormat(logItems)
 	c.Assert(logString, Equals, resultFields+"\n"+allegrosql)

@@ -17,7 +17,7 @@ import (
 	"context"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	fidel "github.com/einsteindb/fidel/client"
 )
@@ -82,7 +82,7 @@ func processRegionResult(region *fidel.Region, err error) (*fidel.Region, error)
 	return region, nil
 }
 
-func decodeRegionMetaKeyInPlace(r *metapb.Region) error {
+func decodeRegionMetaKeyInPlace(r *spacetimepb.Region) error {
 	if len(r.StartKey) != 0 {
 		_, decoded, err := codec.DecodeBytes(r.StartKey, nil)
 		if err != nil {
@@ -100,7 +100,7 @@ func decodeRegionMetaKeyInPlace(r *metapb.Region) error {
 	return nil
 }
 
-func decodeRegionMetaKeyWithShallowCopy(r *metapb.Region) (*metapb.Region, error) {
+func decodeRegionMetaKeyWithShallowCopy(r *spacetimepb.Region) (*spacetimepb.Region, error) {
 	nr := *r
 	if len(r.StartKey) != 0 {
 		_, decoded, err := codec.DecodeBytes(r.StartKey, nil)

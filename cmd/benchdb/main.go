@@ -33,8 +33,8 @@ import (
 
 var (
 	addr      = flag.String("addr", "127.0.0.1:2379", "fidel address")
-	blockName = flag.String("block", "benchdb", "name of the block")
-	batchSize = flag.Int("batch", 100, "number of statements in a transaction, used for insert and uFIDelate-random only")
+	blockName = flag.String("causet", "benchdb", "name of the causet")
+	batchSize = flag.Int("batch", 100, "number of memexs in a transaction, used for insert and uFIDelate-random only")
 	blobSize  = flag.Int("blob", 1000, "size of the blob column in the event")
 	logLevel  = flag.String("L", "warn", "log level")
 	runJobs   = flag.String("run", strings.Join([]string{
@@ -97,7 +97,7 @@ func newBenchDB() *benchDB {
 	terror.MustNil(err)
 	se, err := stochastik.CreateStochastik(causetstore)
 	terror.MustNil(err)
-	_, err = se.Execute(context.Background(), "use test")
+	_, err = se.InterDircute(context.Background(), "use test")
 	terror.MustNil(err)
 
 	return &benchDB{
@@ -106,8 +106,8 @@ func newBenchDB() *benchDB {
 	}
 }
 
-func (ut *benchDB) mustExec(allegrosql string) {
-	rss, err := ut.stochastik.Execute(context.Background(), allegrosql)
+func (ut *benchDB) mustInterDirc(allegrosql string) {
+	rss, err := ut.stochastik.InterDircute(context.Background(), allegrosql)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -169,7 +169,7 @@ func (ut *benchDB) mustParseSpec(s string) (start, end, count int) {
 }
 
 func (ut *benchDB) createTable() {
-	cLog("create block")
+	cLog("create causet")
 	createALLEGROSQL := "CREATE TABLE IF NOT EXISTS " + *blockName + ` (
   id bigint(20) NOT NULL,
   name varchar(32) NOT NULL,
@@ -178,12 +178,12 @@ func (ut *benchDB) createTable() {
   PRIMARY KEY (id),
   UNIQUE KEY name (name)
 )`
-	ut.mustExec(createALLEGROSQL)
+	ut.mustInterDirc(createALLEGROSQL)
 }
 
 func (ut *benchDB) truncateTable() {
-	cLog("truncate block")
-	ut.mustExec("truncate block " + *blockName)
+	cLog("truncate causet")
+	ut.mustInterDirc("truncate causet " + *blockName)
 }
 
 func (ut *benchDB) runCountTimes(name string, count int, f func()) {
@@ -218,7 +218,7 @@ func (ut *benchDB) insertRows(spec string) {
 	loopCount := (end - start + *batchSize - 1) / *batchSize
 	id := start
 	ut.runCountTimes("insert", loopCount, func() {
-		ut.mustExec("begin")
+		ut.mustInterDirc("begin")
 		buf := make([]byte, *blobSize/2)
 		for i := 0; i < *batchSize; i++ {
 			if id == end {
@@ -227,10 +227,10 @@ func (ut *benchDB) insertRows(spec string) {
 			rand.Read(buf)
 			insetQuery := fmt.Sprintf("insert %s (id, name, data) values (%d, '%d', '%x')",
 				*blockName, id, id, buf)
-			ut.mustExec(insetQuery)
+			ut.mustInterDirc(insetQuery)
 			id++
 		}
-		ut.mustExec("commit")
+		ut.mustInterDirc("commit")
 	})
 }
 
@@ -239,27 +239,27 @@ func (ut *benchDB) uFIDelateRandomRows(spec string) {
 	loopCount := (totalCount + *batchSize - 1) / *batchSize
 	var runCount = 0
 	ut.runCountTimes("uFIDelate-random", loopCount, func() {
-		ut.mustExec("begin")
+		ut.mustInterDirc("begin")
 		for i := 0; i < *batchSize; i++ {
 			if runCount == totalCount {
 				break
 			}
 			id := rand.Intn(end-start) + start
 			uFIDelateQuery := fmt.Sprintf("uFIDelate %s set exp = exp + 1 where id = %d", *blockName, id)
-			ut.mustExec(uFIDelateQuery)
+			ut.mustInterDirc(uFIDelateQuery)
 			runCount++
 		}
-		ut.mustExec("commit")
+		ut.mustInterDirc("commit")
 	})
 }
 
 func (ut *benchDB) uFIDelateRangeRows(spec string) {
 	start, end, count := ut.mustParseSpec(spec)
 	ut.runCountTimes("uFIDelate-range", count, func() {
-		ut.mustExec("begin")
+		ut.mustInterDirc("begin")
 		uFIDelateQuery := fmt.Sprintf("uFIDelate %s set exp = exp + 1 where id >= %d and id < %d", *blockName, start, end)
-		ut.mustExec(uFIDelateQuery)
-		ut.mustExec("commit")
+		ut.mustInterDirc(uFIDelateQuery)
+		ut.mustInterDirc("commit")
 	})
 }
 
@@ -267,7 +267,7 @@ func (ut *benchDB) selectRows(spec string) {
 	start, end, count := ut.mustParseSpec(spec)
 	ut.runCountTimes("select", count, func() {
 		selectQuery := fmt.Sprintf("select * from %s where id >= %d and id < %d", *blockName, start, end)
-		ut.mustExec(selectQuery)
+		ut.mustInterDirc(selectQuery)
 	})
 }
 
@@ -277,7 +277,7 @@ func (ut *benchDB) query(spec string) {
 	count, err := strconv.Atoi(strs[1])
 	terror.MustNil(err)
 	ut.runCountTimes("query", count, func() {
-		ut.mustExec(allegrosql)
+		ut.mustInterDirc(allegrosql)
 	})
 }
 

@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -123,7 +123,7 @@ var fullRange = []point{
 	{value: types.MaxValueCauset()},
 }
 
-// FullIntRange is used for block range. Since block range cannot accept MaxValueCauset as the max value.
+// FullIntRange is used for causet range. Since causet range cannot accept MaxValueCauset as the max value.
 // So we need to set it to MaxInt64.
 func FullIntRange(isUnsigned bool) []*Range {
 	if isUnsigned {
@@ -154,20 +154,20 @@ type builder struct {
 	ctx *stochastikctx.Context
 }
 
-func (r *builder) build(expr expression.Expression) []point {
+func (r *builder) build(expr memex.Expression) []point {
 	switch x := expr.(type) {
-	case *expression.DeferredCauset:
+	case *memex.DeferredCauset:
 		return r.buildFromDeferredCauset(x)
-	case *expression.ScalarFunction:
+	case *memex.ScalarFunction:
 		return r.buildFromScalarFunc(x)
-	case *expression.Constant:
+	case *memex.Constant:
 		return r.buildFromConstant(x)
 	}
 
 	return fullRange
 }
 
-func (r *builder) buildFromConstant(expr *expression.Constant) []point {
+func (r *builder) buildFromConstant(expr *memex.Constant) []point {
 	dt, err := expr.Eval(chunk.Row{})
 	if err != nil {
 		r.err = err
@@ -189,8 +189,8 @@ func (r *builder) buildFromConstant(expr *expression.Constant) []point {
 	return fullRange
 }
 
-func (r *builder) buildFromDeferredCauset(expr *expression.DeferredCauset) []point {
-	// defCausumn name expression is equivalent to defCausumn name is true.
+func (r *builder) buildFromDeferredCauset(expr *memex.DeferredCauset) []point {
+	// defCausumn name memex is equivalent to defCausumn name is true.
 	startPoint1 := point{value: types.MinNotNullCauset(), start: true}
 	endPoint1 := point{excl: true}
 	endPoint1.value.SetInt64(0)
@@ -200,9 +200,9 @@ func (r *builder) buildFromDeferredCauset(expr *expression.DeferredCauset) []poi
 	return []point{startPoint1, endPoint1, startPoint2, endPoint2}
 }
 
-func (r *builder) buildFormBinOp(expr *expression.ScalarFunction) []point {
+func (r *builder) buildFormBinOp(expr *memex.ScalarFunction) []point {
 	// This has been checked that the binary operation is comparison operation, and one of
-	// the operand is defCausumn name expression.
+	// the operand is defCausumn name memex.
 	var (
 		op    string
 		value types.Causet
@@ -211,12 +211,12 @@ func (r *builder) buildFormBinOp(expr *expression.ScalarFunction) []point {
 	)
 
 	// refineValue refines the constant causet for string type since we may eval the constant to another defCauslation instead of its own defCauslation.
-	refineValue := func(defCaus *expression.DeferredCauset, value *types.Causet) {
+	refineValue := func(defCaus *memex.DeferredCauset, value *types.Causet) {
 		if defCaus.RetType.EvalType() == types.ETString && value.HoTT() == types.HoTTString {
 			value.SetString(value.GetString(), defCaus.RetType.DefCauslate)
 		}
 	}
-	if defCaus, ok := expr.GetArgs()[0].(*expression.DeferredCauset); ok {
+	if defCaus, ok := expr.GetArgs()[0].(*memex.DeferredCauset); ok {
 		ft = defCaus.RetType
 		value, err = expr.GetArgs()[1].Eval(chunk.Row{})
 		if err != nil {
@@ -225,7 +225,7 @@ func (r *builder) buildFormBinOp(expr *expression.ScalarFunction) []point {
 		refineValue(defCaus, &value)
 		op = expr.FuncName.L
 	} else {
-		defCaus, ok := expr.GetArgs()[1].(*expression.DeferredCauset)
+		defCaus, ok := expr.GetArgs()[1].(*memex.DeferredCauset)
 		if !ok {
 			return nil
 		}
@@ -317,7 +317,7 @@ func handleUnsignedIntDefCaus(ft *types.FieldType, val types.Causet, op string) 
 	return val, op, false
 }
 
-func (r *builder) buildFromIsTrue(expr *expression.ScalarFunction, isNot int, keepNull bool) []point {
+func (r *builder) buildFromIsTrue(expr *memex.ScalarFunction, isNot int, keepNull bool) []point {
 	if isNot == 1 {
 		if keepNull {
 			// Range is {[0, 0]}
@@ -346,7 +346,7 @@ func (r *builder) buildFromIsTrue(expr *expression.ScalarFunction, isNot int, ke
 	return []point{startPoint1, endPoint1, startPoint2, endPoint2}
 }
 
-func (r *builder) buildFromIsFalse(expr *expression.ScalarFunction, isNot int) []point {
+func (r *builder) buildFromIsFalse(expr *memex.ScalarFunction, isNot int) []point {
 	if isNot == 1 {
 		// NOT FALSE range is {[-inf, 0), (0, +inf], [null, null]}
 		startPoint1 := point{start: true}
@@ -365,13 +365,13 @@ func (r *builder) buildFromIsFalse(expr *expression.ScalarFunction, isNot int) [
 	return []point{startPoint, endPoint}
 }
 
-func (r *builder) buildFromIn(expr *expression.ScalarFunction) ([]point, bool) {
+func (r *builder) buildFromIn(expr *memex.ScalarFunction) ([]point, bool) {
 	list := expr.GetArgs()[1:]
 	rangePoints := make([]point, 0, len(list)*2)
 	hasNull := false
 	defCausDefCauslate := expr.GetArgs()[0].GetType().DefCauslate
 	for _, e := range list {
-		v, ok := e.(*expression.Constant)
+		v, ok := e.(*memex.Constant)
 		if !ok {
 			r.err = ErrUnsupportedType.GenWithStack("expr:%v is not constant", e)
 			return fullRange, hasNull
@@ -417,12 +417,12 @@ func (r *builder) buildFromIn(expr *expression.ScalarFunction) ([]point, bool) {
 	return rangePoints[:curPos], hasNull
 }
 
-func (r *builder) newBuildFromPatternLike(expr *expression.ScalarFunction) []point {
+func (r *builder) newBuildFromPatternLike(expr *memex.ScalarFunction) []point {
 	_, defCauslation := expr.CharsetAndDefCauslation(expr.GetCtx())
 	if !defCauslate.CompatibleDefCauslate(expr.GetArgs()[0].GetType().DefCauslate, defCauslation) {
 		return fullRange
 	}
-	FIDelt, err := expr.GetArgs()[1].(*expression.Constant).Eval(chunk.Row{})
+	FIDelt, err := expr.GetArgs()[1].(*memex.Constant).Eval(chunk.Row{})
 	tpOfPattern := expr.GetArgs()[0].GetType()
 	if err != nil {
 		r.err = errors.Trace(err)
@@ -439,7 +439,7 @@ func (r *builder) newBuildFromPatternLike(expr *expression.ScalarFunction) []poi
 		return []point{startPoint, endPoint}
 	}
 	lowValue := make([]byte, 0, len(pattern))
-	edt, err := expr.GetArgs()[2].(*expression.Constant).Eval(chunk.Row{})
+	edt, err := expr.GetArgs()[2].(*memex.Constant).Eval(chunk.Row{})
 	if err != nil {
 		r.err = errors.Trace(err)
 		return fullRange
@@ -500,7 +500,7 @@ func (r *builder) newBuildFromPatternLike(expr *expression.ScalarFunction) []poi
 	return []point{startPoint, endPoint}
 }
 
-func (r *builder) buildFromNot(expr *expression.ScalarFunction) []point {
+func (r *builder) buildFromNot(expr *memex.ScalarFunction) []point {
 	switch n := expr.FuncName.L; n {
 	case ast.IsTruthWithoutNull:
 		return r.buildFromIsTrue(expr, 1, false)
@@ -517,7 +517,7 @@ func (r *builder) buildFromNot(expr *expression.ScalarFunction) []point {
 		if hasNull {
 			return nil
 		}
-		if x, ok := expr.GetArgs()[0].(*expression.DeferredCauset); ok {
+		if x, ok := expr.GetArgs()[0].(*memex.DeferredCauset); ok {
 			isUnsignedIntDefCaus = allegrosql.HasUnsignedFlag(x.RetType.Flag) && allegrosql.IsIntegerType(x.RetType.Tp)
 		}
 		// negative ranges can be directly ignored for unsigned int defCausumns.
@@ -552,7 +552,7 @@ func (r *builder) buildFromNot(expr *expression.ScalarFunction) []point {
 	return nil
 }
 
-func (r *builder) buildFromScalarFunc(expr *expression.ScalarFunction) []point {
+func (r *builder) buildFromScalarFunc(expr *memex.ScalarFunction) []point {
 	switch op := expr.FuncName.L; op {
 	case ast.GE, ast.GT, ast.LT, ast.LE, ast.EQ, ast.NE, ast.NullEQ:
 		return r.buildFormBinOp(expr)
@@ -576,7 +576,7 @@ func (r *builder) buildFromScalarFunc(expr *expression.ScalarFunction) []point {
 		endPoint := point{}
 		return []point{startPoint, endPoint}
 	case ast.UnaryNot:
-		return r.buildFromNot(expr.GetArgs()[0].(*expression.ScalarFunction))
+		return r.buildFromNot(expr.GetArgs()[0].(*memex.ScalarFunction))
 	}
 
 	return nil

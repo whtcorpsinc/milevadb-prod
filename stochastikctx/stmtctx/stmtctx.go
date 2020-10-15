@@ -41,7 +41,7 @@ const (
 
 var taskIDAlloc uint64
 
-// AllocateTaskID allocates a new unique ID for a statement execution
+// AllocateTaskID allocates a new unique ID for a memex execution
 func AllocateTaskID() uint64 {
 	return atomic.AddUint64(&taskIDAlloc, 1)
 }
@@ -52,8 +52,8 @@ type ALLEGROSQLWarn struct {
 	Err   error
 }
 
-// StatementContext contains variables for a statement.
-// It should be reset before executing a statement.
+// StatementContext contains variables for a memex.
+// It should be reset before executing a memex.
 type StatementContext struct {
 	// Set the following variables before execution
 	StmtHints
@@ -109,14 +109,14 @@ type StatementContext struct {
 		warnings          []ALLEGROSQLWarn
 		errorCount        uint16
 		histogramsNotLoad bool
-		execDetails       execdetails.ExecDetails
-		allExecDetails    []*execdetails.ExecDetails
+		execDetails       execdetails.InterDircDetails
+		allInterDircDetails    []*execdetails.InterDircDetails
 	}
 	// PrevAffectedRows is the affected-rows value(DBS is 0, DML is the number of affected rows).
 	PrevAffectedRows int64
-	// PrevLastInsertID is the last insert ID of previous statement.
+	// PrevLastInsertID is the last insert ID of previous memex.
 	PrevLastInsertID uint64
-	// LastInsertID is the auto-generated ID in the current statement.
+	// LastInsertID is the auto-generated ID in the current memex.
 	LastInsertID uint64
 	// InsertID is the given insert ID of an auto_increment defCausumn.
 	InsertID uint64
@@ -146,13 +146,13 @@ type StatementContext struct {
 	planNormalized        string
 	planDigest            string
 	Blocks                []BlockEntry
-	PointExec             bool  // for point uFIDelate cached execution, Constant expression need to set "paramMarker"
-	lockWaitStartTime     int64 // LockWaitStartTime stores the pessimistic lock wait start time
+	PointInterDirc             bool  // for point uFIDelate cached execution, Constant memex need to set "paramMarker"
+	lockWaitStartTime     int64 // LockWaitStartTime stores the pessimistic dagger wait start time
 	PessimisticLockWaited int32
 	LockKeysDuration      int64
 	LockKeysCount         int32
 	TblInfo2UnionScan     map[*perceptron.BlockInfo]bool
-	TaskID                uint64 // unique ID for an execution of a statement
+	TaskID                uint64 // unique ID for an execution of a memex
 	TaskMapBakTS          uint64 // counter for
 }
 
@@ -161,27 +161,27 @@ type StmtHints struct {
 	// Hint Information
 	MemQuotaQuery           int64
 	ApplyCacheCapacity      int64
-	MaxExecutionTime        uint64
+	MaxInterDircutionTime        uint64
 	ReplicaRead             byte
 	AllowInSubqToJoinAnPosetDagg bool
 	NoIndexMergeHint        bool
-	// EnableCascadesPlanner is use cascades planner for a single query only.
-	EnableCascadesPlanner bool
-	// ForceNthPlan indicates the PlanCounterTp number for finding physical plan.
+	// EnableCascadesCausetAppend is use cascades causet for a single query only.
+	EnableCascadesCausetAppend bool
+	// ForceNthCauset indicates the CausetCounterTp number for finding physical plan.
 	// -1 for disable.
-	ForceNthPlan int64
+	ForceNthCauset int64
 
 	// Hint flags
 	HasAllowInSubqToJoinAnPosetDaggHint bool
 	HasMemQuotaHint                bool
 	HasReplicaReadHint             bool
-	HasMaxExecutionTime            bool
-	HasEnableCascadesPlannerHint   bool
+	HasMaxInterDircutionTime            bool
+	HasEnableCascadesCausetAppendHint   bool
 }
 
 // TaskMapNeedBackUp indicates that whether we need to back up taskMap during physical optimizing.
 func (sh *StmtHints) TaskMapNeedBackUp() bool {
-	return sh.ForceNthPlan != -1
+	return sh.ForceNthCauset != -1
 }
 
 // GetNowTsCached getter for nowTs, if not set get now time and cache it
@@ -215,17 +215,17 @@ func (sc *StatementContext) InitALLEGROSQLDigest(normalized, digest string) {
 	})
 }
 
-// GetPlanDigest gets the normalized plan and plan digest.
-func (sc *StatementContext) GetPlanDigest() (normalized, planDigest string) {
+// GetCausetDigest gets the normalized plan and plan digest.
+func (sc *StatementContext) GetCausetDigest() (normalized, planDigest string) {
 	return sc.planNormalized, sc.planDigest
 }
 
-// SetPlanDigest sets the normalized plan and plan digest.
-func (sc *StatementContext) SetPlanDigest(normalized, planDigest string) {
+// SetCausetDigest sets the normalized plan and plan digest.
+func (sc *StatementContext) SetCausetDigest(normalized, planDigest string) {
 	sc.planNormalized, sc.planDigest = normalized, planDigest
 }
 
-// BlockEntry presents block in EDB.
+// BlockEntry presents causet in EDB.
 type BlockEntry struct {
 	EDB    string
 	Block string
@@ -477,8 +477,8 @@ func (sc *StatementContext) ResetForRetry() {
 	sc.mu.message = ""
 	sc.mu.errorCount = 0
 	sc.mu.warnings = nil
-	sc.mu.execDetails = execdetails.ExecDetails{}
-	sc.mu.allExecDetails = make([]*execdetails.ExecDetails, 0, 4)
+	sc.mu.execDetails = execdetails.InterDircDetails{}
+	sc.mu.allInterDircDetails = make([]*execdetails.InterDircDetails, 0, 4)
 	sc.mu.Unlock()
 	sc.MaxRowID = 0
 	sc.BaseRowID = 0
@@ -487,9 +487,9 @@ func (sc *StatementContext) ResetForRetry() {
 	sc.TaskID = AllocateTaskID()
 }
 
-// MergeExecDetails merges a single region execution details into self, used to print
+// MergeInterDircDetails merges a single region execution details into self, used to print
 // the information in slow query log.
-func (sc *StatementContext) MergeExecDetails(details *execdetails.ExecDetails, commitDetails *execdetails.CommitDetails) {
+func (sc *StatementContext) MergeInterDircDetails(details *execdetails.InterDircDetails, commitDetails *execdetails.CommitDetails) {
 	sc.mu.Lock()
 	if details != nil {
 		sc.mu.execDetails.CopTime += details.CopTime
@@ -499,14 +499,14 @@ func (sc *StatementContext) MergeExecDetails(details *execdetails.ExecDetails, c
 		sc.mu.execDetails.RequestCount++
 		sc.mu.execDetails.TotalKeys += details.TotalKeys
 		sc.mu.execDetails.ProcessedKeys += details.ProcessedKeys
-		sc.mu.allExecDetails = append(sc.mu.allExecDetails, details)
+		sc.mu.allInterDircDetails = append(sc.mu.allInterDircDetails, details)
 	}
 	sc.mu.execDetails.CommitDetail = commitDetails
 	sc.mu.Unlock()
 }
 
-// MergeLockKeysExecDetails merges lock keys execution details into self.
-func (sc *StatementContext) MergeLockKeysExecDetails(lockKeys *execdetails.LockKeysDetails) {
+// MergeLockKeysInterDircDetails merges dagger keys execution details into self.
+func (sc *StatementContext) MergeLockKeysInterDircDetails(lockKeys *execdetails.LockKeysDetails) {
 	sc.mu.Lock()
 	if sc.mu.execDetails.LockKeysDetail == nil {
 		sc.mu.execDetails.LockKeysDetail = lockKeys
@@ -516,9 +516,9 @@ func (sc *StatementContext) MergeLockKeysExecDetails(lockKeys *execdetails.LockK
 	sc.mu.Unlock()
 }
 
-// GetExecDetails gets the execution details for the statement.
-func (sc *StatementContext) GetExecDetails() execdetails.ExecDetails {
-	var details execdetails.ExecDetails
+// GetInterDircDetails gets the execution details for the memex.
+func (sc *StatementContext) GetInterDircDetails() execdetails.InterDircDetails {
+	var details execdetails.InterDircDetails
 	sc.mu.Lock()
 	details = sc.mu.execDetails
 	details.LockKeysDuration = time.Duration(atomic.LoadInt64(&sc.LockKeysDuration))
@@ -527,7 +527,7 @@ func (sc *StatementContext) GetExecDetails() execdetails.ExecDetails {
 }
 
 // ShouldClipToZero indicates whether values less than 0 should be clipped to 0 for unsigned integer types.
-// This is the case for `insert`, `uFIDelate`, `alter block` and `load data infile` statements, when not in strict ALLEGROALLEGROSQL mode.
+// This is the case for `insert`, `uFIDelate`, `alter causet` and `load data infile` memexs, when not in strict ALLEGROALLEGROSQL mode.
 // see https://dev.allegrosql.com/doc/refman/5.7/en/out-of-range-and-overflow.html
 func (sc *StatementContext) ShouldClipToZero() bool {
 	// TODO: Currently altering defCausumn of integer to unsigned integer is not supported.
@@ -578,7 +578,7 @@ func (sc *StatementContext) PushDownFlags() uint64 {
 func (sc *StatementContext) CausetTasksDetails() *CausetTasksDetails {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	n := len(sc.mu.allExecDetails)
+	n := len(sc.mu.allInterDircDetails)
 	d := &CausetTasksDetails{
 		NumCausetTasks:       n,
 		MaxBackoffTime:    make(map[string]time.Duration),
@@ -594,19 +594,19 @@ func (sc *StatementContext) CausetTasksDetails() *CausetTasksDetails {
 	d.AvgProcessTime = sc.mu.execDetails.ProcessTime / time.Duration(n)
 	d.AvgWaitTime = sc.mu.execDetails.WaitTime / time.Duration(n)
 
-	sort.Slice(sc.mu.allExecDetails, func(i, j int) bool {
-		return sc.mu.allExecDetails[i].ProcessTime < sc.mu.allExecDetails[j].ProcessTime
+	sort.Slice(sc.mu.allInterDircDetails, func(i, j int) bool {
+		return sc.mu.allInterDircDetails[i].ProcessTime < sc.mu.allInterDircDetails[j].ProcessTime
 	})
-	d.P90ProcessTime = sc.mu.allExecDetails[n*9/10].ProcessTime
-	d.MaxProcessTime = sc.mu.allExecDetails[n-1].ProcessTime
-	d.MaxProcessAddress = sc.mu.allExecDetails[n-1].CalleeAddress
+	d.P90ProcessTime = sc.mu.allInterDircDetails[n*9/10].ProcessTime
+	d.MaxProcessTime = sc.mu.allInterDircDetails[n-1].ProcessTime
+	d.MaxProcessAddress = sc.mu.allInterDircDetails[n-1].CalleeAddress
 
-	sort.Slice(sc.mu.allExecDetails, func(i, j int) bool {
-		return sc.mu.allExecDetails[i].WaitTime < sc.mu.allExecDetails[j].WaitTime
+	sort.Slice(sc.mu.allInterDircDetails, func(i, j int) bool {
+		return sc.mu.allInterDircDetails[i].WaitTime < sc.mu.allInterDircDetails[j].WaitTime
 	})
-	d.P90WaitTime = sc.mu.allExecDetails[n*9/10].WaitTime
-	d.MaxWaitTime = sc.mu.allExecDetails[n-1].WaitTime
-	d.MaxWaitAddress = sc.mu.allExecDetails[n-1].CalleeAddress
+	d.P90WaitTime = sc.mu.allInterDircDetails[n*9/10].WaitTime
+	d.MaxWaitTime = sc.mu.allInterDircDetails[n-1].WaitTime
+	d.MaxWaitAddress = sc.mu.allInterDircDetails[n-1].CalleeAddress
 
 	// calculate backoff details
 	type backoffItem struct {
@@ -615,7 +615,7 @@ func (sc *StatementContext) CausetTasksDetails() *CausetTasksDetails {
 		times     int
 	}
 	backoffInfo := make(map[string][]backoffItem)
-	for _, ed := range sc.mu.allExecDetails {
+	for _, ed := range sc.mu.allInterDircDetails {
 		for backoff := range ed.BackoffTimes {
 			backoffInfo[backoff] = append(backoffInfo[backoff], backoffItem{
 				callee:    ed.CalleeAddress,
@@ -660,7 +660,7 @@ func (sc *StatementContext) SetFlagsFromPBFlag(flags uint64) {
 	sc.DividedByZeroAsWarning = (flags & perceptron.FlagDividedByZeroAsWarning) > 0
 }
 
-// GetLockWaitStartTime returns the statement pessimistic lock wait start time
+// GetLockWaitStartTime returns the memex pessimistic dagger wait start time
 func (sc *StatementContext) GetLockWaitStartTime() time.Time {
 	startTime := atomic.LoadInt64(&sc.lockWaitStartTime)
 	if startTime == 0 {

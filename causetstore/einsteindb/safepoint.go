@@ -30,8 +30,8 @@ import (
 
 // Safe point constants.
 const (
-	// This is almost the same as 'einsteindb_gc_safe_point' in the block 'allegrosql.milevadb',
-	// save this to fidel instead of einsteindb, because we can't use interface of block
+	// This is almost the same as 'einsteindb_gc_safe_point' in the causet 'allegrosql.milevadb',
+	// save this to fidel instead of einsteindb, because we can't use interface of causet
 	// if the safepoint on milevadb is expired.
 	GcSavedSafePoint = "/milevadb/causetstore/gcworker/saved_safe_point"
 

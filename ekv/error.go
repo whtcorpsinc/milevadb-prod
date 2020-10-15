@@ -29,7 +29,7 @@ var (
 	// ErrNotExist is used when try to get an entry with an unexist key from KV causetstore.
 	ErrNotExist = terror.ClassKV.New(allegrosql.ErrNotExist, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNotExist])
 	// ErrTxnRetryable is used when KV causetstore occurs retryable error which ALLEGROALLEGROSQL layer can safely retry the transaction.
-	// When using EinsteinDB as the storage node, the error is returned ONLY when lock not found (txnLockNotFound) in Commit,
+	// When using EinsteinDB as the storage node, the error is returned ONLY when dagger not found (txnLockNotFound) in Commit,
 	// subject to change it in the future.
 	ErrTxnRetryable = terror.ClassKV.New(allegrosql.ErrTxnRetryable,
 		allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTxnRetryable]+TxnRetryableMark)
@@ -37,7 +37,7 @@ var (
 	ErrCannotSetNilValue = terror.ClassKV.New(allegrosql.ErrCannotSetNilValue, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCannotSetNilValue])
 	// ErrInvalidTxn is the error when commits or rollbacks in an invalid transaction.
 	ErrInvalidTxn = terror.ClassKV.New(allegrosql.ErrInvalidTxn, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrInvalidTxn])
-	// ErrTxnTooLarge is the error when transaction is too large, lock time reached the maximum value.
+	// ErrTxnTooLarge is the error when transaction is too large, dagger time reached the maximum value.
 	ErrTxnTooLarge = terror.ClassKV.New(allegrosql.ErrTxnTooLarge, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTxnTooLarge])
 	// ErrEntryTooLarge is the error when a key value entry is too large.
 	ErrEntryTooLarge = terror.ClassKV.New(allegrosql.ErrEntryTooLarge, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrEntryTooLarge])

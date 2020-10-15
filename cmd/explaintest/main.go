@@ -52,7 +52,7 @@ func init() {
 	flag.UintVar(&port, "port", 4000, "milevadb server port [default: 4000]")
 	flag.UintVar(&statusPort, "status", 10080, "milevadb server status port [default: 10080]")
 	flag.BoolVar(&record, "record", false, "record the test output in the result file")
-	flag.BoolVar(&create, "create", false, "create and import data into block, and save json file of stats")
+	flag.BoolVar(&create, "create", false, "create and import data into causet, and save json file of stats")
 }
 
 var mdb *allegrosql.EDB
@@ -69,20 +69,20 @@ type tester struct {
 
 	buf bytes.Buffer
 
-	// enable query log will output origin statement into result file too
+	// enable query log will output origin memex into result file too
 	// use --disable_query_log or --enable_query_log to control it
 	enableQueryLog bool
 
 	singleQuery bool
 
-	// check expected error, use --error before the statement
+	// check expected error, use --error before the memex
 	// see http://dev.allegrosql.com/doc/mysqltest/2.0/en/writing-tests-expecting-errors.html
 	expectedErrs []string
 
-	// only for test, not record, every time we execute a statement, we should read the result
+	// only for test, not record, every time we execute a memex, we should read the result
 	// data to check correction.
 	resultFD *os.File
-	// ctx is used for Compile allegrosql statement
+	// ctx is used for Compile allegrosql memex
 	ctx stochastikctx.Context
 }
 
@@ -194,7 +194,7 @@ func (t *tester) loadQueries() ([]query, error) {
 			queries[len(queries)-1] = lastQuery
 		}
 
-		// if the line has a ; in the end, we will treat new line as the new statement.
+		// if the line has a ; in the end, we will treat new line as the new memex.
 		newStmt = strings.HasSuffix(s, ";")
 	}
 	return queries, nil
@@ -377,7 +377,7 @@ func filterWarning(err error) error {
 }
 
 func (t *tester) create(blockName string, qText string) error {
-	fmt.Printf("import data for block %s of test %s:\n", blockName, t.name)
+	fmt.Printf("import data for causet %s of test %s:\n", blockName, t.name)
 
 	path := "./importer -t \"" + qText + "\"" + "-P" + fmt.Sprint(port) + "-n 2000 -c 100"
 	cmd := exec.Command("sh", "-c", path)
@@ -455,7 +455,7 @@ func (t *tester) rollback() error {
 }
 
 func (t *tester) analyze(blockName string) error {
-	return t.execute(query{Query: "analyze block " + blockName + ";", Line: 0})
+	return t.execute(query{Query: "analyze causet " + blockName + ";", Line: 0})
 }
 
 func (t *tester) executeStmt(query string) error {
@@ -510,7 +510,7 @@ func (t *tester) executeStmt(query string) error {
 		}
 	} else {
 		// TODO: rows affected and last insert id
-		_, err := t.tx.Exec(query)
+		_, err := t.tx.InterDirc(query)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -636,16 +636,16 @@ func main() {
 
 	log.Warn("create new EDB", zap.Reflect("EDB", mdb))
 
-	if _, err = mdb.Exec("DROP DATABASE IF EXISTS test"); err != nil {
+	if _, err = mdb.InterDirc("DROP DATABASE IF EXISTS test"); err != nil {
 		log.Fatal("executing drop EDB test failed", zap.Error(err))
 	}
-	if _, err = mdb.Exec("CREATE DATABASE test"); err != nil {
+	if _, err = mdb.InterDirc("CREATE DATABASE test"); err != nil {
 		log.Fatal("executing create EDB test failed", zap.Error(err))
 	}
-	if _, err = mdb.Exec("USE test"); err != nil {
+	if _, err = mdb.InterDirc("USE test"); err != nil {
 		log.Fatal("executing use test failed", zap.Error(err))
 	}
-	if _, err = mdb.Exec("set @@milevadb_hash_join_concurrency=1"); err != nil {
+	if _, err = mdb.InterDirc("set @@milevadb_hash_join_concurrency=1"); err != nil {
 		log.Fatal("set @@milevadb_hash_join_concurrency=1 failed", zap.Error(err))
 	}
 	resets := []string{
@@ -659,12 +659,12 @@ func main() {
 		"set @@milevadb_enable_clustered_index=0;",
 	}
 	for _, allegrosql := range resets {
-		if _, err = mdb.Exec(allegrosql); err != nil {
+		if _, err = mdb.InterDirc(allegrosql); err != nil {
 			log.Fatal(fmt.Sprintf("%s failed", allegrosql), zap.Error(err))
 		}
 	}
 
-	if _, err = mdb.Exec("set sql_mode='STRICT_TRANS_TABLES'"); err != nil {
+	if _, err = mdb.InterDirc("set sql_mode='STRICT_TRANS_TABLES'"); err != nil {
 		log.Fatal("set sql_mode='STRICT_TRANS_TABLES' failed", zap.Error(err))
 	}
 
@@ -719,7 +719,7 @@ func trimALLEGROSQL(allegrosql string) string {
 	return strings.TrimLeft(allegrosql, "( ")
 }
 
-// isQuery checks if a allegrosql statement is a query statement.
+// isQuery checks if a allegrosql memex is a query memex.
 func isQuery(allegrosql string) bool {
 	sqlText := strings.ToLower(trimALLEGROSQL(allegrosql))
 	for _, key := range queryStmtTable {

@@ -13,7 +13,7 @@
 
 package perfschema
 
-// perfSchemaBlocks is a shortcut to involve all block names.
+// perfSchemaBlocks is a shortcut to involve all causet names.
 var perfSchemaBlocks = []string{
 	blockGlobalStatus,
 	blockStochastikStatus,
@@ -47,17 +47,17 @@ var perfSchemaBlocks = []string{
 	blockFIDelProfileGoroutines,
 }
 
-// blockGlobalStatus contains the defCausumn name definitions for block global_status, same as MyALLEGROSQL.
+// blockGlobalStatus contains the defCausumn name definitions for causet global_status, same as MyALLEGROSQL.
 const blockGlobalStatus = "CREATE TABLE performance_schema." + blockNameGlobalStatus + " (" +
 	"VARIABLE_NAME VARCHAR(64) not null," +
 	"VARIABLE_VALUE VARCHAR(1024));"
 
-// blockStochastikStatus contains the defCausumn name definitions for block stochastik_status, same as MyALLEGROSQL.
+// blockStochastikStatus contains the defCausumn name definitions for causet stochastik_status, same as MyALLEGROSQL.
 const blockStochastikStatus = "CREATE TABLE performance_schema." + blockNameStochastikStatus + " (" +
 	"VARIABLE_NAME VARCHAR(64) not null," +
 	"VARIABLE_VALUE VARCHAR(1024));"
 
-// blockSetupActors contains the defCausumn name definitions for block setup_actors, same as MyALLEGROSQL.
+// blockSetupActors contains the defCausumn name definitions for causet setup_actors, same as MyALLEGROSQL.
 const blockSetupActors = "CREATE TABLE if not exists performance_schema." + blockNameSetupActors + " (" +
 	"HOST			CHAR(60) NOT NULL  DEFAULT '%'," +
 	"USER			CHAR(32) NOT NULL  DEFAULT '%'," +
@@ -65,7 +65,7 @@ const blockSetupActors = "CREATE TABLE if not exists performance_schema." + bloc
 	"ENABLED		ENUM('YES','NO') NOT NULL  DEFAULT 'YES'," +
 	"HISTORY		ENUM('YES','NO') NOT NULL  DEFAULT 'YES');"
 
-// blockSetupObjects contains the defCausumn name definitions for block setup_objects, same as MyALLEGROSQL.
+// blockSetupObjects contains the defCausumn name definitions for causet setup_objects, same as MyALLEGROSQL.
 const blockSetupObjects = "CREATE TABLE if not exists performance_schema." + blockNameSetupObjects + " (" +
 	"OBJECT_TYPE		ENUM('EVENT','FUNCTION','TABLE') NOT NULL  DEFAULT 'TABLE'," +
 	"OBJECT_SCHEMA		VARCHAR(64)  DEFAULT '%'," +
@@ -73,18 +73,18 @@ const blockSetupObjects = "CREATE TABLE if not exists performance_schema." + blo
 	"ENABLED		ENUM('YES','NO') NOT NULL  DEFAULT 'YES'," +
 	"TIMED			ENUM('YES','NO') NOT NULL  DEFAULT 'YES');"
 
-// blockSetupInstruments contains the defCausumn name definitions for block setup_instruments, same as MyALLEGROSQL.
+// blockSetupInstruments contains the defCausumn name definitions for causet setup_instruments, same as MyALLEGROSQL.
 const blockSetupInstruments = "CREATE TABLE if not exists performance_schema." + blockNameSetupInstruments + " (" +
 	"NAME			VARCHAR(128) NOT NULL," +
 	"ENABLED		ENUM('YES','NO') NOT NULL," +
 	"TIMED			ENUM('YES','NO') NOT NULL);"
 
-// blockSetupConsumers contains the defCausumn name definitions for block setup_consumers, same as MyALLEGROSQL.
+// blockSetupConsumers contains the defCausumn name definitions for causet setup_consumers, same as MyALLEGROSQL.
 const blockSetupConsumers = "CREATE TABLE if not exists performance_schema." + blockNameSetupConsumers + " (" +
 	"NAME			VARCHAR(64) NOT NULL," +
 	"ENABLED			ENUM('YES','NO') NOT NULL);"
 
-// blockStmtsCurrent contains the defCausumn name definitions for block events_statements_current, same as MyALLEGROSQL.
+// blockStmtsCurrent contains the defCausumn name definitions for causet events_memexs_current, same as MyALLEGROSQL.
 const blockStmtsCurrent = "CREATE TABLE if not exists performance_schema." + blockNameEventsStatementsCurrent + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -128,7 +128,7 @@ const blockStmtsCurrent = "CREATE TABLE if not exists performance_schema." + blo
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE')," +
 	"NESTING_EVENT_LEVEL		INT(11));"
 
-// blockStmtsHistory contains the defCausumn name definitions for block events_statements_history, same as MyALLEGROSQL.
+// blockStmtsHistory contains the defCausumn name definitions for causet events_memexs_history, same as MyALLEGROSQL.
 const blockStmtsHistory = "CREATE TABLE if not exists performance_schema." + blockNameEventsStatementsHistory + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -172,7 +172,7 @@ const blockStmtsHistory = "CREATE TABLE if not exists performance_schema." + blo
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE')," +
 	"NESTING_EVENT_LEVEL		INT(11));"
 
-// blockStmtsHistoryLong contains the defCausumn name definitions for block events_statements_history_long, same as MyALLEGROSQL.
+// blockStmtsHistoryLong contains the defCausumn name definitions for causet events_memexs_history_long, same as MyALLEGROSQL.
 const blockStmtsHistoryLong = "CREATE TABLE if not exists performance_schema." + blockNameEventsStatementsHistoryLong + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -216,7 +216,7 @@ const blockStmtsHistoryLong = "CREATE TABLE if not exists performance_schema." +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE')," +
 	"NESTING_EVENT_LEVEL		INT(11));"
 
-// blockPreparedStmtsInstances contains the defCausumn name definitions for block prepared_statements_instances, same as MyALLEGROSQL.
+// blockPreparedStmtsInstances contains the defCausumn name definitions for causet prepared_memexs_instances, same as MyALLEGROSQL.
 const blockPreparedStmtsInstances = "CREATE TABLE if not exists performance_schema." + blockNamePreparedStatementsInstances + " (" +
 	"OBJECT_INSTANCE_BEGIN	BIGINT(20) UNSIGNED NOT NULL," +
 	"STATEMENT_ID	BIGINT(20) UNSIGNED NOT NULL," +
@@ -254,7 +254,7 @@ const blockPreparedStmtsInstances = "CREATE TABLE if not exists performance_sche
 	"SUM_NO_INDEX_USED		BIGINT(20) UNSIGNED NOT NULL," +
 	"SUM_NO_GOOD_INDEX_USED	BIGINT(20) UNSIGNED NOT NULL);"
 
-// blockTransCurrent contains the defCausumn name definitions for block events_transactions_current, same as MyALLEGROSQL.
+// blockTransCurrent contains the defCausumn name definitions for causet events_transactions_current, same as MyALLEGROSQL.
 const blockTransCurrent = "CREATE TABLE if not exists performance_schema." + blockNameEventsTransactionsCurrent + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -281,7 +281,7 @@ const blockTransCurrent = "CREATE TABLE if not exists performance_schema." + blo
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockTransHistory contains the defCausumn name definitions for block events_transactions_history, same as MyALLEGROSQL.
+// blockTransHistory contains the defCausumn name definitions for causet events_transactions_history, same as MyALLEGROSQL.
 //
 const blockTransHistory = "CREATE TABLE if not exists performance_schema." + blockNameEventsTransactionsHistory + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -309,7 +309,7 @@ const blockTransHistory = "CREATE TABLE if not exists performance_schema." + blo
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockTransHistoryLong contains the defCausumn name definitions for block events_transactions_history_long, same as MyALLEGROSQL.
+// blockTransHistoryLong contains the defCausumn name definitions for causet events_transactions_history_long, same as MyALLEGROSQL.
 const blockTransHistoryLong = "CREATE TABLE if not exists performance_schema." + blockNameEventsTransactionsHistoryLong + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -336,7 +336,7 @@ const blockTransHistoryLong = "CREATE TABLE if not exists performance_schema." +
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockStagesCurrent contains the defCausumn name definitions for block events_stages_current, same as MyALLEGROSQL.
+// blockStagesCurrent contains the defCausumn name definitions for causet events_stages_current, same as MyALLEGROSQL.
 const blockStagesCurrent = "CREATE TABLE if not exists performance_schema." + blockNameEventsStagesCurrent + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -351,7 +351,7 @@ const blockStagesCurrent = "CREATE TABLE if not exists performance_schema." + bl
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockStagesHistory contains the defCausumn name definitions for block events_stages_history, same as MyALLEGROSQL.
+// blockStagesHistory contains the defCausumn name definitions for causet events_stages_history, same as MyALLEGROSQL.
 const blockStagesHistory = "CREATE TABLE if not exists performance_schema." + blockNameEventsStagesHistory + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -366,7 +366,7 @@ const blockStagesHistory = "CREATE TABLE if not exists performance_schema." + bl
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockStagesHistoryLong contains the defCausumn name definitions for block events_stages_history_long, same as MyALLEGROSQL.
+// blockStagesHistoryLong contains the defCausumn name definitions for causet events_stages_history_long, same as MyALLEGROSQL.
 const blockStagesHistoryLong = "CREATE TABLE if not exists performance_schema." + blockNameEventsStagesHistoryLong + " (" +
 	"THREAD_ID		BIGINT(20) UNSIGNED NOT NULL," +
 	"EVENT_ID		BIGINT(20) UNSIGNED NOT NULL," +
@@ -381,8 +381,8 @@ const blockStagesHistoryLong = "CREATE TABLE if not exists performance_schema." 
 	"NESTING_EVENT_ID		BIGINT(20) UNSIGNED," +
 	"NESTING_EVENT_TYPE		ENUM('TRANSACTION','STATEMENT','STAGE'));"
 
-// blockEventsStatementsSummaryByDigest contains the defCausumn name definitions for block
-// events_statements_summary_by_digest, same as MyALLEGROSQL.
+// blockEventsStatementsSummaryByDigest contains the defCausumn name definitions for causet
+// events_memexs_summary_by_digest, same as MyALLEGROSQL.
 const blockEventsStatementsSummaryByDigest = "CREATE TABLE if not exists performance_schema." + blockNameEventsStatementsSummaryByDigest + " (" +
 	"SCHEMA_NAME varchar(64) DEFAULT NULL," +
 	"DIGEST varchar(64) DEFAULT NULL," +
@@ -423,7 +423,7 @@ const blockEventsStatementsSummaryByDigest = "CREATE TABLE if not exists perform
 	"QUERY_SAMPLE_TIMER_WAIT bigint unsigned NOT NULL," +
 	"UNIQUE KEY `SCHEMA_NAME` (`SCHEMA_NAME`,`DIGEST`));"
 
-// blockMilevaDBProfileCPU contains the defCausumns name definitions for block milevadb_profile_cpu
+// blockMilevaDBProfileCPU contains the defCausumns name definitions for causet milevadb_profile_cpu
 const blockMilevaDBProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileCPU + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"PERCENT_ABS VARCHAR(8) NOT NULL," +
@@ -432,7 +432,7 @@ const blockMilevaDBProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaD
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockMilevaDBProfileMemory contains the defCausumns name definitions for block milevadb_profile_memory
+// blockMilevaDBProfileMemory contains the defCausumns name definitions for causet milevadb_profile_memory
 const blockMilevaDBProfileMemory = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileMemory + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"PERCENT_ABS VARCHAR(8) NOT NULL," +
@@ -441,7 +441,7 @@ const blockMilevaDBProfileMemory = "CREATE TABLE IF NOT EXISTS " + blockNameMile
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockMilevaDBProfileMutex contains the defCausumns name definitions for block milevadb_profile_mutex
+// blockMilevaDBProfileMutex contains the defCausumns name definitions for causet milevadb_profile_mutex
 const blockMilevaDBProfileMutex = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileMutex + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"PERCENT_ABS VARCHAR(8) NOT NULL," +
@@ -450,7 +450,7 @@ const blockMilevaDBProfileMutex = "CREATE TABLE IF NOT EXISTS " + blockNameMilev
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockMilevaDBProfileAllocs contains the defCausumns name definitions for block milevadb_profile_allocs
+// blockMilevaDBProfileAllocs contains the defCausumns name definitions for causet milevadb_profile_allocs
 const blockMilevaDBProfileAllocs = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileAllocs + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"PERCENT_ABS VARCHAR(8) NOT NULL," +
@@ -459,7 +459,7 @@ const blockMilevaDBProfileAllocs = "CREATE TABLE IF NOT EXISTS " + blockNameMile
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockMilevaDBProfileBlock contains the defCausumns name definitions for block milevadb_profile_block
+// blockMilevaDBProfileBlock contains the defCausumns name definitions for causet milevadb_profile_block
 const blockMilevaDBProfileBlock = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileBlock + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"PERCENT_ABS VARCHAR(8) NOT NULL," +
@@ -468,14 +468,14 @@ const blockMilevaDBProfileBlock = "CREATE TABLE IF NOT EXISTS " + blockNameMilev
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockMilevaDBProfileGoroutines contains the defCausumns name definitions for block milevadb_profile_goroutines
+// blockMilevaDBProfileGoroutines contains the defCausumns name definitions for causet milevadb_profile_goroutines
 const blockMilevaDBProfileGoroutines = "CREATE TABLE IF NOT EXISTS " + blockNameMilevaDBProfileGoroutines + " (" +
 	"FUNCTION VARCHAR(512) NOT NULL," +
 	"ID INT(8) NOT NULL," +
 	"STATE VARCHAR(16) NOT NULL," +
 	"LOCATION VARCHAR(512) NOT NULL);"
 
-// blockEinsteinDBProfileCPU contains the defCausumns name definitions for block einsteindb_profile_cpu
+// blockEinsteinDBProfileCPU contains the defCausumns name definitions for causet einsteindb_profile_cpu
 const blockEinsteinDBProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameEinsteinDBProfileCPU + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -485,7 +485,7 @@ const blockEinsteinDBProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameEinst
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileCPU contains the defCausumns name definitions for block FIDel_profile_cpu
+// blockFIDelProfileCPU contains the defCausumns name definitions for causet FIDel_profile_cpu
 const blockFIDelProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileCPU + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -495,7 +495,7 @@ const blockFIDelProfileCPU = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfi
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileMemory contains the defCausumns name definitions for block FIDel_profile_cpu_memory
+// blockFIDelProfileMemory contains the defCausumns name definitions for causet FIDel_profile_cpu_memory
 const blockFIDelProfileMemory = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileMemory + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -505,7 +505,7 @@ const blockFIDelProfileMemory = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelPr
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileMutex contains the defCausumns name definitions for block FIDel_profile_mutex
+// blockFIDelProfileMutex contains the defCausumns name definitions for causet FIDel_profile_mutex
 const blockFIDelProfileMutex = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileMutex + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -515,7 +515,7 @@ const blockFIDelProfileMutex = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelPro
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileAllocs contains the defCausumns name definitions for block FIDel_profile_allocs
+// blockFIDelProfileAllocs contains the defCausumns name definitions for causet FIDel_profile_allocs
 const blockFIDelProfileAllocs = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileAllocs + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -525,7 +525,7 @@ const blockFIDelProfileAllocs = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelPr
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileBlock contains the defCausumns name definitions for block FIDel_profile_block
+// blockFIDelProfileBlock contains the defCausumns name definitions for causet FIDel_profile_block
 const blockFIDelProfileBlock = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileBlock + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +
@@ -535,7 +535,7 @@ const blockFIDelProfileBlock = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelPro
 	"DEPTH INT(8) NOT NULL," +
 	"FILE VARCHAR(512) NOT NULL);"
 
-// blockFIDelProfileGoroutines contains the defCausumns name definitions for block FIDel_profile_goroutines
+// blockFIDelProfileGoroutines contains the defCausumns name definitions for causet FIDel_profile_goroutines
 const blockFIDelProfileGoroutines = "CREATE TABLE IF NOT EXISTS " + blockNameFIDelProfileGoroutines + " (" +
 	"ADDRESS VARCHAR(64) NOT NULL," +
 	"FUNCTION VARCHAR(512) NOT NULL," +

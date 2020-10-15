@@ -60,7 +60,7 @@ type memdbMemCam struct {
 
 func (a *memdbMemCam) alloc(size int, align bool) (memdbMemCamAddr, []byte) {
 	if size > maxBlockSize {
-		panic("alloc size is larger than max block size")
+		panic("alloc size is larger than max causet size")
 	}
 
 	if len(a.blocks) == 0 {
@@ -266,13 +266,13 @@ func (l *memdbVlog) appendValue(nodeAddr memdbMemCamAddr, oldValue memdbMemCamAd
 
 func (l *memdbVlog) getValue(addr memdbMemCamAddr) []byte {
 	lenOff := addr.off - memdbVlogHdrSize
-	block := l.blocks[addr.idx].buf
-	valueLen := endian.Uint32(block[lenOff:])
+	causet := l.blocks[addr.idx].buf
+	valueLen := endian.Uint32(causet[lenOff:])
 	if valueLen == 0 {
 		return tombstone
 	}
 	valueOff := lenOff - valueLen
-	return block[valueOff:lenOff:lenOff]
+	return causet[valueOff:lenOff:lenOff]
 }
 
 func (l *memdbVlog) getSnapshotValue(addr memdbMemCamAddr, snap *memdbCheckpoint) ([]byte, bool) {
@@ -291,9 +291,9 @@ func (l *memdbVlog) revertToCheckpoint(EDB *memdb, cp *memdbCheckpoint) {
 	cursor := l.checkpoint()
 	for !cp.isSamePosition(&cursor) {
 		hdrOff := cursor.offsetInBlock - memdbVlogHdrSize
-		block := l.blocks[cursor.blocks-1].buf
+		causet := l.blocks[cursor.blocks-1].buf
 		var hdr memdbVlogHdr
-		hdr.load(block[hdrOff:])
+		hdr.load(causet[hdrOff:])
 		node := EDB.getNode(hdr.nodeAddr)
 
 		node.vptr = hdr.oldValue
@@ -321,14 +321,14 @@ func (l *memdbVlog) inspectKVInLog(EDB *memdb, head, tail *memdbCheckpoint, f fu
 	for !head.isSamePosition(&cursor) {
 		cursorAddr := memdbMemCamAddr{idx: uint32(cursor.blocks - 1), off: uint32(cursor.offsetInBlock)}
 		hdrOff := cursorAddr.off - memdbVlogHdrSize
-		block := l.blocks[cursorAddr.idx].buf
+		causet := l.blocks[cursorAddr.idx].buf
 		var hdr memdbVlogHdr
-		hdr.load(block[hdrOff:])
+		hdr.load(causet[hdrOff:])
 		node := EDB.allocator.getNode(hdr.nodeAddr)
 
 		// Skip older versions.
 		if node.vptr == cursorAddr {
-			value := block[hdrOff-hdr.valueLen : hdrOff]
+			value := causet[hdrOff-hdr.valueLen : hdrOff]
 			f(node.getKey(), node.getKeyFlags(), value)
 		}
 

@@ -35,13 +35,13 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	goutil "github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"
@@ -50,15 +50,15 @@ import (
 const (
 	// currentVersion is for all new DBS jobs.
 	currentVersion = 1
-	// DBSOwnerKey is the dbs owner path that is saved to etcd, and it's exported for testing.
-	DBSOwnerKey = "/milevadb/dbs/fg/owner"
+	// DBSTenantKey is the dbs tenant path that is saved to etcd, and it's exported for testing.
+	DBSTenantKey = "/milevadb/dbs/fg/tenant"
 	dbsPrompt   = "dbs"
 
 	shardRowIDBitsMax = 15
 
 	batchAddingJobs = 10
 
-	// PartitionCountLimit is limit of the number of partitions in a block.
+	// PartitionCountLimit is limit of the number of partitions in a causet.
 	// Reference linking https://dev.allegrosql.com/doc/refman/5.7/en/partitioning-limitations.html.
 	PartitionCountLimit = 8192
 )
@@ -78,11 +78,11 @@ const (
 )
 
 var (
-	// BlockDeferredCausetCountLimit is limit of the number of defCausumns in a block.
+	// BlockDeferredCausetCountLimit is limit of the number of defCausumns in a causet.
 	// It's exported for testing.
 	BlockDeferredCausetCountLimit = uint32(512)
 	// EnableSplitBlockRegion is a flag to decide whether to split a new region for
-	// a newly created block. It takes effect only if the CausetStorage supports split
+	// a newly created causet. It takes effect only if the CausetStorage supports split
 	// region.
 	EnableSplitBlockRegion = uint32(0)
 )
@@ -107,7 +107,7 @@ type DBS interface {
 	UnlockBlocks(ctx stochastikctx.Context, lockedBlocks []perceptron.BlockLockTpInfo) error
 	CleanupBlockLock(ctx stochastikctx.Context, blocks []*ast.BlockName) error
 	UFIDelateBlockReplicaInfo(ctx stochastikctx.Context, physicalID int64, available bool) error
-	RepairBlock(ctx stochastikctx.Context, block *ast.BlockName, createStmt *ast.CreateBlockStmt) error
+	RepairBlock(ctx stochastikctx.Context, causet *ast.BlockName, createStmt *ast.CreateBlockStmt) error
 	CreateSequence(ctx stochastikctx.Context, stmt *ast.CreateSequenceStmt) error
 	DropSequence(ctx stochastikctx.Context, blockIdent ast.Ident, ifExists bool) (err error)
 
@@ -125,11 +125,11 @@ type DBS interface {
 		onExist OnExist,
 		tryRetainID bool) error
 
-	// CreateBlockWithInfo creates a block, view or sequence given its block info.
+	// CreateBlockWithInfo creates a causet, view or sequence given its causet info.
 	//
-	// If `tryRetainID` is true, this method will try to keep the block ID specified in the `info`
+	// If `tryRetainID` is true, this method will try to keep the causet ID specified in the `info`
 	// rather than generating new ones. This is just a hint though, if the ID defCauslides with an
-	// existing block a new ID will always be used.
+	// existing causet a new ID will always be used.
 	//
 	// WARNING: the DBS owns the `info` after calling this function, and will modify its fields
 	// in-place. If you want to keep using `info`, please call Clone() first.
@@ -140,7 +140,7 @@ type DBS interface {
 		onExist OnExist,
 		tryRetainID bool) error
 
-	// Start campaigns the owner and starts workers.
+	// Start campaigns the tenant and starts workers.
 	// ctxPool is used for the worker's delRangeManager and creates stochastik.
 	Start(ctxPool *pools.ResourcePool) error
 	// GetLease returns current schemaReplicant lease time.
@@ -155,12 +155,12 @@ type DBS interface {
 	RegisterEventCh(chan<- *soliton.Event)
 	// SchemaSyncer gets the schemaReplicant syncer.
 	SchemaSyncer() soliton.SchemaSyncer
-	// OwnerManager gets the owner manager.
-	OwnerManager() owner.Manager
+	// TenantManager gets the tenant manager.
+	TenantManager() tenant.Manager
 	// GetID gets the dbs ID.
 	GetID() string
-	// GetBlockMaxRowID gets the max event ID of a normal block or a partition.
-	GetBlockMaxHandle(startTS uint64, tbl block.PhysicalBlock) (ekv.Handle, bool, error)
+	// GetBlockMaxRowID gets the max event ID of a normal causet or a partition.
+	GetBlockMaxHandle(startTS uint64, tbl causet.PhysicalBlock) (ekv.Handle, bool, error)
 	// SetBinlogClient sets the binlog client for DBS worker. It's exported for testing.
 	SetBinlogClient(*pumpcli.PumpsClient)
 	// GetHook gets the hook. It's exported for testing.
@@ -172,7 +172,7 @@ type limitJobTask struct {
 	err chan error
 }
 
-// dbs is used to handle the statements that define the structure or schemaReplicant of the database.
+// dbs is used to handle the memexs that define the structure or schemaReplicant of the database.
 type dbs struct {
 	m          sync.RWMutex
 	ctx        context.Context
@@ -190,7 +190,7 @@ type dbs struct {
 type dbsCtx struct {
 	uuid         string
 	causetstore        ekv.CausetStorage
-	ownerManager owner.Manager
+	tenantManager tenant.Manager
 	schemaSyncer soliton.SchemaSyncer
 	dbsJobDoneCh chan struct{}
 	dbsEventCh   chan<- *soliton.Event
@@ -207,13 +207,13 @@ type dbsCtx struct {
 	}
 }
 
-func (dc *dbsCtx) isOwner() bool {
-	isOwner := dc.ownerManager.IsOwner()
-	logutil.BgLogger().Debug("[dbs] check whether is the DBS owner", zap.Bool("isOwner", isOwner), zap.String("selfID", dc.uuid))
-	if isOwner {
-		metrics.DBSCounter.WithLabelValues(metrics.DBSOwner + "_" + allegrosql.MilevaDBReleaseVersion).Inc()
+func (dc *dbsCtx) isTenant() bool {
+	isTenant := dc.tenantManager.IsTenant()
+	logutil.BgLogger().Debug("[dbs] check whether is the DBS tenant", zap.Bool("isTenant", isTenant), zap.String("selfID", dc.uuid))
+	if isTenant {
+		metrics.DBSCounter.WithLabelValues(metrics.DBSTenant + "_" + allegrosql.MilevaDBReleaseVersion).Inc()
 	}
-	return isOwner
+	return isTenant
 }
 
 // RegisterEventCh registers passed channel for dbs Event.
@@ -259,16 +259,16 @@ func newDBS(ctx context.Context, options ...Option) *dbs {
 	}
 
 	id := uuid.New().String()
-	var manager owner.Manager
+	var manager tenant.Manager
 	var syncer soliton.SchemaSyncer
 	var deadLockCkr soliton.DeadBlockLockChecker
 	if etcdCli := opt.EtcdCli; etcdCli == nil {
 		// The etcdCli is nil if the causetstore is localstore which is only used for testing.
-		// So we use mockOwnerManager and MockSchemaSyncer.
-		manager = owner.NewMockManager(ctx, id)
+		// So we use mockTenantManager and MockSchemaSyncer.
+		manager = tenant.NewMockManager(ctx, id)
 		syncer = NewMockSchemaSyncer()
 	} else {
-		manager = owner.NewOwnerManager(ctx, etcdCli, dbsPrompt, id, DBSOwnerKey)
+		manager = tenant.NewTenantManager(ctx, etcdCli, dbsPrompt, id, DBSTenantKey)
 		syncer = soliton.NewSchemaSyncer(ctx, etcdCli, id, manager)
 		deadLockCkr = soliton.NewDeadBlockLockChecker(etcdCli)
 	}
@@ -278,7 +278,7 @@ func newDBS(ctx context.Context, options ...Option) *dbs {
 		causetstore:        opt.CausetStore,
 		lease:        opt.Lease,
 		dbsJobDoneCh: make(chan struct{}, 1),
-		ownerManager: manager,
+		tenantManager: manager,
 		schemaSyncer: syncer,
 		binlogCli:    binloginfo.GetPumpsClient(),
 		infoHandle:   opt.InfoHandle,
@@ -326,10 +326,10 @@ func (d *dbs) Start(ctxPool *pools.ResourcePool) error {
 	d.wg.Add(1)
 	go d.limitDBSJobs()
 
-	// If RunWorker is true, we need campaign owner and do DBS job.
+	// If RunWorker is true, we need campaign tenant and do DBS job.
 	// Otherwise, we needn't do that.
 	if RunWorker {
-		err := d.ownerManager.CampaignOwner()
+		err := d.tenantManager.CampaignTenant()
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -347,7 +347,7 @@ func (d *dbs) Start(ctxPool *pools.ResourcePool) error {
 			metrics.DBSCounter.WithLabelValues(fmt.Sprintf("%s_%s", metrics.CreateDBS, worker.String())).Inc()
 
 			// When the start function is called, we will send a fake job to let worker
-			// checks owner firstly and try to find whether a job exists and run.
+			// checks tenant firstly and try to find whether a job exists and run.
 			asyncNotify(worker.dbsJobCh)
 		}
 
@@ -373,7 +373,7 @@ func (d *dbs) close() {
 	startTime := time.Now()
 	d.cancel()
 	d.wg.Wait()
-	d.ownerManager.Cancel()
+	d.tenantManager.Cancel()
 	d.schemaSyncer.Close()
 
 	for _, worker := range d.workers {
@@ -419,7 +419,7 @@ func (d *dbs) genGlobalIDs(count int) ([]int64, error) {
 			}
 		})
 
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		var err error
 		ret, err = m.GenGlobalIDs(count)
 		return err
@@ -433,9 +433,9 @@ func (d *dbs) SchemaSyncer() soliton.SchemaSyncer {
 	return d.schemaSyncer
 }
 
-// OwnerManager implements DBS.OwnerManager interface.
-func (d *dbs) OwnerManager() owner.Manager {
-	return d.ownerManager
+// TenantManager implements DBS.TenantManager interface.
+func (d *dbs) TenantManager() tenant.Manager {
+	return d.tenantManager
 }
 
 // GetID implements DBS.GetID interface.
@@ -571,18 +571,18 @@ func (d *dbs) startCleanDeadBlockLock() {
 	for {
 		select {
 		case <-ticker.C:
-			if !d.ownerManager.IsOwner() {
+			if !d.tenantManager.IsTenant() {
 				continue
 			}
 			deadLockBlocks, err := d.blockLockCkr.GetDeadLockedBlocks(d.ctx, d.infoHandle.Get().AllSchemas())
 			if err != nil {
-				logutil.BgLogger().Info("[dbs] get dead block lock failed.", zap.Error(err))
+				logutil.BgLogger().Info("[dbs] get dead causet dagger failed.", zap.Error(err))
 				continue
 			}
 			for se, blocks := range deadLockBlocks {
 				err := d.CleanDeadBlockLock(blocks, se)
 				if err != nil {
-					logutil.BgLogger().Info("[dbs] clean dead block lock failed.", zap.Error(err))
+					logutil.BgLogger().Info("[dbs] clean dead causet dagger failed.", zap.Error(err))
 				}
 			}
 		case <-d.ctx.Done():

@@ -62,7 +62,7 @@ func (d *dbs) Stats(vars *variable.StochastikVars) (map[string]interface{}, erro
 	}
 
 	m[dbsSchemaVersion] = dbsInfo.SchemaVer
-	// TODO: Get the owner information.
+	// TODO: Get the tenant information.
 	if len(dbsInfo.Jobs) == 0 {
 		return m, nil
 	}

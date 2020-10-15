@@ -83,7 +83,7 @@ func (s *testTableCodecSuite) TestRowCodec(c *C) {
 	for _, col := range defcaus {
 		colIDs = append(colIDs, col.id)
 	}
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	sc := &stmtctx.StatementContext{TimeZone: time.Local}
 	bs, err := EncodeRow(sc, event, colIDs, nil, nil, &rd)
 	c.Assert(err, IsNil)
@@ -250,7 +250,7 @@ func (s *testTableCodecSuite) TestTimeCodec(c *C) {
 	for _, col := range defcaus {
 		colIDs = append(colIDs, col.id)
 	}
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	sc := &stmtctx.StatementContext{TimeZone: time.UTC}
 	bs, err := EncodeRow(sc, event, colIDs, nil, nil, &rd)
 	c.Assert(err, IsNil)

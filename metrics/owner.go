@@ -22,7 +22,7 @@ var (
 	NewStochastikHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "owner",
+			Subsystem: "tenant",
 			Name:      "new_stochastik_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of new stochastik.",
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2, 22), // 0.5ms ~ 1048s
@@ -33,20 +33,20 @@ var (
 	Deleted           = "deleted"
 	StochastikDone       = "stochastik_done"
 	CtxDone           = "context_done"
-	WatchOwnerCounter = prometheus.NewCounterVec(
+	WatchTenantCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
-			Subsystem: "owner",
-			Name:      "watch_owner_total",
-			Help:      "Counter of watch owner.",
+			Subsystem: "tenant",
+			Name:      "watch_tenant_total",
+			Help:      "Counter of watch tenant.",
 		}, []string{LblType, LblResult})
 
-	NoLongerOwner        = "no_longer_owner"
-	CampaignOwnerCounter = prometheus.NewCounterVec(
+	NoLongerTenant        = "no_longer_tenant"
+	CampaignTenantCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
-			Subsystem: "owner",
-			Name:      "campaign_owner_total",
-			Help:      "Counter of campaign owner.",
+			Subsystem: "tenant",
+			Name:      "campaign_tenant_total",
+			Help:      "Counter of campaign tenant.",
 		}, []string{LblType, LblResult})
 )

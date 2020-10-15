@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoder_test
+package causetDecoder_test
 
 import (
 	"testing"
@@ -20,15 +20,15 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	_ "github.com/whtcorpsinc/milevadb/planner/core"
+	_ "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/rowDecoder"
+	"github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
@@ -38,11 +38,11 @@ func TestT(t *testing.T) {
 	TestingT(t)
 }
 
-var _ = Suite(&testDecoderSuite{})
+var _ = Suite(&testCausetDecoderSuite{})
 
-type testDecoderSuite struct{}
+type testCausetDecoderSuite struct{}
 
-func (s *testDecoderSuite) TestRowDecoder(c *C) {
+func (s *testCausetDecoderSuite) TestRowCausetDecoder(c *C) {
 	defer testleak.AfterTest(c)()
 	c1 := &perceptron.DeferredCausetInfo{ID: 1, Name: perceptron.NewCIStr("c1"), State: perceptron.StatePublic, Offset: 0, FieldType: *types.NewFieldType(allegrosql.TypeLonglong)}
 	c2 := &perceptron.DeferredCausetInfo{ID: 2, Name: perceptron.NewCIStr("c2"), State: perceptron.StatePublic, Offset: 1, FieldType: *types.NewFieldType(allegrosql.TypeVarchar)}
@@ -60,22 +60,22 @@ func (s *testDecoderSuite) TestRowDecoder(c *C) {
 
 	ctx := mock.NewContext()
 	sc := &stmtctx.StatementContext{TimeZone: time.UTC}
-	decodeDefCaussMap := make(map[int64]decoder.DeferredCauset, len(defcaus))
-	decodeDefCaussMap2 := make(map[int64]decoder.DeferredCauset, len(defcaus))
+	decodeDefCaussMap := make(map[int64]causetDecoder.DeferredCauset, len(defcaus))
+	decodeDefCaussMap2 := make(map[int64]causetDecoder.DeferredCauset, len(defcaus))
 	for _, defCaus := range tbl.DefCauss() {
-		tpExpr := decoder.DeferredCauset{
+		tpExpr := causetDecoder.DeferredCauset{
 			DefCaus: defCaus,
 		}
 		decodeDefCaussMap2[defCaus.ID] = tpExpr
 		if defCaus.GeneratedExprString != "" {
-			expr, err := expression.ParseSimpleExprCastWithBlockInfo(ctx, defCaus.GeneratedExprString, tblInfo, &defCaus.FieldType)
+			expr, err := memex.ParseSimpleExprCastWithBlockInfo(ctx, defCaus.GeneratedExprString, tblInfo, &defCaus.FieldType)
 			c.Assert(err, IsNil)
 			tpExpr.GenExpr = expr
 		}
 		decodeDefCaussMap[defCaus.ID] = tpExpr
 	}
-	de := decoder.NewRowDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap)
-	deWithNoGenDefCauss := decoder.NewRowDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap2)
+	de := causetDecoder.NewRowCausetDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap)
+	deWithNoGenDefCauss := causetDecoder.NewRowCausetDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap2)
 
 	timeZoneIn8, err := time.LoadLocation("Asia/Shanghai")
 	c.Assert(err, IsNil)
@@ -118,7 +118,7 @@ func (s *testDecoderSuite) TestRowDecoder(c *C) {
 			[]types.Causet{types.NewCauset(nil), types.NewCauset(nil), types.NewCauset(nil), types.NewCauset(nil), types.NewCauset(nil), types.NewCauset(nil)},
 		},
 	}
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	for i, event := range testRows {
 		// test case for pk is unsigned.
 		if i > 0 {
@@ -130,7 +130,7 @@ func (s *testDecoderSuite) TestRowDecoder(c *C) {
 
 		r, err := de.DecodeAndEvalRowWithMap(ctx, ekv.IntHandle(i), bs, time.UTC, timeZoneIn8, nil)
 		c.Assert(err, IsNil)
-		// Last defCausumn is primary-key defCausumn, and the block primary-key is handle, then the primary-key value won't be
+		// Last defCausumn is primary-key defCausumn, and the causet primary-key is handle, then the primary-key value won't be
 		// stored in raw data, but causetstore in the raw key.
 		// So when decode, we can't get the primary-key value from raw data, then ignore check the value of the
 		// last primary key defCausumn.
@@ -158,7 +158,7 @@ func (s *testDecoderSuite) TestRowDecoder(c *C) {
 	}
 }
 
-func (s *testDecoderSuite) TestClusterIndexRowDecoder(c *C) {
+func (s *testCausetDecoderSuite) TestClusterIndexRowCausetDecoder(c *C) {
 	c1 := &perceptron.DeferredCausetInfo{ID: 1, Name: perceptron.NewCIStr("c1"), State: perceptron.StatePublic, Offset: 0, FieldType: *types.NewFieldType(allegrosql.TypeLonglong)}
 	c2 := &perceptron.DeferredCausetInfo{ID: 2, Name: perceptron.NewCIStr("c2"), State: perceptron.StatePublic, Offset: 1, FieldType: *types.NewFieldType(allegrosql.TypeVarchar)}
 	c3 := &perceptron.DeferredCausetInfo{ID: 3, Name: perceptron.NewCIStr("c3"), State: perceptron.StatePublic, Offset: 2, FieldType: *types.NewFieldType(allegrosql.TypeNewDecimal)}
@@ -176,14 +176,14 @@ func (s *testDecoderSuite) TestClusterIndexRowDecoder(c *C) {
 
 	ctx := mock.NewContext()
 	sc := &stmtctx.StatementContext{TimeZone: time.UTC}
-	decodeDefCaussMap := make(map[int64]decoder.DeferredCauset, len(defcaus))
+	decodeDefCaussMap := make(map[int64]causetDecoder.DeferredCauset, len(defcaus))
 	for _, defCaus := range tbl.DefCauss() {
-		tpExpr := decoder.DeferredCauset{
+		tpExpr := causetDecoder.DeferredCauset{
 			DefCaus: defCaus,
 		}
 		decodeDefCaussMap[defCaus.ID] = tpExpr
 	}
-	de := decoder.NewRowDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap)
+	de := causetDecoder.NewRowCausetDecoder(tbl, tbl.DefCauss(), decodeDefCaussMap)
 
 	timeZoneIn8, err := time.LoadLocation("Asia/Shanghai")
 	c.Assert(err, IsNil)
@@ -199,7 +199,7 @@ func (s *testDecoderSuite) TestClusterIndexRowDecoder(c *C) {
 			[]types.Causet{types.NewIntCauset(100), types.NewBytesCauset([]byte("abc")), types.NewDecimalCauset(types.NewDecFromInt(1))},
 		},
 	}
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	for _, event := range testRows {
 		bs, err := blockcodec.EncodeRow(sc, event.input, event.defcaus, nil, nil, &rd)
 		c.Assert(err, IsNil)

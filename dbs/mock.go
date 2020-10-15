@@ -81,8 +81,8 @@ func (s *MockSchemaSyncer) Restart(_ context.Context) error {
 	return nil
 }
 
-// OwnerUFIDelateGlobalVersion implements SchemaSyncer.OwnerUFIDelateGlobalVersion interface.
-func (s *MockSchemaSyncer) OwnerUFIDelateGlobalVersion(ctx context.Context, version int64) error {
+// TenantUFIDelateGlobalVersion implements SchemaSyncer.TenantUFIDelateGlobalVersion interface.
+func (s *MockSchemaSyncer) TenantUFIDelateGlobalVersion(ctx context.Context, version int64) error {
 	select {
 	case s.globalVerCh <- clientv3.WatchResponse{}:
 	default:
@@ -95,15 +95,15 @@ func (s *MockSchemaSyncer) MustGetGlobalVersion(ctx context.Context) (int64, err
 	return 0, nil
 }
 
-// OwnerCheckAllVersions implements SchemaSyncer.OwnerCheckAllVersions interface.
-func (s *MockSchemaSyncer) OwnerCheckAllVersions(ctx context.Context, latestVer int64) error {
+// TenantCheckAllVersions implements SchemaSyncer.TenantCheckAllVersions interface.
+func (s *MockSchemaSyncer) TenantCheckAllVersions(ctx context.Context, latestVer int64) error {
 	ticker := time.NewTicker(mockCheckVersInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			failpoint.Inject("checkOwnerCheckAllVersionsWaitTime", func(v failpoint.Value) {
+			failpoint.Inject("checkTenantCheckAllVersionsWaitTime", func(v failpoint.Value) {
 				if v.(bool) {
 					panic("shouldn't happen")
 				}
@@ -151,7 +151,7 @@ func (dr *mockDelRange) start() {}
 // clear implements delRangeManager interface.
 func (dr *mockDelRange) clear() {}
 
-// MockBlockInfo mocks a block info by create block stmt ast and a specified block id.
+// MockBlockInfo mocks a causet info by create causet stmt ast and a specified causet id.
 func MockBlockInfo(ctx stochastikctx.Context, stmt *ast.CreateBlockStmt, blockID int64) (*perceptron.BlockInfo, error) {
 	chs, defCausl := charset.GetDefaultCharsetAndDefCauslate()
 	defcaus, newConstraints, err := buildDeferredCausetsAndConstraints(ctx, stmt.DefCauss, stmt.Constraints, chs, defCausl)

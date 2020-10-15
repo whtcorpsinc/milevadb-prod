@@ -171,7 +171,7 @@ func (s *testMiscSuite) TestBasicFunc(c *C) {
 		Host:    "www",
 		EDB:      "EDB",
 		Command: allegrosql.ComSleep,
-		Plan:    nil,
+		Causet:    nil,
 		Time:    time.Now(),
 		State:   3,
 		Info:    "test",

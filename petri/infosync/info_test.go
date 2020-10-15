@@ -28,7 +28,7 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"go.etcd.io/etcd/integration"
 )
 
@@ -95,7 +95,7 @@ func TestTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = info.newTopologyStochastikAndStoreServerInfo(ctx, owner.NewStochastikDefaultRetryCnt)
+	err = info.newTopologyStochastikAndStoreServerInfo(ctx, tenant.NewStochastikDefaultRetryCnt)
 
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestTopology(t *testing.T) {
 	nonTTLKey := fmt.Sprintf("%s/%s:%v/info", TopologyInformationPath, info.info.IP, info.info.Port)
 	ttlKey := fmt.Sprintf("%s/%s:%v/ttl", TopologyInformationPath, info.info.IP, info.info.Port)
 
-	err = soliton.DeleteKeyFromEtcd(nonTTLKey, cli, owner.NewStochastikDefaultRetryCnt, time.Second)
+	err = soliton.DeleteKeyFromEtcd(nonTTLKey, cli, tenant.NewStochastikDefaultRetryCnt, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, err := os.Execublock()
+	s, err := os.InterDircublock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestTopology(t *testing.T) {
 		t.Fatal("ttl non-exists")
 	}
 
-	err = soliton.DeleteKeyFromEtcd(ttlKey, cli, owner.NewStochastikDefaultRetryCnt, time.Second)
+	err = soliton.DeleteKeyFromEtcd(ttlKey, cli, tenant.NewStochastikDefaultRetryCnt, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,7 +41,7 @@ type CMSketch struct {
 	width        int32
 	count        uint64 // TopN is not counted in count
 	defaultValue uint64 // In sampled data, if cmsketch returns a small value (less than avg value / 2), then this will returned.
-	block        [][]uint32
+	causet        [][]uint32
 	topN         map[uint64][]*TopNMeta
 }
 
@@ -65,14 +65,14 @@ func NewCMSketch(d, w int32) *CMSketch {
 	// For memory allocation large than 32K, the allocator will never allocate memory from spans list.
 	//
 	// The memory referenced by the CMSketch will never be freed.
-	// If the number of block or index is extremely large, there will be a large amount of spans in global list.
+	// If the number of causet or index is extremely large, there will be a large amount of spans in global list.
 	// The default value of `d` is 5 and `w` is 2048, if we use a single slice for them the size will be 40K.
 	// This allocation will be handled by mheap and will never have impact on normal allocations.
 	memcam := make([]uint32, d*w)
 	for i := range tbl {
 		tbl[i] = memcam[i*int(w) : (i+1)*int(w)]
 	}
-	return &CMSketch{depth: d, width: w, block: tbl}
+	return &CMSketch{depth: d, width: w, causet: tbl}
 }
 
 // topNHelper wraps some variables used when building cmsketch with top n.
@@ -172,18 +172,18 @@ func calculateDefaultVal(helper *topNHelper, estimateNDV, scaleRatio, rowCount u
 }
 
 func (c *CMSketch) findTopNMeta(h1, h2 uint64, d []byte) *TopNMeta {
-	for _, meta := range c.topN[h1] {
-		if meta.h2 == h2 && bytes.Equal(d, meta.Data) {
-			return meta
+	for _, spacetime := range c.topN[h1] {
+		if spacetime.h2 == h2 && bytes.Equal(d, spacetime.Data) {
+			return spacetime
 		}
 	}
 	return nil
 }
 
 // MemoryUsage returns the total memory usage of a CMSketch.
-// only calc the hashblock size(CMSketch.block) and the CMSketch.topN
+// only calc the hashblock size(CMSketch.causet) and the CMSketch.topN
 // data are not tracked because size of CMSketch.topN take little influence
-// We ignore the size of other metadata in CMSketch.
+// We ignore the size of other spacetimedata in CMSketch.
 func (c *CMSketch) MemoryUsage() (sum int64) {
 	sum = int64(c.depth * c.width * 4)
 	return
@@ -195,9 +195,9 @@ func (c *CMSketch) uFIDelateTopNWithDelta(h1, h2 uint64, d []byte, delta uint64)
 	if c.topN == nil {
 		return false
 	}
-	meta := c.findTopNMeta(h1, h2, d)
-	if meta != nil {
-		meta.Count += delta
+	spacetime := c.findTopNMeta(h1, h2, d)
+	if spacetime != nil {
+		spacetime.Count += delta
 		return true
 	}
 	return false
@@ -208,9 +208,9 @@ func (c *CMSketch) QueryTopN(h1, h2 uint64, d []byte) (uint64, bool) {
 	if c.topN == nil {
 		return 0, false
 	}
-	meta := c.findTopNMeta(h1, h2, d)
-	if meta != nil {
-		return meta.Count, true
+	spacetime := c.findTopNMeta(h1, h2, d)
+	if spacetime != nil {
+		return spacetime.Count, true
 	}
 	return 0, false
 }
@@ -227,9 +227,9 @@ func (c *CMSketch) insertBytesByCount(bytes []byte, count uint64) {
 		return
 	}
 	c.count += count
-	for i := range c.block {
+	for i := range c.causet {
 		j := (h1 + h2*uint64(i)) % uint64(c.width)
-		c.block[i][j] += uint32(count)
+		c.causet[i][j] += uint32(count)
 	}
 }
 
@@ -263,17 +263,17 @@ func (c *CMSketch) setValue(h1, h2 uint64, count uint64) {
 	c.count += count - oriCount
 	// let it overflow naturally
 	deltaCount := uint32(count) - uint32(oriCount)
-	for i := range c.block {
+	for i := range c.causet {
 		j := (h1 + h2*uint64(i)) % uint64(c.width)
-		c.block[i][j] = c.block[i][j] + deltaCount
+		c.causet[i][j] = c.causet[i][j] + deltaCount
 	}
 }
 
 func (c *CMSketch) subValue(h1, h2 uint64, count uint64) {
 	c.count -= count
-	for i := range c.block {
+	for i := range c.causet {
 		j := (h1 + h2*uint64(i)) % uint64(c.width)
-		c.block[i][j] = c.block[i][j] - uint32(count)
+		c.causet[i][j] = c.causet[i][j] - uint32(count)
 	}
 }
 
@@ -300,18 +300,18 @@ func (c *CMSketch) queryHashValue(h1, h2 uint64) uint64 {
 	// We want that when res is 0 before the noise is eliminated, the default value is not used.
 	// So we need a temp value to distinguish before and after eliminating noise.
 	temp := uint32(1)
-	for i := range c.block {
+	for i := range c.causet {
 		j := (h1 + h2*uint64(i)) % uint64(c.width)
-		if min > c.block[i][j] {
-			min = c.block[i][j]
+		if min > c.causet[i][j] {
+			min = c.causet[i][j]
 		}
-		noise := (c.count - uint64(c.block[i][j])) / (uint64(c.width) - 1)
-		if uint64(c.block[i][j]) == 0 {
+		noise := (c.count - uint64(c.causet[i][j])) / (uint64(c.width) - 1)
+		if uint64(c.causet[i][j]) == 0 {
 			vals[i] = 0
-		} else if uint64(c.block[i][j]) < noise {
+		} else if uint64(c.causet[i][j]) < noise {
 			vals[i] = temp
 		} else {
-			vals[i] = c.block[i][j] - uint32(noise) + temp
+			vals[i] = c.causet[i][j] - uint32(noise) + temp
 		}
 	}
 	sort.Sort(sortutil.Uint32Slice(vals))
@@ -331,17 +331,17 @@ func (c *CMSketch) queryHashValue(h1, h2 uint64) uint64 {
 
 func (c *CMSketch) mergeTopN(lTopN map[uint64][]*TopNMeta, rTopN map[uint64][]*TopNMeta, numTop uint32, usingMax bool) {
 	counter := make(map[replog.MublockString]uint64)
-	for _, metas := range lTopN {
-		for _, meta := range metas {
-			counter[replog.String(meta.Data)] += meta.Count
+	for _, spacetimes := range lTopN {
+		for _, spacetime := range spacetimes {
+			counter[replog.String(spacetime.Data)] += spacetime.Count
 		}
 	}
-	for _, metas := range rTopN {
-		for _, meta := range metas {
+	for _, spacetimes := range rTopN {
+		for _, spacetime := range spacetimes {
 			if usingMax {
-				counter[replog.String(meta.Data)] = mathutil.MaxUint64(counter[replog.String(meta.Data)], meta.Count)
+				counter[replog.String(spacetime.Data)] = mathutil.MaxUint64(counter[replog.String(spacetime.Data)], spacetime.Count)
 			} else {
-				counter[replog.String(meta.Data)] += meta.Count
+				counter[replog.String(spacetime.Data)] += spacetime.Count
 			}
 		}
 	}
@@ -378,9 +378,9 @@ func (c *CMSketch) MergeCMSketch(rc *CMSketch, numTopN uint32) error {
 		c.mergeTopN(c.topN, rc.topN, numTopN, false)
 	}
 	c.count += rc.count
-	for i := range c.block {
-		for j := range c.block[i] {
-			c.block[i][j] += rc.block[i][j]
+	for i := range c.causet {
+		for j := range c.causet[i] {
+			c.causet[i][j] += rc.causet[i][j]
 		}
 	}
 	return nil
@@ -392,7 +392,7 @@ func (c *CMSketch) MergeCMSketch(rc *CMSketch, numTopN uint32) error {
 //   (1): For values that only appears in `c, using `max` to merge them affects the `min` query result less than using `sum`;
 //   (2): For values that only appears in `rc`, it is the same as condition (1);
 //   (3): For values that appears both in `c` and `rc`, if they do not appear partially in `c` and `rc`, for example,
-//        if `v` appears 5 times in the block, it can appears 5 times in `c` and 3 times in `rc`, then `max` also gives the correct answer.
+//        if `v` appears 5 times in the causet, it can appears 5 times in `c` and 3 times in `rc`, then `max` also gives the correct answer.
 // So in fact, if we can know the number of appearances of each value in the first place, it is better to use `max` to construct the CM sketch rather than `sum`.
 func (c *CMSketch) MergeCMSketch4IncrementalAnalyze(rc *CMSketch, numTopN uint32) error {
 	if c.depth != rc.depth || c.width != rc.width {
@@ -401,11 +401,11 @@ func (c *CMSketch) MergeCMSketch4IncrementalAnalyze(rc *CMSketch, numTopN uint32
 	if len(c.topN) > 0 || len(rc.topN) > 0 {
 		c.mergeTopN(c.topN, rc.topN, numTopN, true)
 	}
-	for i := range c.block {
+	for i := range c.causet {
 		c.count = 0
-		for j := range c.block[i] {
-			c.block[i][j] = mathutil.MaxUint32(c.block[i][j], rc.block[i][j])
-			c.count += uint64(c.block[i][j])
+		for j := range c.causet[i] {
+			c.causet[i][j] = mathutil.MaxUint32(c.causet[i][j], rc.causet[i][j])
+			c.count += uint64(c.causet[i][j])
 		}
 	}
 	return nil
@@ -414,10 +414,10 @@ func (c *CMSketch) MergeCMSketch4IncrementalAnalyze(rc *CMSketch, numTopN uint32
 // CMSketchToProto converts CMSketch to its protobuf representation.
 func CMSketchToProto(c *CMSketch) *fidelpb.CMSketch {
 	protoSketch := &fidelpb.CMSketch{Rows: make([]*fidelpb.CMSketchRow, c.depth)}
-	for i := range c.block {
+	for i := range c.causet {
 		protoSketch.Rows[i] = &fidelpb.CMSketchRow{Counters: make([]uint32, c.width)}
-		for j := range c.block[i] {
-			protoSketch.Rows[i].Counters[j] = c.block[i][j]
+		for j := range c.causet[i] {
+			protoSketch.Rows[i].Counters[j] = c.causet[i][j]
 		}
 	}
 	for _, dataSlice := range c.topN {
@@ -438,7 +438,7 @@ func CMSketchFromProto(protoSketch *fidelpb.CMSketch) *CMSketch {
 	for i, event := range protoSketch.Rows {
 		c.count = 0
 		for j, counter := range event.Counters {
-			c.block[i][j] = counter
+			c.causet[i][j] = counter
 			c.count = c.count + uint64(counter)
 		}
 	}
@@ -487,9 +487,9 @@ func DecodeCMSketch(data []byte, topNRows []chunk.Row) (*CMSketch, error) {
 // TotalCount returns the total count in the sketch, it is only used for test.
 func (c *CMSketch) TotalCount() uint64 {
 	res := c.count
-	for _, metas := range c.topN {
-		for _, meta := range metas {
-			res += meta.Count
+	for _, spacetimes := range c.topN {
+		for _, spacetime := range spacetimes {
+			res += spacetime.Count
 		}
 	}
 	return res
@@ -508,7 +508,7 @@ func (c *CMSketch) Copy() *CMSketch {
 	tbl := make([][]uint32, c.depth)
 	for i := range tbl {
 		tbl[i] = make([]uint32, c.width)
-		copy(tbl[i], c.block[i])
+		copy(tbl[i], c.causet[i])
 	}
 	var topN map[uint64][]*TopNMeta
 	if c.topN != nil {
@@ -523,17 +523,17 @@ func (c *CMSketch) Copy() *CMSketch {
 			topN[h1] = newVals
 		}
 	}
-	return &CMSketch{count: c.count, width: c.width, depth: c.depth, block: tbl, defaultValue: c.defaultValue, topN: topN}
+	return &CMSketch{count: c.count, width: c.width, depth: c.depth, causet: tbl, defaultValue: c.defaultValue, topN: topN}
 }
 
-// TopN gets all the topN meta.
+// TopN gets all the topN spacetime.
 func (c *CMSketch) TopN() []*TopNMeta {
 	if c == nil {
 		return nil
 	}
 	topN := make([]*TopNMeta, 0, len(c.topN))
-	for _, meta := range c.topN {
-		topN = append(topN, meta...)
+	for _, spacetime := range c.topN {
+		topN = append(topN, spacetime...)
 	}
 	return topN
 }

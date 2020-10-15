@@ -15,40 +15,40 @@ package ranger
 
 import (
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
 )
 
-// conditionChecker checks if this condition can be pushed to index planner.
+// conditionChecker checks if this condition can be pushed to index causet.
 type conditionChecker struct {
 	defCausUniqueID   int64
 	shouldReserve bool // check if a access condition should be reserved in filter conditions.
 	length        int
 }
 
-func (c *conditionChecker) check(condition expression.Expression) bool {
+func (c *conditionChecker) check(condition memex.Expression) bool {
 	switch x := condition.(type) {
-	case *expression.ScalarFunction:
+	case *memex.ScalarFunction:
 		return c.checkScalarFunction(x)
-	case *expression.DeferredCauset:
+	case *memex.DeferredCauset:
 		if x.RetType.EvalType() == types.ETString {
 			return false
 		}
 		return c.checkDeferredCauset(x)
-	case *expression.Constant:
+	case *memex.Constant:
 		return true
 	}
 	return false
 }
 
-func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction) bool {
+func (c *conditionChecker) checkScalarFunction(scalar *memex.ScalarFunction) bool {
 	_, defCauslation := scalar.CharsetAndDefCauslation(scalar.GetCtx())
 	switch scalar.FuncName.L {
 	case ast.LogicOr, ast.LogicAnd:
 		return c.check(scalar.GetArgs()[0]) && c.check(scalar.GetArgs()[1])
 	case ast.EQ, ast.NE, ast.GE, ast.GT, ast.LE, ast.LT, ast.NullEQ:
-		if _, ok := scalar.GetArgs()[0].(*expression.Constant); ok {
+		if _, ok := scalar.GetArgs()[0].(*memex.Constant); ok {
 			if c.checkDeferredCauset(scalar.GetArgs()[1]) {
 				// Checks whether the scalar function is calculated use the defCauslation compatible with the defCausumn.
 				if scalar.GetArgs()[1].GetType().EvalType() == types.ETString && !defCauslate.CompatibleDefCauslate(scalar.GetArgs()[1].GetType().DefCauslate, defCauslation) {
@@ -57,7 +57,7 @@ func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction
 				return scalar.FuncName.L != ast.NE || c.length == types.UnspecifiedLength
 			}
 		}
-		if _, ok := scalar.GetArgs()[1].(*expression.Constant); ok {
+		if _, ok := scalar.GetArgs()[1].(*memex.Constant); ok {
 			if c.checkDeferredCauset(scalar.GetArgs()[0]) {
 				// Checks whether the scalar function is calculated use the defCauslation compatible with the defCausumn.
 				if scalar.GetArgs()[0].GetType().EvalType() == types.ETString && !defCauslate.CompatibleDefCauslate(scalar.GetArgs()[0].GetType().DefCauslate, defCauslation) {
@@ -69,7 +69,7 @@ func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction
 	case ast.IsNull:
 		return c.checkDeferredCauset(scalar.GetArgs()[0])
 	case ast.IsTruthWithoutNull, ast.IsFalsity, ast.IsTruthWithNull:
-		if s, ok := scalar.GetArgs()[0].(*expression.DeferredCauset); ok {
+		if s, ok := scalar.GetArgs()[0].(*memex.DeferredCauset); ok {
 			if s.RetType.EvalType() == types.ETString {
 				return false
 			}
@@ -77,7 +77,7 @@ func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction
 		return c.checkDeferredCauset(scalar.GetArgs()[0])
 	case ast.UnaryNot:
 		// TODO: support "not like" convert to access conditions.
-		if s, ok := scalar.GetArgs()[0].(*expression.ScalarFunction); ok {
+		if s, ok := scalar.GetArgs()[0].(*memex.ScalarFunction); ok {
 			if s.FuncName.L == ast.Like {
 				return false
 			}
@@ -94,7 +94,7 @@ func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction
 			return false
 		}
 		for _, v := range scalar.GetArgs()[1:] {
-			if _, ok := v.(*expression.Constant); !ok {
+			if _, ok := v.(*memex.Constant); !ok {
 				return false
 			}
 		}
@@ -107,7 +107,7 @@ func (c *conditionChecker) checkScalarFunction(scalar *expression.ScalarFunction
 	return false
 }
 
-func (c *conditionChecker) checkLikeFunc(scalar *expression.ScalarFunction) bool {
+func (c *conditionChecker) checkLikeFunc(scalar *memex.ScalarFunction) bool {
 	_, defCauslation := scalar.CharsetAndDefCauslation(scalar.GetCtx())
 	if !defCauslate.CompatibleDefCauslate(scalar.GetArgs()[0].GetType().DefCauslate, defCauslation) {
 		return false
@@ -115,7 +115,7 @@ func (c *conditionChecker) checkLikeFunc(scalar *expression.ScalarFunction) bool
 	if !c.checkDeferredCauset(scalar.GetArgs()[0]) {
 		return false
 	}
-	pattern, ok := scalar.GetArgs()[1].(*expression.Constant)
+	pattern, ok := scalar.GetArgs()[1].(*memex.Constant)
 	if !ok {
 		return false
 
@@ -130,7 +130,7 @@ func (c *conditionChecker) checkLikeFunc(scalar *expression.ScalarFunction) bool
 	if len(patternStr) == 0 {
 		return true
 	}
-	escape := byte(scalar.GetArgs()[2].(*expression.Constant).Value.GetInt64())
+	escape := byte(scalar.GetArgs()[2].(*memex.Constant).Value.GetInt64())
 	for i := 0; i < len(patternStr); i++ {
 		if patternStr[i] == escape {
 			i++
@@ -156,8 +156,8 @@ func (c *conditionChecker) checkLikeFunc(scalar *expression.ScalarFunction) bool
 	return true
 }
 
-func (c *conditionChecker) checkDeferredCauset(expr expression.Expression) bool {
-	defCaus, ok := expr.(*expression.DeferredCauset)
+func (c *conditionChecker) checkDeferredCauset(expr memex.Expression) bool {
+	defCaus, ok := expr.(*memex.DeferredCauset)
 	if !ok {
 		return false
 	}

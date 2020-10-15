@@ -686,24 +686,24 @@ func (s *testSuite) TestIndexRangesToKVRangesWithFbs(c *C) {
 func (s *testSuite) TestScanLimitConcurrency(c *C) {
 	vars := variable.NewStochastikVars()
 	for _, tt := range []struct {
-		tp          fidelpb.ExecType
+		tp          fidelpb.InterDircType
 		limit       uint64
 		concurrency int
 	}{
-		{fidelpb.ExecType_TypeBlockScan, 1, 1},
-		{fidelpb.ExecType_TypeIndexScan, 1, 1},
-		{fidelpb.ExecType_TypeBlockScan, 1000000, vars.Concurrency.DistALLEGROSQLScanConcurrency()},
-		{fidelpb.ExecType_TypeIndexScan, 1000000, vars.Concurrency.DistALLEGROSQLScanConcurrency()},
+		{fidelpb.InterDircType_TypeBlockScan, 1, 1},
+		{fidelpb.InterDircType_TypeIndexScan, 1, 1},
+		{fidelpb.InterDircType_TypeBlockScan, 1000000, vars.Concurrency.DistALLEGROSQLScanConcurrency()},
+		{fidelpb.InterDircType_TypeIndexScan, 1000000, vars.Concurrency.DistALLEGROSQLScanConcurrency()},
 	} {
-		firstExec := &fidelpb.Executor{Tp: tt.tp}
+		firstInterDirc := &fidelpb.InterlockingDirectorate{Tp: tt.tp}
 		switch tt.tp {
-		case fidelpb.ExecType_TypeBlockScan:
-			firstExec.TblScan = &fidelpb.BlockScan{}
-		case fidelpb.ExecType_TypeIndexScan:
-			firstExec.IdxScan = &fidelpb.IndexScan{}
+		case fidelpb.InterDircType_TypeBlockScan:
+			firstInterDirc.TblScan = &fidelpb.BlockScan{}
+		case fidelpb.InterDircType_TypeIndexScan:
+			firstInterDirc.IdxScan = &fidelpb.IndexScan{}
 		}
-		limitExec := &fidelpb.Executor{Tp: fidelpb.ExecType_TypeLimit, Limit: &fidelpb.Limit{Limit: tt.limit}}
-		posetPosetDag := &fidelpb.PosetDagRequest{Executors: []*fidelpb.Executor{firstExec, limitExec}}
+		limitInterDirc := &fidelpb.InterlockingDirectorate{Tp: fidelpb.InterDircType_TypeLimit, Limit: &fidelpb.Limit{Limit: tt.limit}}
+		posetPosetDag := &fidelpb.PosetDagRequest{InterlockingDirectorates: []*fidelpb.InterlockingDirectorate{firstInterDirc, limitInterDirc}}
 		actual, err := (&RequestBuilder{}).
 			SetPosetDagRequest(posetPosetDag).
 			SetFromStochastikVars(vars).

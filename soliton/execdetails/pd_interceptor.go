@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	fidel "github.com/einsteindb/fidel/client"
 )
 
@@ -28,9 +28,9 @@ var (
 )
 
 func recordFIDelWaitTime(ctx context.Context, start time.Time) {
-	stmtExec := ctx.Value(StmtExecDetailKey)
-	if stmtExec != nil {
-		detail := stmtExec.(*StmtExecDetails)
+	stmtInterDirc := ctx.Value(StmtInterDircDetailKey)
+	if stmtInterDirc != nil {
+		detail := stmtInterDirc.(*StmtInterDircDetails)
 		atomic.AddInt64(&detail.WaitFIDelResFIDeluration, int64(time.Since(start)))
 	}
 }
@@ -106,7 +106,7 @@ func (m InterceptedFIDelClient) ScanRegions(ctx context.Context, key, endKey []b
 }
 
 // GetStore implements fidel.Client#GetStore.
-func (m InterceptedFIDelClient) GetStore(ctx context.Context, storeID uint64) (*metapb.CausetStore, error) {
+func (m InterceptedFIDelClient) GetStore(ctx context.Context, storeID uint64) (*spacetimepb.CausetStore, error) {
 	start := time.Now()
 	s, err := m.Client.GetStore(ctx, storeID)
 	recordFIDelWaitTime(ctx, start)

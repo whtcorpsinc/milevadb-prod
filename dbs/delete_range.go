@@ -46,15 +46,15 @@ var (
 	// enableEmulatorGC means whether to enable emulator GC. The default is enable.
 	// In some unit tests, we want to stop emulator GC, then wen can set enableEmulatorGC to 0.
 	emulatorGCEnable = int32(1)
-	// batchInsertDeleteRangeSize is the maximum size for each batch insert statement in the delete-range.
+	// batchInsertDeleteRangeSize is the maximum size for each batch insert memex in the delete-range.
 	batchInsertDeleteRangeSize = 256
 )
 
 type delRangeManager interface {
-	// addDelRangeJob add a DBS job into gc_delete_range block.
+	// addDelRangeJob add a DBS job into gc_delete_range causet.
 	addDelRangeJob(job *perceptron.Job) error
-	// removeFromGCDeleteRange removes the deleting block job from gc_delete_range block by jobID and blockID.
-	// It's use for recover the block that was mistakenly deleted.
+	// removeFromGCDeleteRange removes the deleting causet job from gc_delete_range causet by jobID and blockID.
+	// It's use for recover the causet that was mistakenly deleted.
 	removeFromGCDeleteRange(jobID int64, blockID []int64) error
 	start()
 	clear()
@@ -96,13 +96,13 @@ func (dr *delRange) addDelRangeJob(job *perceptron.Job) error {
 
 	err = insertJobIntoDeleteRangeBlock(ctx, job)
 	if err != nil {
-		logutil.BgLogger().Error("[dbs] add job into delete-range block failed", zap.Int64("jobID", job.ID), zap.String("jobType", job.Type.String()), zap.Error(err))
+		logutil.BgLogger().Error("[dbs] add job into delete-range causet failed", zap.Int64("jobID", job.ID), zap.String("jobType", job.Type.String()), zap.Error(err))
 		return errors.Trace(err)
 	}
 	if !dr.storeSupport {
 		dr.emulatorCh <- struct{}{}
 	}
-	logutil.BgLogger().Info("[dbs] add job into delete-range block", zap.Int64("jobID", job.ID), zap.String("jobType", job.Type.String()))
+	logutil.BgLogger().Info("[dbs] add job into delete-range causet", zap.Int64("jobID", job.ID), zap.String("jobType", job.Type.String()))
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (dr *delRange) clear() {
 }
 
 // startEmulator is only used for those storage engines which don't support
-// delete-range. The emulator fetches records from gc_delete_range block and
+// delete-range. The emulator fetches records from gc_delete_range causet and
 // deletes all keys in each DelRangeTask.
 func (dr *delRange) startEmulator() {
 	defer dr.wait.Done()
@@ -243,7 +243,7 @@ func (dr *delRange) doTask(ctx stochastikctx.Context, r soliton.DelRangeTask) er
 }
 
 // insertJobIntoDeleteRangeBlock parses the job into delete-range arguments,
-// and inserts a new record into gc_delete_range block. The primary key is
+// and inserts a new record into gc_delete_range causet. The primary key is
 // job ID, so we ignore key conflict error.
 func insertJobIntoDeleteRangeBlock(ctx stochastikctx.Context, job *perceptron.Job) error {
 	now, err := getNowTSO(ctx)
@@ -251,7 +251,7 @@ func insertJobIntoDeleteRangeBlock(ctx stochastikctx.Context, job *perceptron.Jo
 		return errors.Trace(err)
 	}
 
-	s := ctx.(sqlexec.ALLEGROSQLExecutor)
+	s := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate)
 	switch job.Type {
 	case perceptron.CausetActionDropSchema:
 		var blockIDs []int64
@@ -400,7 +400,7 @@ func insertJobIntoDeleteRangeBlock(ctx stochastikctx.Context, job *perceptron.Jo
 	return nil
 }
 
-func doBatchDeleteIndiceRange(s sqlexec.ALLEGROSQLExecutor, jobID, blockID int64, indexIDs []int64, ts uint64) error {
+func doBatchDeleteIndiceRange(s sqlexec.ALLEGROSQLInterlockingDirectorate, jobID, blockID int64, indexIDs []int64, ts uint64) error {
 	logutil.BgLogger().Info("[dbs] batch insert into delete-range indices", zap.Int64("jobID", jobID), zap.Int64s("elementIDs", indexIDs))
 	allegrosql := insertDeleteRangeALLEGROSQLPrefix
 	for i, indexID := range indexIDs {
@@ -413,21 +413,21 @@ func doBatchDeleteIndiceRange(s sqlexec.ALLEGROSQLExecutor, jobID, blockID int64
 			allegrosql += ","
 		}
 	}
-	_, err := s.Execute(context.Background(), allegrosql)
+	_, err := s.InterDircute(context.Background(), allegrosql)
 	return errors.Trace(err)
 }
 
-func doInsert(s sqlexec.ALLEGROSQLExecutor, jobID int64, elementID int64, startKey, endKey ekv.Key, ts uint64) error {
-	logutil.BgLogger().Info("[dbs] insert into delete-range block", zap.Int64("jobID", jobID), zap.Int64("elementID", elementID))
+func doInsert(s sqlexec.ALLEGROSQLInterlockingDirectorate, jobID int64, elementID int64, startKey, endKey ekv.Key, ts uint64) error {
+	logutil.BgLogger().Info("[dbs] insert into delete-range causet", zap.Int64("jobID", jobID), zap.Int64("elementID", elementID))
 	startKeyEncoded := hex.EncodeToString(startKey)
 	endKeyEncoded := hex.EncodeToString(endKey)
 	allegrosql := fmt.Sprintf(insertDeleteRangeALLEGROSQL, jobID, elementID, startKeyEncoded, endKeyEncoded, ts)
-	_, err := s.Execute(context.Background(), allegrosql)
+	_, err := s.InterDircute(context.Background(), allegrosql)
 	return errors.Trace(err)
 }
 
-func doBatchInsert(s sqlexec.ALLEGROSQLExecutor, jobID int64, blockIDs []int64, ts uint64) error {
-	logutil.BgLogger().Info("[dbs] batch insert into delete-range block", zap.Int64("jobID", jobID), zap.Int64s("elementIDs", blockIDs))
+func doBatchInsert(s sqlexec.ALLEGROSQLInterlockingDirectorate, jobID int64, blockIDs []int64, ts uint64) error {
+	logutil.BgLogger().Info("[dbs] batch insert into delete-range causet", zap.Int64("jobID", jobID), zap.Int64s("elementIDs", blockIDs))
 	allegrosql := insertDeleteRangeALLEGROSQLPrefix
 	for i, blockID := range blockIDs {
 		startKey := blockcodec.EncodeBlockPrefix(blockID)
@@ -439,7 +439,7 @@ func doBatchInsert(s sqlexec.ALLEGROSQLExecutor, jobID int64, blockIDs []int64, 
 			allegrosql += ","
 		}
 	}
-	_, err := s.Execute(context.Background(), allegrosql)
+	_, err := s.InterDircute(context.Background(), allegrosql)
 	return errors.Trace(err)
 }
 

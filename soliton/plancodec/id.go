@@ -94,11 +94,11 @@ const (
 	TypeEinsteinDBSingleGather = "EinsteinDBSingleGather"
 	// TypeIndexMerge is the type of IndexMergeReader
 	TypeIndexMerge = "IndexMerge"
-	// TypePointGet is the type of PointGetPlan.
+	// TypePointGet is the type of PointGetCauset.
 	TypePointGet = "Point_Get"
 	// TypeShowDBSJobs is the type of show dbs jobs.
 	TypeShowDBSJobs = "ShowDBSJobs"
-	// TypeBatchPointGet is the type of BatchPointGetPlan.
+	// TypeBatchPointGet is the type of BatchPointGetCauset.
 	TypeBatchPointGet = "Batch_Point_Get"
 	// TypeClusterMemBlockReader is the type of BlockReader.
 	TypeClusterMemBlockReader = "ClusterMemBlockReader"
@@ -323,5 +323,5 @@ func PhysicalIDToTypeString(id int) string {
 	}
 
 	// Should never reach here.
-	return "UnknownPlanID" + strconv.Itoa(id)
+	return "UnknownCausetID" + strconv.Itoa(id)
 }

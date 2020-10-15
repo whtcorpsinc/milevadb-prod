@@ -1,0 +1,240 @@
+[
+  {
+    "Name": "TestNormalizedCauset",
+    "Cases": [
+      {
+        "ALLEGROALLEGROSQL": "select * from t1;",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where a<1;",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where a>1",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where a=1",
+        "Causet": [
+          " Point_Get root causet:t1, handle:?"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where a in (1,2,3)",
+        "Causet": [
+          " Batch_Point_Get root causet:t1, handle:?, keep order:false, desc:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where b=1",
+        "Causet": [
+          " IndexLookUp root ",
+          " ├─IndexScan cop  causet:t1, index:b(b), range:[?,?], keep order:false",
+          " └─BlockScan cop  causet:t1, keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select a+1,b+2 from t1 use index(b) where b=3",
+        "Causet": [
+          " Projection    root plus(test.t1.a, ?), plus(test.t1.b, ?)",
+          " └─IndexReader root index:IndexRangeScan_5",
+          "   └─IndexScan cop  causet:t1, index:b(b), range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select * from t1 where t1.b > 1 and  t1.a in (select sum(t2.b) from t2 where t2.a=t1.a and t2.b is not null)",
+        "Causet": [
+          " Projection            root test.t1.a, test.t1.b, test.t1.c",
+          " └─Apply               root semi join, equal:eq(?, ?)",
+          "   ├─Projection        root cast(test.t1.a), test.t1.a, test.t1.b, test.t1.c",
+          "   │ └─BlockReader     root ",
+          "   │   └─Selection     cop  gt(test.t1.b, ?)",
+          "   │     └─BlockScan   cop  causet:t1, range:[?,?], keep order:false",
+          "   └─StreamAgg         root funcs:sum(?)->?",
+          "     └─BlockReader     root ",
+          "       └─StreamAgg     cop  funcs:sum(test.t2.b)->?",
+          "         └─Selection   cop  not(isnull(test.t2.b))",
+          "           └─BlockScan cop  causet:t2, range: decided by eq(test.t2.a, test.t1.a), keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT * from t1 where a!=1 order by c limit 1",
+        "Causet": [
+          " TopN            root test.t1.c",
+          " └─BlockReader   root ",
+          "   └─TopN        cop  test.t1.c",
+          "     └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT /*+ MilevaDB_SMJ(t1, t2) */ * from t1, t2 where t1.a = t2.a and t1.c>1;",
+        "Causet": [
+          " MergeJoin       root inner join, left key:test.t1.a, right key:test.t2.a",
+          " ├─BlockReader   root ",
+          " │ └─Selection   cop  gt(test.t1.c, ?)",
+          " │   └─BlockScan cop  causet:t1, range:[?,?], keep order:true",
+          " └─BlockReader   root ",
+          "   └─BlockScan   cop  causet:t2, range:[?,?], keep order:true"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT /*+ MilevaDB_INLJ(t1, t2) */ * from t1, t2 where t1.a = t2.a and t1.c>1;",
+        "Causet": [
+          " IndexJoin       root inner join, inner:BlockReader, outer key:test.t1.a, inner key:test.t2.a",
+          " ├─BlockReader   root ",
+          " │ └─Selection   cop  gt(test.t1.c, ?)",
+          " │   └─BlockScan cop  causet:t1, range:[?,?], keep order:false",
+          " └─BlockReader   root ",
+          "   └─BlockScan   cop  causet:t2, range: decided by [test.t1.a], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT /*+ MilevaDB_HJ(t1, t2) */ * from t1, t2 where t1.a = t2.a and t1.c>1;",
+        "Causet": [
+          " HashJoin        root inner join, equal:eq(test.t1.a, test.t2.a)",
+          " ├─BlockReader   root ",
+          " │ └─Selection   cop  gt(test.t1.c, ?)",
+          " │   └─BlockScan cop  causet:t1, range:[?,?], keep order:false",
+          " └─BlockReader   root ",
+          "   └─BlockScan   cop  causet:t2, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT /*+ MilevaDB_HJ(t1, t2) */ * from t1, t2 where t1.a = t2.a and t1.c>1;",
+        "Causet": [
+          " HashJoin        root inner join, equal:eq(test.t1.a, test.t2.a)",
+          " ├─BlockReader   root ",
+          " │ └─Selection   cop  gt(test.t1.c, ?)",
+          " │   └─BlockScan cop  causet:t1, range:[?,?], keep order:false",
+          " └─BlockReader   root ",
+          "   └─BlockScan   cop  causet:t2, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "SELECT /*+ MilevaDB_INLJ(t1, t2) */ * from t1, t2 where t1.a = t2.a and t1.c>1;",
+        "Causet": [
+          " IndexJoin       root inner join, inner:BlockReader, outer key:test.t1.a, inner key:test.t2.a",
+          " ├─BlockReader   root ",
+          " │ └─Selection   cop  gt(test.t1.c, ?)",
+          " │   └─BlockScan cop  causet:t1, range:[?,?], keep order:false",
+          " └─BlockReader   root ",
+          "   └─BlockScan   cop  causet:t2, range: decided by [test.t1.a], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "select count(1) as num,a from t1 where a=1 group by a union select count(1) as num,a from t1 where a=3 group by a;",
+        "Causet": [
+          " HashAgg         root group by:?, ?, funcs:firstrow(?)->?, funcs:firstrow(?)->?",
+          " └─Union         root ",
+          "   ├─Projection  root ?, test.t1.a",
+          "   │ └─Point_Get root causet:t1, handle:?",
+          "   └─Projection  root ?, test.t1.a",
+          "     └─Point_Get root causet:t1, handle:?"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "insert into t1 values (1,1,1)",
+        "Causet": [
+          ""
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "insert into t1 select * from t2 where t2.a>0 and t2.b!=0",
+        "Causet": [
+          " BlockReader   root ",
+          " └─Selection   cop  ne(test.t2.b, ?)",
+          "   └─BlockScan cop  causet:t2, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "uFIDelate t1 set a=a+1",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "uFIDelate t1 set a=a+1 where a>0",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "delete from t1",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "delete from t1 where a>0 and b=1 and c!=2",
+        "Causet": [
+          " IndexLookUp   root ",
+          " ├─IndexScan   cop  causet:t1, index:b(b), range:[?,?], keep order:false",
+          " └─Selection   cop  ne(test.t1.c, ?)",
+          "   └─BlockScan cop  causet:t1, keep order:false"
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "create causet t1_tmp (a int)",
+        "Causet": [
+          ""
+        ]
+      },
+      {
+        "ALLEGROALLEGROSQL": "alter causet t1_tmp add column c int",
+        "Causet": [
+          ""
+        ]
+      }
+    ]
+  },
+  {
+    "Name": "TestNormalizedCausetForDiffStore",
+    "Cases": [
+      {
+        "Digest": "63eab1c93f586cf9fbe71cbfa4ad212aadb019e3e477f2f6257d00d35e045980",
+        "Causet": [
+          " BlockReader root         ",
+          " └─BlockScan cop[tiflash] causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "Digest": "6dc9f1500bbea92b2446d58c1510bca2e78f0e9a6c721c76495b0cf6bfc95faa",
+        "Causet": [
+          " BlockReader root ",
+          " └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "Digest": "03f12d0f634596922b6ba2edab8d6565a36bc2264cea9613adeb506e32d6b901",
+        "Causet": [
+          " Projection      root         plus(test.t1.a, test.t1.b)",
+          " └─BlockReader   root         ",
+          "   └─Selection   cop[tiflash] lt(plus(test.t1.a, test.t1.b), ?)",
+          "     └─BlockScan cop[tiflash] causet:t1, range:[?,?], keep order:false"
+        ]
+      },
+      {
+        "Digest": "5f2f4343d1cf9bbd0893f78c01657307fdebadacbd0b9e60e4b5cca27656b739",
+        "Causet": [
+          " Projection      root plus(test.t1.a, test.t1.b)",
+          " └─BlockReader   root ",
+          "   └─Selection   cop  lt(plus(test.t1.a, test.t1.b), ?)",
+          "     └─BlockScan cop  causet:t1, range:[?,?], keep order:false"
+        ]
+      }
+    ]
+  }
+]

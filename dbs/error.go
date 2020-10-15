@@ -23,8 +23,8 @@ import (
 var (
 	// errWorkerClosed means we have already closed the DBS worker.
 	errInvalidWorker = terror.ClassDBS.New(allegrosql.ErrInvalidDBSWorker, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrInvalidDBSWorker])
-	// errNotOwner means we are not owner and can't handle DBS jobs.
-	errNotOwner              = terror.ClassDBS.New(allegrosql.ErrNotOwner, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNotOwner])
+	// errNotTenant means we are not tenant and can't handle DBS jobs.
+	errNotTenant              = terror.ClassDBS.New(allegrosql.ErrNotTenant, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNotTenant])
 	errCantDecodeRecord      = terror.ClassDBS.New(allegrosql.ErrCantDecodeRecord, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCantDecodeRecord])
 	errInvalidDBSJob         = terror.ClassDBS.New(allegrosql.ErrInvalidDBSJob, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrInvalidDBSJob])
 	errCancelledDBSJob       = terror.ClassDBS.New(allegrosql.ErrCancelledDBSJob, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCancelledDBSJob])
@@ -43,7 +43,7 @@ var (
 	errUnsupportedModifyDefCauslation             = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "modifying collation from %s to %s"))
 	errUnsupportedPKHandle                    = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "drop integer primary key"))
 	errUnsupportedCharset                     = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "charset %s and collate %s"))
-	errUnsupportedShardRowIDBits              = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "shard_row_id_bits for block with primary key as event id"))
+	errUnsupportedShardRowIDBits              = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "shard_row_id_bits for causet with primary key as event id"))
 	errUnsupportedAlterBlockWithValidation    = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, "ALTER TABLE WITH VALIDATION is currently unsupported")
 	errUnsupportedAlterBlockWithoutValidation = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, "ALTER TABLE WITHOUT VALIDATION is currently unsupported")
 	errBlobKeyWithoutLength                   = terror.ClassDBS.New(allegrosql.ErrBlobKeyWithoutLength, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlobKeyWithoutLength])
@@ -62,7 +62,7 @@ var (
 	errFKIncompatibleDeferredCausets                  = terror.ClassDBS.New(allegrosql.ErrFKIncompatibleDeferredCausets, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrFKIncompatibleDeferredCausets])
 
 	errOnlyOnRangeListPartition = terror.ClassDBS.New(allegrosql.ErrOnlyOnRangeListPartition, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrOnlyOnRangeListPartition])
-	// errWrongKeyDeferredCauset is for block column cannot be indexed.
+	// errWrongKeyDeferredCauset is for causet column cannot be indexed.
 	errWrongKeyDeferredCauset = terror.ClassDBS.New(allegrosql.ErrWrongKeyDeferredCauset, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongKeyDeferredCauset])
 	// errWrongFKOptionForGeneratedDeferredCauset is for wrong foreign key reference option on generated columns.
 	errWrongFKOptionForGeneratedDeferredCauset = terror.ClassDBS.New(allegrosql.ErrWrongFKOptionForGeneratedDeferredCauset, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongFKOptionForGeneratedDeferredCauset])
@@ -96,7 +96,7 @@ var (
 	ErrGeneratedDeferredCausetFunctionIsNotAllowed = terror.ClassDBS.New(allegrosql.ErrGeneratedDeferredCausetFunctionIsNotAllowed, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrGeneratedDeferredCausetFunctionIsNotAllowed])
 	// ErrUnsupportedPartitionByRangeDeferredCausets returns for does unsupported partition by range columns.
 	ErrUnsupportedPartitionByRangeDeferredCausets = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "partition by range columns"))
-	errUnsupportedCreatePartition         = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "partition type, treat as normal block"))
+	errUnsupportedCreatePartition         = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "partition type, treat as normal causet"))
 	errBlockPartitionDisabled             = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, "Partitions are ignored because Block Partition is disabled, please set 'milevadb_enable_block_partition' if you need to need to enable it")
 	errUnsupportedIndexType               = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "index type"))
 
@@ -120,17 +120,17 @@ var (
 	ErrCantDropFieldOrKey = terror.ClassDBS.New(allegrosql.ErrCantDropFieldOrKey, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCantDropFieldOrKey])
 	// ErrInvalidOnUFIDelate returns for invalid ON UFIDelATE clause.
 	ErrInvalidOnUFIDelate = terror.ClassDBS.New(allegrosql.ErrInvalidOnUFIDelate, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrInvalidOnUFIDelate])
-	// ErrTooLongIdent returns for too long name of database/block/column/index.
+	// ErrTooLongIdent returns for too long name of database/causet/column/index.
 	ErrTooLongIdent = terror.ClassDBS.New(allegrosql.ErrTooLongIdent, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTooLongIdent])
 	// ErrWrongDBName returns for wrong database name.
 	ErrWrongDBName = terror.ClassDBS.New(allegrosql.ErrWrongDBName, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongDBName])
-	// ErrWrongBlockName returns for wrong block name.
+	// ErrWrongBlockName returns for wrong causet name.
 	ErrWrongBlockName = terror.ClassDBS.New(allegrosql.ErrWrongBlockName, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongBlockName])
 	// ErrWrongDeferredCausetName returns for wrong column name.
 	ErrWrongDeferredCausetName = terror.ClassDBS.New(allegrosql.ErrWrongDeferredCausetName, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongDeferredCausetName])
 	// ErrInvalidGroupFuncUse returns for using invalid group functions.
 	ErrInvalidGroupFuncUse = terror.ClassDBS.New(allegrosql.ErrInvalidGroupFuncUse, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrInvalidGroupFuncUse])
-	// ErrBlockMustHaveDeferredCausets returns for missing column when creating a block.
+	// ErrBlockMustHaveDeferredCausets returns for missing column when creating a causet.
 	ErrBlockMustHaveDeferredCausets = terror.ClassDBS.New(allegrosql.ErrBlockMustHaveDeferredCausets, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockMustHaveDeferredCausets])
 	// ErrWrongNameForIndex returns for wrong index name.
 	ErrWrongNameForIndex = terror.ClassDBS.New(allegrosql.ErrWrongNameForIndex, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongNameForIndex])
@@ -144,14 +144,14 @@ var (
 	ErrConflictingDeclarations = terror.ClassDBS.New(allegrosql.ErrConflictingDeclarations, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrConflictingDeclarations], "CHARACTER SET ", "%s", "CHARACTER SET ", "%s"))
 	// ErrPrimaryCantHaveNull returns All parts of a PRIMARY KEY must be NOT NULL; if you need NULL in a key, use UNIQUE instead
 	ErrPrimaryCantHaveNull = terror.ClassDBS.New(allegrosql.ErrPrimaryCantHaveNull, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPrimaryCantHaveNull])
-	// ErrErrorOnRename returns error for wrong database name in alter block rename
+	// ErrErrorOnRename returns error for wrong database name in alter causet rename
 	ErrErrorOnRename = terror.ClassDBS.New(allegrosql.ErrErrorOnRename, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrErrorOnRename])
 	// ErrViewSelectClause returns error for create view with select into clause
 	ErrViewSelectClause = terror.ClassDBS.New(allegrosql.ErrViewSelectClause, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrViewSelectClause])
 
-	// ErrNotAllowedTypeInPartition returns not allowed type error when creating block partition with unsupported expression type.
+	// ErrNotAllowedTypeInPartition returns not allowed type error when creating causet partition with unsupported memex type.
 	ErrNotAllowedTypeInPartition = terror.ClassDBS.New(allegrosql.ErrFieldTypeNotAllowedAsPartitionField, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrFieldTypeNotAllowedAsPartitionField])
-	// ErrPartitionMgmtOnNonpartitioned returns it's not a partition block.
+	// ErrPartitionMgmtOnNonpartitioned returns it's not a partition causet.
 	ErrPartitionMgmtOnNonpartitioned = terror.ClassDBS.New(allegrosql.ErrPartitionMgmtOnNonpartitioned, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionMgmtOnNonpartitioned])
 	// ErrDropPartitionNonExistent returns error in list of partition.
 	ErrDropPartitionNonExistent = terror.ClassDBS.New(allegrosql.ErrDropPartitionNonExistent, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDropPartitionNonExistent])
@@ -161,7 +161,7 @@ var (
 	ErrRangeNotIncreasing = terror.ClassDBS.New(allegrosql.ErrRangeNotIncreasing, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrRangeNotIncreasing])
 	// ErrPartitionMaxvalue returns maxvalue can only be used in last partition definition.
 	ErrPartitionMaxvalue = terror.ClassDBS.New(allegrosql.ErrPartitionMaxvalue, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionMaxvalue])
-	//ErrDropLastPartition returns cannot remove all partitions, use drop block instead.
+	//ErrDropLastPartition returns cannot remove all partitions, use drop causet instead.
 	ErrDropLastPartition = terror.ClassDBS.New(allegrosql.ErrDropLastPartition, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDropLastPartition])
 	//ErrTooManyPartitions returns too many partitions were defined.
 	ErrTooManyPartitions = terror.ClassDBS.New(allegrosql.ErrTooManyPartitions, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTooManyPartitions])
@@ -169,7 +169,7 @@ var (
 	ErrPartitionFunctionIsNotAllowed = terror.ClassDBS.New(allegrosql.ErrPartitionFunctionIsNotAllowed, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionFunctionIsNotAllowed])
 	// ErrPartitionFuncNotAllowed returns partition function returns the wrong type.
 	ErrPartitionFuncNotAllowed = terror.ClassDBS.New(allegrosql.ErrPartitionFuncNotAllowed, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionFuncNotAllowed])
-	// ErrUniqueKeyNeedAllFieldsInPf returns must include all columns in the block's partitioning function.
+	// ErrUniqueKeyNeedAllFieldsInPf returns must include all columns in the causet's partitioning function.
 	ErrUniqueKeyNeedAllFieldsInPf = terror.ClassDBS.New(allegrosql.ErrUniqueKeyNeedAllFieldsInPf, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUniqueKeyNeedAllFieldsInPf])
 	errWrongExprInPartitionFunc   = terror.ClassDBS.New(allegrosql.ErrWrongExprInPartitionFunc, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongExprInPartitionFunc])
 	// ErrWarnDataTruncated returns data truncated error.
@@ -182,9 +182,9 @@ var (
 	ErrAlterOperationNotSupported = terror.ClassDBS.New(allegrosql.ErrAlterOperationNotSupportedReason, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrAlterOperationNotSupportedReason])
 	// ErrWrongObject returns for wrong object.
 	ErrWrongObject = terror.ClassDBS.New(allegrosql.ErrWrongObject, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongObject])
-	// ErrBlockCantHandleFt returns FULLTEXT keys are not supported by block type
+	// ErrBlockCantHandleFt returns FULLTEXT keys are not supported by causet type
 	ErrBlockCantHandleFt = terror.ClassDBS.New(allegrosql.ErrBlockCantHandleFt, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockCantHandleFt])
-	// ErrFieldNotFoundPart returns an error when 'partition by columns' are not found in block columns.
+	// ErrFieldNotFoundPart returns an error when 'partition by columns' are not found in causet columns.
 	ErrFieldNotFoundPart = terror.ClassDBS.New(allegrosql.ErrFieldNotFoundPart, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrFieldNotFoundPart])
 	// ErrWrongTypeDeferredCausetValue returns 'Partition column values of incorrect type'
 	ErrWrongTypeDeferredCausetValue = terror.ClassDBS.New(allegrosql.ErrWrongTypeDeferredCausetValue, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongTypeDeferredCausetValue])
@@ -207,30 +207,30 @@ var (
 	ErrNotSequence = terror.ClassDBS.New(allegrosql.ErrNotSequence, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNotSequence])
 	// ErrUnknownSequence returns when drop / alter unknown sequence.
 	ErrUnknownSequence = terror.ClassDBS.New(allegrosql.ErrUnknownSequence, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnknownSequence])
-	// ErrSequenceUnsupportedBlockOption returns when unsupported block option exists in sequence.
+	// ErrSequenceUnsupportedBlockOption returns when unsupported causet option exists in sequence.
 	ErrSequenceUnsupportedBlockOption = terror.ClassDBS.New(allegrosql.ErrSequenceUnsupportedBlockOption, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrSequenceUnsupportedBlockOption])
 	// ErrDeferredCausetTypeUnsupportedNextValue is returned when sequence next value is assigned to unsupported column type.
 	ErrDeferredCausetTypeUnsupportedNextValue = terror.ClassDBS.New(allegrosql.ErrDeferredCausetTypeUnsupportedNextValue, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDeferredCausetTypeUnsupportedNextValue])
 	// ErrAddDeferredCausetWithSequenceAsDefault is returned when the new added column with sequence's nextval as it's default value.
 	ErrAddDeferredCausetWithSequenceAsDefault = terror.ClassDBS.New(allegrosql.ErrAddDeferredCausetWithSequenceAsDefault, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrAddDeferredCausetWithSequenceAsDefault])
-	// ErrUnsupportedExpressionIndex is returned when create an expression index without allow-expression-index.
-	ErrUnsupportedExpressionIndex = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "creating expression index without allow-expression-index in config"))
-	// ErrPartitionExchangePartBlock is returned when exchange block partition with another block is partitioned.
+	// ErrUnsupportedExpressionIndex is returned when create an memex index without allow-memex-index.
+	ErrUnsupportedExpressionIndex = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "creating memex index without allow-memex-index in config"))
+	// ErrPartitionExchangePartBlock is returned when exchange causet partition with another causet is partitioned.
 	ErrPartitionExchangePartBlock = terror.ClassDBS.New(allegrosql.ErrPartitionExchangePartBlock, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionExchangePartBlock])
 	// ErrBlocksDifferentMetadata is returned when exchanges blocks is not compatible.
 	ErrBlocksDifferentMetadata = terror.ClassDBS.New(allegrosql.ErrBlocksDifferentMetadata, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlocksDifferentMetadata])
-	// ErrRowDoesNotMatchPartition is returned when the event record of exchange block does not match the partition rule.
+	// ErrRowDoesNotMatchPartition is returned when the event record of exchange causet does not match the partition rule.
 	ErrRowDoesNotMatchPartition = terror.ClassDBS.New(allegrosql.ErrRowDoesNotMatchPartition, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrRowDoesNotMatchPartition])
-	// ErrPartitionExchangeForeignKey is returned when exchanged normal block has foreign keys.
+	// ErrPartitionExchangeForeignKey is returned when exchanged normal causet has foreign keys.
 	ErrPartitionExchangeForeignKey = terror.ClassDBS.New(allegrosql.ErrPartitionExchangeForeignKey, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionExchangeForeignKey])
-	// ErrCheckNoSuchBlock is returned when exchanged normal block is view or sequence.
+	// ErrCheckNoSuchBlock is returned when exchanged normal causet is view or sequence.
 	ErrCheckNoSuchBlock         = terror.ClassDBS.New(allegrosql.ErrCheckNoSuchBlock, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCheckNoSuchBlock])
-	errUnsupportedPartitionType = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "partition type of block %s when exchanging partition"))
-	// ErrPartitionExchangeDifferentOption is returned when attribute does not match between partition block and normal block.
+	errUnsupportedPartitionType = terror.ClassDBS.New(allegrosql.ErrUnsupportedDBSOperation, fmt.Sprintf(allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedDBSOperation], "partition type of causet %s when exchanging partition"))
+	// ErrPartitionExchangeDifferentOption is returned when attribute does not match between partition causet and normal causet.
 	ErrPartitionExchangeDifferentOption = terror.ClassDBS.New(allegrosql.ErrPartitionExchangeDifferentOption, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrPartitionExchangeDifferentOption])
-	// ErrBlockOptionUnionUnsupported is returned when create/alter block with union option.
+	// ErrBlockOptionUnionUnsupported is returned when create/alter causet with union option.
 	ErrBlockOptionUnionUnsupported = terror.ClassDBS.New(allegrosql.ErrBlockOptionUnionUnsupported, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockOptionUnionUnsupported])
-	// ErrBlockOptionInsertMethodUnsupported is returned when create/alter block with insert method option.
+	// ErrBlockOptionInsertMethodUnsupported is returned when create/alter causet with insert method option.
 	ErrBlockOptionInsertMethodUnsupported = terror.ClassDBS.New(allegrosql.ErrBlockOptionInsertMethodUnsupported, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockOptionInsertMethodUnsupported])
 
 	// ErrInvalidPlacementSpec is returned when add/alter an invalid memristed rule

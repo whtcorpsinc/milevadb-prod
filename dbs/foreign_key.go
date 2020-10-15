@@ -17,10 +17,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 )
 
-func onCreateForeignKey(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onCreateForeignKey(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -54,7 +54,7 @@ func onCreateForeignKey(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) 
 	}
 }
 
-func onDropForeignKey(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropForeignKey(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {

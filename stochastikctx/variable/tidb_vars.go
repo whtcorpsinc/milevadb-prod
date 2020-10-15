@@ -29,7 +29,7 @@ import (
 	3. Add SysVar instance in 'defaultSysVars' slice with the default value.
 	4. Add a field in `StochastikVars`.
 	5. UFIDelate the `NewStochastikVars` function to set the field to its default value.
-	6. UFIDelate the `variable.SetStochastikSystemVar` function to use the new value when SET statement is executed.
+	6. UFIDelate the `variable.SetStochastikSystemVar` function to use the new value when SET memex is executed.
 	7. If it is a global variable, add it in `stochastik.loadCommonGlobalVarsALLEGROSQL`.
 	8. UFIDelate ValidateSetSystemVar if the variable's value need to be validated.
 	9. Use this variable to control the behavior in code.
@@ -53,7 +53,7 @@ const (
 	// milevadb_opt_write_row_id is used to enable/disable the operations of insert、replace and uFIDelate to _milevadb_rowid.
 	MilevaDBOptWriteRowID = "milevadb_opt_write_row_id"
 
-	// Auto analyze will run if (block modify count)/(block event count) is greater than this value.
+	// Auto analyze will run if (causet modify count)/(causet event count) is greater than this value.
 	MilevaDBAutoAnalyzeRatio = "milevadb_auto_analyze_ratio"
 
 	// Auto analyze will run if current time is within start time and end time.
@@ -61,7 +61,7 @@ const (
 	MilevaDBAutoAnalyzeEndTime   = "milevadb_auto_analyze_end_time"
 
 	// milevadb_checksum_block_concurrency is used to speed up the ADMIN CHECKSUM TABLE
-	// statement, when a block has multiple indices, those indices can be
+	// memex, when a causet has multiple indices, those indices can be
 	// scanned concurrently, with the cost of higher system performance impact.
 	MilevaDBChecksumBlockConcurrency = "milevadb_checksum_block_concurrency"
 
@@ -75,11 +75,11 @@ const (
 	// milevadb_config is a read-only variable that shows the config of the current server.
 	MilevaDBConfig = "milevadb_config"
 
-	// milevadb_batch_insert is used to enable/disable auto-split insert data. If set this option on, insert executor will automatically
+	// milevadb_batch_insert is used to enable/disable auto-split insert data. If set this option on, insert interlock will automatically
 	// insert data into multiple batches and use a single txn for each batch. This will be helpful when inserting large data.
 	MilevaDBBatchInsert = "milevadb_batch_insert"
 
-	// milevadb_batch_delete is used to enable/disable auto-split delete data. If set this option on, delete executor will automatically
+	// milevadb_batch_delete is used to enable/disable auto-split delete data. If set this option on, delete interlock will automatically
 	// split data into multiple batches and use a single txn for each batch. This will be helpful when deleting large data.
 	MilevaDBBatchDelete = "milevadb_batch_delete"
 
@@ -133,10 +133,10 @@ const (
 	// milevadb_row_format_version is used to control milevadb event format version current.
 	MilevaDBRowFormatVersion = "milevadb_row_format_version"
 
-	// milevadb_enable_block_partition is used to control block partition feature.
+	// milevadb_enable_block_partition is used to control causet partition feature.
 	// The valid value include auto/on/off:
-	// on or auto: enable block partition if the partition type is implemented.
-	// off: always disable block partition.
+	// on or auto: enable causet partition if the partition type is implemented.
+	// off: always disable causet partition.
 	MilevaDBEnableBlockPartition = "milevadb_enable_block_partition"
 
 	// milevadb_skip_isolation_level_check is used to control whether to return error when set unsupported transaction
@@ -152,19 +152,19 @@ const (
 	// MilevaDBAllowRemoveAutoInc indicates whether a user can drop the auto_increment defCausumn attribute or not.
 	MilevaDBAllowRemoveAutoInc = "milevadb_allow_remove_auto_inc"
 
-	// MilevaDBEvolvePlanTaskMaxTime controls the max time of a single evolution task.
-	MilevaDBEvolvePlanTaskMaxTime = "milevadb_evolve_plan_task_max_time"
+	// MilevaDBEvolveCausetTaskMaxTime controls the max time of a single evolution task.
+	MilevaDBEvolveCausetTaskMaxTime = "milevadb_evolve_plan_task_max_time"
 
-	// MilevaDBEvolvePlanTaskStartTime is the start time of evolution task.
-	MilevaDBEvolvePlanTaskStartTime = "milevadb_evolve_plan_task_start_time"
-	// MilevaDBEvolvePlanTaskEndTime is the end time of evolution task.
-	MilevaDBEvolvePlanTaskEndTime = "milevadb_evolve_plan_task_end_time"
+	// MilevaDBEvolveCausetTaskStartTime is the start time of evolution task.
+	MilevaDBEvolveCausetTaskStartTime = "milevadb_evolve_plan_task_start_time"
+	// MilevaDBEvolveCausetTaskEndTime is the end time of evolution task.
+	MilevaDBEvolveCausetTaskEndTime = "milevadb_evolve_plan_task_end_time"
 
 	// milevadb_slow_log_threshold is used to set the slow log threshold in the server.
 	MilevaDBSlowLogThreshold = "milevadb_slow_log_threshold"
 
 	// milevadb_record_plan_in_slow_log is used to log the plan of the slow query.
-	MilevaDBRecordPlanInSlowLog = "milevadb_record_plan_in_slow_log"
+	MilevaDBRecordCausetInSlowLog = "milevadb_record_plan_in_slow_log"
 
 	// milevadb_enable_slow_log enables MilevaDB to log slow queries.
 	MilevaDBEnableSlowLog = "milevadb_enable_slow_log"
@@ -175,8 +175,8 @@ const (
 	// MilevaDBCheckMb4ValueInUTF8 is used to control whether to enable the check wrong utf8 value.
 	MilevaDBCheckMb4ValueInUTF8 = "milevadb_check_mb4_value_in_utf8"
 
-	// MilevaDBFoundInPlanCache indicates whether the last statement was found in plan cache
-	MilevaDBFoundInPlanCache = "last_plan_from_cache"
+	// MilevaDBFoundInCausetCache indicates whether the last memex was found in plan cache
+	MilevaDBFoundInCausetCache = "last_plan_from_cache"
 
 	// MilevaDBAllowAutoRandExplicitInsert indicates whether explicit insertion on auto_random defCausumn is allowed.
 	MilevaDBAllowAutoRandExplicitInsert = "allow_auto_random_explicit_insert"
@@ -184,15 +184,15 @@ const (
 
 // MilevaDB system variable names that both in stochastik and global scope.
 const (
-	// milevadb_build_stats_concurrency is used to speed up the ANALYZE statement, when a block has multiple indices,
+	// milevadb_build_stats_concurrency is used to speed up the ANALYZE memex, when a causet has multiple indices,
 	// those indices can be scanned concurrently, with the cost of higher system performance impact.
 	MilevaDBBuildStatsConcurrency = "milevadb_build_stats_concurrency"
 
 	// milevadb_allegrosql_scan_concurrency is used to set the concurrency of a allegrosql scan task.
-	// A allegrosql scan task can be a block scan or a index scan, which may be distributed to many EinsteinDB nodes.
+	// A allegrosql scan task can be a causet scan or a index scan, which may be distributed to many EinsteinDB nodes.
 	// Higher concurrency may reduce latency, but with the cost of higher memory usage and system performance impact.
 	// If the query has a LIMIT clause, high concurrency makes the system do much more work than needed.
-	// milevadb_allegrosql_scan_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_allegrosql_scan_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBDistALLEGROSQLScanConcurrency = "milevadb_allegrosql_scan_concurrency"
 
 	// milevadb_opt_insubquery_to_join_and_agg is used to enable/disable the optimizer rule of rewriting IN subquery.
@@ -204,9 +204,9 @@ const (
 	// milevadb_opt_correlation_exp_factor is an exponential factor to control heuristic approach when milevadb_opt_correlation_threshold is not satisfied.
 	MilevaDBOptCorrelationExpFactor = "milevadb_opt_correlation_exp_factor"
 
-	// milevadb_opt_cpu_factor is the CPU cost of processing one expression for one event.
+	// milevadb_opt_cpu_factor is the CPU cost of processing one memex for one event.
 	MilevaDBOptCPUFactor = "milevadb_opt_cpu_factor"
-	// milevadb_opt_copcpu_factor is the CPU cost of processing one expression for one event in interlock.
+	// milevadb_opt_copcpu_factor is the CPU cost of processing one memex for one event in interlock.
 	MilevaDBOptCopCPUFactor = "milevadb_opt_copcpu_factor"
 	// milevadb_opt_tiflash_concurrency_factor is concurrency number of tiflash computation.
 	MilevaDBOptTiFlashConcurrencyFactor = "milevadb_opt_tiflash_concurrency_factor"
@@ -226,30 +226,30 @@ const (
 	MilevaDBOptConcurrencyFactor = "milevadb_opt_concurrency_factor"
 
 	// milevadb_index_join_batch_size is used to set the batch size of a index lookup join.
-	// The index lookup join fetches batches of data from outer executor and constructs ranges for inner executor.
+	// The index lookup join fetches batches of data from outer interlock and constructs ranges for inner interlock.
 	// This value controls how much of data in a batch to do the index join.
 	// Large value may reduce the latency but consumes more system resource.
 	MilevaDBIndexJoinBatchSize = "milevadb_index_join_batch_size"
 
-	// milevadb_index_lookup_size is used for index lookup executor.
-	// The index lookup executor first scan a batch of handles from a index, then use those handles to lookup the block
+	// milevadb_index_lookup_size is used for index lookup interlock.
+	// The index lookup interlock first scan a batch of handles from a index, then use those handles to lookup the causet
 	// rows, this value controls how much of handles in a batch to do a lookup task.
 	// Small value sends more RPCs to EinsteinDB, consume more system resource.
 	// Large value may do more work than needed if the query has a limit.
 	MilevaDBIndexLookupSize = "milevadb_index_lookup_size"
 
-	// milevadb_index_lookup_concurrency is used for index lookup executor.
+	// milevadb_index_lookup_concurrency is used for index lookup interlock.
 	// A lookup task may have 'milevadb_index_lookup_size' of handles at maximun, the handles may be distributed
 	// in many EinsteinDB nodes, we executes multiple concurrent index lookup tasks concurrently to reduce the time
 	// waiting for a task to finish.
 	// Set this value higher may reduce the latency but consumes more system resource.
-	// milevadb_index_lookup_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_index_lookup_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBIndexLookupConcurrency = "milevadb_index_lookup_concurrency"
 
-	// milevadb_index_lookup_join_concurrency is used for index lookup join executor.
+	// milevadb_index_lookup_join_concurrency is used for index lookup join interlock.
 	// IndexLookUpJoin starts "milevadb_index_lookup_join_concurrency" inner workers
 	// to fetch inner rows and join the matched (outer, inner) event pairs.
-	// milevadb_index_lookup_join_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_index_lookup_join_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBIndexLookupJoinConcurrency = "milevadb_index_lookup_join_concurrency"
 
 	// milevadb_index_serial_scan_concurrency is used for controlling the concurrency of index scan operation
@@ -267,8 +267,8 @@ const (
 	// MilevaDBInitChunkSize is used to control the init chunk size during query execution.
 	MilevaDBInitChunkSize = "milevadb_init_chunk_size"
 
-	// milevadb_enable_cascades_planner is used to control whether to enable the cascades planner.
-	MilevaDBEnableCascadesPlanner = "milevadb_enable_cascades_planner"
+	// milevadb_enable_cascades_causet is used to control whether to enable the cascades causet.
+	MilevaDBEnableCascadesCausetAppend = "milevadb_enable_cascades_causet"
 
 	// milevadb_skip_utf8_check skips the UTF8 validate process, validate UTF8 has performance cost, if we can make sure
 	// the input string values are valid, we can skip the check.
@@ -279,28 +279,28 @@ const (
 	// disable ASCII validate can guarantee a safe replication
 	MilevaDBSkipASCIICheck = "milevadb_skip_ascii_check"
 
-	// milevadb_hash_join_concurrency is used for hash join executor.
-	// The hash join outer executor starts multiple concurrent join workers to probe the hash block.
-	// milevadb_hash_join_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_hash_join_concurrency is used for hash join interlock.
+	// The hash join outer interlock starts multiple concurrent join workers to probe the hash causet.
+	// milevadb_hash_join_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBHashJoinConcurrency = "milevadb_hash_join_concurrency"
 
 	// milevadb_projection_concurrency is used for projection operator.
 	// This variable controls the worker number of projection operator.
-	// milevadb_projection_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_projection_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBProjectionConcurrency = "milevadb_projection_concurrency"
 
-	// milevadb_hashagg_partial_concurrency is used for hash agg executor.
-	// The hash agg executor starts multiple concurrent partial workers to do partial aggregate works.
-	// milevadb_hashagg_partial_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_hashagg_partial_concurrency is used for hash agg interlock.
+	// The hash agg interlock starts multiple concurrent partial workers to do partial aggregate works.
+	// milevadb_hashagg_partial_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBHashAggPartialConcurrency = "milevadb_hashagg_partial_concurrency"
 
-	// milevadb_hashagg_final_concurrency is used for hash agg executor.
-	// The hash agg executor starts multiple concurrent final workers to do final aggregate works.
-	// milevadb_hashagg_final_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_hashagg_final_concurrency is used for hash agg interlock.
+	// The hash agg interlock starts multiple concurrent final workers to do final aggregate works.
+	// milevadb_hashagg_final_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBHashAggFinalConcurrency = "milevadb_hashagg_final_concurrency"
 
-	// milevadb_window_concurrency is used for window parallel executor.
-	// milevadb_window_concurrency is deprecated, use milevadb_executor_concurrency instead.
+	// milevadb_window_concurrency is used for window parallel interlock.
+	// milevadb_window_concurrency is deprecated, use milevadb_interlock_concurrency instead.
 	MilevaDBWindowConcurrency = "milevadb_window_concurrency"
 
 	// milevadb_enable_parallel_apply is used for parallel apply.
@@ -344,7 +344,7 @@ const (
 	// MilevaDBWaitSplitRegionTimeout uses to set the split and scatter region back off time.
 	MilevaDBWaitSplitRegionTimeout = "milevadb_wait_split_region_timeout"
 
-	// milevadb_force_priority defines the operations priority of all statements.
+	// milevadb_force_priority defines the operations priority of all memexs.
 	// It can be "NO_PRIORITY", "LOW_PRIORITY", "HIGH_PRIORITY", "DELAYED"
 	MilevaDBForcePriority = "milevadb_force_priority"
 
@@ -359,14 +359,14 @@ const (
 	// milevadb_enable_window_function is used to control whether to enable the window function.
 	MilevaDBEnableWindowFunction = "milevadb_enable_window_function"
 
-	// milevadb_enable_vectorized_expression is used to control whether to enable the vectorized expression evaluation.
-	MilevaDBEnableVectorizedExpression = "milevadb_enable_vectorized_expression"
+	// milevadb_enable_vectorized_memex is used to control whether to enable the vectorized memex evaluation.
+	MilevaDBEnableVectorizedExpression = "milevadb_enable_vectorized_memex"
 
 	// MilevaDBOptJoinReorderThreshold defines the threshold less than which
 	// we'll choose a rather time consuming algorithm to calculate the join order.
 	MilevaDBOptJoinReorderThreshold = "milevadb_opt_join_reorder_threshold"
 
-	// SlowQueryFile indicates which slow query log file for SLOW_QUERY block to parse.
+	// SlowQueryFile indicates which slow query log file for SLOW_QUERY causet to parse.
 	MilevaDBSlowQueryFile = "milevadb_slow_query_file"
 
 	// MilevaDBEnableFastAnalyze indicates to use fast analyze.
@@ -381,32 +381,32 @@ const (
 	// MilevaDBEnableNoopFuncs set true will enable using fake funcs(like get_lock release_lock)
 	MilevaDBEnableNoopFuncs = "milevadb_enable_noop_functions"
 
-	// MilevaDBEnableStmtSummary indicates whether the statement summary is enabled.
+	// MilevaDBEnableStmtSummary indicates whether the memex summary is enabled.
 	MilevaDBEnableStmtSummary = "milevadb_enable_stmt_summary"
 
-	// MilevaDBStmtSummaryInternalQuery indicates whether the statement summary contain internal query.
+	// MilevaDBStmtSummaryInternalQuery indicates whether the memex summary contain internal query.
 	MilevaDBStmtSummaryInternalQuery = "milevadb_stmt_summary_internal_query"
 
-	// MilevaDBStmtSummaryRefreshInterval indicates the refresh interval in seconds for each statement summary.
+	// MilevaDBStmtSummaryRefreshInterval indicates the refresh interval in seconds for each memex summary.
 	MilevaDBStmtSummaryRefreshInterval = "milevadb_stmt_summary_refresh_interval"
 
-	// MilevaDBStmtSummaryHistorySize indicates the history size of each statement summary.
+	// MilevaDBStmtSummaryHistorySize indicates the history size of each memex summary.
 	MilevaDBStmtSummaryHistorySize = "milevadb_stmt_summary_history_size"
 
-	// MilevaDBStmtSummaryMaxStmtCount indicates the max number of statements kept in memory.
+	// MilevaDBStmtSummaryMaxStmtCount indicates the max number of memexs kept in memory.
 	MilevaDBStmtSummaryMaxStmtCount = "milevadb_stmt_summary_max_stmt_count"
 
 	// MilevaDBStmtSummaryMaxALLEGROSQLLength indicates the max length of displayed normalized allegrosql and sample allegrosql.
 	MilevaDBStmtSummaryMaxALLEGROSQLLength = "milevadb_stmt_summary_max_sql_length"
 
-	// MilevaDBCapturePlanBaseline indicates whether the capture of plan baselines is enabled.
-	MilevaDBCapturePlanBaseline = "milevadb_capture_plan_baselines"
+	// MilevaDBCaptureCausetBaseline indicates whether the capture of plan baselines is enabled.
+	MilevaDBCaptureCausetBaseline = "milevadb_capture_plan_baselines"
 
-	// MilevaDBUsePlanBaselines indicates whether the use of plan baselines is enabled.
-	MilevaDBUsePlanBaselines = "milevadb_use_plan_baselines"
+	// MilevaDBUseCausetBaselines indicates whether the use of plan baselines is enabled.
+	MilevaDBUseCausetBaselines = "milevadb_use_plan_baselines"
 
-	// MilevaDBEvolvePlanBaselines indicates whether the evolution of plan baselines is enabled.
-	MilevaDBEvolvePlanBaselines = "milevadb_evolve_plan_baselines"
+	// MilevaDBEvolveCausetBaselines indicates whether the evolution of plan baselines is enabled.
+	MilevaDBEvolveCausetBaselines = "milevadb_evolve_plan_baselines"
 
 	// MilevaDBIsolationReadEngines indicates the milevadb only read from the stores whose engine type is involved in IsolationReadEngines.
 	// Now, only support EinsteinDB and TiFlash.
@@ -421,11 +421,11 @@ const (
 	// MilevaDBMetricSchemaRangeDuration indicates the range duration when query metric schemaReplicant.
 	MilevaDBMetricSchemaRangeDuration = "milevadb_metric_query_range_duration"
 
-	// MilevaDBEnableDefCauslectExecutionInfo indicates that whether execution info is defCauslected.
-	MilevaDBEnableDefCauslectExecutionInfo = "milevadb_enable_defCauslect_execution_info"
+	// MilevaDBEnableDefCauslectInterDircutionInfo indicates that whether execution info is defCauslected.
+	MilevaDBEnableDefCauslectInterDircutionInfo = "milevadb_enable_defCauslect_execution_info"
 
-	// DefExecutorConcurrency is used for controlling the concurrency of all types of executors.
-	MilevaDBExecutorConcurrency = "milevadb_executor_concurrency"
+	// DefInterlockingDirectorateConcurrency is used for controlling the concurrency of all types of interlocks.
+	MilevaDBInterlockingDirectorateConcurrency = "milevadb_interlock_concurrency"
 
 	// MilevaDBEnableClusteredIndex indicates if clustered index feature is enabled.
 	MilevaDBEnableClusteredIndex = "milevadb_enable_clustered_index"
@@ -534,17 +534,17 @@ const (
 	DefWaitSplitRegionTimeout          = 300 // 300s
 	DefMilevaDBEnableNoopFuncs             = false
 	DefMilevaDBAllowRemoveAutoInc          = false
-	DefMilevaDBUsePlanBaselines            = true
-	DefMilevaDBEvolvePlanBaselines         = false
-	DefMilevaDBEvolvePlanTaskMaxTime       = 600 // 600s
-	DefMilevaDBEvolvePlanTaskStartTime     = "00:00 +0000"
-	DefMilevaDBEvolvePlanTaskEndTime       = "23:59 +0000"
+	DefMilevaDBUseCausetBaselines            = true
+	DefMilevaDBEvolveCausetBaselines         = false
+	DefMilevaDBEvolveCausetTaskMaxTime       = 600 // 600s
+	DefMilevaDBEvolveCausetTaskStartTime     = "00:00 +0000"
+	DefMilevaDBEvolveCausetTaskEndTime       = "23:59 +0000"
 	DefInnodbLockWaitTimeout           = 50 // 50s
 	DefMilevaDBStoreLimit                  = 0
 	DefMilevaDBMetricSchemaStep            = 60 // 60s
 	DefMilevaDBMetricSchemaRangeDuration   = 60 // 60s
-	DefMilevaDBFoundInPlanCache            = false
-	DefMilevaDBEnableDefCauslectExecutionInfo  = true
+	DefMilevaDBFoundInCausetCache            = false
+	DefMilevaDBEnableDefCauslectInterDircutionInfo  = true
 	DefMilevaDBAllowAutoRandExplicitInsert = false
 	DefMilevaDBEnableClusteredIndex        = false
 	DefMilevaDBSlowLogMasking              = false
@@ -573,6 +573,6 @@ var (
 	MaxOfMaxAllowedPacket          uint64 = 1073741824
 	ExpensiveQueryTimeThreshold    uint64 = DefMilevaDBExpensiveQueryTimeThreshold
 	MinExpensiveQueryTimeThreshold uint64 = 10 //10s
-	CapturePlanBaseline                   = serverGlobalVariable{globalVal: "0"}
-	DefExecutorConcurrency                = 5
+	CaptureCausetBaseline                   = serverGlobalVariable{globalVal: "0"}
+	DefInterlockingDirectorateConcurrency                = 5
 )

@@ -21,8 +21,8 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
-	planutil "github.com/whtcorpsinc/milevadb/planner/soliton"
+	"github.com/whtcorpsinc/milevadb/memex"
+	planutil "github.com/whtcorpsinc/milevadb/causet/soliton"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -37,7 +37,7 @@ const selectionFactor = 0.8
 type StatsNode struct {
 	Tp int
 	ID int64
-	// mask is a bit pattern whose ith bit will indicate whether the ith expression is covered by this index/column.
+	// mask is a bit pattern whose ith bit will indicate whether the ith memex is covered by this index/column.
 	mask int64
 	// Ranges contains all the Ranges we got.
 	Ranges []*ranger.Range
@@ -46,7 +46,7 @@ type StatsNode struct {
 	// numDefCauss is the number of columns contained in the index or column(which is always 1).
 	numDefCauss int
 	// partCover indicates whether the bit in the mask is for a full cover or partial cover. It is only true
-	// when the condition is a DNF expression on index, and the expression is not totally extracted as access condition.
+	// when the condition is a DNF memex on index, and the memex is not totally extracted as access condition.
 	partCover bool
 }
 
@@ -80,30 +80,30 @@ func MockStatsNode(id int64, m int64, num int) *StatsNode {
 
 const unknownDeferredCausetID = math.MinInt64
 
-// getConstantDeferredCausetID receives two expressions and if one of them is column and another is constant, it returns the
+// getConstantDeferredCausetID receives two memexs and if one of them is column and another is constant, it returns the
 // ID of the column.
-func getConstantDeferredCausetID(e []expression.Expression) int64 {
+func getConstantDeferredCausetID(e []memex.Expression) int64 {
 	if len(e) != 2 {
 		return unknownDeferredCausetID
 	}
-	col, ok1 := e[0].(*expression.DeferredCauset)
-	_, ok2 := e[1].(*expression.Constant)
+	col, ok1 := e[0].(*memex.DeferredCauset)
+	_, ok2 := e[1].(*memex.Constant)
 	if ok1 && ok2 {
 		return col.ID
 	}
-	col, ok1 = e[1].(*expression.DeferredCauset)
-	_, ok2 = e[0].(*expression.Constant)
+	col, ok1 = e[1].(*memex.DeferredCauset)
+	_, ok2 = e[0].(*memex.Constant)
 	if ok1 && ok2 {
 		return col.ID
 	}
 	return unknownDeferredCausetID
 }
 
-func pseudoSelectivity(coll *HistDefCausl, exprs []expression.Expression) float64 {
+func pseudoSelectivity(coll *HistDefCausl, exprs []memex.Expression) float64 {
 	minFactor := selectionFactor
 	colExists := make(map[string]bool)
 	for _, expr := range exprs {
-		fun, ok := expr.(*expression.ScalarFunction)
+		fun, ok := expr.(*memex.ScalarFunction)
 		if !ok {
 			continue
 		}
@@ -149,32 +149,32 @@ func pseudoSelectivity(coll *HistDefCausl, exprs []expression.Expression) float6
 	return minFactor
 }
 
-// isDefCausEqCorDefCaus checks if the expression is a eq function that one side is correlated column and another is column.
+// isDefCausEqCorDefCaus checks if the memex is a eq function that one side is correlated column and another is column.
 // If so, it will return the column's reference. Otherwise return nil instead.
-func isDefCausEqCorDefCaus(filter expression.Expression) *expression.DeferredCauset {
-	f, ok := filter.(*expression.ScalarFunction)
+func isDefCausEqCorDefCaus(filter memex.Expression) *memex.DeferredCauset {
+	f, ok := filter.(*memex.ScalarFunction)
 	if !ok || f.FuncName.L != ast.EQ {
 		return nil
 	}
-	if c, ok := f.GetArgs()[0].(*expression.DeferredCauset); ok {
-		if _, ok := f.GetArgs()[1].(*expression.CorrelatedDeferredCauset); ok {
+	if c, ok := f.GetArgs()[0].(*memex.DeferredCauset); ok {
+		if _, ok := f.GetArgs()[1].(*memex.CorrelatedDeferredCauset); ok {
 			return c
 		}
 	}
-	if c, ok := f.GetArgs()[1].(*expression.DeferredCauset); ok {
-		if _, ok := f.GetArgs()[0].(*expression.CorrelatedDeferredCauset); ok {
+	if c, ok := f.GetArgs()[1].(*memex.DeferredCauset); ok {
+		if _, ok := f.GetArgs()[0].(*memex.CorrelatedDeferredCauset); ok {
 			return c
 		}
 	}
 	return nil
 }
 
-// Selectivity is a function calculate the selectivity of the expressions.
+// Selectivity is a function calculate the selectivity of the memexs.
 // The definition of selectivity is (event count after filter / event count before filter).
 // And exprs must be CNF now, in other words, `exprs[0] and exprs[1] and ... and exprs[len - 1]` should be held when you call this.
 // Currently the time complexity is o(n^2).
-func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []expression.Expression, filledPaths []*planutil.AccessPath) (float64, []*StatsNode, error) {
-	// If block's count is zero or conditions are empty, we should return 100% selectivity.
+func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []memex.Expression, filledPaths []*planutil.AccessPath) (float64, []*StatsNode, error) {
+	// If causet's count is zero or conditions are empty, we should return 100% selectivity.
 	if coll.Count == 0 || len(exprs) == 0 {
 		return 1, nil, nil
 	}
@@ -187,7 +187,7 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 	var nodes []*StatsNode
 	sc := ctx.GetStochastikVars().StmtCtx
 
-	remainedExprs := make([]expression.Expression, 0, len(exprs))
+	remainedExprs := make([]memex.Expression, 0, len(exprs))
 
 	// Deal with the correlated column.
 	for _, expr := range exprs {
@@ -210,10 +210,10 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 		}
 	}
 
-	extractedDefCauss := make([]*expression.DeferredCauset, 0, len(coll.DeferredCausets))
-	extractedDefCauss = expression.ExtractDeferredCausetsFromExpressions(extractedDefCauss, remainedExprs, nil)
+	extractedDefCauss := make([]*memex.DeferredCauset, 0, len(coll.DeferredCausets))
+	extractedDefCauss = memex.ExtractDeferredCausetsFromExpressions(extractedDefCauss, remainedExprs, nil)
 	for id, colInfo := range coll.DeferredCausets {
-		col := expression.DefCausInfo2DefCaus(extractedDefCauss, colInfo.Info)
+		col := memex.DefCausInfo2DefCaus(extractedDefCauss, colInfo.Info)
 		if col != nil {
 			maskCovered, ranges, _, err := getMaskAndRanges(ctx, remainedExprs, ranger.DeferredCausetRangeType, nil, nil, col)
 			if err != nil {
@@ -245,7 +245,7 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 		id2Paths[path.Index.ID] = path
 	}
 	for id, idxInfo := range coll.Indices {
-		idxDefCauss := expression.FindPrefixOfIndex(extractedDefCauss, coll.Idx2DeferredCausetIDs[id])
+		idxDefCauss := memex.FindPrefixOfIndex(extractedDefCauss, coll.Idx2DeferredCausetIDs[id])
 		if len(idxDefCauss) > 0 {
 			lengths := make([]int, 0, len(idxDefCauss))
 			for i := 0; i < len(idxDefCauss); i++ {
@@ -278,7 +278,7 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 		mask &^= set.mask
 		ret *= set.Selectivity
 		// If `partCover` is true, it means that the conditions are in DNF form, and only part
-		// of the DNF expressions are extracted as access conditions, so besides from the selectivity
+		// of the DNF memexs are extracted as access conditions, so besides from the selectivity
 		// of the extracted access conditions, we multiply another selectionFactor for the residual
 		// conditions.
 		if set.partCover {
@@ -293,12 +293,12 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 			if mask&(1<<uint64(i)) == 0 {
 				continue
 			}
-			scalarCond, ok := expr.(*expression.ScalarFunction)
+			scalarCond, ok := expr.(*memex.ScalarFunction)
 			// Make sure we only handle DNF condition.
 			if !ok || scalarCond.FuncName.L != ast.LogicOr {
 				continue
 			}
-			dnfItems := expression.FlattenDNFConditions(scalarCond)
+			dnfItems := memex.FlattenDNFConditions(scalarCond)
 			dnfItems = ranger.MergeDNFItems4DefCaus(ctx, dnfItems)
 
 			selectivity := 0.0
@@ -306,14 +306,14 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 				// In selectivity calculation, we don't handle CorrelatedDeferredCauset, so we directly skip over it.
 				// Other HoTTs of `Expression`, i.e., Constant, DeferredCauset and ScalarFunction all can possibly be built into
 				// ranges and used to calculation selectivity, so we accept them all.
-				_, ok := cond.(*expression.CorrelatedDeferredCauset)
+				_, ok := cond.(*memex.CorrelatedDeferredCauset)
 				if ok {
 					continue
 				}
 
-				var cnfItems []expression.Expression
-				if scalar, ok := cond.(*expression.ScalarFunction); ok && scalar.FuncName.L == ast.LogicAnd {
-					cnfItems = expression.FlattenCNFConditions(scalar)
+				var cnfItems []memex.Expression
+				if scalar, ok := cond.(*memex.ScalarFunction); ok && scalar.FuncName.L == ast.LogicAnd {
+					cnfItems = memex.FlattenCNFConditions(scalar)
 				} else {
 					cnfItems = append(cnfItems, cond)
 				}
@@ -341,10 +341,10 @@ func (coll *HistDefCausl) Selectivity(ctx stochastikctx.Context, exprs []express
 	return ret, nodes, nil
 }
 
-func getMaskAndRanges(ctx stochastikctx.Context, exprs []expression.Expression, rangeType ranger.RangeType, lengths []int, cachedPath *planutil.AccessPath, defcaus ...*expression.DeferredCauset) (mask int64, ranges []*ranger.Range, partCover bool, err error) {
+func getMaskAndRanges(ctx stochastikctx.Context, exprs []memex.Expression, rangeType ranger.RangeType, lengths []int, cachedPath *planutil.AccessPath, defcaus ...*memex.DeferredCauset) (mask int64, ranges []*ranger.Range, partCover bool, err error) {
 	sc := ctx.GetStochastikVars().StmtCtx
 	isDNF := false
-	var accessConds, remainedConds []expression.Expression
+	var accessConds, remainedConds []memex.Expression
 	switch rangeType {
 	case ranger.DeferredCausetRangeType:
 		accessConds = ranger.ExtractAccessConditionsForDeferredCauset(exprs, defcaus[0].UniqueID)
@@ -411,7 +411,7 @@ func GetUsableSetsByGreedy(nodes []*StatsNode) (newBlocks []*StatsNode) {
 			}
 			// We greedy select the stats info based on:
 			// (1): The stats type, always prefer the primary key or index.
-			// (2): The number of expression that it covers, the more the better.
+			// (2): The number of memex that it covers, the more the better.
 			// (3): The number of columns that it contains, the less the better.
 			if (bestTp == DefCausType && set.Tp != DefCausType) || bestCount < bits || (bestCount == bits && bestNumDefCauss > set.numDefCauss) {
 				bestID, bestCount, bestTp, bestNumDefCauss, bestMask = i, bits, set.Tp, set.numDefCauss, curMask

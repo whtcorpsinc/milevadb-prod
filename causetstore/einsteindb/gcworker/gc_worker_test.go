@@ -30,7 +30,7 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
@@ -180,7 +180,7 @@ func (s *testGCWorkerSuite) mustSetMilevaDBServiceSafePoint(c *C, safePoint, exp
 	c.Assert(minSafePoint, Equals, expectedMinSafePoint)
 }
 
-// gcProbe represents a key that contains multiple versions, one of which should be collected. Execution of GC with
+// gcProbe represents a key that contains multiple versions, one of which should be collected. InterDircution of GC with
 // greater ts will be detected, but it may not work properly if there are newer versions of the key.
 // This is not used to check the correctness of GC algorithm, but only for checking whether GC has been executed on the
 // specified key. Create this using `s.createGCProbe`.
@@ -507,18 +507,18 @@ func (s *testGCWorkerSuite) TestCheckScanLockMode(c *C) {
 }
 
 func (s *testGCWorkerSuite) TestNeedsGCOperationForStore(c *C) {
-	newStore := func(state metapb.StoreState, hasEngineLabel bool, engineLabel string) *metapb.CausetStore {
-		causetstore := &metapb.CausetStore{}
+	newStore := func(state spacetimepb.StoreState, hasEngineLabel bool, engineLabel string) *spacetimepb.CausetStore {
+		causetstore := &spacetimepb.CausetStore{}
 		causetstore.State = state
 		if hasEngineLabel {
-			causetstore.Labels = []*metapb.StoreLabel{{Key: engineLabelKey, Value: engineLabel}}
+			causetstore.Labels = []*spacetimepb.StoreLabel{{Key: engineLabelKey, Value: engineLabel}}
 		}
 		return causetstore
 	}
 
 	// EinsteinDB needs to do the causetstore-level GC operations.
-	for _, state := range []metapb.StoreState{metapb.StoreState_Up, metapb.StoreState_Offline, metapb.StoreState_Tombstone} {
-		needGC := state != metapb.StoreState_Tombstone
+	for _, state := range []spacetimepb.StoreState{spacetimepb.StoreState_Up, spacetimepb.StoreState_Offline, spacetimepb.StoreState_Tombstone} {
+		needGC := state != spacetimepb.StoreState_Tombstone
 		res, err := needsGCOperationForStore(newStore(state, false, ""))
 		c.Assert(err, IsNil)
 		c.Assert(res, Equals, needGC)
@@ -535,7 +535,7 @@ func (s *testGCWorkerSuite) TestNeedsGCOperationForStore(c *C) {
 		c.Assert(res, IsFalse)
 	}
 	// Throw an error for unknown causetstore types.
-	_, err := needsGCOperationForStore(newStore(metapb.StoreState_Up, true, "invalid"))
+	_, err := needsGCOperationForStore(newStore(spacetimepb.StoreState_Up, true, "invalid"))
 	c.Assert(err, NotNil)
 }
 
@@ -549,7 +549,7 @@ func (s *testGCWorkerSuite) testDeleteRangesFailureImpl(c *C, failType int) {
 	// Put some delete range tasks.
 	se := createStochastik(s.gcWorker.causetstore)
 	defer se.Close()
-	_, err := se.Execute(context.Background(), `INSERT INTO allegrosql.gc_delete_range VALUES
+	_, err := se.InterDircute(context.Background(), `INSERT INTO allegrosql.gc_delete_range VALUES
 		("1", "2", "31", "32", "10"),
 		("3", "4", "33", "34", "10"),
 		("5", "6", "35", "36", "10")`)
@@ -594,7 +594,7 @@ func (s *testGCWorkerSuite) testDeleteRangesFailureImpl(c *C, failType int) {
 	// The request sent to the specified key and causetstore wil fail.
 	var (
 		failKey   []byte
-		failStore *metapb.CausetStore
+		failStore *spacetimepb.CausetStore
 	)
 	s.client.unsafeDestroyRangeHandler = func(addr string, req *einsteindbrpc.Request) (*einsteindbrpc.Response, error) {
 		sendReqCh <- SentReq{req, addr}
@@ -674,7 +674,7 @@ type SentReq struct {
 }
 
 // checkDestroyRangeReq checks whether given sentReq matches given ranges and stores.
-func (s *testGCWorkerSuite) checkDestroyRangeReq(c *C, sendReqCh chan SentReq, expectedRanges []soliton.DelRangeTask, expectedStores []*metapb.CausetStore) {
+func (s *testGCWorkerSuite) checkDestroyRangeReq(c *C, sendReqCh chan SentReq, expectedRanges []soliton.DelRangeTask, expectedStores []*spacetimepb.CausetStore) {
 	sentReq := make([]SentReq, 0, len(expectedStores)*len(expectedStores))
 Loop:
 	for {
@@ -1110,8 +1110,8 @@ func (s *testGCWorkerSuite) TestMergeLockScanner(c *C) {
 
 	makeLockList := func(locks ...*einsteindb.Lock) []*einsteindb.Lock {
 		res := make([]*einsteindb.Lock, 0, len(locks))
-		for _, lock := range locks {
-			res = append(res, lock)
+		for _, dagger := range locks {
+			res = append(res, dagger)
 		}
 		return res
 	}
@@ -1125,8 +1125,8 @@ func (s *testGCWorkerSuite) TestMergeLockScanner(c *C) {
 	}
 
 	sendLocks := func(ch chan<- scanLockResult, locks ...*einsteindb.Lock) {
-		for _, lock := range locks {
-			ch <- scanLockResult{Lock: lock}
+		for _, dagger := range locks {
+			ch <- scanLockResult{Lock: dagger}
 		}
 	}
 
@@ -1143,7 +1143,7 @@ func (s *testGCWorkerSuite) TestMergeLockScanner(c *C) {
 		ch <- scanLockResult{Err: errors.New("error")}
 	}
 
-	// No lock.
+	// No dagger.
 	scanner, sendCh, storeIDs, resCh := makeMergedChannel(c, 1)
 	close(sendCh[0])
 	c.Assert(len(<-resCh), Equals, 0)
@@ -1279,13 +1279,13 @@ func (s *testGCWorkerSuite) TestResolveLocksPhysical(c *C) {
 	ctx := context.Background()
 	var safePoint uint64 = 10000
 
-	// No lock
+	// No dagger
 	reset()
 	physicalUsed, err := s.gcWorker.resolveLocks(ctx, safePoint, 3, true)
 	c.Assert(physicalUsed, IsTrue)
 	c.Assert(err, IsNil)
 
-	// Should fall back on the legacy mode when fails to register lock observers.
+	// Should fall back on the legacy mode when fails to register dagger observers.
 	reset()
 	s.client.registerLockObserverHandler = alwaysFailHandler
 	physicalUsed, err = s.gcWorker.resolveLocks(ctx, safePoint, 3, true)
@@ -1333,8 +1333,8 @@ func (s *testGCWorkerSuite) TestResolveLocksPhysical(c *C) {
 	c.Assert(physicalUsed, IsFalse)
 	c.Assert(err, IsNil)
 
-	// When fails to check lock observer in a causetstore, we assume the causetstore is dirty.
-	// Should fall back when fails to check lock observers.
+	// When fails to check dagger observer in a causetstore, we assume the causetstore is dirty.
+	// Should fall back when fails to check dagger observers.
 	reset()
 	s.client.checkLockObserverHandler = alwaysFailHandler
 	physicalUsed, err = s.gcWorker.resolveLocks(ctx, safePoint, 3, true)
@@ -1420,7 +1420,7 @@ func (s *testGCWorkerSuite) TestResolveLocksPhysical(c *C) {
 	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/gcworker/beforeCheckLockObservers"), IsNil)
 	wg.Wait()
 
-	// Shouldn't fall back when fails to remove lock observers.
+	// Shouldn't fall back when fails to remove dagger observers.
 	reset()
 	s.client.removeLockObserverHandler = alwaysFailHandler
 	physicalUsed, err = s.gcWorker.resolveLocks(ctx, safePoint, 3, true)
@@ -1450,8 +1450,8 @@ func (s *testGCWorkerSuite) TestPhyscailScanLockDeadlock(c *C) {
 		}, nil
 	}
 
-	// Sleep 1000ms to let the main goroutine block on sending tasks.
-	// Inject error to the goroutine resolving locks so that the main goroutine will block forever if it doesn't handle channels properly.
+	// Sleep 1000ms to let the main goroutine causet on sending tasks.
+	// Inject error to the goroutine resolving locks so that the main goroutine will causet forever if it doesn't handle channels properly.
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/gcworker/resolveLocksAcrossRegionsErr", "return(1000)"), IsNil)
 	defer func() {
 		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/gcworker/resolveLocksAcrossRegionsErr"), IsNil)
@@ -1460,7 +1460,7 @@ func (s *testGCWorkerSuite) TestPhyscailScanLockDeadlock(c *C) {
 	done := make(chan interface{})
 	go func() {
 		defer close(done)
-		storesMap := map[uint64]*metapb.CausetStore{stores[0].Id: stores[0]}
+		storesMap := map[uint64]*spacetimepb.CausetStore{stores[0].Id: stores[0]}
 		succeeded, err := s.gcWorker.physicalScanAndResolveLocks(ctx, 10000, storesMap)
 		c.Assert(succeeded, IsNil)
 		c.Assert(err, ErrorMatches, "injectedError")

@@ -47,7 +47,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/config"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
@@ -111,8 +111,8 @@ func (cc *clientConn) handleStmtPrepare(ctx context.Context, allegrosql string) 
 	return cc.flush(ctx)
 }
 
-func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err error) {
-	defer trace.StartRegion(ctx, "HandleStmtExecute").End()
+func (cc *clientConn) handleStmtInterDircute(ctx context.Context, data []byte) (err error) {
+	defer trace.StartRegion(ctx, "HandleStmtInterDircute").End()
 	if len(data) < 9 {
 		return allegrosql.ErrMalformPacket
 	}
@@ -173,21 +173,21 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 			paramTypes = data[pos : pos+(numParams<<1)]
 			pos += numParams << 1
 			paramValues = data[pos:]
-			// Just the first StmtExecute packet contain parameters type,
+			// Just the first StmtInterDircute packet contain parameters type,
 			// we need save it for further use.
 			stmt.SetParamsType(paramTypes)
 		} else {
 			paramValues = data[pos+1:]
 		}
 
-		err = parseExecArgs(cc.ctx.GetStochastikVars().StmtCtx, args, stmt.BoundParams(), nullBitmaps, stmt.GetParamsType(), paramValues)
+		err = parseInterDircArgs(cc.ctx.GetStochastikVars().StmtCtx, args, stmt.BoundParams(), nullBitmaps, stmt.GetParamsType(), paramValues)
 		stmt.Reset()
 		if err != nil {
 			return errors.Annotate(err, cc.preparedStmt2String(stmtID))
 		}
 	}
-	ctx = context.WithValue(ctx, execdetails.StmtExecDetailKey, &execdetails.StmtExecDetails{})
-	rs, err := stmt.Execute(ctx, args)
+	ctx = context.WithValue(ctx, execdetails.StmtInterDircDetailKey, &execdetails.StmtInterDircDetails{})
+	rs, err := stmt.InterDircute(ctx, args)
 	if err != nil {
 		return errors.Annotate(err, cc.preparedStmt2String(stmtID))
 	}
@@ -240,7 +240,7 @@ func (cc *clientConn) handleStmtFetch(ctx context.Context, data []byte) (err err
 	if prepared, ok := cc.ctx.GetStatement(int(stmtID)).(*MilevaDBStatement); ok {
 		allegrosql = prepared.allegrosql
 	}
-	cc.ctx.SetProcessInfo(allegrosql, time.Now(), allegrosql.ComStmtExecute, 0)
+	cc.ctx.SetProcessInfo(allegrosql, time.Now(), allegrosql.ComStmtInterDircute, 0)
 	rs := stmt.GetResultSet()
 	if rs == nil {
 		return errors.Annotate(allegrosql.NewErr(allegrosql.ErrUnknownStmtHandler,
@@ -267,7 +267,7 @@ func parseStmtFetchCmd(data []byte) (uint32, uint32, error) {
 	return stmtID, fetchSize, nil
 }
 
-func parseExecArgs(sc *stmtctx.StatementContext, args []types.Causet, boundParams [][]byte, nullBitmap, paramTypes, paramValues []byte) (err error) {
+func parseInterDircArgs(sc *stmtctx.StatementContext, args []types.Causet, boundParams [][]byte, nullBitmap, paramTypes, paramValues []byte) (err error) {
 	pos := 0
 	var (
 		tmp    interface{}
@@ -653,9 +653,9 @@ func (cc *clientConn) preparedStmt2StringNoArgs(stmtID uint32) string {
 	}
 	preparedPointer, ok := sv.PreparedStmts[stmtID]
 	if !ok {
-		return "prepared statement not found, ID: " + strconv.FormatUint(uint64(stmtID), 10)
+		return "prepared memex not found, ID: " + strconv.FormatUint(uint64(stmtID), 10)
 	}
-	preparedObj, ok := preparedPointer.(*plannercore.CachedPrepareStmt)
+	preparedObj, ok := preparedPointer.(*causetcore.CachedPrepareStmt)
 	if !ok {
 		return "invalidate CachedPrepareStmt type, ID: " + strconv.FormatUint(uint64(stmtID), 10)
 	}

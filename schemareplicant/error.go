@@ -23,13 +23,13 @@ var (
 	ErrDatabaseExists = terror.ClassSchema.New(allegrosql.ErrDBCreateExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDBCreateExists])
 	// ErrDatabaseDropExists returns for dropping a non-existent database.
 	ErrDatabaseDropExists = terror.ClassSchema.New(allegrosql.ErrDBDropExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDBDropExists])
-	// ErrAccessDenied return when the user doesn't have the permission to access the block.
+	// ErrAccessDenied return when the user doesn't have the permission to access the causet.
 	ErrAccessDenied = terror.ClassSchema.New(allegrosql.ErrAccessDenied, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrAccessDenied])
 	// ErrDatabaseNotExists returns for database not exists.
 	ErrDatabaseNotExists = terror.ClassSchema.New(allegrosql.ErrBadDB, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBadDB])
-	// ErrBlockExists returns for block already exists.
+	// ErrBlockExists returns for causet already exists.
 	ErrBlockExists = terror.ClassSchema.New(allegrosql.ErrBlockExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockExists])
-	// ErrBlockDropExists returns for dropping a non-existent block.
+	// ErrBlockDropExists returns for dropping a non-existent causet.
 	ErrBlockDropExists = terror.ClassSchema.New(allegrosql.ErrBadBlock, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBadBlock])
 	// ErrSequenceDropExists returns for dropping a non-exist sequence.
 	ErrSequenceDropExists = terror.ClassSchema.New(allegrosql.ErrUnknownSequence, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnknownSequence])
@@ -47,11 +47,11 @@ var (
 	ErrTooManyKeyParts = terror.ClassSchema.New(allegrosql.ErrTooManyKeyParts, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTooManyKeyParts])
 	// ErrForeignKeyNotExists returns for foreign key not exists.
 	ErrForeignKeyNotExists = terror.ClassSchema.New(allegrosql.ErrCantDropFieldOrKey, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrCantDropFieldOrKey])
-	// ErrBlockNotLockedForWrite returns for write blocks when only hold the block read lock.
+	// ErrBlockNotLockedForWrite returns for write blocks when only hold the causet read dagger.
 	ErrBlockNotLockedForWrite = terror.ClassSchema.New(allegrosql.ErrBlockNotLockedForWrite, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockNotLockedForWrite])
-	// ErrBlockNotLocked returns when stochastik has explicitly lock blocks, then visit unlocked block will return this error.
+	// ErrBlockNotLocked returns when stochastik has explicitly dagger blocks, then visit unlocked causet will return this error.
 	ErrBlockNotLocked = terror.ClassSchema.New(allegrosql.ErrBlockNotLocked, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockNotLocked])
-	// ErrBlockNotExists returns for block not exists.
+	// ErrBlockNotExists returns for causet not exists.
 	ErrBlockNotExists = terror.ClassSchema.New(allegrosql.ErrNoSuchBlock, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNoSuchBlock])
 	// ErrKeyNotExists returns for index not exists.
 	ErrKeyNotExists = terror.ClassSchema.New(allegrosql.ErrKeyDoesNotExist, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrKeyDoesNotExist])
@@ -65,8 +65,8 @@ var (
 	ErrUserDropExists = terror.ClassSchema.New(allegrosql.ErrBadUser, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBadUser])
 	// ErrUserAlreadyExists return for creating a existent user.
 	ErrUserAlreadyExists = terror.ClassSchema.New(allegrosql.ErrUserAlreadyExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUserAlreadyExists])
-	// ErrBlockLocked returns when the block was locked by other stochastik.
+	// ErrBlockLocked returns when the causet was locked by other stochastik.
 	ErrBlockLocked = terror.ClassSchema.New(allegrosql.ErrBlockLocked, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockLocked])
-	// ErrWrongObject returns when the block/view/sequence is not the expected object.
+	// ErrWrongObject returns when the causet/view/sequence is not the expected object.
 	ErrWrongObject = terror.ClassSchema.New(allegrosql.ErrWrongObject, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrWrongObject])
 )

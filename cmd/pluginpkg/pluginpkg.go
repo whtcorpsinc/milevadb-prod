@@ -147,7 +147,7 @@ func main() {
 		}
 	}()
 
-	err = tmpl.Execute(genFile, manifest)
+	err = tmpl.InterDircute(genFile, manifest)
 	if err != nil {
 		log.Printf("generate code failure during generating code, %+v\n", err)
 		os.Exit(1)
@@ -168,9 +168,9 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf(`Package "%s" as plugin "%s" success.`+"\nManifest:\n", pkgDir, outputFile)
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent(" ", "\t")
-	err = encoder.Encode(manifest)
+	causetCausetEncoder := json.NewCausetEncoder(os.Stdout)
+	causetCausetEncoder.SetIndent(" ", "\t")
+	err = causetCausetEncoder.Encode(manifest)
 	if err != nil {
 		log.Printf("print manifest detail failure, err: %v", err)
 	}

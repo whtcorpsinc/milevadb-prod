@@ -18,31 +18,31 @@ import (
 )
 
 var (
-	// ExecutorCounter records the number of expensive executors.
-	ExecutorCounter = prometheus.NewCounterVec(
+	// InterlockingDirectorateCounter records the number of expensive interlocks.
+	InterlockingDirectorateCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
-			Subsystem: "executor",
+			Subsystem: "interlock",
 			Name:      "expensive_total",
-			Help:      "Counter of Expensive Executors.",
+			Help:      "Counter of Expensive InterlockingDirectorates.",
 		}, []string{LblType},
 	)
 
-	// StmtNodeCounter records the number of statement with the same type.
+	// StmtNodeCounter records the number of memex with the same type.
 	StmtNodeCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
-			Subsystem: "executor",
-			Name:      "statement_total",
+			Subsystem: "interlock",
+			Name:      "memex_total",
 			Help:      "Counter of StmtNode.",
 		}, []string{LblType})
 
-	// DbStmtNodeCounter records the number of statement with the same type and EDB.
+	// DbStmtNodeCounter records the number of memex with the same type and EDB.
 	DbStmtNodeCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
-			Subsystem: "executor",
-			Name:      "statement_db_total",
+			Subsystem: "interlock",
+			Name:      "memex_db_total",
 			Help:      "Counter of StmtNode by Database.",
 		}, []string{LblDb, LblType})
 )

@@ -88,7 +88,7 @@ func (sh *sqlInfoFetcher) zipInfoForALLEGROSQL(w http.ResponseWriter, r *http.Re
 	timeoutString := r.FormValue("timeout")
 	curDB := strings.ToLower(r.FormValue("current_db"))
 	if curDB != "" {
-		_, err = sh.s.Execute(reqCtx, fmt.Sprintf("use %v", curDB))
+		_, err = sh.s.InterDircute(reqCtx, fmt.Sprintf("use %v", curDB))
 		if err != nil {
 			serveError(w, http.StatusInternalServerError, fmt.Sprintf("use database %v failed, err: %v", curDB, err))
 			return
@@ -162,7 +162,7 @@ func (sh *sqlInfoFetcher) zipInfoForALLEGROSQL(w http.ResponseWriter, r *http.Re
 	}
 	// If we don't catch profile. We just get a explain result.
 	if pprofTime == 0 {
-		recordSets, err := sh.s.(sqlexec.ALLEGROSQLExecutor).Execute(reqCtx, fmt.Sprintf("explain %s", allegrosql))
+		recordSets, err := sh.s.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(reqCtx, fmt.Sprintf("explain %s", allegrosql))
 		if len(recordSets) > 0 {
 			defer terror.Call(recordSets[0].Close)
 		}
@@ -257,7 +257,7 @@ type explainAnalyzeResult struct {
 }
 
 func (sh *sqlInfoFetcher) getExplainAnalyze(ctx context.Context, allegrosql string, resultChan chan<- *explainAnalyzeResult) {
-	recordSets, err := sh.s.(sqlexec.ALLEGROSQLExecutor).Execute(ctx, fmt.Sprintf("explain analyze %s", allegrosql))
+	recordSets, err := sh.s.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(ctx, fmt.Sprintf("explain analyze %s", allegrosql))
 	if err != nil {
 		resultChan <- &explainAnalyzeResult{err: err}
 		return
@@ -295,7 +295,7 @@ func (sh *sqlInfoFetcher) getStatsForBlock(pair blockNamePair) (*handle.JSONBloc
 }
 
 func (sh *sqlInfoFetcher) getShowCreateBlock(pair blockNamePair, zw *zip.Writer) error {
-	recordSets, err := sh.s.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), fmt.Sprintf("show create block `%v`.`%v`", pair.DBName, pair.BlockName))
+	recordSets, err := sh.s.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), fmt.Sprintf("show create causet `%v`.`%v`", pair.DBName, pair.BlockName))
 	if len(recordSets) > 0 {
 		defer terror.Call(recordSets[0].Close)
 	}
@@ -326,7 +326,7 @@ func (sh *sqlInfoFetcher) extractBlockNames(allegrosql, curDB string) (map[block
 		return nil, err
 	}
 	if len(stmts) > 1 {
-		return nil, errors.Errorf("Only 1 statement is allowed")
+		return nil, errors.Errorf("Only 1 memex is allowed")
 	}
 	extractor := &blockNameExtractor{
 		curDB: curDB,

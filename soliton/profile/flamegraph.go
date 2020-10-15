@@ -42,7 +42,7 @@ func newFlamegraphNode() *flamegraphNode {
 func (n *flamegraphNode) add(sample *profile.Sample) {
 	// FIXME: we take the last sample value by default, but some profiles have multiple samples.
 	//  - allocs:    alloc_objects, alloc_space, inuse_objects, inuse_space
-	//  - block:     contentions, delay
+	//  - causet:     contentions, delay
 	//  - cpu:       samples, cpu
 	//  - heap:      alloc_objects, alloc_space, inuse_objects, inuse_space
 	//  - mutex:     contentions, delay

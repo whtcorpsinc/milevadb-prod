@@ -42,7 +42,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
@@ -66,7 +66,7 @@ var (
 	statusPort        = flag.Int("status_port", 8000, "First milevadb-server status port")
 	logLevel          = flag.String("L", "error", "log level")
 	dbsServerLogLevel = flag.String("dbs_log_level", "fatal", "DBS server log level")
-	dataNum           = flag.Int("n", 100, "minimal test dataset for a block")
+	dataNum           = flag.Int("n", 100, "minimal test dataset for a causet")
 	enableRestart     = flag.Bool("enable_restart", true, "whether random restart servers for tests")
 )
 
@@ -116,12 +116,12 @@ func (s *TestDBSSuite) SetUpSuite(c *C) {
 
 	s.ctx = s.s.(stochastikctx.Context)
 	goCtx := goctx.Background()
-	_, err = s.s.Execute(goCtx, "create database if not exists test_dbs")
+	_, err = s.s.InterDircute(goCtx, "create database if not exists test_dbs")
 	c.Assert(err, IsNil)
 
 	s.Bootstrap(c)
 
-	// Stop current DBS worker, so that we can't be the owner now.
+	// Stop current DBS worker, so that we can't be the tenant now.
 	err = petri.GetPetri(s.ctx).DBS().Stop()
 	c.Assert(err, IsNil)
 	dbs.RunWorker = false
@@ -131,7 +131,7 @@ func (s *TestDBSSuite) SetUpSuite(c *C) {
 	s.dom, err = stochastik.BootstrapStochastik(s.causetstore)
 	c.Assert(err, IsNil)
 	s.ctx = s.s.(stochastikctx.Context)
-	_, err = s.s.Execute(goCtx, "use test_dbs")
+	_, err = s.s.InterDircute(goCtx, "use test_dbs")
 	c.Assert(err, IsNil)
 
 	addEnvPath("..")
@@ -314,7 +314,7 @@ func (s *TestDBSSuite) startServer(i int, fp *os.File) (*server, error) {
 	}
 	EDB.SetMaxOpenConns(10)
 
-	_, err = EDB.Exec("use test_dbs")
+	_, err = EDB.InterDirc("use test_dbs")
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -379,7 +379,7 @@ func isRetryError(err error) bool {
 func (s *TestDBSSuite) exec(query string, args ...interface{}) (allegrosql.Result, error) {
 	for {
 		server := s.getServer()
-		r, err := server.EDB.Exec(query, args...)
+		r, err := server.EDB.InterDirc(query, args...)
 		if isRetryError(err) {
 			log.Errorf("exec %s in server %s err %v, retry", query, err, server.addr)
 			continue
@@ -389,10 +389,10 @@ func (s *TestDBSSuite) exec(query string, args ...interface{}) (allegrosql.Resul
 	}
 }
 
-func (s *TestDBSSuite) mustExec(c *C, query string, args ...interface{}) allegrosql.Result {
+func (s *TestDBSSuite) mustInterDirc(c *C, query string, args ...interface{}) allegrosql.Result {
 	r, err := s.exec(query, args...)
 	if err != nil {
-		log.Fatalf("[mustExec fail]query - %v %v, error - %v", query, args, err)
+		log.Fatalf("[mustInterDirc fail]query - %v %v, error - %v", query, args, err)
 	}
 
 	return r
@@ -450,7 +450,7 @@ func (s *TestDBSSuite) getServer() *server {
 func (s *TestDBSSuite) runDBS(allegrosql string) chan error {
 	done := make(chan error, 1)
 	go func() {
-		_, err := s.s.Execute(goctx.Background(), allegrosql)
+		_, err := s.s.InterDircute(goctx.Background(), allegrosql)
 		// We must wait 2 * lease time to guarantee all servers uFIDelate the schemaReplicant.
 		if err == nil {
 			time.Sleep(time.Duration(*lease) * time.Second * 2)
@@ -462,7 +462,7 @@ func (s *TestDBSSuite) runDBS(allegrosql string) chan error {
 	return done
 }
 
-func (s *TestDBSSuite) getTable(c *C, name string) block.Block {
+func (s *TestDBSSuite) getTable(c *C, name string) causet.Block {
 	tbl, err := petri.GetPetri(s.ctx).SchemaReplicant().TableByName(perceptron.NewCIStr("test_dbs"), perceptron.NewCIStr(name))
 	c.Assert(err, IsNil)
 	return tbl
@@ -518,38 +518,38 @@ func match(c *C, event []interface{}, expected ...interface{}) {
 
 func (s *TestDBSSuite) Bootstrap(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_dbs")
-	tk.MustExec("drop block if exists test_index, test_column, test_insert, test_conflict_insert, " +
+	tk.MustInterDirc("use test_dbs")
+	tk.MustInterDirc("drop causet if exists test_index, test_column, test_insert, test_conflict_insert, " +
 		"test_uFIDelate, test_conflict_uFIDelate, test_delete, test_conflict_delete, test_mixed, test_inc")
 
-	tk.MustExec("create block test_index (c int, c1 bigint, c2 double, c3 varchar(256), primary key(c))")
-	tk.MustExec("create block test_column (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_insert (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_conflict_insert (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_uFIDelate (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_conflict_uFIDelate (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_delete (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_conflict_delete (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_mixed (c1 int, c2 int, primary key(c1))")
-	tk.MustExec("create block test_inc (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_index (c int, c1 bigint, c2 double, c3 varchar(256), primary key(c))")
+	tk.MustInterDirc("create causet test_column (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_insert (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_conflict_insert (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_uFIDelate (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_conflict_uFIDelate (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_delete (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_conflict_delete (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_mixed (c1 int, c2 int, primary key(c1))")
+	tk.MustInterDirc("create causet test_inc (c1 int, c2 int, primary key(c1))")
 
-	tk.MustExec("set @@milevadb_enable_clustered_index = 1")
-	tk.MustExec("drop block if exists test_insert_common, test_conflict_insert_common, " +
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1")
+	tk.MustInterDirc("drop causet if exists test_insert_common, test_conflict_insert_common, " +
 		"test_uFIDelate_common, test_conflict_uFIDelate_common, test_delete_common, test_conflict_delete_common, " +
 		"test_mixed_common, test_inc_common")
-	tk.MustExec("create block test_insert_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_conflict_insert_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_uFIDelate_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_conflict_uFIDelate_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_delete_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_conflict_delete_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_mixed_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("create block test_inc_common (c1 int, c2 int, primary key(c1, c2))")
-	tk.MustExec("set @@milevadb_enable_clustered_index = 0")
+	tk.MustInterDirc("create causet test_insert_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_conflict_insert_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_uFIDelate_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_conflict_uFIDelate_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_delete_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_conflict_delete_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_mixed_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("create causet test_inc_common (c1 int, c2 int, primary key(c1, c2))")
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 0")
 }
 
 func (s *TestDBSSuite) TestSimple(c *C) {
-	done := s.runDBS("create block if not exists test_simple (c1 int, c2 int, c3 int)")
+	done := s.runDBS("create causet if not exists test_simple (c1 int, c2 int, c3 int)")
 	err := <-done
 	c.Assert(err, IsNil)
 
@@ -560,7 +560,7 @@ func (s *TestDBSSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	matchRows(c, rows, [][]interface{}{{1}})
 
-	done = s.runDBS("drop block if exists test_simple")
+	done = s.runDBS("drop causet if exists test_simple")
 	err = <-done
 	c.Assert(err, IsNil)
 }
@@ -600,7 +600,7 @@ func (s *TestDBSSuite) TestSimpleInsert(c *C) {
 
 	tbl := s.getTable(c, "test_insert")
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		c.Assert(data[0].GetValue(), Equals, data[1].GetValue())
 		return true, nil
@@ -651,7 +651,7 @@ func (s *TestDBSSuite) TestSimpleConflictInsert(c *C) {
 
 	tbl := s.getTable(c, tblName)
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		c.Assert(keysMap, HasKey, data[0].GetValue())
 		c.Assert(data[0].GetValue(), Equals, data[1].GetValue())
@@ -686,7 +686,7 @@ func (s *TestDBSSuite) TestSimpleUFIDelate(c *C) {
 				k := batch*i + j
 				s.execInsert(c, fmt.Sprintf("insert into %s values (%d, %d)", tblName, k, k))
 				v := randomNum(rowCount)
-				s.mustExec(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, v, k))
+				s.mustInterDirc(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, v, k))
 				mu.Lock()
 				keysMap[int64(k)] = int64(v)
 				mu.Unlock()
@@ -704,7 +704,7 @@ func (s *TestDBSSuite) TestSimpleUFIDelate(c *C) {
 
 	tbl := s.getTable(c, tblName)
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		key := data[0].GetInt64()
 		c.Assert(data[1].GetValue(), Equals, keysMap[key])
@@ -759,7 +759,7 @@ func (s *TestDBSSuite) TestSimpleConflictUFIDelate(c *C) {
 
 			for j := 0; j < batch; j++ {
 				k := randomNum(rowCount)
-				s.mustExec(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, defaultValue, k))
+				s.mustInterDirc(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, defaultValue, k))
 				mu.Lock()
 				keysMap[int64(k)] = defaultValue
 				mu.Unlock()
@@ -777,7 +777,7 @@ func (s *TestDBSSuite) TestSimpleConflictUFIDelate(c *C) {
 
 	tbl := s.getTable(c, tblName)
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		c.Assert(keysMap, HasKey, data[0].GetValue())
 
@@ -812,7 +812,7 @@ func (s *TestDBSSuite) TestSimpleDelete(c *C) {
 			for j := 0; j < batch; j++ {
 				k := batch*i + j
 				s.execInsert(c, fmt.Sprintf("insert into %s values (%d, %d)", tblName, k, k))
-				s.mustExec(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, k))
+				s.mustInterDirc(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, k))
 			}
 		}(i)
 	}
@@ -827,7 +827,7 @@ func (s *TestDBSSuite) TestSimpleDelete(c *C) {
 
 	tbl := s.getTable(c, tblName)
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		return true, nil
 	})
@@ -879,7 +879,7 @@ func (s *TestDBSSuite) TestSimpleConflictDelete(c *C) {
 
 			for j := 0; j < batch; j++ {
 				k := randomNum(rowCount)
-				s.mustExec(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, k))
+				s.mustInterDirc(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, k))
 				mu.Lock()
 				delete(keysMap, int64(k))
 				mu.Unlock()
@@ -897,7 +897,7 @@ func (s *TestDBSSuite) TestSimpleConflictDelete(c *C) {
 
 	tbl := s.getTable(c, tblName)
 	handles := ekv.NewHandleMap()
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		handles.Set(h, struct{}{})
 		c.Assert(keysMap, HasKey, data[0].GetValue())
 		return true, nil
@@ -949,9 +949,9 @@ func (s *TestDBSSuite) TestSimpleMixed(c *C) {
 				key := atomic.AddInt64(&rowID, 1)
 				s.execInsert(c, fmt.Sprintf("insert into %s values (%d, %d)", tblName, key, key))
 				key = int64(randomNum(rowCount))
-				s.mustExec(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, defaultValue, key))
+				s.mustInterDirc(c, fmt.Sprintf("uFIDelate %s set c2 = %d where c1 = %d", tblName, defaultValue, key))
 				key = int64(randomNum(rowCount))
-				s.mustExec(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, key))
+				s.mustInterDirc(c, fmt.Sprintf("delete from %s where c1 = %d", tblName, key))
 			}
 		}()
 	}
@@ -967,7 +967,7 @@ func (s *TestDBSSuite) TestSimpleMixed(c *C) {
 	tbl := s.getTable(c, tblName)
 	uFIDelateCount := int64(0)
 	insertCount := int64(0)
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if reflect.DeepEqual(data[1].GetValue(), data[0].GetValue()) {
 			insertCount++
 		} else if reflect.DeepEqual(data[1].GetValue(), defaultValue) && data[0].GetInt64() < int64(rowCount) {
@@ -1023,7 +1023,7 @@ func (s *TestDBSSuite) TestSimpleInc(c *C) {
 			defer wg.Done()
 
 			for j := 0; j < batch; j++ {
-				s.mustExec(c, fmt.Sprintf("uFIDelate %s set c2 = c2 + 1 where c1 = 0", tblName))
+				s.mustInterDirc(c, fmt.Sprintf("uFIDelate %s set c2 = c2 + 1 where c1 = 0", tblName))
 			}
 		}()
 	}
@@ -1037,7 +1037,7 @@ func (s *TestDBSSuite) TestSimpleInc(c *C) {
 	c.Assert(err, IsNil)
 
 	tbl := s.getTable(c, "test_inc")
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if reflect.DeepEqual(data[0].GetValue(), int64(0)) {
 			if *enableRestart {
 				c.Assert(data[1].GetValue(), GreaterEqual, int64(rowCount))

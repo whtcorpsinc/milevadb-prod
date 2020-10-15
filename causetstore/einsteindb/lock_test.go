@@ -217,7 +217,7 @@ func (s *testLockSuite) TestCheckTxnStatusTTL(c *C) {
 	callerStartTS, err := lr.causetstore.GetOracle().GetTimestamp(bo.ctx)
 	c.Assert(err, IsNil)
 
-	// Check the lock TTL of a transaction.
+	// Check the dagger TTL of a transaction.
 	status, err := lr.GetTxnStatus(txn.StartTS(), callerStartTS, []byte("key"))
 	c.Assert(err, IsNil)
 	c.Assert(status.IsCommitted(), IsFalse)
@@ -225,10 +225,10 @@ func (s *testLockSuite) TestCheckTxnStatusTTL(c *C) {
 	c.Assert(status.CommitTS(), Equals, uint64(0))
 
 	// Rollback the txn.
-	lock := s.mustGetLock(c, []byte("key"))
+	dagger := s.mustGetLock(c, []byte("key"))
 	status = TxnStatus{}
 	cleanRegions := make(map[RegionVerID]struct{})
-	err = newLockResolver(s.causetstore).resolveLock(bo, lock, status, false, cleanRegions)
+	err = newLockResolver(s.causetstore).resolveLock(bo, dagger, status, false, cleanRegions)
 	c.Assert(err, IsNil)
 
 	// Check its status is rollbacked.
@@ -261,10 +261,10 @@ func (s *testLockSuite) TestTxnHeartBeat(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newTTL, Equals, uint64(6666))
 
-	lock := s.mustGetLock(c, []byte("key"))
+	dagger := s.mustGetLock(c, []byte("key"))
 	status := TxnStatus{ttl: newTTL}
 	cleanRegions := make(map[RegionVerID]struct{})
-	err = newLockResolver(s.causetstore).resolveLock(bo, lock, status, false, cleanRegions)
+	err = newLockResolver(s.causetstore).resolveLock(bo, dagger, status, false, cleanRegions)
 	c.Assert(err, IsNil)
 
 	newTTL, err = sendTxnHeartBeat(bo, s.causetstore, []byte("key"), txn.StartTS(), 6666)
@@ -286,7 +286,7 @@ func (s *testLockSuite) TestCheckTxnStatus(c *C) {
 
 	bo := NewBackofferWithVars(context.Background(), PrewriteMaxBackoff, nil)
 	resolver := newLockResolver(s.causetstore)
-	// Call getTxnStatus to check the lock status.
+	// Call getTxnStatus to check the dagger status.
 	status, err := resolver.getTxnStatus(bo, txn.StartTS(), []byte("key"), currentTS, currentTS, true)
 	c.Assert(err, IsNil)
 	c.Assert(status.IsCommitted(), IsFalse)
@@ -295,18 +295,18 @@ func (s *testLockSuite) TestCheckTxnStatus(c *C) {
 	c.Assert(status.action, Equals, kvrpcpb.CausetAction_MinCommitTSPushed)
 
 	// Test the ResolveLocks API
-	lock := s.mustGetLock(c, []byte("second"))
-	timeBeforeExpire, _, err := resolver.ResolveLocks(bo, currentTS, []*Lock{lock})
+	dagger := s.mustGetLock(c, []byte("second"))
+	timeBeforeExpire, _, err := resolver.ResolveLocks(bo, currentTS, []*Lock{dagger})
 	c.Assert(err, IsNil)
 	c.Assert(timeBeforeExpire > int64(0), IsTrue)
 
-	// Force rollback the lock using lock.TTL = 0.
-	lock.TTL = uint64(0)
-	timeBeforeExpire, _, err = resolver.ResolveLocks(bo, currentTS, []*Lock{lock})
+	// Force rollback the dagger using dagger.TTL = 0.
+	dagger.TTL = uint64(0)
+	timeBeforeExpire, _, err = resolver.ResolveLocks(bo, currentTS, []*Lock{dagger})
 	c.Assert(err, IsNil)
 	c.Assert(timeBeforeExpire, Equals, int64(0))
 
-	// Then call getTxnStatus again and check the lock status.
+	// Then call getTxnStatus again and check the dagger status.
 	currentTS, err = oracle.GetTimestamp(context.Background())
 	c.Assert(err, IsNil)
 	status, err = newLockResolver(s.causetstore).getTxnStatus(bo, txn.StartTS(), []byte("key"), currentTS, 0, true)
@@ -330,7 +330,7 @@ func (s *testLockSuite) TestCheckTxnStatusNoWait(c *C) {
 	txn.Set(ekv.Key("second"), []byte("xxx"))
 	committer, err := newTwoPhaseCommitterWithInit(txn.(*einsteindbTxn), 0)
 	c.Assert(err, IsNil)
-	// Increase lock TTL to make CI more sblock.
+	// Increase dagger TTL to make CI more sblock.
 	committer.lockTTL = txnLockTTL(txn.(*einsteindbTxn).startTime, 200*1024*1024)
 
 	// Only prewrite the secondary key to simulate a concurrent prewrite case:
@@ -355,14 +355,14 @@ func (s *testLockSuite) TestCheckTxnStatusNoWait(c *C) {
 		errCh <- committer.prewriteMutations(NewBackofferWithVars(context.Background(), PrewriteMaxBackoff, nil), committer.mutationsOfKeys([][]byte{[]byte("key")}))
 	}()
 
-	lock := &Lock{
+	dagger := &Lock{
 		Key:     []byte("second"),
 		Primary: []byte("key"),
 		TxnID:   txn.StartTS(),
 		TTL:     100000,
 	}
 	// Call getTxnStatusFromLock to cover the retry logic.
-	status, err := resolver.getTxnStatusFromLock(bo, lock, currentTS)
+	status, err := resolver.getTxnStatusFromLock(bo, dagger, currentTS)
 	c.Assert(err, IsNil)
 	c.Assert(status.ttl, Greater, uint64(0))
 	c.Assert(<-errCh, IsNil)
@@ -371,13 +371,13 @@ func (s *testLockSuite) TestCheckTxnStatusNoWait(c *C) {
 	// Call getTxnStatusFromLock to cover TxnNotFound and retry timeout.
 	startTS, err := oracle.GetTimestamp(context.Background())
 	c.Assert(err, IsNil)
-	lock = &Lock{
+	dagger = &Lock{
 		Key:     []byte("second"),
 		Primary: []byte("key_not_exist"),
 		TxnID:   startTS,
 		TTL:     1000,
 	}
-	status, err = resolver.getTxnStatusFromLock(bo, lock, currentTS)
+	status, err = resolver.getTxnStatusFromLock(bo, dagger, currentTS)
 	c.Assert(err, IsNil)
 	c.Assert(status.ttl, Equals, uint64(0))
 	c.Assert(status.commitTS, Equals, uint64(0))
@@ -414,9 +414,9 @@ func (s *testLockSuite) mustGetLock(c *C, key []byte) *Lock {
 	c.Assert(resp.Resp, NotNil)
 	keyErr := resp.Resp.(*kvrpcpb.GetResponse).GetError()
 	c.Assert(keyErr, NotNil)
-	lock, err := extractLockFromKeyErr(keyErr)
+	dagger, err := extractLockFromKeyErr(keyErr)
 	c.Assert(err, IsNil)
-	return lock
+	return dagger
 }
 
 func (s *testLockSuite) ttlEquals(c *C, x, y uint64) {
@@ -500,7 +500,7 @@ func (s *testLockSuite) TestBatchResolveLocks(c *C) {
 	bo := NewBackofferWithVars(context.Background(), GcResolveLockMaxBackoff, nil)
 	loc, err := lr.causetstore.GetRegionCache().LocateKey(bo, locks[0].Primary)
 	c.Assert(err, IsNil)
-	// Check BatchResolveLocks resolve the lock even the ttl is not expired.
+	// Check BatchResolveLocks resolve the dagger even the ttl is not expired.
 	success, err := lr.BatchResolveLocks(bo, locks, loc.Region)
 	c.Assert(success, IsTrue)
 	c.Assert(err, IsNil)
@@ -542,20 +542,20 @@ func (s *testLockSuite) TestZeroMinCommitTS(c *C) {
 	s.prewriteTxnWithTTL(c, txn.(*einsteindbTxn), 1000)
 	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/mockZeroCommitTS"), IsNil)
 
-	lock := s.mustGetLock(c, []byte("key"))
-	expire, pushed, err := newLockResolver(s.causetstore).ResolveLocks(bo, 0, []*Lock{lock})
+	dagger := s.mustGetLock(c, []byte("key"))
+	expire, pushed, err := newLockResolver(s.causetstore).ResolveLocks(bo, 0, []*Lock{dagger})
 	c.Assert(err, IsNil)
 	c.Assert(pushed, HasLen, 0)
 	c.Assert(expire, Greater, int64(0))
 
-	expire, pushed, err = newLockResolver(s.causetstore).ResolveLocks(bo, math.MaxUint64, []*Lock{lock})
+	expire, pushed, err = newLockResolver(s.causetstore).ResolveLocks(bo, math.MaxUint64, []*Lock{dagger})
 	c.Assert(err, IsNil)
 	c.Assert(pushed, HasLen, 1)
 	c.Assert(expire, Greater, int64(0))
 
 	// Clean up this test.
-	lock.TTL = uint64(0)
-	expire, _, err = newLockResolver(s.causetstore).ResolveLocks(bo, 0, []*Lock{lock})
+	dagger.TTL = uint64(0)
+	expire, _, err = newLockResolver(s.causetstore).ResolveLocks(bo, 0, []*Lock{dagger})
 	c.Assert(err, IsNil)
 	c.Assert(expire, Equals, int64(0))
 }

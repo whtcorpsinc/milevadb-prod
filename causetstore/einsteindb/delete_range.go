@@ -35,7 +35,7 @@ type DeleteRangeTask struct {
 	concurrency      int
 }
 
-// NewDeleteRangeTask creates a DeleteRangeTask. Deleting will be performed when `Execute` method is invoked.
+// NewDeleteRangeTask creates a DeleteRangeTask. Deleting will be performed when `InterDircute` method is invoked.
 // Be careful while using this API. This API doesn't keep recent MVCC versions, but will delete all versions of all keys
 // in the range immediately. Also notice that frequent invocation to this API may cause performance problems to EinsteinDB.
 func NewDeleteRangeTask(causetstore CausetStorage, startKey []byte, endKey []byte, concurrency int) *DeleteRangeTask {
@@ -66,8 +66,8 @@ func (t *DeleteRangeTask) getRunnerName() string {
 	return "delete-range"
 }
 
-// Execute performs the delete range operation.
-func (t *DeleteRangeTask) Execute(ctx context.Context) error {
+// InterDircute performs the delete range operation.
+func (t *DeleteRangeTask) InterDircute(ctx context.Context) error {
 	runnerName := t.getRunnerName()
 
 	runner := NewRangeTaskRunner(runnerName, t.causetstore, t.concurrency, t.sendReqOnRange)
@@ -77,7 +77,7 @@ func (t *DeleteRangeTask) Execute(ctx context.Context) error {
 	return err
 }
 
-// Execute performs the delete range operation.
+// InterDircute performs the delete range operation.
 func (t *DeleteRangeTask) sendReqOnRange(ctx context.Context, r ekv.KeyRange) (RangeTaskStat, error) {
 	startKey, rangeEndKey := r.StartKey, r.EndKey
 	var stat RangeTaskStat

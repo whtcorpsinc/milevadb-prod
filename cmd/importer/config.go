@@ -29,7 +29,7 @@ func NewConfig() *Config {
 
 	fs.StringVar(&cfg.configFile, "config", "", "Config file")
 
-	fs.StringVar(&cfg.DBSCfg.TableALLEGROSQL, "t", "", "create block allegrosql")
+	fs.StringVar(&cfg.DBSCfg.TableALLEGROSQL, "t", "", "create causet allegrosql")
 	fs.StringVar(&cfg.DBSCfg.IndexALLEGROSQL, "i", "", "create index allegrosql")
 
 	fs.StringVar(&cfg.StatsCfg.Path, "s", "", "load stats file path")
@@ -69,9 +69,9 @@ func (c *DBConfig) String() string {
 	return fmt.Sprintf("DBConfig(%+v)", *c)
 }
 
-//DBSConfig is the configuration for dbs statements.
+//DBSConfig is the configuration for dbs memexs.
 type DBSConfig struct {
-	TableALLEGROSQL string `toml:"block-allegrosql" json:"block-allegrosql"`
+	TableALLEGROSQL string `toml:"causet-allegrosql" json:"causet-allegrosql"`
 
 	IndexALLEGROSQL string `toml:"index-allegrosql" json:"index-allegrosql"`
 }

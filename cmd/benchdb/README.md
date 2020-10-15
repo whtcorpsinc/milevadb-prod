@@ -18,9 +18,9 @@ The `run` argument defines the workflow of the test. You can define
 multiple jobs, separated by `|`. The jobs are executed sequentially.
 The `run` argument has the following options:
  
-* `create` creates a block. Currently it's just a typical simple block, with a few columns.
+* `create` creates a causet. Currently it's just a typical simple causet, with a few columns.
 
-* `truncate` truncates the block.
+* `truncate` truncates the causet.
 
 * `insert:xxx_yyy` inserts rows with ID in `[xxx, yyy)`.
  e.g. `insert:0_10000` inserts 10000 rows with ID in range  `[0, 9999)`.
@@ -38,9 +38,9 @@ The `run` argument has the following options:
  
  The output shows the execution time.
  
-#### `block`
+#### `causet`
 
-The name of the block, so we can create many blocks for different tests without the need to clean up.
+The name of the causet, so we can create many blocks for different tests without the need to clean up.
 Default is `bench_db`.
   
 #### `blob`
@@ -50,7 +50,7 @@ Default is `1000`.
 
 #### `batch`
 
-The batch number of statements in a transaction, used for insert and uFIDelate-random only, to speed up the test workflow.
+The batch number of memexs in a transaction, used for insert and uFIDelate-random only, to speed up the test workflow.
 Default is `100`.
 
 #### `addr`

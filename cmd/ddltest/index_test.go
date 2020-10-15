@@ -27,13 +27,13 @@ import (
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/gcworker"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/types"
 	goctx "golang.org/x/net/context"
 )
 
-func getIndex(t block.Block, name string) block.Index {
+func getIndex(t causet.Block, name string) causet.Index {
 	for _, idx := range t.Indices() {
 		if idx.Meta().Name.O == name {
 			return idx
@@ -49,10 +49,10 @@ func (s *TestDBSSuite) checkAddIndex(c *C, indexInfo *perceptron.IndexInfo) {
 	c.Assert(err, IsNil)
 	tbl := s.getTable(c, "test_index")
 
-	// read handles form block
+	// read handles form causet
 	handles := ekv.NewHandleMap()
 	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(),
-		func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+		func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 			handles.Set(h, struct{}{})
 			return true, nil
 		})
@@ -125,7 +125,7 @@ func (s *TestDBSSuite) checkDropIndex(c *C, indexInfo *perceptron.IndexInfo) {
 	// c.Assert(handles.Len(), Equals, 0)
 }
 
-// TestIndex operations on block test_index (c int, c1 bigint, c2 double, c3 varchar(256), primary key(c)).
+// TestIndex operations on causet test_index (c int, c1 bigint, c2 double, c3 varchar(256), primary key(c)).
 func (s *TestDBSSuite) TestIndex(c *C) {
 	// first add many data
 	workerNum := 10
@@ -159,7 +159,7 @@ func (s *TestDBSSuite) TestIndex(c *C) {
 	}
 
 	insertID := int64(*dataNum)
-	var oldIndex block.Index
+	var oldIndex causet.Index
 	for _, t := range tbl {
 		c.Logf("run DBS allegrosql %s", t.Query)
 		done := s.runDBS(t.Query)
@@ -207,10 +207,10 @@ func (s *TestDBSSuite) execIndexOperations(c *C, workerNum, count int, insertID 
 				s.execInsert(c, allegrosql)
 				c.Logf("allegrosql %s", allegrosql)
 				allegrosql = fmt.Sprintf("delete from test_index where c = %d", randomIntn(int(id)))
-				s.mustExec(c, allegrosql)
+				s.mustInterDirc(c, allegrosql)
 				c.Logf("allegrosql %s", allegrosql)
 				allegrosql = fmt.Sprintf("uFIDelate test_index set c1 = %d, c2 = %f, c3 = '%s' where c = %d", randomInt(), randomFloat(), randomString(10), randomIntn(int(id)))
-				s.mustExec(c, allegrosql)
+				s.mustInterDirc(c, allegrosql)
 				c.Logf("allegrosql %s", allegrosql)
 
 			}

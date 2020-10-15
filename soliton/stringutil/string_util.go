@@ -194,7 +194,7 @@ func CompilePattern(pattern string, escape byte) (patChars, patTypes []byte) {
 
 func matchByte(a, b byte) bool {
 	return a == b
-	// We may reuse below code block when like function go back to case insensitive.
+	// We may reuse below code causet when like function go back to case insensitive.
 	/*
 		if a == b {
 			return true
@@ -206,7 +206,7 @@ func matchByte(a, b byte) bool {
 	*/
 }
 
-// CompileLike2Regexp convert a like `lhs` to a regular expression
+// CompileLike2Regexp convert a like `lhs` to a regular memex
 func CompileLike2Regexp(str string) string {
 	patChars, patTypes := CompilePattern(str, '\\')
 	var result []byte

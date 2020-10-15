@@ -54,7 +54,7 @@ func (r reqDefCauslapse) tryDefCauslapseRequest(ctx context.Context, addr string
 	case einsteindbrpc.CmdResolveLock:
 		resolveLock := req.ResolveLock()
 		if len(resolveLock.Keys) > 0 {
-			// can not collapse resolve lock lite
+			// can not collapse resolve dagger lite
 			return
 		}
 		if len(resolveLock.TxnInfos) > 0 {
@@ -66,7 +66,7 @@ func (r reqDefCauslapse) tryDefCauslapseRequest(ctx context.Context, addr string
 		resp, err = r.collapse(ctx, key, &resolveRegionSf, addr, req, timeout)
 		return
 	default:
-		// now we only support collapse resolve lock.
+		// now we only support collapse resolve dagger.
 		return
 	}
 }

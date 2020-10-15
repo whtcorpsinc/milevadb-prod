@@ -183,7 +183,7 @@ func (p *analyzeCommonHandleProcessor) Process(key, value []byte) error {
 	return nil
 }
 
-type analyzeDeferredCausetsExec struct {
+type analyzeDeferredCausetsInterDirc struct {
 	skipVal
 	reader  *dbreader.DBReader
 	ranges  []ekv.KeyRange
@@ -193,7 +193,7 @@ type analyzeDeferredCausetsExec struct {
 	startTS uint64
 
 	chk     *chunk.Chunk
-	decoder *rowcodec.ChunkDecoder
+	causetDecoder *rowcodec.ChunkCausetDecoder
 	req     *chunk.Chunk
 	evalCtx *evalContext
 	fields  []*ast.ResultField
@@ -208,11 +208,11 @@ func handleAnalyzeDeferredCausetsReq(dbReader *dbreader.DBReader, rans []ekv.Key
 	if len(analyzeReq.DefCausReq.PrimaryDeferredCausetIds) > 0 {
 		evalCtx.primaryDefCauss = analyzeReq.DefCausReq.PrimaryDeferredCausetIds
 	}
-	decoder, err := evalCtx.newRowDecoder()
+	causetDecoder, err := evalCtx.newRowCausetDecoder()
 	if err != nil {
 		return nil, err
 	}
-	e := &analyzeDeferredCausetsExec{
+	e := &analyzeDeferredCausetsInterDirc{
 		reader:  dbReader,
 		seekKey: rans[0].StartKey,
 		endKey:  rans[0].EndKey,
@@ -220,7 +220,7 @@ func handleAnalyzeDeferredCausetsReq(dbReader *dbreader.DBReader, rans []ekv.Key
 		curRan:  0,
 		startTS: startTS,
 		chk:     chunk.NewChunkWithCapacity(evalCtx.fieldTps, 1),
-		decoder: decoder,
+		causetDecoder: causetDecoder,
 		evalCtx: evalCtx,
 	}
 	e.fields = make([]*ast.ResultField, len(columns))
@@ -284,11 +284,11 @@ func handleAnalyzeDeferredCausetsReq(dbReader *dbreader.DBReader, rans []ekv.Key
 }
 
 // Fields implements the sqlexec.RecordSet Fields interface.
-func (e *analyzeDeferredCausetsExec) Fields() []*ast.ResultField {
+func (e *analyzeDeferredCausetsInterDirc) Fields() []*ast.ResultField {
 	return e.fields
 }
 
-func (e *analyzeDeferredCausetsExec) Next(ctx context.Context, req *chunk.Chunk) error {
+func (e *analyzeDeferredCausetsInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	req.Reset()
 	e.req = req
 	err := e.reader.Scan(e.seekKey, e.endKey, math.MaxInt64, e.startTS, e)
@@ -307,12 +307,12 @@ func (e *analyzeDeferredCausetsExec) Next(ctx context.Context, req *chunk.Chunk)
 	return nil
 }
 
-func (e *analyzeDeferredCausetsExec) Process(key, value []byte) error {
+func (e *analyzeDeferredCausetsInterDirc) Process(key, value []byte) error {
 	handle, err := blockcodec.DecodeRowKey(key)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	err = e.decoder.DecodeToChunk(value, handle, e.chk)
+	err = e.causetDecoder.DecodeToChunk(value, handle, e.chk)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -338,7 +338,7 @@ func (e *analyzeDeferredCausetsExec) Process(key, value []byte) error {
 	return nil
 }
 
-func (e *analyzeDeferredCausetsExec) NewChunk() *chunk.Chunk {
+func (e *analyzeDeferredCausetsInterDirc) NewChunk() *chunk.Chunk {
 	fields := make([]*types.FieldType, 0, len(e.fields))
 	for _, field := range e.fields {
 		fields = append(fields, &field.DeferredCauset.FieldType)
@@ -347,6 +347,6 @@ func (e *analyzeDeferredCausetsExec) NewChunk() *chunk.Chunk {
 }
 
 // Close implements the sqlexec.RecordSet Close interface.
-func (e *analyzeDeferredCausetsExec) Close() error {
+func (e *analyzeDeferredCausetsInterDirc) Close() error {
 	return nil
 }

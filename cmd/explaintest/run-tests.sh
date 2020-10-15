@@ -51,7 +51,7 @@ function help_message()
                     This option will be ignored if \"-r <test-name>\" is provided.
                     Run all tests if this option is not provided.
 
-    -c <test-name>|all: Create data according to creating statements in file \"t/<test-name>.test\" and save stats in \"s/<test-name>_blockName.json\".
+    -c <test-name>|all: Create data according to creating memexs in file \"t/<test-name>.test\" and save stats in \"s/<test-name>_blockName.json\".
                     <test-name> must has a suffix of '_stats'.
                     \"all\" for creating stats of all tests.
 

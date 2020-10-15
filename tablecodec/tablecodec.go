@@ -45,7 +45,7 @@ var (
 	blockPrefix     = []byte{'t'}
 	recordPrefixSep = []byte("_r")
 	indexPrefixSep  = []byte("_i")
-	metaPrefix      = []byte{'m'}
+	spacetimePrefix      = []byte{'m'}
 )
 
 const (
@@ -55,7 +55,7 @@ const (
 	RecordRowKeyLen       = prefixLen + idLen /*handle*/
 	blockPrefixLength     = 1
 	recordPrefixSepLength = 2
-	metaPrefixLength      = 1
+	spacetimePrefixLength      = 1
 	// MaxOldEncodeValueLen is the maximum len of the old encoding of index value.
 	MaxOldEncodeValueLen = 9
 
@@ -64,19 +64,19 @@ const (
 	// PartitionIDFlag is the flag used to decode the partition ID in global index value.
 	PartitionIDFlag byte = 126
 	// RestoreDataFlag is the flag that RestoreData begin with.
-	// See rowcodec.Encoder.Encode and rowcodec.event.toBytes
+	// See rowcodec.CausetEncoder.Encode and rowcodec.event.toBytes
 	RestoreDataFlag byte = rowcodec.CodecVer
 )
 
-// TableSplitKeyLen is the length of key 't{block_id}' which is used for block split.
+// TableSplitKeyLen is the length of key 't{block_id}' which is used for causet split.
 const TableSplitKeyLen = 1 + idLen
 
-// TablePrefix returns block's prefix 't'.
+// TablePrefix returns causet's prefix 't'.
 func TablePrefix() []byte {
 	return blockPrefix
 }
 
-// EncodeRowKey encodes the block id and record handle into a ekv.Key
+// EncodeRowKey encodes the causet id and record handle into a ekv.Key
 func EncodeRowKey(blockID int64, encodedHandle []byte) ekv.Key {
 	buf := make([]byte, 0, prefixLen+len(encodedHandle))
 	buf = appendTableRecordPrefix(buf, blockID)
@@ -84,7 +84,7 @@ func EncodeRowKey(blockID int64, encodedHandle []byte) ekv.Key {
 	return buf
 }
 
-// EncodeRowKeyWithHandle encodes the block id, event handle into a ekv.Key
+// EncodeRowKeyWithHandle encodes the causet id, event handle into a ekv.Key
 func EncodeRowKeyWithHandle(blockID int64, handle ekv.Handle) ekv.Key {
 	return EncodeRowKey(blockID, handle.Encoded())
 }
@@ -188,13 +188,13 @@ func DecodeValuesBytesToStrings(b []byte) ([]string, error) {
 	return datumValues, nil
 }
 
-// DecodeMetaKey decodes the key and get the meta key and meta field.
+// DecodeMetaKey decodes the key and get the spacetime key and spacetime field.
 func DecodeMetaKey(ek ekv.Key) (key []byte, field []byte, err error) {
 	var tp uint64
-	if !bytes.HasPrefix(ek, metaPrefix) {
+	if !bytes.HasPrefix(ek, spacetimePrefix) {
 		return nil, nil, errors.New("invalid encoded hash data key prefix")
 	}
-	ek = ek[metaPrefixLength:]
+	ek = ek[spacetimePrefixLength:]
 	ek, key, err = codec.DecodeBytes(ek, nil)
 	if err != nil {
 		return nil, nil, errors.Trace(err)
@@ -244,7 +244,7 @@ func DecodeKeyHead(key ekv.Key) (blockID int64, indexID int64, isRecordKey bool,
 	return
 }
 
-// DecodeTableID decodes the block ID of the key, if the key is not block key, returns 0.
+// DecodeTableID decodes the causet ID of the key, if the key is not causet key, returns 0.
 func DecodeTableID(key ekv.Key) int64 {
 	if !key.HasPrefix(blockPrefix) {
 		return 0
@@ -281,7 +281,7 @@ func EncodeValue(sc *stmtctx.StatementContext, b []byte, raw types.Causet) ([]by
 // EncodeRow encode event data and column ids into a slice of byte.
 // valBuf and values pass by caller, for reducing EncodeRow allocates temporary bufs. If you pass valBuf and values as nil,
 // EncodeRow will allocate it.
-func EncodeRow(sc *stmtctx.StatementContext, event []types.Causet, colIDs []int64, valBuf []byte, values []types.Causet, e *rowcodec.Encoder) ([]byte, error) {
+func EncodeRow(sc *stmtctx.StatementContext, event []types.Causet, colIDs []int64, valBuf []byte, values []types.Causet, e *rowcodec.CausetEncoder) ([]byte, error) {
 	if len(event) != len(colIDs) {
 		return nil, errors.Errorf("EncodeRow error: data and columnID count not match %d vs %d", len(event), len(colIDs))
 	}
@@ -590,7 +590,7 @@ func Unflatten(causet types.Causet, ft *types.FieldType, loc *time.Location) (ty
 		causet.SetUint64(0)
 		causet.SetMysqlTime(t)
 		return causet, nil
-	case allegrosql.TypeDuration: // duration should read fsp from column meta data
+	case allegrosql.TypeDuration: // duration should read fsp from column spacetime data
 		dur := types.Duration{Duration: time.Duration(causet.GetInt64()), Fsp: int8(ft.Decimal)}
 		causet.SetMysqlDuration(dur)
 		return causet, nil
@@ -721,7 +721,7 @@ func decodeRestoredValues(columns []rowcodec.DefCausInfo, restoredVal []byte) ([
 		colIDs[col.ID] = i
 	}
 	// We don't need to decode handle here, and colIDs >= 0 always.
-	rd := rowcodec.NewByteDecoder(columns, []int64{-1}, nil, nil)
+	rd := rowcodec.NewByteCausetDecoder(columns, []int64{-1}, nil, nil)
 	resultValues, err := rd.DecodeToBytesNoHandle(colIDs, restoredVal)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -820,7 +820,7 @@ func EncodeTableIndexPrefix(blockID, idxID int64) ekv.Key {
 	return key
 }
 
-// EncodeTablePrefix encodes block prefix with block ID.
+// EncodeTablePrefix encodes causet prefix with causet ID.
 func EncodeTablePrefix(blockID int64) ekv.Key {
 	var key ekv.Key
 	key = append(key, blockPrefix...)
@@ -828,7 +828,7 @@ func EncodeTablePrefix(blockID int64) ekv.Key {
 	return key
 }
 
-// appendTableRecordPrefix appends block record prefix  "t[blockID]_r".
+// appendTableRecordPrefix appends causet record prefix  "t[blockID]_r".
 func appendTableRecordPrefix(buf []byte, blockID int64) []byte {
 	buf = append(buf, blockPrefix...)
 	buf = codec.EncodeInt(buf, blockID)
@@ -836,7 +836,7 @@ func appendTableRecordPrefix(buf []byte, blockID int64) []byte {
 	return buf
 }
 
-// appendTableIndexPrefix appends block index prefix  "t[blockID]_i".
+// appendTableIndexPrefix appends causet index prefix  "t[blockID]_i".
 func appendTableIndexPrefix(buf []byte, blockID int64) []byte {
 	buf = append(buf, blockPrefix...)
 	buf = codec.EncodeInt(buf, blockID)
@@ -881,7 +881,7 @@ func IsUntouchedIndexKValue(k, v []byte) bool {
 	return tailLen == 9
 }
 
-// GenTablePrefix composes block record and index prefix: "t[blockID]".
+// GenTablePrefix composes causet record and index prefix: "t[blockID]".
 func GenTablePrefix(blockID int64) ekv.Key {
 	buf := make([]byte, 0, len(blockPrefix)+8)
 	buf = append(buf, blockPrefix...)
@@ -897,14 +897,14 @@ func TruncateToRowKeyLen(key ekv.Key) ekv.Key {
 	return key
 }
 
-// GetTableHandleKeyRange returns block handle's key range with blockID.
+// GetTableHandleKeyRange returns causet handle's key range with blockID.
 func GetTableHandleKeyRange(blockID int64) (startKey, endKey []byte) {
 	startKey = EncodeRowKeyWithHandle(blockID, ekv.IntHandle(math.MinInt64))
 	endKey = EncodeRowKeyWithHandle(blockID, ekv.IntHandle(math.MaxInt64))
 	return
 }
 
-// GetTableIndexKeyRange returns block index's key range with blockID and indexID.
+// GetTableIndexKeyRange returns causet index's key range with blockID and indexID.
 func GetTableIndexKeyRange(blockID, indexID int64) (startKey, endKey []byte) {
 	startKey = EncodeIndexSeekKey(blockID, indexID, nil)
 	endKey = EncodeIndexSeekKey(blockID, indexID, []byte{255})
@@ -919,7 +919,7 @@ func GetIndexKeyBuf(buf []byte, defaultCap int) []byte {
 	return make([]byte, 0, defaultCap)
 }
 
-// GenIndexKey generates index key using input physical block id
+// GenIndexKey generates index key using input physical causet id
 func GenIndexKey(sc *stmtctx.StatementContext, tblInfo *perceptron.TableInfo, idxInfo *perceptron.IndexInfo,
 	phyTblID int64, indexedValues []types.Causet, h ekv.Handle, buf []byte) (key []byte, distinct bool, err error) {
 	if idxInfo.Unique {
@@ -980,7 +980,7 @@ func GenIndexValueNew(sc *stmtctx.StatementContext, tblInfo *perceptron.TableInf
 		for i, col := range idxInfo.DeferredCausets {
 			colIds[i] = tblInfo.DeferredCausets[col.Offset].ID
 		}
-		rd := rowcodec.Encoder{Enable: true}
+		rd := rowcodec.CausetEncoder{Enable: true}
 		rowRestoredValue, err := rd.Encode(sc, colIds, indexedValues, nil)
 		if err != nil {
 			return nil, err

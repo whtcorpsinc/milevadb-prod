@@ -112,7 +112,7 @@ func (r *streamResult) readDataFromResponse(ctx context.Context, resp ekv.Respon
 		copStats := hasStats.GetCopRuntimeStats()
 		if copStats != nil {
 			copStats.CopTime = duration
-			r.ctx.GetStochastikVars().StmtCtx.MergeExecDetails(&copStats.ExecDetails, nil)
+			r.ctx.GetStochastikVars().StmtCtx.MergeInterDircDetails(&copStats.InterDircDetails, nil)
 		}
 	}
 	return false, nil
@@ -139,10 +139,10 @@ func (r *streamResult) readDataIfNecessary(ctx context.Context) error {
 
 func (r *streamResult) flushToChunk(chk *chunk.Chunk) (err error) {
 	remainRowsData := r.curr.RowsData
-	decoder := codec.NewDecoder(chk, r.ctx.GetStochastikVars().Location())
+	causetDecoder := codec.NewCausetDecoder(chk, r.ctx.GetStochastikVars().Location())
 	for !chk.IsFull() && len(remainRowsData) > 0 {
 		for i := 0; i < r.rowLen; i++ {
-			remainRowsData, err = decoder.DecodeOne(remainRowsData, i, r.fieldTypes[i])
+			remainRowsData, err = causetDecoder.DecodeOne(remainRowsData, i, r.fieldTypes[i])
 			if err != nil {
 				return err
 			}

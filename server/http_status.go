@@ -111,8 +111,8 @@ func (s *Server) startHTTPServer() {
 	router.Handle("/metrics", promhttp.Handler()).Name("Metrics")
 
 	// HTTP path for dump statistics.
-	router.Handle("/stats/dump/{EDB}/{block}", s.newStatsHandler()).Name("StatsDump")
-	router.Handle("/stats/dump/{EDB}/{block}/{snapshot}", s.newStatsHistoryHandler()).Name("StatsHistoryDump")
+	router.Handle("/stats/dump/{EDB}/{causet}", s.newStatsHandler()).Name("StatsDump")
+	router.Handle("/stats/dump/{EDB}/{causet}/{snapshot}", s.newStatsHistoryHandler()).Name("StatsHistoryDump")
 
 	router.Handle("/settings", settingsHandler{}).Name("Settings")
 	router.Handle("/binlog/recover", binlogRecover{}).Name("BinlogRecover")
@@ -120,10 +120,10 @@ func (s *Server) startHTTPServer() {
 	einsteindbHandlerTool := s.newEinsteinDBHandlerTool()
 	router.Handle("/schemaReplicant", schemaHandler{einsteindbHandlerTool}).Name("Schema")
 	router.Handle("/schemaReplicant/{EDB}", schemaHandler{einsteindbHandlerTool})
-	router.Handle("/schemaReplicant/{EDB}/{block}", schemaHandler{einsteindbHandlerTool})
+	router.Handle("/schemaReplicant/{EDB}/{causet}", schemaHandler{einsteindbHandlerTool})
 	router.Handle("/blocks/{defCausID}/{defCausTp}/{defCausFlag}/{defCausLen}", valueHandler{})
 	router.Handle("/dbs/history", dbsHistoryJobHandler{einsteindbHandlerTool}).Name("DBS_History")
-	router.Handle("/dbs/owner/resign", dbsResignOwnerHandler{einsteindbHandlerTool.CausetStore.(ekv.CausetStorage)}).Name("DBS_Owner_Resign")
+	router.Handle("/dbs/tenant/resign", dbsResignTenantHandler{einsteindbHandlerTool.CausetStore.(ekv.CausetStorage)}).Name("DBS_Tenant_Resign")
 
 	// HTTP path for get the MilevaDB config
 	router.Handle("/config", fn.Wrap(func() (*config.Config, error) {
@@ -133,27 +133,27 @@ func (s *Server) startHTTPServer() {
 	// HTTP path for get server info.
 	router.Handle("/info", serverInfoHandler{einsteindbHandlerTool}).Name("Info")
 	router.Handle("/info/all", allServerInfoHandler{einsteindbHandlerTool}).Name("InfoALL")
-	// HTTP path for get EDB and block info that is related to the blockID.
-	router.Handle("/EDB-block/{blockID}", dbBlockHandler{einsteindbHandlerTool})
-	// HTTP path for get block tiflash replica info.
+	// HTTP path for get EDB and causet info that is related to the blockID.
+	router.Handle("/EDB-causet/{blockID}", dbBlockHandler{einsteindbHandlerTool})
+	// HTTP path for get causet tiflash replica info.
 	router.Handle("/tiflash/replica", flashReplicaHandler{einsteindbHandlerTool})
 
 	if s.cfg.CausetStore == "einsteindb" {
 		// HTTP path for einsteindb.
-		router.Handle("/blocks/{EDB}/{block}/regions", blockHandler{einsteindbHandlerTool, opBlockRegions})
-		router.Handle("/blocks/{EDB}/{block}/scatter", blockHandler{einsteindbHandlerTool, opBlockScatter})
-		router.Handle("/blocks/{EDB}/{block}/stop-scatter", blockHandler{einsteindbHandlerTool, opStopBlockScatter})
-		router.Handle("/blocks/{EDB}/{block}/disk-usage", blockHandler{einsteindbHandlerTool, opBlockDiskUsage})
-		router.Handle("/regions/meta", regionHandler{einsteindbHandlerTool}).Name("RegionsMeta")
+		router.Handle("/blocks/{EDB}/{causet}/regions", blockHandler{einsteindbHandlerTool, opBlockRegions})
+		router.Handle("/blocks/{EDB}/{causet}/scatter", blockHandler{einsteindbHandlerTool, opBlockScatter})
+		router.Handle("/blocks/{EDB}/{causet}/stop-scatter", blockHandler{einsteindbHandlerTool, opStopBlockScatter})
+		router.Handle("/blocks/{EDB}/{causet}/disk-usage", blockHandler{einsteindbHandlerTool, opBlockDiskUsage})
+		router.Handle("/regions/spacetime", regionHandler{einsteindbHandlerTool}).Name("RegionsMeta")
 		router.Handle("/regions/hot", regionHandler{einsteindbHandlerTool}).Name("RegionHot")
 		router.Handle("/regions/{regionID}", regionHandler{einsteindbHandlerTool})
 	}
 
 	// HTTP path for get MVCC info
-	router.Handle("/mvcc/key/{EDB}/{block}/{handle}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByKey})
-	router.Handle("/mvcc/txn/{startTS}/{EDB}/{block}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByTxn})
+	router.Handle("/mvcc/key/{EDB}/{causet}/{handle}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByKey})
+	router.Handle("/mvcc/txn/{startTS}/{EDB}/{causet}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByTxn})
 	router.Handle("/mvcc/hex/{hexKey}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByHex})
-	router.Handle("/mvcc/index/{EDB}/{block}/{index}/{handle}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByIdx})
+	router.Handle("/mvcc/index/{EDB}/{causet}/{index}/{handle}", mvccTxnHandler{einsteindbHandlerTool, opMvccGetByIdx})
 
 	// HTTP path for generate metric profile.
 	router.Handle("/metrics/profile", profileHandler{einsteindbHandlerTool})
@@ -278,7 +278,7 @@ func (s *Server) startHTTPServer() {
 		pathTemplate   string
 		err            error
 	)
-	httpRouterPage.WriteString("<html><head><title>MilevaDB Status and Metrics Report</title></head><body><h1>MilevaDB Status and Metrics Report</h1><block>")
+	httpRouterPage.WriteString("<html><head><title>MilevaDB Status and Metrics Report</title></head><body><h1>MilevaDB Status and Metrics Report</h1><causet>")
 	err = router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		pathTemplate, err = route.GetPathTemplate()
 		if err != nil {
@@ -296,7 +296,7 @@ func (s *Server) startHTTPServer() {
 		logutil.BgLogger().Error("generate root failed", zap.Error(err))
 	}
 	httpRouterPage.WriteString("<tr><td><a href='/debug/pprof/'>Debug</a><td></tr>")
-	httpRouterPage.WriteString("</block></body></html>")
+	httpRouterPage.WriteString("</causet></body></html>")
 	router.HandleFunc("/", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_, err = responseWriter.Write(httpRouterPage.Bytes())
 		if err != nil {

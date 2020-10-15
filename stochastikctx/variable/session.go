@@ -37,7 +37,7 @@ import (
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
@@ -124,7 +124,7 @@ func (r *retryInfoAutoIDs) getCurrent() (int64, error) {
 	return id, nil
 }
 
-// stmtFuture is used to async get timestamp for statement.
+// stmtFuture is used to async get timestamp for memex.
 type stmtFuture struct {
 	future   oracle.Future
 	cachedTS uint64
@@ -146,12 +146,12 @@ type TransactionContext struct {
 	currentShard int64
 	shardRand    *rand.Rand
 
-	// BlockDeltaMap is used in the schemaReplicant validator for DBS changes in one block not to block others.
+	// BlockDeltaMap is used in the schemaReplicant validator for DBS changes in one causet not to causet others.
 	// It's also used in the statistias uFIDelating.
-	// Note: for the partitionted block, it stores all the partition IDs.
+	// Note: for the partitionted causet, it stores all the partition IDs.
 	BlockDeltaMap map[int64]BlockDelta
 
-	// unchangedRowKeys is used to causetstore the unchanged rows that needs to lock for pessimistic transaction.
+	// unchangedRowKeys is used to causetstore the unchanged rows that needs to dagger for pessimistic transaction.
 	unchangedRowKeys map[string]struct{}
 
 	// pessimisticLockCache is the cache for pessimistic locked keys,
@@ -196,7 +196,7 @@ func (tc *TransactionContext) uFIDelateShard() {
 	tc.currentShard = int64(murmur3.Sum32(buf[:]))
 }
 
-// AddUnchangedRowKey adds an unchanged event key in uFIDelate statement for pessimistic lock.
+// AddUnchangedRowKey adds an unchanged event key in uFIDelate memex for pessimistic dagger.
 func (tc *TransactionContext) AddUnchangedRowKey(key []byte) {
 	if tc.unchangedRowKeys == nil {
 		tc.unchangedRowKeys = map[string]struct{}{}
@@ -204,7 +204,7 @@ func (tc *TransactionContext) AddUnchangedRowKey(key []byte) {
 	tc.unchangedRowKeys[string(key)] = struct{}{}
 }
 
-// DefCauslectUnchangedRowKeys defCauslects unchanged event keys for pessimistic lock.
+// DefCauslectUnchangedRowKeys defCauslects unchanged event keys for pessimistic dagger.
 func (tc *TransactionContext) DefCauslectUnchangedRowKeys(buf []ekv.Key) []ekv.Key {
 	for key := range tc.unchangedRowKeys {
 		buf = append(buf, ekv.Key(key))
@@ -213,7 +213,7 @@ func (tc *TransactionContext) DefCauslectUnchangedRowKeys(buf []ekv.Key) []ekv.K
 	return buf
 }
 
-// UFIDelateDeltaForBlock uFIDelates the delta info for some block.
+// UFIDelateDeltaForBlock uFIDelates the delta info for some causet.
 func (tc *TransactionContext) UFIDelateDeltaForBlock(physicalBlockID int64, delta int64, count int64, defCausSize map[int64]int64) {
 	if tc.BlockDeltaMap == nil {
 		tc.BlockDeltaMap = make(map[int64]BlockDelta)
@@ -230,7 +230,7 @@ func (tc *TransactionContext) UFIDelateDeltaForBlock(physicalBlockID int64, delt
 	tc.BlockDeltaMap[physicalBlockID] = item
 }
 
-// GetKeyInPessimisticLockCache gets a key in pessimistic lock cache.
+// GetKeyInPessimisticLockCache gets a key in pessimistic dagger cache.
 func (tc *TransactionContext) GetKeyInPessimisticLockCache(key ekv.Key) (val []byte, ok bool) {
 	if tc.pessimisticLockCache == nil {
 		return nil, false
@@ -242,7 +242,7 @@ func (tc *TransactionContext) GetKeyInPessimisticLockCache(key ekv.Key) (val []b
 	return
 }
 
-// SetPessimisticLockCache sets a key value pair into pessimistic lock cache.
+// SetPessimisticLockCache sets a key value pair into pessimistic dagger cache.
 func (tc *TransactionContext) SetPessimisticLockCache(key ekv.Key, val []byte) {
 	if tc.pessimisticLockCache == nil {
 		tc.pessimisticLockCache = map[string][]byte{}
@@ -289,7 +289,7 @@ func (tc *TransactionContext) GetStmtFutureForRC() oracle.Future {
 	return tc.stmtFuture
 }
 
-// WriteStmtBufs can be used by insert/replace/delete/uFIDelate statement.
+// WriteStmtBufs can be used by insert/replace/delete/uFIDelate memex.
 // TODO: use a common memory pool to replace this.
 type WriteStmtBufs struct {
 	// RowValBuf is used by blockcodec.EncodeRow, to reduce runtime.growslice.
@@ -310,7 +310,7 @@ func (ib *WriteStmtBufs) clean() {
 	ib.IndexKeyBuf = nil
 }
 
-// BlockSnapshot represents a data snapshot of the block contained in `information_schema`.
+// BlockSnapshot represents a data snapshot of the causet contained in `information_schema`.
 type BlockSnapshot struct {
 	Rows [][]types.Causet
 	Err  error
@@ -351,12 +351,12 @@ type StochastikVars struct {
 	Concurrency
 	MemQuota
 	BatchSize
-	// DMLBatchSize indicates the number of rows batch-committed for a statement.
+	// DMLBatchSize indicates the number of rows batch-committed for a memex.
 	// It will be used when using LOAD DATA or BatchInsert or BatchDelete is on.
 	DMLBatchSize        int
 	RetryLimit          int64
 	DisableTxnAutoRetry bool
-	// UsersLock is a lock for user defined variables.
+	// UsersLock is a dagger for user defined variables.
 	UsersLock sync.RWMutex
 	// Users are user defined variables.
 	Users map[string]types.Causet
@@ -366,12 +366,12 @@ type StochastikVars struct {
 	SysWarningCount int
 	// SysErrorCount is the system variable "error_count", because it is on the hot path, so we extract it from the systems
 	SysErrorCount uint16
-	// PreparedStmts stores prepared statement.
+	// PreparedStmts stores prepared memex.
 	PreparedStmts        map[uint32]interface{}
 	PreparedStmtNameToID map[string]uint32
-	// preparedStmtID is id of prepared statement.
+	// preparedStmtID is id of prepared memex.
 	preparedStmtID uint32
-	// PreparedParams params for prepared statements
+	// PreparedParams params for prepared memexs
 	PreparedParams PreparedParams
 
 	// ActiveRoles stores active roles for current user
@@ -402,11 +402,11 @@ type StochastikVars struct {
 	// ConnectionID is the connection id of the current stochastik.
 	ConnectionID uint64
 
-	// PlanID is the unique id of logical and physical plan.
-	PlanID int
+	// CausetID is the unique id of logical and physical plan.
+	CausetID int
 
-	// PlanDeferredCausetID is the unique id for defCausumn when building plan.
-	PlanDeferredCausetID int64
+	// CausetDeferredCausetID is the unique id for defCausumn when building plan.
+	CausetDeferredCausetID int64
 
 	// User is the user identity with which the stochastik login.
 	User *auth.UserIdentity
@@ -440,10 +440,10 @@ type StochastikVars struct {
 	// GlobalVarsAccessor is used to set and get global variables.
 	GlobalVarsAccessor GlobalVarAccessor
 
-	// LastFoundRows is the number of found rows of last query statement
+	// LastFoundRows is the number of found rows of last query memex
 	LastFoundRows uint64
 
-	// StmtCtx holds variables for current executing statement.
+	// StmtCtx holds variables for current executing memex.
 	StmtCtx *stmtctx.StatementContext
 
 	// AllowAggPushDown can be set to false to forbid aggregation push down.
@@ -471,9 +471,9 @@ type StochastikVars struct {
 	// CorrelationExpFactor is used to control the heuristic approach of event count estimation when CorrelationThreshold is not met.
 	CorrelationExpFactor int
 
-	// CPUFactor is the CPU cost of processing one expression for one event.
+	// CPUFactor is the CPU cost of processing one memex for one event.
 	CPUFactor float64
-	// CopCPUFactor is the CPU cost of processing one expression for one event in interlock.
+	// CopCPUFactor is the CPU cost of processing one memex for one event in interlock.
 	CopCPUFactor float64
 	// CopTiFlashConcurrencyFactor is the concurrency number of computation in tiflash interlock.
 	CopTiFlashConcurrencyFactor float64
@@ -524,23 +524,23 @@ type StochastikVars struct {
 	// BatchCommit indicates if we should split the transaction into multiple batches.
 	BatchCommit bool
 
-	// IDSlabPredictor is provided by kvEncoder, if it is provided, we will use it to alloc auto id instead of using
+	// IDSlabPredictor is provided by kvCausetEncoder, if it is provided, we will use it to alloc auto id instead of using
 	// Block.alloc.
 	IDSlabPredictor autoid.SlabPredictor
 
 	// OptimizerSelectivityLevel defines the level of the selectivity estimation in plan.
 	OptimizerSelectivityLevel int
 
-	// EnableBlockPartition enables block partition feature.
+	// EnableBlockPartition enables causet partition feature.
 	EnableBlockPartition string
 
-	// EnableCascadesPlanner enables the cascades planner.
-	EnableCascadesPlanner bool
+	// EnableCascadesCausetAppend enables the cascades causet.
+	EnableCascadesCausetAppend bool
 
 	// EnableWindowFunction enables the window function.
 	EnableWindowFunction bool
 
-	// EnableVectorizedExpression  enables the vectorized expression evaluation.
+	// EnableVectorizedExpression  enables the vectorized memex evaluation.
 	EnableVectorizedExpression bool
 
 	// DBSReorgPriority is the operation priority of adding indices.
@@ -581,7 +581,7 @@ type StochastikVars struct {
 	// to use the greedy join reorder algorithm.
 	MilevaDBOptJoinReorderThreshold int
 
-	// SlowQueryFile indicates which slow query log file for SLOW_QUERY block to parse.
+	// SlowQueryFile indicates which slow query log file for SLOW_QUERY causet to parse.
 	SlowQueryFile string
 
 	// EnableFastAnalyze indicates whether to take fast analyze.
@@ -593,10 +593,10 @@ type StochastikVars struct {
 	// LowResolutionTSO is used for reading data with low resolution TSO which is uFIDelated once every two seconds.
 	LowResolutionTSO bool
 
-	// MaxExecutionTime is the timeout for select statement, in milliseconds.
+	// MaxInterDircutionTime is the timeout for select memex, in milliseconds.
 	// If the value is 0, timeouts are not enabled.
 	// See https://dev.allegrosql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_max_execution_time
-	MaxExecutionTime uint64
+	MaxInterDircutionTime uint64
 
 	// Killed is a flag to indicate that this query is killed.
 	Killed uint32
@@ -625,20 +625,20 @@ type StochastikVars struct {
 	// DurationWaitTS is the duration of waiting for a snapshot TS
 	DurationWaitTS time.Duration
 
-	// PrevStmt is used to causetstore the previous executed statement in the current stochastik.
+	// PrevStmt is used to causetstore the previous executed memex in the current stochastik.
 	PrevStmt fmt.Stringer
 
-	// prevStmtDigest is used to causetstore the digest of the previous statement in the current stochastik.
+	// prevStmtDigest is used to causetstore the digest of the previous memex in the current stochastik.
 	prevStmtDigest string
 
 	// AllowRemoveAutoInc indicates whether a user can drop the auto_increment defCausumn attribute or not.
 	AllowRemoveAutoInc bool
 
-	// UsePlanBaselines indicates whether we will use plan baselines to adjust plan.
-	UsePlanBaselines bool
+	// UseCausetBaselines indicates whether we will use plan baselines to adjust plan.
+	UseCausetBaselines bool
 
-	// EvolvePlanBaselines indicates whether we will evolve the plan baselines.
-	EvolvePlanBaselines bool
+	// EvolveCausetBaselines indicates whether we will evolve the plan baselines.
+	EvolveCausetBaselines bool
 
 	// Unexported fields should be accessed and set through interfaces like GetReplicaRead() and SetReplicaRead().
 
@@ -654,9 +654,9 @@ type StochastikVars struct {
 	// IsolationReadEngines is used to isolation read, milevadb only read from the stores whose engine type is in the engines.
 	IsolationReadEngines map[ekv.StoreType]struct{}
 
-	PlannerSelectBlockAsName []ast.HintBlock
+	CausetAppendSelectBlockAsName []ast.HintBlock
 
-	// LockWaitTimeout is the duration waiting for pessimistic lock in milliseconds
+	// LockWaitTimeout is the duration waiting for pessimistic dagger in milliseconds
 	// negative value means nowait, 0 means default behavior, others means actual wait time
 	LockWaitTimeout int64
 
@@ -671,8 +671,8 @@ type StochastikVars struct {
 	// All cached snapshots will be released at the end of retrieving
 	InspectionBlockCache map[string]BlockSnapshot
 
-	// RowEncoder is reused in stochastik for encode event data.
-	RowEncoder rowcodec.Encoder
+	// RowCausetEncoder is reused in stochastik for encode event data.
+	RowCausetEncoder rowcodec.CausetEncoder
 
 	// SequenceState cache all sequence's latest value accessed by lastval() builtins. It's a stochastik scoped
 	// variable, and all public methods of SequenceState are currently-safe.
@@ -682,18 +682,18 @@ type StochastikVars struct {
 	// see https://dev.allegrosql.com/doc/refman/8.0/en/window-function-optimization.html for more details.
 	WindowingUseHighPrecision bool
 
-	// FoundInPlanCache indicates whether this statement was found in plan cache.
-	FoundInPlanCache bool
-	// PrevFoundInPlanCache indicates whether the last statement was found in plan cache.
-	PrevFoundInPlanCache bool
+	// FoundInCausetCache indicates whether this memex was found in plan cache.
+	FoundInCausetCache bool
+	// PrevFoundInCausetCache indicates whether the last memex was found in plan cache.
+	PrevFoundInCausetCache bool
 
 	// OptimizerUseInvisibleIndexes indicates whether optimizer can use invisible index
 	OptimizerUseInvisibleIndexes bool
 
-	// SelectLimit limits the max counts of select statement's output
+	// SelectLimit limits the max counts of select memex's output
 	SelectLimit uint64
 
-	// EnableClusteredIndex indicates whether to enable clustered index when creating a new block.
+	// EnableClusteredIndex indicates whether to enable clustered index when creating a new causet.
 	EnableClusteredIndex bool
 
 	// PresumeKeyNotExists indicates lazy existence checking is enabled.
@@ -742,7 +742,7 @@ func (p PartitionPruneMode) Valid() bool {
 	}
 }
 
-// PreparedParams contains the parameters of the current prepared statement when executing it.
+// PreparedParams contains the parameters of the current prepared memex when executing it.
 type PreparedParams []types.Causet
 
 func (pps PreparedParams) String() string {
@@ -819,16 +819,16 @@ func NewStochastikVars() *StochastikVars {
 		EnableNoopFuncs:             DefMilevaDBEnableNoopFuncs,
 		replicaRead:                 ekv.ReplicaReadLeader,
 		AllowRemoveAutoInc:          DefMilevaDBAllowRemoveAutoInc,
-		UsePlanBaselines:            DefMilevaDBUsePlanBaselines,
-		EvolvePlanBaselines:         DefMilevaDBEvolvePlanBaselines,
+		UseCausetBaselines:            DefMilevaDBUseCausetBaselines,
+		EvolveCausetBaselines:         DefMilevaDBEvolveCausetBaselines,
 		IsolationReadEngines:        make(map[ekv.StoreType]struct{}),
 		LockWaitTimeout:             DefInnodbLockWaitTimeout * 1000,
 		MetricSchemaStep:            DefMilevaDBMetricSchemaStep,
 		MetricSchemaRangeDuration:   DefMilevaDBMetricSchemaRangeDuration,
 		SequenceState:               NewSequenceState(),
 		WindowingUseHighPrecision:   true,
-		PrevFoundInPlanCache:        DefMilevaDBFoundInPlanCache,
-		FoundInPlanCache:            DefMilevaDBFoundInPlanCache,
+		PrevFoundInCausetCache:        DefMilevaDBFoundInCausetCache,
+		FoundInCausetCache:            DefMilevaDBFoundInCausetCache,
 		SelectLimit:                 math.MaxUint64,
 		AllowAutoRandExplicitInsert: DefMilevaDBAllowAutoRandExplicitInsert,
 		EnableClusteredIndex:        DefMilevaDBEnableClusteredIndex,
@@ -848,7 +848,7 @@ func NewStochastikVars() *StochastikVars {
 		hashAggPartialConcurrency:  DefMilevaDBHashAggPartialConcurrency,
 		hashAggFinalConcurrency:    DefMilevaDBHashAggFinalConcurrency,
 		windowConcurrency:          DefMilevaDBWindowConcurrency,
-		ExecutorConcurrency:        DefExecutorConcurrency,
+		InterlockingDirectorateConcurrency:        DefInterlockingDirectorateConcurrency,
 	}
 	vars.MemQuota = MemQuota{
 		MemQuotaQuery:               config.GetGlobalConfig().MemQuotaQuery,
@@ -915,17 +915,17 @@ func (s *StochastikVars) SetAllowInSubqToJoinAnPosetDagg(val bool) {
 	s.allowInSubqToJoinAnPosetDagg = val
 }
 
-// GetEnableCascadesPlanner get EnableCascadesPlanner from allegrosql hints and StochastikVars.EnableCascadesPlanner.
-func (s *StochastikVars) GetEnableCascadesPlanner() bool {
-	if s.StmtCtx.HasEnableCascadesPlannerHint {
-		return s.StmtCtx.EnableCascadesPlanner
+// GetEnableCascadesCausetAppend get EnableCascadesCausetAppend from allegrosql hints and StochastikVars.EnableCascadesCausetAppend.
+func (s *StochastikVars) GetEnableCascadesCausetAppend() bool {
+	if s.StmtCtx.HasEnableCascadesCausetAppendHint {
+		return s.StmtCtx.EnableCascadesCausetAppend
 	}
-	return s.EnableCascadesPlanner
+	return s.EnableCascadesCausetAppend
 }
 
-// SetEnableCascadesPlanner set StochastikVars.EnableCascadesPlanner.
-func (s *StochastikVars) SetEnableCascadesPlanner(val bool) {
-	s.EnableCascadesPlanner = val
+// SetEnableCascadesCausetAppend set StochastikVars.EnableCascadesCausetAppend.
+func (s *StochastikVars) SetEnableCascadesCausetAppend(val bool) {
+	s.EnableCascadesCausetAppend = val
 }
 
 // GetEnableIndexMerge get EnableIndexMerge from StochastikVars.enableIndexMerge.
@@ -971,16 +971,16 @@ func (s *StochastikVars) CleanBuffers() {
 	s.GetWriteStmtBufs().clean()
 }
 
-// AllocPlanDeferredCausetID allocates defCausumn id for plan.
-func (s *StochastikVars) AllocPlanDeferredCausetID() int64 {
-	s.PlanDeferredCausetID++
-	return s.PlanDeferredCausetID
+// AllocCausetDeferredCausetID allocates defCausumn id for plan.
+func (s *StochastikVars) AllocCausetDeferredCausetID() int64 {
+	s.CausetDeferredCausetID++
+	return s.CausetDeferredCausetID
 }
 
 // GetCharsetInfo gets charset and defCauslation for current context.
-// What character set should the server translate a statement to after receiving it?
+// What character set should the server translate a memex to after receiving it?
 // For this, the server uses the character_set_connection and defCauslation_connection system variables.
-// It converts statements sent by the client from character_set_client to character_set_connection
+// It converts memexs sent by the client from character_set_client to character_set_connection
 // (except for string literals that have an introducer such as _latin1 or _utf8).
 // defCauslation_connection is important for comparisons of literal strings.
 // For comparisons of strings with defCausumn values, defCauslation_connection does not matter because defCausumns
@@ -1061,12 +1061,12 @@ func (s *StochastikVars) SetTxnIsolationLevelOneShotStateForNextTxn() {
 	}
 }
 
-// IsPessimisticReadConsistency if true it means the statement is in an read consistency pessimistic transaction.
+// IsPessimisticReadConsistency if true it means the memex is in an read consistency pessimistic transaction.
 func (s *StochastikVars) IsPessimisticReadConsistency() bool {
 	return s.TxnCtx.IsPessimistic && s.IsReadConsistencyTxn()
 }
 
-// GetNextPreparedStmtID generates and returns the next stochastik scope prepared statement id.
+// GetNextPreparedStmtID generates and returns the next stochastik scope prepared memex id.
 func (s *StochastikVars) GetNextPreparedStmtID() uint32 {
 	s.preparedStmtID++
 	return s.preparedStmtID
@@ -1203,9 +1203,9 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 	case AutoIncrementOffset:
 		// AutoIncrementOffset is valid in [1, 65535].
 		s.AutoIncrementOffset = milevadbOptPositiveInt32(val, DefAutoIncrementOffset)
-	case MaxExecutionTime:
+	case MaxInterDircutionTime:
 		timeoutMS := milevadbOptPositiveInt32(val, 0)
-		s.MaxExecutionTime = uint64(timeoutMS)
+		s.MaxInterDircutionTime = uint64(timeoutMS)
 	case InnodbLockWaitTimeout:
 		lockWaitSec := milevadbOptInt64(val, DefInnodbLockWaitTimeout)
 		s.LockWaitTimeout = lockWaitSec * 1000
@@ -1273,8 +1273,8 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 		s.distALLEGROSQLScanConcurrency = milevadbOptPositiveInt32(val, DefDistALLEGROSQLScanConcurrency)
 	case MilevaDBIndexSerialScanConcurrency:
 		s.indexSerialScanConcurrency = milevadbOptPositiveInt32(val, DefIndexSerialScanConcurrency)
-	case MilevaDBExecutorConcurrency:
-		s.ExecutorConcurrency = milevadbOptPositiveInt32(val, DefExecutorConcurrency)
+	case MilevaDBInterlockingDirectorateConcurrency:
+		s.InterlockingDirectorateConcurrency = milevadbOptPositiveInt32(val, DefInterlockingDirectorateConcurrency)
 	case MilevaDBBackoffLockFast:
 		s.KVVars.BackoffLockFast = milevadbOptPositiveInt32(val, ekv.DefBackoffLockFast)
 	case MilevaDBBackOffWeight:
@@ -1327,8 +1327,8 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 		s.EnableStreaming = MilevaDBOptOn(val)
 	case MilevaDBEnableChunkRPC:
 		s.EnableChunkRPC = MilevaDBOptOn(val)
-	case MilevaDBEnableCascadesPlanner:
-		s.SetEnableCascadesPlanner(MilevaDBOptOn(val))
+	case MilevaDBEnableCascadesCausetAppend:
+		s.SetEnableCascadesCausetAppend(MilevaDBOptOn(val))
 	case MilevaDBOptimizerSelectivityLevel:
 		s.OptimizerSelectivityLevel = milevadbOptPositiveInt32(val, DefMilevaDBOptimizerSelectivityLevel)
 	case MilevaDBEnableBlockPartition:
@@ -1360,9 +1360,9 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 	case MilevaDBRowFormatVersion:
 		formatVersion := int(milevadbOptInt64(val, DefMilevaDBRowFormatV1))
 		if formatVersion == DefMilevaDBRowFormatV1 {
-			s.RowEncoder.Enable = false
+			s.RowCausetEncoder.Enable = false
 		} else if formatVersion == DefMilevaDBRowFormatV2 {
-			s.RowEncoder.Enable = true
+			s.RowCausetEncoder.Enable = true
 		}
 	case MilevaDBLowResolutionTSO:
 		s.LowResolutionTSO = MilevaDBOptOn(val)
@@ -1383,10 +1383,10 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 	// It's a global variable, but it also wants to be cached in server.
 	case MilevaDBMaxDeltaSchemaCount:
 		SetMaxDeltaSchemaCount(milevadbOptInt64(val, DefMilevaDBMaxDeltaSchemaCount))
-	case MilevaDBUsePlanBaselines:
-		s.UsePlanBaselines = MilevaDBOptOn(val)
-	case MilevaDBEvolvePlanBaselines:
-		s.EvolvePlanBaselines = MilevaDBOptOn(val)
+	case MilevaDBUseCausetBaselines:
+		s.UseCausetBaselines = MilevaDBOptOn(val)
+	case MilevaDBEvolveCausetBaselines:
+		s.EvolveCausetBaselines = MilevaDBOptOn(val)
 	case MilevaDBIsolationReadEngines:
 		s.IsolationReadEngines = make(map[ekv.StoreType]struct{})
 		for _, engine := range strings.Split(val, ",") {
@@ -1429,18 +1429,18 @@ func (s *StochastikVars) SetSystemVar(name string, val string) error {
 		}
 	case MilevaDBSlowLogThreshold:
 		atomic.StoreUint64(&config.GetGlobalConfig().Log.SlowThreshold, uint64(milevadbOptInt64(val, logutil.DefaultSlowThreshold)))
-	case MilevaDBRecordPlanInSlowLog:
-		atomic.StoreUint32(&config.GetGlobalConfig().Log.RecordPlanInSlowLog, uint32(milevadbOptInt64(val, logutil.DefaultRecordPlanInSlowLog)))
+	case MilevaDBRecordCausetInSlowLog:
+		atomic.StoreUint32(&config.GetGlobalConfig().Log.RecordCausetInSlowLog, uint32(milevadbOptInt64(val, logutil.DefaultRecordCausetInSlowLog)))
 	case MilevaDBEnableSlowLog:
 		config.GetGlobalConfig().Log.EnableSlowLog = MilevaDBOptOn(val)
 	case MilevaDBQueryLogMaxLen:
 		atomic.StoreUint64(&config.GetGlobalConfig().Log.QueryLogMaxLen, uint64(milevadbOptInt64(val, logutil.DefaultQueryLogMaxLen)))
 	case MilevaDBCheckMb4ValueInUTF8:
 		config.GetGlobalConfig().CheckMb4ValueInUTF8 = MilevaDBOptOn(val)
-	case MilevaDBFoundInPlanCache:
-		s.FoundInPlanCache = MilevaDBOptOn(val)
-	case MilevaDBEnableDefCauslectExecutionInfo:
-		config.GetGlobalConfig().EnableDefCauslectExecutionInfo = MilevaDBOptOn(val)
+	case MilevaDBFoundInCausetCache:
+		s.FoundInCausetCache = MilevaDBOptOn(val)
+	case MilevaDBEnableDefCauslectInterDircutionInfo:
+		config.GetGlobalConfig().EnableDefCauslectInterDircutionInfo = MilevaDBOptOn(val)
 	case ALLEGROSQLSelectLimit:
 		result, err := strconv.ParseUint(val, 10, 64)
 		if err != nil {
@@ -1491,12 +1491,12 @@ func (s *StochastikVars) setTxnMode(val string) error {
 	return nil
 }
 
-// SetPrevStmtDigest sets the digest of the previous statement.
+// SetPrevStmtDigest sets the digest of the previous memex.
 func (s *StochastikVars) SetPrevStmtDigest(prevStmtDigest string) {
 	s.prevStmtDigest = prevStmtDigest
 }
 
-// GetPrevStmtDigest returns the digest of the previous statement.
+// GetPrevStmtDigest returns the digest of the previous memex.
 func (s *StochastikVars) GetPrevStmtDigest() string {
 	// Because `prevStmt` may be truncated, so it's senseless to normalize it.
 	// Even if `prevStmtDigest` is empty but `prevStmt` is not, just return it anyway.
@@ -1529,7 +1529,7 @@ const (
 	TxnIsolation         = "tx_isolation"
 	TransactionIsolation = "transaction_isolation"
 	TxnIsolationOneShot  = "tx_isolation_one_shot"
-	MaxExecutionTime     = "max_execution_time"
+	MaxInterDircutionTime     = "max_execution_time"
 )
 
 // these variables are useless for MilevaDB, but still need to validate their values for some compatible issues.
@@ -1548,7 +1548,7 @@ var (
 	}
 )
 
-// BlockDelta stands for the changed count for one block or partition.
+// BlockDelta stands for the changed count for one causet or partition.
 type BlockDelta struct {
 	Delta    int64
 	Count    int64
@@ -1562,42 +1562,42 @@ const ConcurrencyUnset = -1
 // Concurrency defines concurrency values.
 type Concurrency struct {
 	// indexLookupConcurrency is the number of concurrent index lookup worker.
-	// indexLookupConcurrency is deprecated, use ExecutorConcurrency instead.
+	// indexLookupConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	indexLookupConcurrency int
 
 	// indexLookupJoinConcurrency is the number of concurrent index lookup join inner worker.
-	// indexLookupJoinConcurrency is deprecated, use ExecutorConcurrency instead.
+	// indexLookupJoinConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	indexLookupJoinConcurrency int
 
 	// distALLEGROSQLScanConcurrency is the number of concurrent dist ALLEGROALLEGROSQL scan worker.
-	// distALLEGROSQLScanConcurrency is deprecated, use ExecutorConcurrency instead.
+	// distALLEGROSQLScanConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	distALLEGROSQLScanConcurrency int
 
 	// hashJoinConcurrency is the number of concurrent hash join outer worker.
-	// hashJoinConcurrency is deprecated, use ExecutorConcurrency instead.
+	// hashJoinConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	hashJoinConcurrency int
 
 	// projectionConcurrency is the number of concurrent projection worker.
-	// projectionConcurrency is deprecated, use ExecutorConcurrency instead.
+	// projectionConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	projectionConcurrency int
 
 	// hashAggPartialConcurrency is the number of concurrent hash aggregation partial worker.
-	// hashAggPartialConcurrency is deprecated, use ExecutorConcurrency instead.
+	// hashAggPartialConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	hashAggPartialConcurrency int
 
 	// hashAggFinalConcurrency is the number of concurrent hash aggregation final worker.
-	// hashAggFinalConcurrency is deprecated, use ExecutorConcurrency instead.
+	// hashAggFinalConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	hashAggFinalConcurrency int
 
 	// windowConcurrency is the number of concurrent window worker.
-	// windowConcurrency is deprecated, use ExecutorConcurrency instead.
+	// windowConcurrency is deprecated, use InterlockingDirectorateConcurrency instead.
 	windowConcurrency int
 
 	// indexSerialScanConcurrency is the number of concurrent index serial scan worker.
 	indexSerialScanConcurrency int
 
-	// ExecutorConcurrency is the number of concurrent worker for all executors.
-	ExecutorConcurrency int
+	// InterlockingDirectorateConcurrency is the number of concurrent worker for all interlocks.
+	InterlockingDirectorateConcurrency int
 }
 
 // SetIndexLookupConcurrency set the number of concurrent index lookup worker.
@@ -1650,7 +1650,7 @@ func (c *Concurrency) IndexLookupConcurrency() int {
 	if c.indexLookupConcurrency != ConcurrencyUnset {
 		return c.indexLookupConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // IndexLookupJoinConcurrency return the number of concurrent index lookup join inner worker.
@@ -1658,7 +1658,7 @@ func (c *Concurrency) IndexLookupJoinConcurrency() int {
 	if c.indexLookupJoinConcurrency != ConcurrencyUnset {
 		return c.indexLookupJoinConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // DistALLEGROSQLScanConcurrency return the number of concurrent dist ALLEGROALLEGROSQL scan worker.
@@ -1671,7 +1671,7 @@ func (c *Concurrency) HashJoinConcurrency() int {
 	if c.hashJoinConcurrency != ConcurrencyUnset {
 		return c.hashJoinConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // ProjectionConcurrency return the number of concurrent projection worker.
@@ -1679,7 +1679,7 @@ func (c *Concurrency) ProjectionConcurrency() int {
 	if c.projectionConcurrency != ConcurrencyUnset {
 		return c.projectionConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // HashAggPartialConcurrency return the number of concurrent hash aggregation partial worker.
@@ -1687,7 +1687,7 @@ func (c *Concurrency) HashAggPartialConcurrency() int {
 	if c.hashAggPartialConcurrency != ConcurrencyUnset {
 		return c.hashAggPartialConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // HashAggFinalConcurrency return the number of concurrent hash aggregation final worker.
@@ -1695,7 +1695,7 @@ func (c *Concurrency) HashAggFinalConcurrency() int {
 	if c.hashAggFinalConcurrency != ConcurrencyUnset {
 		return c.hashAggFinalConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // WindowConcurrency return the number of concurrent window worker.
@@ -1703,18 +1703,18 @@ func (c *Concurrency) WindowConcurrency() int {
 	if c.windowConcurrency != ConcurrencyUnset {
 		return c.windowConcurrency
 	}
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // IndexSerialScanConcurrency return the number of concurrent index serial scan worker.
-// This option is not sync with ExecutorConcurrency since it's used by Analyze block.
+// This option is not sync with InterlockingDirectorateConcurrency since it's used by Analyze causet.
 func (c *Concurrency) IndexSerialScanConcurrency() int {
 	return c.indexSerialScanConcurrency
 }
 
 // UnionConcurrency return the num of concurrent union worker.
 func (c *Concurrency) UnionConcurrency() int {
-	return c.ExecutorConcurrency
+	return c.InterlockingDirectorateConcurrency
 }
 
 // MemQuota defines memory quota values.
@@ -1727,19 +1727,19 @@ type MemQuota struct {
 
 	// The variables below do not take any effect anymore, it's remaining for compatibility.
 	// TODO: remove them in v4.1
-	// MemQuotaHashJoin defines the memory quota for a hash join executor.
+	// MemQuotaHashJoin defines the memory quota for a hash join interlock.
 	MemQuotaHashJoin int64
-	// MemQuotaMergeJoin defines the memory quota for a merge join executor.
+	// MemQuotaMergeJoin defines the memory quota for a merge join interlock.
 	MemQuotaMergeJoin int64
-	// MemQuotaSort defines the memory quota for a sort executor.
+	// MemQuotaSort defines the memory quota for a sort interlock.
 	MemQuotaSort int64
-	// MemQuotaTopn defines the memory quota for a top n executor.
+	// MemQuotaTopn defines the memory quota for a top n interlock.
 	MemQuotaTopn int64
-	// MemQuotaIndexLookupReader defines the memory quota for a index lookup reader executor.
+	// MemQuotaIndexLookupReader defines the memory quota for a index lookup reader interlock.
 	MemQuotaIndexLookupReader int64
-	// MemQuotaIndexLookupJoin defines the memory quota for a index lookup join executor.
+	// MemQuotaIndexLookupJoin defines the memory quota for a index lookup join interlock.
 	MemQuotaIndexLookupJoin int64
-	// MemQuotaNestedLoopApply defines the memory quota for a nested loop apply executor.
+	// MemQuotaNestedLoopApply defines the memory quota for a nested loop apply interlock.
 	MemQuotaNestedLoopApply int64
 	// MemQuotaDistALLEGROSQL defines the memory quota for all operators in DistALLEGROSQL layer like co-processor and selectResult.
 	MemQuotaDistALLEGROSQL int64
@@ -1750,7 +1750,7 @@ type BatchSize struct {
 	// IndexJoinBatchSize is the batch size of a index lookup join.
 	IndexJoinBatchSize int
 
-	// IndexLookupSize is the number of handles for an index lookup task in index double read executor.
+	// IndexLookupSize is the number of handles for an index lookup task in index double read interlock.
 	IndexLookupSize int
 
 	// InitChunkSize defines init event count of a Chunk during query execution.
@@ -1777,7 +1777,7 @@ const (
 	SlowLogUserAndHostStr = "User@Host"
 	// SlowLogUserStr is slow log field name.
 	SlowLogUserStr = "User"
-	// SlowLogHostStr only for slow_query block usage.
+	// SlowLogHostStr only for slow_query causet usage.
 	SlowLogHostStr = "Host"
 	// SlowLogConnIDStr is slow log field name.
 	SlowLogConnIDStr = "Conn_ID"
@@ -1806,7 +1806,7 @@ const (
 	// SlowLogDigestStr is slow log field name.
 	SlowLogDigestStr = "Digest"
 	// SlowLogQueryALLEGROSQLStr is slow log field name.
-	SlowLogQueryALLEGROSQLStr = "Query" // use for slow log block, slow log will not print this field name but print allegrosql directly.
+	SlowLogQueryALLEGROSQLStr = "Query" // use for slow log causet, slow log will not print this field name but print allegrosql directly.
 	// SlowLogStatsInfoStr is plan stats info.
 	SlowLogStatsInfoStr = "Stats"
 	// SlowLogNumCausetTasksStr is the number of cop-tasks.
@@ -1829,28 +1829,28 @@ const (
 	SlowLogCopWaitAddr = "Cop_wait_addr"
 	// SlowLogCopBackoffPrefix contains backoff information.
 	SlowLogCopBackoffPrefix = "Cop_backoff_"
-	// SlowLogMemMax is the max number bytes of memory used in this statement.
+	// SlowLogMemMax is the max number bytes of memory used in this memex.
 	SlowLogMemMax = "Mem_max"
-	// SlowLogDiskMax is the nax number bytes of disk used in this statement.
+	// SlowLogDiskMax is the nax number bytes of disk used in this memex.
 	SlowLogDiskMax = "Disk_max"
 	// SlowLogPrepared is used to indicate whether this allegrosql execute in prepare.
 	SlowLogPrepared = "Prepared"
-	// SlowLogPlanFromCache is used to indicate whether this plan is from plan cache.
-	SlowLogPlanFromCache = "Plan_from_cache"
+	// SlowLogCausetFromCache is used to indicate whether this plan is from plan cache.
+	SlowLogCausetFromCache = "Causet_from_cache"
 	// SlowLogHasMoreResults is used to indicate whether this allegrosql has more following results.
 	SlowLogHasMoreResults = "Has_more_results"
 	// SlowLogSucc is used to indicate whether this allegrosql execute successfully.
 	SlowLogSucc = "Succ"
-	// SlowLogPrevStmt is used to show the previous executed statement.
+	// SlowLogPrevStmt is used to show the previous executed memex.
 	SlowLogPrevStmt = "Prev_stmt"
-	// SlowLogPlan is used to record the query plan.
-	SlowLogPlan = "Plan"
-	// SlowLogPlanDigest is used to record the query plan digest.
-	SlowLogPlanDigest = "Plan_digest"
-	// SlowLogPlanPrefix is the prefix of the plan value.
-	SlowLogPlanPrefix = ast.MilevaDBDecodePlan + "('"
-	// SlowLogPlanSuffix is the suffix of the plan value.
-	SlowLogPlanSuffix = "')"
+	// SlowLogCauset is used to record the query plan.
+	SlowLogCauset = "Causet"
+	// SlowLogCausetDigest is used to record the query plan digest.
+	SlowLogCausetDigest = "Causet_digest"
+	// SlowLogCausetPrefix is the prefix of the plan value.
+	SlowLogCausetPrefix = ast.MilevaDBDecodeCauset + "('"
+	// SlowLogCausetSuffix is the suffix of the plan value.
+	SlowLogCausetSuffix = "')"
 	// SlowLogPrevStmtPrefix is the prefix of Prev_stmt in slow log file.
 	SlowLogPrevStmtPrefix = SlowLogPrevStmt + SlowLogSpaceMarkStr
 	// SlowLogKVTotal is the total time waiting for ekv.
@@ -1861,10 +1861,10 @@ const (
 	SlowLogBackoffTotal = "Backoff_total"
 	// SlowLogWriteALLEGROSQLRespTotal is the total time used to write response to client.
 	SlowLogWriteALLEGROSQLRespTotal = "Write_sql_response_total"
-	// SlowLogExecRetryCount is the execution retry count.
-	SlowLogExecRetryCount = "Exec_retry_count"
-	// SlowLogExecRetryTime is the execution retry time.
-	SlowLogExecRetryTime = "Exec_retry_time"
+	// SlowLogInterDircRetryCount is the execution retry count.
+	SlowLogInterDircRetryCount = "InterDirc_retry_count"
+	// SlowLogInterDircRetryTime is the execution retry time.
+	SlowLogInterDircRetryTime = "InterDirc_retry_time"
 )
 
 // SlowQueryLogItems is a defCauslection of items that should be included in the
@@ -1881,23 +1881,23 @@ type SlowQueryLogItems struct {
 	IndexNames        string
 	StatsInfos        map[string]uint64
 	CausetTasks          *stmtctx.CausetTasksDetails
-	ExecDetail        execdetails.ExecDetails
+	InterDircDetail        execdetails.InterDircDetails
 	MemMax            int64
 	DiskMax           int64
 	Succ              bool
 	Prepared          bool
-	PlanFromCache     bool
+	CausetFromCache     bool
 	HasMoreResults    bool
 	PrevStmt          string
-	Plan              string
-	PlanDigest        string
+	Causet              string
+	CausetDigest        string
 	RewriteInfo       RewritePhaseInfo
 	KVTotal           time.Duration
 	FIDelTotal           time.Duration
 	BackoffTotal      time.Duration
 	WriteALLEGROSQLRespTotal time.Duration
-	ExecRetryCount    uint
-	ExecRetryTime     time.Duration
+	InterDircRetryCount    uint
+	InterDircRetryTime     time.Duration
 }
 
 // SlowLogFormat uses for formatting slow log.
@@ -1935,15 +1935,15 @@ func (s *StochastikVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	if s.ConnectionID != 0 {
 		writeSlowLogItem(&buf, SlowLogConnIDStr, strconv.FormatUint(s.ConnectionID, 10))
 	}
-	if logItems.ExecRetryCount > 0 {
+	if logItems.InterDircRetryCount > 0 {
 		buf.WriteString(SlowLogRowPrefixStr)
-		buf.WriteString(SlowLogExecRetryTime)
+		buf.WriteString(SlowLogInterDircRetryTime)
 		buf.WriteString(SlowLogSpaceMarkStr)
-		buf.WriteString(strconv.FormatFloat(logItems.ExecRetryTime.Seconds(), 'f', -1, 64))
+		buf.WriteString(strconv.FormatFloat(logItems.InterDircRetryTime.Seconds(), 'f', -1, 64))
 		buf.WriteString(" ")
-		buf.WriteString(SlowLogExecRetryCount)
+		buf.WriteString(SlowLogInterDircRetryCount)
 		buf.WriteString(SlowLogSpaceMarkStr)
-		buf.WriteString(strconv.Itoa(int(logItems.ExecRetryCount)))
+		buf.WriteString(strconv.Itoa(int(logItems.InterDircRetryCount)))
 		buf.WriteString("\n")
 	}
 	writeSlowLogItem(&buf, SlowLogQueryTimeStr, strconv.FormatFloat(logItems.TimeTotal.Seconds(), 'f', -1, 64))
@@ -1961,7 +1961,7 @@ func (s *StochastikVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
 
-	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
+	if execDetailStr := logItems.InterDircDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")
 	}
 
@@ -2053,18 +2053,18 @@ func (s *StochastikVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	}
 
 	writeSlowLogItem(&buf, SlowLogPrepared, strconv.FormatBool(logItems.Prepared))
-	writeSlowLogItem(&buf, SlowLogPlanFromCache, strconv.FormatBool(logItems.PlanFromCache))
+	writeSlowLogItem(&buf, SlowLogCausetFromCache, strconv.FormatBool(logItems.CausetFromCache))
 	writeSlowLogItem(&buf, SlowLogHasMoreResults, strconv.FormatBool(logItems.HasMoreResults))
 	writeSlowLogItem(&buf, SlowLogKVTotal, strconv.FormatFloat(logItems.KVTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogFIDelTotal, strconv.FormatFloat(logItems.FIDelTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogBackoffTotal, strconv.FormatFloat(logItems.BackoffTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWriteALLEGROSQLRespTotal, strconv.FormatFloat(logItems.WriteALLEGROSQLRespTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogSucc, strconv.FormatBool(logItems.Succ))
-	if len(logItems.Plan) != 0 {
-		writeSlowLogItem(&buf, SlowLogPlan, logItems.Plan)
+	if len(logItems.Causet) != 0 {
+		writeSlowLogItem(&buf, SlowLogCauset, logItems.Causet)
 	}
-	if len(logItems.PlanDigest) != 0 {
-		writeSlowLogItem(&buf, SlowLogPlanDigest, logItems.PlanDigest)
+	if len(logItems.CausetDigest) != 0 {
+		writeSlowLogItem(&buf, SlowLogCausetDigest, logItems.CausetDigest)
 	}
 
 	if logItems.PrevStmt != "" {

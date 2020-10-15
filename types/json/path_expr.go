@@ -22,7 +22,7 @@ import (
 )
 
 /*
-	From MyALLEGROSQL 5.7, JSON path expression grammar:
+	From MyALLEGROSQL 5.7, JSON path memex grammar:
 		pathExpression ::= scope (pathLeg)*
 		scope ::= [ columnReference ] '$'
 		columnReference ::= // omit...
@@ -85,7 +85,7 @@ func (pef pathExpressionFlag) containsAnyAsterisk() bool {
 	return byte(pef) != 0
 }
 
-// PathExpression is for JSON path expression.
+// PathExpression is for JSON path memex.
 type PathExpression struct {
 	legs  []pathLeg
 	flags pathExpressionFlag
@@ -146,7 +146,7 @@ func (pe PathExpression) ContainsAnyAsterisk() bool {
 	return pe.flags.containsAnyAsterisk()
 }
 
-// ParseJSONPathExpr parses a JSON path expression. Returns a PathExpression
+// ParseJSONPathExpr parses a JSON path memex. Returns a PathExpression
 // object which can be used in JSON_EXTRACT, JSON_SET and so on.
 func ParseJSONPathExpr(pathExpr string) (pe PathExpression, err error) {
 	// Find the position of first '$'. If any no-blank characters in
@@ -221,7 +221,7 @@ func ParseJSONPathExpr(pathExpr string) (pe PathExpression, err error) {
 		}
 	}
 	if len(pe.legs) > 0 {
-		// The last leg of a path expression cannot be '**'.
+		// The last leg of a path memex cannot be '**'.
 		if pe.legs[len(pe.legs)-1].typ == pathLegDoubleAsterisk {
 			err = ErrInvalidJSONPath.GenWithStackByArgs(pathExpr)
 			return

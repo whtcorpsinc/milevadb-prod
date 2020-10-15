@@ -39,7 +39,7 @@ func (d *dbs) restartWorkers(ctx context.Context) {
 		return
 	}
 
-	err := d.ownerManager.CampaignOwner()
+	err := d.tenantManager.CampaignTenant()
 	terror.Log(err)
 	for _, worker := range d.workers {
 		worker.wg.Add(1)
@@ -102,7 +102,7 @@ func (s *testSchemaSuite) TestSchemaResume(c *C) {
 	)
 	defer d1.Stop()
 
-	testCheckOwner(c, d1, true)
+	testCheckTenant(c, d1, true)
 
 	dbInfo := testSchemaInfo(c, d1, "test")
 	job := &perceptron.Job{
@@ -141,7 +141,7 @@ func (s *testStatSuite) TestStat(c *C) {
 	// TODO: Get this information from etcd.
 	//	m, err := d.Stats(nil)
 	//	c.Assert(err, IsNil)
-	//	c.Assert(m[dbsOwnerID], Equals, d.uuid)
+	//	c.Assert(m[dbsTenantID], Equals, d.uuid)
 
 	job := &perceptron.Job{
 		SchemaID:   dbInfo.ID,
@@ -176,7 +176,7 @@ LOOP:
 func (s *testBlockSuite) TestBlockResume(c *C) {
 	d := s.d
 
-	testCheckOwner(c, d, true)
+	testCheckTenant(c, d, true)
 
 	tblInfo := testBlockInfo(c, d, "t1", 3)
 	job := &perceptron.Job{

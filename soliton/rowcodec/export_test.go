@@ -21,11 +21,11 @@ import (
 
 // EncodeFromOldRow encodes a event from an old-format event.
 // this method will be used in test.
-func EncodeFromOldRow(encoder *Encoder, sc *stmtctx.StatementContext, oldRow, buf []byte) ([]byte, error) {
+func EncodeFromOldRow(causetCausetEncoder *CausetEncoder, sc *stmtctx.StatementContext, oldRow, buf []byte) ([]byte, error) {
 	if len(oldRow) > 0 && oldRow[0] == CodecVer {
 		return oldRow, nil
 	}
-	encoder.reset()
+	causetCausetEncoder.reset()
 	for len(oldRow) > 1 {
 		var d types.Causet
 		var err error
@@ -38,12 +38,12 @@ func EncodeFromOldRow(encoder *Encoder, sc *stmtctx.StatementContext, oldRow, bu
 		if err != nil {
 			return nil, err
 		}
-		encoder.appendDefCausVal(defCausID, &d)
+		causetCausetEncoder.appendDefCausVal(defCausID, &d)
 	}
-	numDefCauss, notNullIdx := encoder.reformatDefCauss()
-	err := encoder.encodeRowDefCauss(sc, numDefCauss, notNullIdx)
+	numDefCauss, notNullIdx := causetCausetEncoder.reformatDefCauss()
+	err := causetCausetEncoder.encodeRowDefCauss(sc, numDefCauss, notNullIdx)
 	if err != nil {
 		return nil, err
 	}
-	return encoder.event.toBytes(buf[:0]), nil
+	return causetCausetEncoder.event.toBytes(buf[:0]), nil
 }

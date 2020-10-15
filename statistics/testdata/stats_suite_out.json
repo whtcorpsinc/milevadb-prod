@@ -3,7 +3,7 @@
     "Name": "TestUniqCompEqualEst",
     "Cases": [
       [
-        "Point_Get_5 1.00 root block:t, clustered index:PRIMARY(a, b) "
+        "Point_Get_5 1.00 root causet:t, clustered index:PRIMARY(a, b) "
       ]
     ]
   },
@@ -12,47 +12,47 @@
     "Cases": [
       [
         "IndexReader_6 4.00 root  index:IndexRangeScan_5",
-        "└─IndexRangeScan_5 4.00 cop[einsteindb] block:t, index:idx_b(b) range:[NULL,NULL], keep order:false"
+        "└─IndexRangeScan_5 4.00 cop[einsteindb] causet:t, index:idx_b(b) range:[NULL,NULL], keep order:false"
       ],
       [
         "IndexReader_6 1.00 root  index:IndexFullScan_5",
-        "└─IndexFullScan_5 1.00 cop[einsteindb] block:t, index:idx_b(b) keep order:false"
+        "└─IndexFullScan_5 1.00 cop[einsteindb] causet:t, index:idx_b(b) keep order:false"
       ],
       [
         "IndexReader_6 4.00 root  index:IndexRangeScan_5",
-        "└─IndexRangeScan_5 4.00 cop[einsteindb] block:t, index:idx_b(b) range:[NULL,NULL], (3,+inf], keep order:false"
+        "└─IndexRangeScan_5 4.00 cop[einsteindb] causet:t, index:idx_b(b) range:[NULL,NULL], (3,+inf], keep order:false"
       ],
       [
         "IndexReader_5 5.00 root  index:IndexFullScan_4",
-        "└─IndexFullScan_4 5.00 cop[einsteindb] block:t, index:idx_b(b) keep order:false"
+        "└─IndexFullScan_4 5.00 cop[einsteindb] causet:t, index:idx_b(b) keep order:false"
       ],
       [
         "IndexReader_6 1.00 root  index:IndexRangeScan_5",
-        "└─IndexRangeScan_5 1.00 cop[einsteindb] block:t, index:idx_b(b) range:[-inf,4), keep order:false"
+        "└─IndexRangeScan_5 1.00 cop[einsteindb] causet:t, index:idx_b(b) range:[-inf,4), keep order:false"
       ],
       [
         "TableReader_7 1.00 root  data:Selection_6",
         "└─Selection_6 1.00 cop[einsteindb]  isnull(test.t.a)",
-        "  └─TableFullScan_5 5.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 5.00 cop[einsteindb] causet:t keep order:false"
       ],
       [
         "TableReader_7 4.00 root  data:Selection_6",
         "└─Selection_6 4.00 cop[einsteindb]  not(isnull(test.t.a))",
-        "  └─TableFullScan_5 5.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 5.00 cop[einsteindb] causet:t keep order:false"
       ],
       [
         "TableReader_7 2.00 root  data:Selection_6",
         "└─Selection_6 2.00 cop[einsteindb]  or(isnull(test.t.a), gt(test.t.a, 3))",
-        "  └─TableFullScan_5 5.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 5.00 cop[einsteindb] causet:t keep order:false"
       ],
       [
         "TableReader_5 5.00 root  data:TableFullScan_4",
-        "└─TableFullScan_4 5.00 cop[einsteindb] block:t keep order:false"
+        "└─TableFullScan_4 5.00 cop[einsteindb] causet:t keep order:false"
       ],
       [
         "TableReader_7 3.00 root  data:Selection_6",
         "└─Selection_6 3.00 cop[einsteindb]  lt(test.t.a, 4)",
-        "  └─TableFullScan_5 5.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 5.00 cop[einsteindb] causet:t keep order:false"
       ]
     ]
   },
@@ -61,7 +61,7 @@
     "Cases": [
       [
         "IndexReader_6 0.00 root  index:IndexRangeScan_5",
-        "└─IndexRangeScan_5 0.00 cop[einsteindb] block:t, index:idx(a, b) range:[\"tw\" -inf,\"tw\" 0), keep order:false"
+        "└─IndexRangeScan_5 0.00 cop[einsteindb] causet:t, index:idx(a, b) range:[\"tw\" -inf,\"tw\" 0), keep order:false"
       ]
     ]
   },
@@ -71,11 +71,11 @@
       [
         "TableReader_7 3333.33 root  data:Selection_6",
         "└─Selection_6 3333.33 cop[einsteindb]  gt(test.t.a, \"t\")",
-        "  └─TableFullScan_5 10000.00 cop[einsteindb] block:t keep order:false, stats:pseudo"
+        "  └─TableFullScan_5 10000.00 cop[einsteindb] causet:t keep order:false, stats:pseudo"
       ],
       [
         "TableReader_6 3333.33 root  data:TableRangeScan_5",
-        "└─TableRangeScan_5 3333.33 cop[einsteindb] block:t range:(1,+inf], keep order:false, stats:pseudo"
+        "└─TableRangeScan_5 3333.33 cop[einsteindb] causet:t range:(1,+inf], keep order:false, stats:pseudo"
       ]
     ]
   },
@@ -84,7 +84,7 @@
     "Cases": [
       [
         "IndexReader_6 7.00 root  index:IndexRangeScan_5",
-        "└─IndexRangeScan_5 7.00 cop[einsteindb] block:t, index:kid(kid, pid) range:[1,1], keep order:false"
+        "└─IndexRangeScan_5 7.00 cop[einsteindb] causet:t, index:kid(kid, pid) range:[1,1], keep order:false"
       ]
     ]
   },
@@ -98,12 +98,12 @@
       [
         "TableReader_7 2.00 root  data:Selection_6",
         "└─Selection_6 2.00 cop[einsteindb]  eq(test.t.a, \"aÄa\")",
-        "  └─TableFullScan_5 4.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 4.00 cop[einsteindb] causet:t keep order:false"
       ],
       [
         "TableReader_7 2.00 root  data:Selection_6",
         "└─Selection_6 2.00 cop[einsteindb]  gt(test.t.a, \"aÄa\")",
-        "  └─TableFullScan_5 4.00 cop[einsteindb] block:t keep order:false"
+        "  └─TableFullScan_5 4.00 cop[einsteindb] causet:t keep order:false"
       ]
     ]
   },

@@ -27,9 +27,9 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/profile"
@@ -42,17 +42,17 @@ const (
 	blockNameSetupObjects                    = "setup_objects"
 	blockNameSetupInstruments                = "setup_instruments"
 	blockNameSetupConsumers                  = "setup_consumers"
-	blockNameEventsStatementsCurrent         = "events_statements_current"
-	blockNameEventsStatementsHistory         = "events_statements_history"
-	blockNameEventsStatementsHistoryLong     = "events_statements_history_long"
-	blockNamePreparedStatementsInstances     = "prepared_statements_instances"
+	blockNameEventsStatementsCurrent         = "events_memexs_current"
+	blockNameEventsStatementsHistory         = "events_memexs_history"
+	blockNameEventsStatementsHistoryLong     = "events_memexs_history_long"
+	blockNamePreparedStatementsInstances     = "prepared_memexs_instances"
 	blockNameEventsTransactionsCurrent       = "events_transactions_current"
 	blockNameEventsTransactionsHistory       = "events_transactions_history"
 	blockNameEventsTransactionsHistoryLong   = "events_transactions_history_long"
 	blockNameEventsStagesCurrent             = "events_stages_current"
 	blockNameEventsStagesHistory             = "events_stages_history"
 	blockNameEventsStagesHistoryLong         = "events_stages_history_long"
-	blockNameEventsStatementsSummaryByDigest = "events_statements_summary_by_digest"
+	blockNameEventsStatementsSummaryByDigest = "events_memexs_summary_by_digest"
 	blockNameMilevaDBProfileCPU                  = "milevadb_profile_cpu"
 	blockNameMilevaDBProfileMemory               = "milevadb_profile_memory"
 	blockNameMilevaDBProfileMutex                = "milevadb_profile_mutex"
@@ -101,95 +101,95 @@ var blockIDMap = map[string]int64{
 	blockNameFIDelProfileGoroutines:             autoid.PerformanceSchemaDBID + 30,
 }
 
-// perfSchemaBlock stands for the fake block all its data is in the memory.
+// perfSchemaBlock stands for the fake causet all its data is in the memory.
 type perfSchemaBlock struct {
 	schemareplicant.VirtualBlock
-	meta *perceptron.BlockInfo
-	defcaus []*block.DeferredCauset
-	tp   block.Type
+	spacetime *perceptron.BlockInfo
+	defcaus []*causet.DeferredCauset
+	tp   causet.Type
 }
 
-var pluginBlock = make(map[string]func(autoid.SlabPredictors, *perceptron.BlockInfo) (block.Block, error))
+var pluginBlock = make(map[string]func(autoid.SlabPredictors, *perceptron.BlockInfo) (causet.Block, error))
 
-// IsPredefinedBlock judges whether this block is predefined.
+// IsPredefinedBlock judges whether this causet is predefined.
 func IsPredefinedBlock(blockName string) bool {
 	_, ok := blockIDMap[strings.ToLower(blockName)]
 	return ok
 }
 
-// RegisterBlock registers a new block into MilevaDB.
+// RegisterBlock registers a new causet into MilevaDB.
 func RegisterBlock(blockName, allegrosql string,
-	blockFromMeta func(autoid.SlabPredictors, *perceptron.BlockInfo) (block.Block, error)) {
+	blockFromMeta func(autoid.SlabPredictors, *perceptron.BlockInfo) (causet.Block, error)) {
 	perfSchemaBlocks = append(perfSchemaBlocks, allegrosql)
 	pluginBlock[blockName] = blockFromMeta
 }
 
-func blockFromMeta(allocs autoid.SlabPredictors, meta *perceptron.BlockInfo) (block.Block, error) {
-	if f, ok := pluginBlock[meta.Name.L]; ok {
-		ret, err := f(allocs, meta)
+func blockFromMeta(allocs autoid.SlabPredictors, spacetime *perceptron.BlockInfo) (causet.Block, error) {
+	if f, ok := pluginBlock[spacetime.Name.L]; ok {
+		ret, err := f(allocs, spacetime)
 		return ret, err
 	}
-	return createPerfSchemaBlock(meta), nil
+	return createPerfSchemaBlock(spacetime), nil
 }
 
 // createPerfSchemaBlock creates all perfSchemaBlocks
-func createPerfSchemaBlock(meta *perceptron.BlockInfo) *perfSchemaBlock {
-	defCausumns := make([]*block.DeferredCauset, 0, len(meta.DeferredCausets))
-	for _, defCausInfo := range meta.DeferredCausets {
-		defCaus := block.ToDeferredCauset(defCausInfo)
+func createPerfSchemaBlock(spacetime *perceptron.BlockInfo) *perfSchemaBlock {
+	defCausumns := make([]*causet.DeferredCauset, 0, len(spacetime.DeferredCausets))
+	for _, defCausInfo := range spacetime.DeferredCausets {
+		defCaus := causet.ToDeferredCauset(defCausInfo)
 		defCausumns = append(defCausumns, defCaus)
 	}
-	tp := block.VirtualBlock
+	tp := causet.VirtualBlock
 	t := &perfSchemaBlock{
-		meta: meta,
+		spacetime: spacetime,
 		defcaus: defCausumns,
 		tp:   tp,
 	}
 	return t
 }
 
-// DefCauss implements block.Block Type interface.
-func (vt *perfSchemaBlock) DefCauss() []*block.DeferredCauset {
+// DefCauss implements causet.Block Type interface.
+func (vt *perfSchemaBlock) DefCauss() []*causet.DeferredCauset {
 	return vt.defcaus
 }
 
-// VisibleDefCauss implements block.Block VisibleDefCauss interface.
-func (vt *perfSchemaBlock) VisibleDefCauss() []*block.DeferredCauset {
+// VisibleDefCauss implements causet.Block VisibleDefCauss interface.
+func (vt *perfSchemaBlock) VisibleDefCauss() []*causet.DeferredCauset {
 	return vt.defcaus
 }
 
-// HiddenDefCauss implements block.Block HiddenDefCauss interface.
-func (vt *perfSchemaBlock) HiddenDefCauss() []*block.DeferredCauset {
+// HiddenDefCauss implements causet.Block HiddenDefCauss interface.
+func (vt *perfSchemaBlock) HiddenDefCauss() []*causet.DeferredCauset {
 	return nil
 }
 
-// WriblockDefCauss implements block.Block Type interface.
-func (vt *perfSchemaBlock) WriblockDefCauss() []*block.DeferredCauset {
+// WriblockDefCauss implements causet.Block Type interface.
+func (vt *perfSchemaBlock) WriblockDefCauss() []*causet.DeferredCauset {
 	return vt.defcaus
 }
 
-// FullHiddenDefCaussAndVisibleDefCauss implements block FullHiddenDefCaussAndVisibleDefCauss interface.
-func (vt *perfSchemaBlock) FullHiddenDefCaussAndVisibleDefCauss() []*block.DeferredCauset {
+// FullHiddenDefCaussAndVisibleDefCauss implements causet FullHiddenDefCaussAndVisibleDefCauss interface.
+func (vt *perfSchemaBlock) FullHiddenDefCaussAndVisibleDefCauss() []*causet.DeferredCauset {
 	return vt.defcaus
 }
 
-// GetID implements block.Block GetID interface.
+// GetID implements causet.Block GetID interface.
 func (vt *perfSchemaBlock) GetPhysicalID() int64 {
-	return vt.meta.ID
+	return vt.spacetime.ID
 }
 
-// Meta implements block.Block Type interface.
+// Meta implements causet.Block Type interface.
 func (vt *perfSchemaBlock) Meta() *perceptron.BlockInfo {
-	return vt.meta
+	return vt.spacetime
 }
 
-// Type implements block.Block Type interface.
-func (vt *perfSchemaBlock) Type() block.Type {
+// Type implements causet.Block Type interface.
+func (vt *perfSchemaBlock) Type() causet.Type {
 	return vt.tp
 }
 
-func (vt *perfSchemaBlock) getRows(ctx stochastikctx.Context, defcaus []*block.DeferredCauset) (fullRows [][]types.Causet, err error) {
-	switch vt.meta.Name.O {
+func (vt *perfSchemaBlock) getRows(ctx stochastikctx.Context, defcaus []*causet.DeferredCauset) (fullRows [][]types.Causet, err error) {
+	switch vt.spacetime.Name.O {
 	case blockNameMilevaDBProfileCPU:
 		fullRows, err = (&profile.DefCauslector{}).ProfileGraph("cpu")
 	case blockNameMilevaDBProfileMemory:
@@ -199,7 +199,7 @@ func (vt *perfSchemaBlock) getRows(ctx stochastikctx.Context, defcaus []*block.D
 	case blockNameMilevaDBProfileAllocs:
 		fullRows, err = (&profile.DefCauslector{}).ProfileGraph("allocs")
 	case blockNameMilevaDBProfileBlock:
-		fullRows, err = (&profile.DefCauslector{}).ProfileGraph("block")
+		fullRows, err = (&profile.DefCauslector{}).ProfileGraph("causet")
 	case blockNameMilevaDBProfileGoroutines:
 		fullRows, err = (&profile.DefCauslector{}).ProfileGraph("goroutine")
 	case blockNameEinsteinDBProfileCPU:
@@ -215,7 +215,7 @@ func (vt *perfSchemaBlock) getRows(ctx stochastikctx.Context, defcaus []*block.D
 	case blockNameFIDelProfileAllocs:
 		fullRows, err = dataForRemoteProfile(ctx, "fidel", "/fidel/api/v1/debug/pprof/allocs", false)
 	case blockNameFIDelProfileBlock:
-		fullRows, err = dataForRemoteProfile(ctx, "fidel", "/fidel/api/v1/debug/pprof/block", false)
+		fullRows, err = dataForRemoteProfile(ctx, "fidel", "/fidel/api/v1/debug/pprof/causet", false)
 	case blockNameFIDelProfileGoroutines:
 		fullRows, err = dataForRemoteProfile(ctx, "fidel", "/fidel/api/v1/debug/pprof/goroutine?debug=2", true)
 	}
@@ -236,11 +236,11 @@ func (vt *perfSchemaBlock) getRows(ctx stochastikctx.Context, defcaus []*block.D
 	return rows, nil
 }
 
-// IterRecords implements block.Block IterRecords interface.
-func (vt *perfSchemaBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*block.DeferredCauset,
-	fn block.RecordIterFunc) error {
+// IterRecords implements causet.Block IterRecords interface.
+func (vt *perfSchemaBlock) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*causet.DeferredCauset,
+	fn causet.RecordIterFunc) error {
 	if len(startKey) != 0 {
-		return block.ErrUnsupportedOp
+		return causet.ErrUnsupportedOp
 	}
 	rows, err := vt.getRows(ctx, defcaus)
 	if err != nil {
@@ -272,8 +272,8 @@ func dataForRemoteProfile(ctx stochastikctx.Context, nodeType, uri string, isGor
 		return nil, errors.Errorf("%s does not support profile remote component", nodeType)
 	}
 	failpoint.Inject("mockRemoteNodeStatusAddress", func(val failpoint.Value) {
-		// The cluster topology is injected by `failpoint` expression and
-		// there is no extra checks for it. (let the test fail if the expression invalid)
+		// The cluster topology is injected by `failpoint` memex and
+		// there is no extra checks for it. (let the test fail if the memex invalid)
 		if s := val.(string); len(s) > 0 {
 			servers = servers[:0]
 			for _, server := range strings.Split(s, ";") {

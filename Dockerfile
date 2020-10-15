@@ -37,7 +37,7 @@ RUN GO111MODULE=on go mod download
 COPY . .
 RUN make
 
-# Execublock image
+# InterDircublock image
 FROM alpine
 
 COPY --from=builder /go/src/github.com/whtcorpsinc/milevadb/bin/milevadb-server /milevadb-server

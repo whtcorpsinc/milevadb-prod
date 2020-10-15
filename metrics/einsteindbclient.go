@@ -58,7 +58,7 @@ var (
 			Namespace: "milevadb",
 			Subsystem: "einsteindbclient",
 			Name:      "lock_resolver_actions_total",
-			Help:      "Counter of lock resolver actions.",
+			Help:      "Counter of dagger resolver actions.",
 		}, []string{LblType})
 
 	EinsteinDBRegionErrorCounter = prometheus.NewCounterVec(
@@ -127,7 +127,7 @@ var (
 			Namespace: "milevadb",
 			Subsystem: "einsteindbclient",
 			Name:      "lock_cleanup_task_total",
-			Help:      "failure statistic of secondary lock cleanup task.",
+			Help:      "failure statistic of secondary dagger cleanup task.",
 		}, []string{LblType})
 
 	EinsteinDBRegionCacheCounter = prometheus.NewCounterVec(
@@ -219,7 +219,7 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "einsteindbclient",
-			Name:      "batch_executor_token_wait_duration",
+			Name:      "batch_interlock_token_wait_duration",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 34), // 1ns ~ 8s
 			Help:      "milevadb txn token wait duration to process batches",
 		})
@@ -238,7 +238,7 @@ var (
 			Subsystem: "einsteindbclient",
 			Name:      "pessimistic_lock_keys_duration",
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 24), // 1ms ~ 8389s
-			Help:      "milevadb txn pessimistic lock keys duration",
+			Help:      "milevadb txn pessimistic dagger keys duration",
 		})
 
 	EinsteinDBTTLLifeTimeReachCounter = prometheus.NewCounter(

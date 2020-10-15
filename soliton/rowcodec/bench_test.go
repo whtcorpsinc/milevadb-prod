@@ -29,7 +29,7 @@ import (
 func BenchmarkEncode(b *testing.B) {
 	b.ReportAllocs()
 	oldRow := types.MakeCausets(1, "abc", 1.1)
-	var xb rowcodec.Encoder
+	var xb rowcodec.CausetEncoder
 	var buf []byte
 	defCausIDs := []int64{1, 2, 3}
 	var err error
@@ -48,7 +48,7 @@ func BenchmarkEncodeFromOldRow(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	var xb rowcodec.Encoder
+	var xb rowcodec.CausetEncoder
 	var buf []byte
 	for i := 0; i < b.N; i++ {
 		buf, err = rowcodec.EncodeFromOldRow(&xb, nil, oldRowData, buf)
@@ -67,7 +67,7 @@ func BenchmarkDecode(b *testing.B) {
 		types.NewFieldType(allegrosql.TypeString),
 		types.NewFieldType(allegrosql.TypeDouble),
 	}
-	var xb rowcodec.Encoder
+	var xb rowcodec.CausetEncoder
 	xRowData, err := xb.Encode(nil, defCausIDs, oldRow, nil)
 	if err != nil {
 		b.Fatal(err)
@@ -79,11 +79,11 @@ func BenchmarkDecode(b *testing.B) {
 			Ft: tp,
 		}
 	}
-	decoder := rowcodec.NewChunkDecoder(defcaus, []int64{-1}, nil, time.Local)
+	causetDecoder := rowcodec.NewChunkCausetDecoder(defcaus, []int64{-1}, nil, time.Local)
 	chk := chunk.NewChunkWithCapacity(tps, 1)
 	for i := 0; i < b.N; i++ {
 		chk.Reset()
-		err = decoder.DecodeToChunk(xRowData, ekv.IntHandle(1), chk)
+		err = causetDecoder.DecodeToChunk(xRowData, ekv.IntHandle(1), chk)
 		if err != nil {
 			b.Fatal(err)
 		}

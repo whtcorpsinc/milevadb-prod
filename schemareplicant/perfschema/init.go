@@ -22,9 +22,9 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/soliton"
 )
 
@@ -35,7 +35,7 @@ var once sync.Once
 //
 // import _ "github.com/whtcorpsinc/milevadb/perfschema"
 //
-// This function depends on plan/core.init(), which initialize the expression.EvalAstExpr function.
+// This function depends on plan/core.init(), which initialize the memex.EvalAstExpr function.
 // The initialize order is a problem if init() is used as the function name.
 func Init() {
 	initOnce := func() {
@@ -47,17 +47,17 @@ func Init() {
 			if err != nil {
 				panic(err)
 			}
-			meta, err := dbs.BuildBlockInfoFromAST(stmt.(*ast.CreateBlockStmt))
+			spacetime, err := dbs.BuildBlockInfoFromAST(stmt.(*ast.CreateBlockStmt))
 			if err != nil {
 				panic(err)
 			}
-			tbls = append(tbls, meta)
+			tbls = append(tbls, spacetime)
 			var ok bool
-			meta.ID, ok = blockIDMap[meta.Name.O]
+			spacetime.ID, ok = blockIDMap[spacetime.Name.O]
 			if !ok {
-				panic(fmt.Sprintf("get performance_schema block id failed, unknown system block `%v`", meta.Name.O))
+				panic(fmt.Sprintf("get performance_schema causet id failed, unknown system causet `%v`", spacetime.Name.O))
 			}
-			for i, c := range meta.DeferredCausets {
+			for i, c := range spacetime.DeferredCausets {
 				c.ID = int64(i) + 1
 			}
 		}
@@ -70,7 +70,7 @@ func Init() {
 		}
 		schemareplicant.RegisterVirtualBlock(dbInfo, blockFromMeta)
 	}
-	if expression.EvalAstExpr != nil {
+	if memex.EvalAstExpr != nil {
 		once.Do(initOnce)
 	}
 }

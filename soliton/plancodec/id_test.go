@@ -24,11 +24,11 @@ func TestT(t *testing.T) {
 	TestingT(t)
 }
 
-var _ = Suite(&testPlanIDSuite{})
+var _ = Suite(&testCausetIDSuite{})
 
-type testPlanIDSuite struct{}
+type testCausetIDSuite struct{}
 
-func (s *testPlanIDSuite) TestPlanIDChanged(c *C) {
+func (s *testCausetIDSuite) TestCausetIDChanged(c *C) {
 	// Attention: for compatibility, shouldn't modify the below test, you can only add test when add new plan ID.
 	c.Assert(typeSelID, Equals, 1)
 	c.Assert(typeSetID, Equals, 2)

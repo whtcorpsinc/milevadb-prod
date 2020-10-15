@@ -31,8 +31,8 @@ const (
 	defaultTimeout       = time.Second
 )
 
-// DeadBlockLockChecker uses to check dead block locks.
-// If milevadb-server panic or killed by others, the block locks hold by the killed milevadb-server maybe doesn't released.
+// DeadBlockLockChecker uses to check dead causet locks.
+// If milevadb-server panic or killed by others, the causet locks hold by the killed milevadb-server maybe doesn't released.
 type DeadBlockLockChecker struct {
 	etcdCli *clientv3.Client
 }
@@ -58,7 +58,7 @@ func (d *DeadBlockLockChecker) getAliveServers(ctx context.Context) (map[string]
 		resp, err = d.etcdCli.Get(childCtx, DBSAllSchemaVersions, clientv3.WithPrefix())
 		cancel()
 		if err != nil {
-			logutil.BgLogger().Info("[dbs] clean dead block lock get alive servers failed.", zap.Error(err))
+			logutil.BgLogger().Info("[dbs] clean dead causet dagger get alive servers failed.", zap.Error(err))
 			time.Sleep(defaultRetryInterval)
 			continue
 		}

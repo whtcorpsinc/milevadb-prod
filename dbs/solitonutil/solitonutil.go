@@ -19,20 +19,20 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
-// StochastikExecInGoroutine export for testing.
-func StochastikExecInGoroutine(c *check.C, s ekv.CausetStorage, allegrosql string, done chan error) {
-	ExecMultiALLEGROSQLInGoroutine(c, s, "test_db", []string{allegrosql}, done)
+// StochastikInterDircInGoroutine export for testing.
+func StochastikInterDircInGoroutine(c *check.C, s ekv.CausetStorage, allegrosql string, done chan error) {
+	InterDircMultiALLEGROSQLInGoroutine(c, s, "test_db", []string{allegrosql}, done)
 }
 
-// ExecMultiALLEGROSQLInGoroutine exports for testing.
-func ExecMultiALLEGROSQLInGoroutine(c *check.C, s ekv.CausetStorage, dbName string, multiALLEGROSQL []string, done chan error) {
+// InterDircMultiALLEGROSQLInGoroutine exports for testing.
+func InterDircMultiALLEGROSQLInGoroutine(c *check.C, s ekv.CausetStorage, dbName string, multiALLEGROSQL []string, done chan error) {
 	go func() {
 		se, err := stochastik.CreateStochastik4Test(s)
 		if err != nil {
@@ -40,13 +40,13 @@ func ExecMultiALLEGROSQLInGoroutine(c *check.C, s ekv.CausetStorage, dbName stri
 			return
 		}
 		defer se.Close()
-		_, err = se.Execute(context.Background(), "use "+dbName)
+		_, err = se.InterDircute(context.Background(), "use "+dbName)
 		if err != nil {
 			done <- errors.Trace(err)
 			return
 		}
 		for _, allegrosql := range multiALLEGROSQL {
-			rs, err := se.Execute(context.Background(), allegrosql)
+			rs, err := se.InterDircute(context.Background(), allegrosql)
 			if err != nil {
 				done <- errors.Trace(err)
 				return
@@ -60,7 +60,7 @@ func ExecMultiALLEGROSQLInGoroutine(c *check.C, s ekv.CausetStorage, dbName stri
 	}()
 }
 
-// ExtractAllBlockHandles extracts all handles of a given block.
+// ExtractAllBlockHandles extracts all handles of a given causet.
 func ExtractAllBlockHandles(se stochastik.Stochastik, dbName, tbName string) ([]int64, error) {
 	dom := petri.GetPetri(se)
 	tbl, err := dom.SchemaReplicant().BlockByName(perceptron.NewCIStr(dbName), perceptron.NewCIStr(tbName))
@@ -73,7 +73,7 @@ func ExtractAllBlockHandles(se stochastik.Stochastik, dbName, tbName string) ([]
 	}
 	var allHandles []int64
 	err = tbl.IterRecords(se, tbl.FirstKey(), nil,
-		func(h ekv.Handle, _ []types.Causet, _ []*block.DeferredCauset) (more bool, err error) {
+		func(h ekv.Handle, _ []types.Causet, _ []*causet.DeferredCauset) (more bool, err error) {
 			allHandles = append(allHandles, h.IntValue())
 			return true, nil
 		})

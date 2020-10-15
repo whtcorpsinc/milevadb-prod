@@ -27,8 +27,8 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/expression"
-	"github.com/whtcorpsinc/milevadb/expression/aggregation"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/memex/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
@@ -72,12 +72,12 @@ func handleCoFIDelAGRequest(dbReader *dbreader.DBReader, lockStore *lockstore.Me
 		resp.OtherError = err.Error()
 		return resp
 	}
-	closureExec, err := buildClosureExecutor(posetPosetDagCtx, posetPosetDagReq)
+	closureInterDirc, err := buildClosureInterlockingDirectorate(posetPosetDagCtx, posetPosetDagReq)
 	if err != nil {
 		return buildResp(nil, nil, posetPosetDagReq, err, posetPosetDagCtx.sc.GetWarnings(), time.Since(startTime))
 	}
-	chunks, err := closureExec.execute()
-	return buildResp(chunks, closureExec.counts, posetPosetDagReq, err, posetPosetDagCtx.sc.GetWarnings(), time.Since(startTime))
+	chunks, err := closureInterDirc.execute()
+	return buildResp(chunks, closureInterDirc.counts, posetPosetDagReq, err, posetPosetDagCtx.sc.GetWarnings(), time.Since(startTime))
 }
 
 func buildPosetDag(reader *dbreader.DBReader, lockStore *lockstore.MemStore, req *interlock.Request) (*posetPosetDagContext, *fidelpb.PosetDagRequest, error) {
@@ -104,17 +104,17 @@ func buildPosetDag(reader *dbreader.DBReader, lockStore *lockstore.MemStore, req
 		startTS:       req.StartTs,
 		resolvedLocks: req.Context.ResolvedLocks,
 	}
-	scanExec := posetPosetDagReq.Executors[0]
-	if scanExec.Tp == fidelpb.ExecType_TypeTableScan {
-		ctx.setDeferredCausetInfo(scanExec.TblScan.DeferredCausets)
-		ctx.primaryDefCauss = scanExec.TblScan.PrimaryDeferredCausetIds
+	scanInterDirc := posetPosetDagReq.InterlockingDirectorates[0]
+	if scanInterDirc.Tp == fidelpb.InterDircType_TypeTableScan {
+		ctx.setDeferredCausetInfo(scanInterDirc.TblScan.DeferredCausets)
+		ctx.primaryDefCauss = scanInterDirc.TblScan.PrimaryDeferredCausetIds
 	} else {
-		ctx.setDeferredCausetInfo(scanExec.IdxScan.DeferredCausets)
+		ctx.setDeferredCausetInfo(scanInterDirc.IdxScan.DeferredCausets)
 	}
 	return ctx, posetPosetDagReq, err
 }
 
-func getAggInfo(ctx *posetPosetDagContext, pbAgg *fidelpb.Aggregation) ([]aggregation.Aggregation, []expression.Expression, error) {
+func getAggInfo(ctx *posetPosetDagContext, pbAgg *fidelpb.Aggregation) ([]aggregation.Aggregation, []memex.Expression, error) {
 	length := len(pbAgg.AggFunc)
 	aggs := make([]aggregation.Aggregation, 0, length)
 	var err error
@@ -134,7 +134,7 @@ func getAggInfo(ctx *posetPosetDagContext, pbAgg *fidelpb.Aggregation) ([]aggreg
 	return aggs, groupBys, nil
 }
 
-func getTopNInfo(ctx *evalContext, topN *fidelpb.TopN) (heap *topNHeap, conds []expression.Expression, err error) {
+func getTopNInfo(ctx *evalContext, topN *fidelpb.TopN) (heap *topNHeap, conds []memex.Expression, err error) {
 	pbConds := make([]*fidelpb.Expr, len(topN.OrderBy))
 	for i, item := range topN.OrderBy {
 		pbConds[i] = item.Expr
@@ -174,7 +174,7 @@ func (e *evalContext) setDeferredCausetInfo(defcaus []*fidelpb.DeferredCausetInf
 	}
 }
 
-func (e *evalContext) newRowDecoder() (*rowcodec.ChunkDecoder, error) {
+func (e *evalContext) newRowCausetDecoder() (*rowcodec.ChunkCausetDecoder, error) {
 	var (
 		pkDefCauss []int64
 		defcaus   = make([]rowcodec.DefCausInfo, 0, len(e.columnInfos))
@@ -205,14 +205,14 @@ func (e *evalContext) newRowDecoder() (*rowcodec.ChunkDecoder, error) {
 			chk.AppendNull(i)
 			return nil
 		}
-		decoder := codec.NewDecoder(chk, e.sc.TimeZone)
-		_, err := decoder.DecodeOne(info.DefaultVal, i, e.fieldTps[i])
+		causetDecoder := codec.NewCausetDecoder(chk, e.sc.TimeZone)
+		_, err := causetDecoder.DecodeOne(info.DefaultVal, i, e.fieldTps[i])
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	return rowcodec.NewChunkDecoder(defcaus, pkDefCauss, def, e.sc.TimeZone), nil
+	return rowcodec.NewChunkCausetDecoder(defcaus, pkDefCauss, def, e.sc.TimeZone), nil
 }
 
 // decodeRelatedDeferredCausetVals decodes data to Causet slice according to the event information.
@@ -242,7 +242,7 @@ func flagsToStatementContext(flags uint64) *stmtctx.StatementContext {
 }
 
 // ErrLocked is returned when trying to Read/Write on a locked key. Client should
-// backoff or cleanup the lock then retry.
+// backoff or cleanup the dagger then retry.
 type ErrLocked struct {
 	Key      []byte
 	Primary  []byte
@@ -263,7 +263,7 @@ func BuildLockErr(key []byte, primaryKey []byte, startTS uint64, TTL uint64, loc
 	return errLocked
 }
 
-// Error formats the lock to a string.
+// Error formats the dagger to a string.
 func (e *ErrLocked) Error() string {
 	return fmt.Sprintf("key is locked, key: %q, Type: %v, primary: %q, startTS: %v", e.Key, e.LockType, e.Primary, e.StartTS)
 }
@@ -275,13 +275,13 @@ func buildResp(chunks []fidelpb.Chunk, counts []int64, posetPosetDagReq *fidelpb
 		Chunks:       chunks,
 		OutputCounts: counts,
 	}
-	if posetPosetDagReq.DefCauslectExecutionSummaries != nil && *posetPosetDagReq.DefCauslectExecutionSummaries {
-		execSummary := make([]*fidelpb.ExecutorExecutionSummary, len(posetPosetDagReq.Executors))
+	if posetPosetDagReq.DefCauslectInterDircutionSummaries != nil && *posetPosetDagReq.DefCauslectInterDircutionSummaries {
+		execSummary := make([]*fidelpb.InterlockingDirectorateInterDircutionSummary, len(posetPosetDagReq.InterlockingDirectorates))
 		for i := range execSummary {
-			// TODO: Add real executor execution summary information.
-			execSummary[i] = &fidelpb.ExecutorExecutionSummary{}
+			// TODO: Add real interlock execution summary information.
+			execSummary[i] = &fidelpb.InterlockingDirectorateInterDircutionSummary{}
 		}
-		selResp.ExecutionSummaries = execSummary
+		selResp.InterDircutionSummaries = execSummary
 	}
 	if len(warnings) > 0 {
 		selResp.Warnings = make([]*fidelpb.Error, 0, len(warnings))
@@ -297,7 +297,7 @@ func buildResp(chunks []fidelpb.Chunk, counts []int64, posetPosetDagReq *fidelpb
 			LockTtl:     locked.TTL,
 		}
 	}
-	resp.ExecDetails = &kvrpcpb.ExecDetails{
+	resp.InterDircDetails = &kvrpcpb.InterDircDetails{
 		HandleTime: &kvrpcpb.HandleTime{ProcessMs: int64(dur / time.Millisecond)},
 	}
 	data, err := proto.Marshal(selResp)

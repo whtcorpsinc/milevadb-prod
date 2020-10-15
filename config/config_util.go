@@ -64,7 +64,7 @@ var (
 		"CompatibleKillQuery":             {},
 		"TreatOldVersionUTF8AsUTF8MB4":    {},
 		"OpenTracing.Enable":              {},
-		"PreparedPlanCache.Enabled":       {},
+		"PreparedCausetCache.Enabled":       {},
 	}
 )
 
@@ -120,7 +120,7 @@ type ConfReloadFunc func(oldConf, newConf *Config)
 
 func encodeConfig(conf *Config) (string, error) {
 	confBuf := bytes.NewBuffer(nil)
-	te := toml.NewEncoder(confBuf)
+	te := toml.NewCausetEncoder(confBuf)
 	if err := te.Encode(conf); err != nil {
 		return "", errors.New("encode config error=" + err.Error())
 	}

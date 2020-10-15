@@ -24,7 +24,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -88,7 +88,7 @@ type index struct {
 }
 
 // ContainsNonBinaryString checks whether the index defCausumns contains non binary string defCausumn, the input
-// defCausInfos should be defCausumn info correspond to the block contains the index.
+// defCausInfos should be defCausumn info correspond to the causet contains the index.
 func ContainsNonBinaryString(idxDefCauss []*perceptron.IndexDeferredCauset, defCausInfos []*perceptron.DeferredCausetInfo) bool {
 	for _, idxDefCaus := range idxDefCauss {
 		defCaus := defCausInfos[idxDefCaus.Offset]
@@ -104,11 +104,11 @@ func (c *index) checkContainNonBinaryString() bool {
 }
 
 // NewIndex builds a new Index object.
-func NewIndex(physicalID int64, tblInfo *perceptron.BlockInfo, indexInfo *perceptron.IndexInfo) block.Index {
-	// The prefix can't encode from tblInfo.ID, because block partition may change the id to partition id.
+func NewIndex(physicalID int64, tblInfo *perceptron.BlockInfo, indexInfo *perceptron.IndexInfo) causet.Index {
+	// The prefix can't encode from tblInfo.ID, because causet partition may change the id to partition id.
 	var prefix ekv.Key
 	if indexInfo.Global {
-		// In glabal index of partition block, prefix start with tblInfo.ID.
+		// In glabal index of partition causet, prefix start with tblInfo.ID.
 		prefix = blockcodec.EncodeBlockIndexPrefix(tblInfo.ID, indexInfo.ID)
 	} else {
 		// Otherwise, start with physicalID.
@@ -152,7 +152,7 @@ func (c *index) GenIndexKey(sc *stmtctx.StatementContext, indexedValues []types.
 //		|  Options:       Encode some value for new features, such as common handle, new defCauslations or global index.
 //		|                 See below for more information.
 //		|  Padding:       Ensure length of value always >= 10. (or >= 11 if UntouchedFlag exists.)
-//		|  IntHandle:     Only exists when block use int handles and index is unique.
+//		|  IntHandle:     Only exists when causet use int handles and index is unique.
 //		|  UntouchedFlag: Only exists when index is untouched.
 //		|
 //		|  Layout of Options:
@@ -176,11 +176,11 @@ func (c *index) GenIndexKey(sc *stmtctx.StatementContext, indexedValues []types.
 //		   If neither Handle nor UntouchedFlag exists, value will be one single byte '0' (i.e. []byte{'0'}).
 //		   Length of value <= 9, use to distinguish from the new encoding.
 //
-func (c *index) Create(sctx stochastikctx.Context, us ekv.UnionStore, indexedValues []types.Causet, h ekv.Handle, opts ...block.CreateIdxOptFunc) (ekv.Handle, error) {
+func (c *index) Create(sctx stochastikctx.Context, us ekv.UnionStore, indexedValues []types.Causet, h ekv.Handle, opts ...causet.CreateIdxOptFunc) (ekv.Handle, error) {
 	if c.Meta().Unique {
 		us.CacheIndexName(c.phyTblID, c.Meta().ID, c.Meta().Name.String())
 	}
-	var opt block.CreateIdxOpt
+	var opt causet.CreateIdxOpt
 	for _, fn := range opts {
 		fn(&opt)
 	}
@@ -291,7 +291,7 @@ func (c *index) Drop(us ekv.UnionStore) error {
 }
 
 // Seek searches KV index for the entry with indexedValues.
-func (c *index) Seek(sc *stmtctx.StatementContext, r ekv.Retriever, indexedValues []types.Causet) (iter block.IndexIterator, hit bool, err error) {
+func (c *index) Seek(sc *stmtctx.StatementContext, r ekv.Retriever, indexedValues []types.Causet) (iter causet.IndexIterator, hit bool, err error) {
 	key, _, err := c.GenIndexKey(sc, indexedValues, nil, nil)
 	if err != nil {
 		return nil, false, err
@@ -311,7 +311,7 @@ func (c *index) Seek(sc *stmtctx.StatementContext, r ekv.Retriever, indexedValue
 }
 
 // SeekFirst returns an iterator which points to the first entry of the KV index.
-func (c *index) SeekFirst(r ekv.Retriever) (iter block.IndexIterator, err error) {
+func (c *index) SeekFirst(r ekv.Retriever) (iter causet.IndexIterator, err error) {
 	upperBound := c.prefix.PrefixNext()
 	it, err := r.Iter(c.prefix, upperBound)
 	if err != nil {
@@ -358,7 +358,7 @@ func (c *index) FetchValues(r []types.Causet, vals []types.Causet) ([]types.Caus
 	vals = vals[:needLength]
 	for i, ic := range c.idxInfo.DeferredCausets {
 		if ic.Offset < 0 || ic.Offset >= len(r) {
-			return nil, block.ErrIndexOutBound.GenWithStackByArgs(ic.Name, ic.Offset, r)
+			return nil, causet.ErrIndexOutBound.GenWithStackByArgs(ic.Name, ic.Offset, r)
 		}
 		vals[i] = r[ic.Offset]
 	}
@@ -366,7 +366,7 @@ func (c *index) FetchValues(r []types.Causet, vals []types.Causet) ([]types.Caus
 }
 
 // FindChangingDefCaus finds the changing defCausumn in idxInfo.
-func FindChangingDefCaus(defcaus []*block.DeferredCauset, idxInfo *perceptron.IndexInfo) *block.DeferredCauset {
+func FindChangingDefCaus(defcaus []*causet.DeferredCauset, idxInfo *perceptron.IndexInfo) *causet.DeferredCauset {
 	for _, ic := range idxInfo.DeferredCausets {
 		if defCaus := defcaus[ic.Offset]; defCaus.ChangeStateInfo != nil {
 			return defCaus

@@ -18,9 +18,9 @@ import (
 	"github.com/whtcorpsinc/milevadb/ekv"
 )
 
-var _ = Suite(&testPlanCodecSuite{})
+var _ = Suite(&testCausetCodecSuite{})
 
-type testPlanCodecSuite struct{}
+type testCausetCodecSuite struct{}
 
 type encodeTaskTypeCase struct {
 	IsRoot     bool
@@ -29,7 +29,7 @@ type encodeTaskTypeCase struct {
 	DecodedStr string
 }
 
-func (s *testPlanCodecSuite) TestEncodeTaskType(c *C) {
+func (s *testCausetCodecSuite) TestEncodeTaskType(c *C) {
 	cases := []encodeTaskTypeCase{
 		{true, ekv.UnSpecified, "0", "root"},
 		{false, ekv.EinsteinDB, "1_0", "cop[einsteindb]"},

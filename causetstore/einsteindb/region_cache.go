@@ -27,7 +27,7 @@ import (
 	"github.com/google/btree"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -71,7 +71,7 @@ const (
 
 // Region presents ekv region
 type Region struct {
-	meta       *metapb.Region // raw region meta from FIDel immublock after init
+	spacetime       *spacetimepb.Region // raw region spacetime from FIDel immublock after init
 	causetstore      unsafe.Pointer // point to region causetstore info, see RegionStore
 	syncFlag   int32          // region need be sync in next turn
 	lastAccess int64          // last region access time, see checkRegionCacheTTL
@@ -106,8 +106,8 @@ type AccessIndex int
 // RegionStore represents region stores info
 // it will be causetstore as unsafe.Pointer and be load at once
 type RegionStore struct {
-	workEinsteinDBIdx    AccessIndex          // point to current work peer in meta.Peers and work causetstore in stores(same idx) for einsteindb peer
-	workTiFlashIdx int32                // point to current work peer in meta.Peers and work causetstore in stores(same idx) for tiflash peer
+	workEinsteinDBIdx    AccessIndex          // point to current work peer in spacetime.Peers and work causetstore in stores(same idx) for einsteindb peer
+	workTiFlashIdx int32                // point to current work peer in spacetime.Peers and work causetstore in stores(same idx) for tiflash peer
 	stores         []*CausetStore             // stores in this region
 	storeEpochs    []uint32             // snapshots of causetstore's epoch, need reload when `storeEpochs[curr] != stores[cur].fail`
 	accessIndex    [NumAccessMode][]int // AccessMode => idx in stores
@@ -184,10 +184,10 @@ func (r *Region) init(c *RegionCache) error {
 	rs := &RegionStore{
 		workEinsteinDBIdx:    0,
 		workTiFlashIdx: 0,
-		stores:         make([]*CausetStore, 0, len(r.meta.Peers)),
-		storeEpochs:    make([]uint32, 0, len(r.meta.Peers)),
+		stores:         make([]*CausetStore, 0, len(r.spacetime.Peers)),
+		storeEpochs:    make([]uint32, 0, len(r.spacetime.Peers)),
 	}
-	for _, p := range r.meta.Peers {
+	for _, p := range r.spacetime.Peers {
 		c.storeMu.RLock()
 		causetstore, exists := c.storeMu.stores[p.StoreId]
 		c.storeMu.RUnlock()
@@ -338,8 +338,8 @@ func (c *RegionCache) checkAndResolve(needCheckStores []*CausetStore) {
 // RPCContext contains data that is needed to send RPC to a region.
 type RPCContext struct {
 	Region     RegionVerID
-	Meta       *metapb.Region
-	Peer       *metapb.Peer
+	Meta       *spacetimepb.Region
+	Peer       *spacetimepb.Peer
 	AccessIdx  AccessIndex
 	CausetStore      *CausetStore
 	Addr       string
@@ -351,7 +351,7 @@ func (c *RPCContext) String() string {
 	if c.CausetStore != nil {
 		runStoreType = c.CausetStore.storeType.Name()
 	}
-	return fmt.Sprintf("region ID: %d, meta: %s, peer: %s, addr: %s, idx: %d, reqStoreType: %s, runStoreType: %s",
+	return fmt.Sprintf("region ID: %d, spacetime: %s, peer: %s, addr: %s, idx: %d, reqStoreType: %s, runStoreType: %s",
 		c.Region.GetID(), c.Meta, c.Peer, c.Addr, c.AccessIdx, c.AccessMode, runStoreType)
 }
 
@@ -372,7 +372,7 @@ func (c *RegionCache) GetEinsteinDBRPCContext(bo *Backoffer, id RegionVerID, rep
 	regionStore := cachedRegion.getStore()
 	var (
 		causetstore     *CausetStore
-		peer      *metapb.Peer
+		peer      *spacetimepb.Peer
 		storeIdx  int
 		accessIdx AccessIndex
 	)
@@ -411,7 +411,7 @@ func (c *RegionCache) GetEinsteinDBRPCContext(bo *Backoffer, id RegionVerID, rep
 
 	return &RPCContext{
 		Region:     id,
-		Meta:       cachedRegion.meta,
+		Meta:       cachedRegion.spacetime,
 		Peer:       peer,
 		AccessIdx:  accessIdx,
 		CausetStore:      causetstore,
@@ -452,7 +452,7 @@ func (c *RegionCache) GetTiFlashRPCContext(bo *Backoffer, id RegionVerID) (*RPCC
 			causetstore.reResolve(c)
 		}
 		atomic.StoreInt32(&regionStore.workTiFlashIdx, int32(accessIdx))
-		peer := cachedRegion.meta.Peers[storeIdx]
+		peer := cachedRegion.spacetime.Peers[storeIdx]
 		storeFailEpoch := atomic.LoadUint32(&causetstore.epoch)
 		if storeFailEpoch != regionStore.storeEpochs[storeIdx] {
 			cachedRegion.invalidate()
@@ -464,7 +464,7 @@ func (c *RegionCache) GetTiFlashRPCContext(bo *Backoffer, id RegionVerID) (*RPCC
 		}
 		return &RPCContext{
 			Region:     id,
-			Meta:       cachedRegion.meta,
+			Meta:       cachedRegion.spacetime,
 			Peer:       peer,
 			AccessIdx:  accessIdx,
 			CausetStore:      causetstore,
@@ -952,7 +952,7 @@ func (c *RegionCache) loadRegion(bo *Backoffer, key []byte, isEndKey bool) (*Reg
 			searchPrev = true
 			continue
 		}
-		region := &Region{meta: reg.Meta}
+		region := &Region{spacetime: reg.Meta}
 		err = region.init(c)
 		if err != nil {
 			return nil, err
@@ -991,7 +991,7 @@ func (c *RegionCache) loadRegionByID(bo *Backoffer, regionID uint64) (*Region, e
 		if len(reg.Meta.Peers) == 0 {
 			return nil, errors.New("receive Region with no available peer")
 		}
-		region := &Region{meta: reg.Meta}
+		region := &Region{spacetime: reg.Meta}
 		err = region.init(c)
 		if err != nil {
 			return nil, err
@@ -1036,7 +1036,7 @@ func (c *RegionCache) scanRegions(bo *Backoffer, startKey, endKey []byte, limit 
 		}
 		regions := make([]*Region, 0, len(regionsInfo))
 		for _, r := range regionsInfo {
-			region := &Region{meta: r.Meta}
+			region := &Region{spacetime: r.Meta}
 			err := region.init(c)
 			if err != nil {
 				return nil, err
@@ -1121,12 +1121,12 @@ func (c *RegionCache) getStoreByStoreID(storeID uint64) (causetstore *CausetStor
 }
 
 // OnRegionEpochNotMatch removes the old region and inserts new regions into the cache.
-func (c *RegionCache) OnRegionEpochNotMatch(bo *Backoffer, ctx *RPCContext, currentRegions []*metapb.Region) error {
+func (c *RegionCache) OnRegionEpochNotMatch(bo *Backoffer, ctx *RPCContext, currentRegions []*spacetimepb.Region) error {
 	// Find whether the region epoch in `ctx` is ahead of EinsteinDB's. If so, backoff.
-	for _, meta := range currentRegions {
-		if meta.GetId() == ctx.Region.id &&
-			(meta.GetRegionEpoch().GetConfVer() < ctx.Region.confVer ||
-				meta.GetRegionEpoch().GetVersion() < ctx.Region.ver) {
+	for _, spacetime := range currentRegions {
+		if spacetime.GetId() == ctx.Region.id &&
+			(spacetime.GetRegionEpoch().GetConfVer() < ctx.Region.confVer ||
+				spacetime.GetRegionEpoch().GetVersion() < ctx.Region.ver) {
 			err := errors.Errorf("region epoch is ahead of einsteindb. rpc ctx: %+v, currentRegions: %+v", ctx, currentRegions)
 			logutil.BgLogger().Info("region epoch is ahead of einsteindb", zap.Error(err))
 			return bo.Backoff(BoRegionMiss, err)
@@ -1136,15 +1136,15 @@ func (c *RegionCache) OnRegionEpochNotMatch(bo *Backoffer, ctx *RPCContext, curr
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	needInvalidateOld := true
-	// If the region epoch is not ahead of EinsteinDB's, replace region meta in region cache.
-	for _, meta := range currentRegions {
+	// If the region epoch is not ahead of EinsteinDB's, replace region spacetime in region cache.
+	for _, spacetime := range currentRegions {
 		if _, ok := c.FIDelClient.(*codecFIDelClient); ok {
 			var err error
-			if meta, err = decodeRegionMetaKeyWithShallowCopy(meta); err != nil {
-				return errors.Errorf("newRegion's range key is not encoded: %v, %v", meta, err)
+			if spacetime, err = decodeRegionMetaKeyWithShallowCopy(spacetime); err != nil {
+				return errors.Errorf("newRegion's range key is not encoded: %v, %v", spacetime, err)
 			}
 		}
-		region := &Region{meta: meta}
+		region := &Region{spacetime: spacetime}
 		err := region.init(c)
 		if err != nil {
 			return err
@@ -1200,53 +1200,53 @@ func (item *btreeItem) Less(other btree.Item) bool {
 
 // GetID returns id.
 func (r *Region) GetID() uint64 {
-	return r.meta.GetId()
+	return r.spacetime.GetId()
 }
 
-// GetMeta returns region meta.
-func (r *Region) GetMeta() *metapb.Region {
-	return proto.Clone(r.meta).(*metapb.Region)
+// GetMeta returns region spacetime.
+func (r *Region) GetMeta() *spacetimepb.Region {
+	return proto.Clone(r.spacetime).(*spacetimepb.Region)
 }
 
 // GetLeaderPeerID returns leader peer ID.
 func (r *Region) GetLeaderPeerID() uint64 {
 	causetstore := r.getStore()
-	if int(causetstore.workEinsteinDBIdx) >= len(r.meta.Peers) {
+	if int(causetstore.workEinsteinDBIdx) >= len(r.spacetime.Peers) {
 		return 0
 	}
 	storeIdx, _ := causetstore.accessStore(EinsteinDBOnly, causetstore.workEinsteinDBIdx)
-	return r.meta.Peers[storeIdx].Id
+	return r.spacetime.Peers[storeIdx].Id
 }
 
 // GetLeaderStoreID returns the causetstore ID of the leader region.
 func (r *Region) GetLeaderStoreID() uint64 {
 	causetstore := r.getStore()
-	if int(causetstore.workEinsteinDBIdx) >= len(r.meta.Peers) {
+	if int(causetstore.workEinsteinDBIdx) >= len(r.spacetime.Peers) {
 		return 0
 	}
 	storeIdx, _ := causetstore.accessStore(EinsteinDBOnly, causetstore.workEinsteinDBIdx)
-	return r.meta.Peers[storeIdx].StoreId
+	return r.spacetime.Peers[storeIdx].StoreId
 }
 
-func (r *Region) getKvStorePeer(rs *RegionStore, aidx AccessIndex) (causetstore *CausetStore, peer *metapb.Peer, accessIdx AccessIndex, storeIdx int) {
+func (r *Region) getKvStorePeer(rs *RegionStore, aidx AccessIndex) (causetstore *CausetStore, peer *spacetimepb.Peer, accessIdx AccessIndex, storeIdx int) {
 	storeIdx, causetstore = rs.accessStore(EinsteinDBOnly, aidx)
-	peer = r.meta.Peers[storeIdx]
+	peer = r.spacetime.Peers[storeIdx]
 	accessIdx = aidx
 	return
 }
 
 // WorkStorePeer returns current work causetstore with work peer.
-func (r *Region) WorkStorePeer(rs *RegionStore) (causetstore *CausetStore, peer *metapb.Peer, accessIdx AccessIndex, storeIdx int) {
+func (r *Region) WorkStorePeer(rs *RegionStore) (causetstore *CausetStore, peer *spacetimepb.Peer, accessIdx AccessIndex, storeIdx int) {
 	return r.getKvStorePeer(rs, rs.workEinsteinDBIdx)
 }
 
 // FollowerStorePeer returns a follower causetstore with follower peer.
-func (r *Region) FollowerStorePeer(rs *RegionStore, followerStoreSeed uint32) (causetstore *CausetStore, peer *metapb.Peer, accessIdx AccessIndex, storeIdx int) {
+func (r *Region) FollowerStorePeer(rs *RegionStore, followerStoreSeed uint32) (causetstore *CausetStore, peer *spacetimepb.Peer, accessIdx AccessIndex, storeIdx int) {
 	return r.getKvStorePeer(rs, rs.follower(followerStoreSeed))
 }
 
 // AnyStorePeer returns a leader or follower causetstore with the associated peer.
-func (r *Region) AnyStorePeer(rs *RegionStore, followerStoreSeed uint32) (causetstore *CausetStore, peer *metapb.Peer, accessIdx AccessIndex, storeIdx int) {
+func (r *Region) AnyStorePeer(rs *RegionStore, followerStoreSeed uint32) (causetstore *CausetStore, peer *spacetimepb.Peer, accessIdx AccessIndex, storeIdx int) {
 	return r.getKvStorePeer(rs, rs.kvPeer(followerStoreSeed))
 }
 
@@ -1275,20 +1275,20 @@ func (r *RegionVerID) GetConfVer() uint64 {
 // VerID returns the Region's RegionVerID.
 func (r *Region) VerID() RegionVerID {
 	return RegionVerID{
-		id:      r.meta.GetId(),
-		confVer: r.meta.GetRegionEpoch().GetConfVer(),
-		ver:     r.meta.GetRegionEpoch().GetVersion(),
+		id:      r.spacetime.GetId(),
+		confVer: r.spacetime.GetRegionEpoch().GetConfVer(),
+		ver:     r.spacetime.GetRegionEpoch().GetVersion(),
 	}
 }
 
 // StartKey returns StartKey.
 func (r *Region) StartKey() []byte {
-	return r.meta.StartKey
+	return r.spacetime.StartKey
 }
 
 // EndKey returns EndKey.
 func (r *Region) EndKey() []byte {
-	return r.meta.EndKey
+	return r.spacetime.EndKey
 }
 
 // switchWorkLeaderToPeer switches current causetstore to the one on specific causetstore. It returns
@@ -1333,11 +1333,11 @@ func (r *RegionStore) switchNextEinsteinDBPeer(rr *Region, currentPeerIdx Access
 }
 
 func (r *Region) findElecblockStoreID() uint64 {
-	if len(r.meta.Peers) == 0 {
+	if len(r.spacetime.Peers) == 0 {
 		return 0
 	}
-	for _, p := range r.meta.Peers {
-		if p.Role != metapb.PeerRole_Learner {
+	for _, p := range r.spacetime.Peers {
+		if p.Role != spacetimepb.PeerRole_Learner {
 			return p.StoreId
 		}
 	}
@@ -1345,10 +1345,10 @@ func (r *Region) findElecblockStoreID() uint64 {
 }
 
 func (c *RegionCache) getPeerStoreIndex(r *Region, id uint64) (idx int, found bool) {
-	if len(r.meta.Peers) == 0 {
+	if len(r.spacetime.Peers) == 0 {
 		return
 	}
-	for i, p := range r.meta.Peers {
+	for i, p := range r.spacetime.Peers {
 		if p.GetStoreId() == id {
 			idx = i
 			found = true
@@ -1361,16 +1361,16 @@ func (c *RegionCache) getPeerStoreIndex(r *Region, id uint64) (idx int, found bo
 // Contains checks whether the key is in the region, for the maximum region endKey is empty.
 // startKey <= key < endKey.
 func (r *Region) Contains(key []byte) bool {
-	return bytes.Compare(r.meta.GetStartKey(), key) <= 0 &&
-		(bytes.Compare(key, r.meta.GetEndKey()) < 0 || len(r.meta.GetEndKey()) == 0)
+	return bytes.Compare(r.spacetime.GetStartKey(), key) <= 0 &&
+		(bytes.Compare(key, r.spacetime.GetEndKey()) < 0 || len(r.spacetime.GetEndKey()) == 0)
 }
 
 // ContainsByEnd check the region contains the greatest key that is less than key.
 // for the maximum region endKey is empty.
 // startKey < key <= endKey.
 func (r *Region) ContainsByEnd(key []byte) bool {
-	return bytes.Compare(r.meta.GetStartKey(), key) < 0 &&
-		(bytes.Compare(key, r.meta.GetEndKey()) <= 0 || len(r.meta.GetEndKey()) == 0)
+	return bytes.Compare(r.spacetime.GetStartKey(), key) < 0 &&
+		(bytes.Compare(key, r.spacetime.GetEndKey()) <= 0 || len(r.spacetime.GetEndKey()) == 0)
 }
 
 // CausetStore contains a ekv process's address.
@@ -1403,7 +1403,7 @@ func (s *CausetStore) initResolve(bo *Backoffer, c *RegionCache) (addr string, e
 		addr = s.addr
 		return
 	}
-	var causetstore *metapb.CausetStore
+	var causetstore *spacetimepb.CausetStore
 	for {
 		causetstore, err = c.FIDelClient.GetStore(bo.ctx, s.storeID)
 		if err != nil {
@@ -1442,8 +1442,8 @@ func (s *CausetStore) initResolve(bo *Backoffer, c *RegionCache) (addr string, e
 	}
 }
 
-// GetStoreTypeByMeta gets causetstore type by causetstore meta pb.
-func GetStoreTypeByMeta(causetstore *metapb.CausetStore) ekv.StoreType {
+// GetStoreTypeByMeta gets causetstore type by causetstore spacetime pb.
+func GetStoreTypeByMeta(causetstore *spacetimepb.CausetStore) ekv.StoreType {
 	tp := ekv.EinsteinDB
 	for _, label := range causetstore.Labels {
 		if label.Key == "engine" {

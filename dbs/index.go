@@ -26,20 +26,20 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	decoder "github.com/whtcorpsinc/milevadb/soliton/rowDecoder"
+	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -291,7 +291,7 @@ func validateRenameIndex(from, to perceptron.CIStr, tbl *perceptron.BlockInfo) (
 	return false, nil
 }
 
-func onRenameIndex(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onRenameIndex(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, from, to, err := checkRenameIndex(t, job)
 	if err != nil || tblInfo == nil {
 		return ver, errors.Trace(err)
@@ -316,7 +316,7 @@ func validateAlterIndexVisibility(indexName perceptron.CIStr, invisible bool, tb
 	return false, nil
 }
 
-func onAlterIndexVisibility(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onAlterIndexVisibility(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, from, invisible, err := checkAlterIndexVisibility(t, job)
 	if err != nil || tblInfo == nil {
 		return ver, errors.Trace(err)
@@ -342,7 +342,7 @@ func getNullDefCausInfos(tblInfo *perceptron.BlockInfo, indexInfo *perceptron.In
 	return nullDefCauss, nil
 }
 
-func checkPrimaryKeyNotNull(w *worker, sqlMode allegrosql.ALLEGROSQLMode, t *meta.Meta, job *perceptron.Job,
+func checkPrimaryKeyNotNull(w *worker, sqlMode allegrosql.ALLEGROSQLMode, t *spacetime.Meta, job *perceptron.Job,
 	tblInfo *perceptron.BlockInfo, indexInfo *perceptron.IndexInfo) (warnings []string, err error) {
 	if !indexInfo.Primary {
 		return nil, nil
@@ -378,7 +378,7 @@ func uFIDelateHiddenDeferredCausets(tblInfo *perceptron.BlockInfo, idxInfo *perc
 	}
 }
 
-func (w *worker) onCreateIndex(d *dbsCtx, t *meta.Meta, job *perceptron.Job, isPK bool) (ver int64, err error) {
+func (w *worker) onCreateIndex(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job, isPK bool) (ver int64, err error) {
 	// Handle the rolling back job.
 	if job.IsRollingback() {
 		ver, err = onDropIndex(t, job)
@@ -550,13 +550,13 @@ func (w *worker) onCreateIndex(d *dbsCtx, t *meta.Meta, job *perceptron.Job, isP
 		err = w.runReorgJob(t, reorgInfo, tbl.Meta(), d.lease, func() (addIndexErr error) {
 			defer soliton.Recover(metrics.LabelDBS, "onCreateIndex",
 				func() {
-					addIndexErr = errCancelledDBSJob.GenWithStack("add block `%v` index `%v` panic", tblInfo.Name, indexInfo.Name)
+					addIndexErr = errCancelledDBSJob.GenWithStack("add causet `%v` index `%v` panic", tblInfo.Name, indexInfo.Name)
 				}, false)
 			return w.addBlockIndex(tbl, indexInfo, reorgInfo)
 		})
 		if err != nil {
 			if errWaitReorgTimeout.Equal(err) {
-				// if timeout, we should return, check for the owner and re-wait job done.
+				// if timeout, we should return, check for the tenant and re-wait job done.
 				return ver, nil
 			}
 			if ekv.ErrKeyExists.Equal(err) || errCancelledDBSJob.Equal(err) || errCantDecodeRecord.Equal(err) {
@@ -591,7 +591,7 @@ func (w *worker) onCreateIndex(d *dbsCtx, t *meta.Meta, job *perceptron.Job, isP
 	return ver, errors.Trace(err)
 }
 
-func onDropIndex(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropIndex(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, indexInfo, err := checkDropIndex(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -666,7 +666,7 @@ func onDropIndex(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
 	return ver, errors.Trace(err)
 }
 
-func checkDropIndex(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.IndexInfo, error) {
+func checkDropIndex(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.IndexInfo, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -737,7 +737,7 @@ func checkDropIndexOnAutoIncrementDeferredCauset(tblInfo *perceptron.BlockInfo, 
 	return nil
 }
 
-func checkRenameIndex(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, perceptron.CIStr, perceptron.CIStr, error) {
+func checkRenameIndex(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, perceptron.CIStr, perceptron.CIStr, error) {
 	var from, to perceptron.CIStr
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
@@ -762,7 +762,7 @@ func checkRenameIndex(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo,
 	return tblInfo, from, to, errors.Trace(err)
 }
 
-func checkAlterIndexVisibility(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, perceptron.CIStr, bool, error) {
+func checkAlterIndexVisibility(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, perceptron.CIStr, bool, error) {
 	var (
 		indexName perceptron.CIStr
 		invisible bool
@@ -793,34 +793,34 @@ func checkAlterIndexVisibility(t *meta.Meta, job *perceptron.Job) (*perceptron.B
 // indexRecord is the record information of an index.
 type indexRecord struct {
 	handle ekv.Handle
-	key    []byte         // It's used to lock a record. Record it to reduce the encoding time.
+	key    []byte         // It's used to dagger a record. Record it to reduce the encoding time.
 	vals   []types.Causet // It's the index values.
 	skip   bool           // skip indicates that the index key is already exists, we should not add it.
 }
 
 type addIndexWorker struct {
 	*backfillWorker
-	index         block.Index
+	index         causet.Index
 	metricCounter prometheus.Counter
 
 	// The following attributes are used to reduce memory allocation.
 	defaultVals        []types.Causet
 	idxRecords         []*indexRecord
 	rowMap             map[int64]types.Causet
-	rowDecoder         *decoder.RowDecoder
+	rowCausetDecoder         *causetDecoder.RowCausetDecoder
 	idxKeyBufs         [][]byte
 	batchCheckKeys     []ekv.Key
 	distinctCheckFlags []bool
 }
 
-func newAddIndexWorker(sessCtx stochastikctx.Context, worker *worker, id int, t block.PhysicalBlock, indexInfo *perceptron.IndexInfo, decodeDefCausMap map[int64]decoder.DeferredCauset) *addIndexWorker {
+func newAddIndexWorker(sessCtx stochastikctx.Context, worker *worker, id int, t causet.PhysicalBlock, indexInfo *perceptron.IndexInfo, decodeDefCausMap map[int64]causetDecoder.DeferredCauset) *addIndexWorker {
 	index := blocks.NewIndex(t.GetPhysicalID(), t.Meta(), indexInfo)
-	rowDecoder := decoder.NewRowDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
+	rowCausetDecoder := causetDecoder.NewRowCausetDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
 	return &addIndexWorker{
 		backfillWorker: newBackfillWorker(sessCtx, worker, id, t),
 		index:          index,
 		metricCounter:  metrics.BackfillTotalCounter.WithLabelValues("add_idx_speed"),
-		rowDecoder:     rowDecoder,
+		rowCausetDecoder:     rowCausetDecoder,
 		defaultVals:    make([]types.Causet, len(t.WriblockDefCauss())),
 		rowMap:         make(map[int64]types.Causet, len(decodeDefCausMap)),
 	}
@@ -832,11 +832,11 @@ func (w *addIndexWorker) AddMetricInfo(cnt float64) {
 
 // getIndexRecord gets index columns values from raw binary value event.
 func (w *addIndexWorker) getIndexRecord(handle ekv.Handle, recordKey []byte, rawRecord []byte) (*indexRecord, error) {
-	t := w.block
+	t := w.causet
 	defcaus := t.WriblockDefCauss()
 	idxInfo := w.index.Meta()
 	sysZone := timeutil.SystemLocation()
-	_, err := w.rowDecoder.DecodeAndEvalRowWithMap(w.sessCtx, handle, rawRecord, time.UTC, sysZone, w.rowMap)
+	_, err := w.rowCausetDecoder.DecodeAndEvalRowWithMap(w.sessCtx, handle, rawRecord, time.UTC, sysZone, w.rowMap)
 	if err != nil {
 		return nil, errors.Trace(errCantDecodeRecord.GenWithStackByArgs("index", err))
 	}
@@ -865,7 +865,7 @@ func (w *addIndexWorker) getIndexRecord(handle ekv.Handle, recordKey []byte, raw
 		}
 		idxVal[j] = idxDeferredCausetVal
 	}
-	// If there are generated column, rowDecoder will use column value that not in idxInfo.DeferredCausets to calculate
+	// If there are generated column, rowCausetDecoder will use column value that not in idxInfo.DeferredCausets to calculate
 	// the generated value, so we need to clear up the reusing map.
 	w.cleanRowMap()
 	idxRecord := &indexRecord{handle: handle, key: recordKey, vals: idxVal}
@@ -910,7 +910,7 @@ func (w *addIndexWorker) fetchRowDefCausVals(txn ekv.Transaction, taskRange reor
 	// taskDone means that the added handle is out of taskRange.endHandle.
 	taskDone := false
 	oprStartTime := startTime
-	err := iterateSnapshotRows(w.sessCtx.GetStore(), w.priority, w.block, txn.StartTS(), taskRange.startHandle, taskRange.endHandle, taskRange.endIncluded,
+	err := iterateSnapshotRows(w.sessCtx.GetStore(), w.priority, w.causet, txn.StartTS(), taskRange.startHandle, taskRange.endHandle, taskRange.endIncluded,
 		func(handle ekv.Handle, recordKey ekv.Key, rawRow []byte) (bool, error) {
 			oprEndTime := time.Now()
 			logSlowOperations(oprEndTime.Sub(oprStartTime), "iterateSnapshotRows in addIndexWorker fetchRowDefCausVals", 0)
@@ -990,7 +990,7 @@ func (w *addIndexWorker) batchCheckUniqueKey(txn ekv.Transaction, idxRecords []*
 	for i, key := range w.batchCheckKeys {
 		if val, found := batchVals[string(key)]; found {
 			if w.distinctCheckFlags[i] {
-				handle, err1 := blockcodec.DecodeHandleInUniqueIndexValue(val, w.block.Meta().IsCommonHandle)
+				handle, err1 := blockcodec.DecodeHandleInUniqueIndexValue(val, w.causet.Meta().IsCommonHandle)
 				if err1 != nil {
 					return errors.Trace(err1)
 				}
@@ -1013,7 +1013,7 @@ func (w *addIndexWorker) batchCheckUniqueKey(txn ekv.Transaction, idxRecords []*
 	return nil
 }
 
-// BackfillDataInTxn will backfill block index in a transaction, lock corresponding rowKey, if the value of rowKey is changed,
+// BackfillDataInTxn will backfill causet index in a transaction, dagger corresponding rowKey, if the value of rowKey is changed,
 // indicate that index columns values may changed, index is not allowed to be added, so the txn will rollback and retry.
 // BackfillDataInTxn will add w.batchCnt indices once, default value of w.batchCnt is 128.
 // TODO: make w.batchCnt can be modified by system variable.
@@ -1077,20 +1077,20 @@ func (w *addIndexWorker) BackfillDataInTxn(handleRange reorgBackfillTask) (taskC
 	return
 }
 
-func (w *worker) addPhysicalBlockIndex(t block.PhysicalBlock, indexInfo *perceptron.IndexInfo, reorgInfo *reorgInfo) error {
-	logutil.BgLogger().Info("[dbs] start to add block index", zap.String("job", reorgInfo.Job.String()), zap.String("reorgInfo", reorgInfo.String()))
-	return w.writePhysicalBlockRecord(t.(block.PhysicalBlock), typeAddIndexWorker, indexInfo, nil, nil, reorgInfo)
+func (w *worker) addPhysicalBlockIndex(t causet.PhysicalBlock, indexInfo *perceptron.IndexInfo, reorgInfo *reorgInfo) error {
+	logutil.BgLogger().Info("[dbs] start to add causet index", zap.String("job", reorgInfo.Job.String()), zap.String("reorgInfo", reorgInfo.String()))
+	return w.writePhysicalBlockRecord(t.(causet.PhysicalBlock), typeAddIndexWorker, indexInfo, nil, nil, reorgInfo)
 }
 
-// addBlockIndex handles the add index reorganization state for a block.
-func (w *worker) addBlockIndex(t block.Block, idx *perceptron.IndexInfo, reorgInfo *reorgInfo) error {
+// addBlockIndex handles the add index reorganization state for a causet.
+func (w *worker) addBlockIndex(t causet.Block, idx *perceptron.IndexInfo, reorgInfo *reorgInfo) error {
 	var err error
-	if tbl, ok := t.(block.PartitionedBlock); ok {
+	if tbl, ok := t.(causet.PartitionedBlock); ok {
 		var finish bool
 		for !finish {
 			p := tbl.GetPartition(reorgInfo.PhysicalBlockID)
 			if p == nil {
-				return errCancelledDBSJob.GenWithStack("Can not find partition id %d for block %d", reorgInfo.PhysicalBlockID, t.Meta().ID)
+				return errCancelledDBSJob.GenWithStack("Can not find partition id %d for causet %d", reorgInfo.PhysicalBlockID, t.Meta().ID)
 			}
 			err = w.addPhysicalBlockIndex(p, idx, reorgInfo)
 			if err != nil {
@@ -1102,15 +1102,15 @@ func (w *worker) addBlockIndex(t block.Block, idx *perceptron.IndexInfo, reorgIn
 			}
 		}
 	} else {
-		err = w.addPhysicalBlockIndex(t.(block.PhysicalBlock), idx, reorgInfo)
+		err = w.addPhysicalBlockIndex(t.(causet.PhysicalBlock), idx, reorgInfo)
 	}
 	return errors.Trace(err)
 }
 
 // uFIDelateReorgInfo will find the next partition according to current reorgInfo.
-// If no more partitions, or block t is not a partitioned block, returns true to
+// If no more partitions, or causet t is not a partitioned causet, returns true to
 // indicate that the reorganize work is finished.
-func (w *worker) uFIDelateReorgInfo(t block.PartitionedBlock, reorg *reorgInfo) (bool, error) {
+func (w *worker) uFIDelateReorgInfo(t causet.PartitionedBlock, reorg *reorgInfo) (bool, error) {
 	pi := t.Meta().GetPartitionInfo()
 	if pi == nil {
 		return true, nil
@@ -1119,7 +1119,7 @@ func (w *worker) uFIDelateReorgInfo(t block.PartitionedBlock, reorg *reorgInfo) 
 	pid, err := findNextPartitionID(reorg.PhysicalBlockID, pi.Definitions)
 	if err != nil {
 		// Fatal error, should not run here.
-		logutil.BgLogger().Error("[dbs] find next partition ID failed", zap.Reflect("block", t), zap.Error(err))
+		logutil.BgLogger().Error("[dbs] find next partition ID failed", zap.Reflect("causet", t), zap.Error(err))
 		return false, errors.Trace(err)
 	}
 	if pid == 0 {
@@ -1189,7 +1189,7 @@ func indexDeferredCausetSliceEqual(a, b []*perceptron.IndexDeferredCauset) bool 
 		return false
 	}
 	if len(a) == 0 {
-		logutil.BgLogger().Warn("[dbs] admin repair block : index's columns length equal to 0")
+		logutil.BgLogger().Warn("[dbs] admin repair causet : index's columns length equal to 0")
 		return true
 	}
 	// Accelerate the compare by eliminate index bound check.

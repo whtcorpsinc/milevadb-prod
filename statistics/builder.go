@@ -95,7 +95,7 @@ func (b *SortedBuilder) Iterate(data types.Causet) error {
 
 // BuildDeferredCausetHist build a histogram for a column.
 // numBuckets: number of buckets for the histogram.
-// id: the id of the block.
+// id: the id of the causet.
 // collector: the collector of samples.
 // tp: the FieldType for the column.
 // count: represents the event count for the column.

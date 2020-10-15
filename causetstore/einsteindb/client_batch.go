@@ -144,7 +144,7 @@ func fetchMorePendingRequests(
 	}
 	after.Stop()
 
-	// Do an additional non-block try. Here we test the lengh with `maxBatchSize` instead
+	// Do an additional non-causet try. Here we test the lengh with `maxBatchSize` instead
 	// of `batchWaitSize` because trying best to fetch more requests is necessary so that
 	// we can adjust the `batchWaitSize` dynamically.
 	for len(*entries) < maxBatchSize {
@@ -517,7 +517,7 @@ func (a *batchConn) getClientAndSend(entries []*batchCommandsEntry, requests []*
 	for i := 0; i < len(a.batchCommandsClients); i++ {
 		a.index = (a.index + 1) % uint32(len(a.batchCommandsClients))
 		target = a.batchCommandsClients[a.index].target
-		// The lock protects the batchCommandsClient from been closed while it's inuse.
+		// The dagger protects the batchCommandsClient from been closed while it's inuse.
 		if a.batchCommandsClients[a.index].tryLockForSend() {
 			cli = a.batchCommandsClients[a.index]
 			break

@@ -173,100 +173,100 @@ Limit_19	0.00	root		offset:0, count:5
   │ └─IndexMergeJoin_53	0.00	root		inner join, inner:Projection_51, outer key:test.tr.id, inner key:test.te.trade_id
   │   ├─IndexLookUp_98(Build)	0.00	root		
   │   │ ├─Selection_96(Build)	0.00	cop[einsteindb]		eq(test.tr.business_type, 18), eq(test.tr.trade_type, 1)
-  │   │ │ └─IndexRangeScan_94	10.00	cop[einsteindb]	block:tr, index:idx_shop_identy_trade_status_business_type(shop_identy, trade_status, business_type, trade_pay_status, trade_type, delivery_type, source, biz_date)	range:[810094178,810094178], keep order:false, stats:pseudo
+  │   │ │ └─IndexRangeScan_94	10.00	cop[einsteindb]	causet:tr, index:idx_shop_identy_trade_status_business_type(shop_identy, trade_status, business_type, trade_pay_status, trade_type, delivery_type, source, biz_date)	range:[810094178,810094178], keep order:false, stats:pseudo
   │   │ └─Selection_97(Probe)	0.00	cop[einsteindb]		eq(test.tr.brand_identy, 32314), eq(test.tr.petri_type, 2)
-  │   │   └─TableRowIDScan_95	0.00	cop[einsteindb]	block:tr	keep order:false, stats:pseudo
+  │   │   └─TableRowIDScan_95	0.00	cop[einsteindb]	causet:tr	keep order:false, stats:pseudo
   │   └─Projection_51(Probe)	1.25	root		test.te.trade_id, test.te.expect_time
   │     └─IndexLookUp_50	1.25	root		
-  │       ├─IndexRangeScan_47(Build)	50.00	cop[einsteindb]	block:te, index:idx_trade_id(trade_id)	range: decided by [eq(test.te.trade_id, test.tr.id)], keep order:true, stats:pseudo
+  │       ├─IndexRangeScan_47(Build)	50.00	cop[einsteindb]	causet:te, index:idx_trade_id(trade_id)	range: decided by [eq(test.te.trade_id, test.tr.id)], keep order:true, stats:pseudo
   │       └─Selection_49(Probe)	1.25	cop[einsteindb]		ge(test.te.expect_time, 2020-04-23 00:00:00.000000), le(test.te.expect_time, 2020-04-23 23:59:59.000000)
-  │         └─TableRowIDScan_48	50.00	cop[einsteindb]	block:te	keep order:false, stats:pseudo
+  │         └─TableRowIDScan_48	50.00	cop[einsteindb]	causet:te	keep order:false, stats:pseudo
   └─IndexReader_117(Probe)	1.25	root		index:Selection_116
     └─Selection_116	1.25	cop[einsteindb]		not(isnull(test.p.relate_id))
-      └─IndexRangeScan_115	1.25	cop[einsteindb]	block:p, index:payment_relate_id(relate_id)	range: decided by [eq(test.p.relate_id, test.tr.id)], keep order:false, stats:pseudo
+      └─IndexRangeScan_115	1.25	cop[einsteindb]	causet:p, index:payment_relate_id(relate_id)	range: decided by [eq(test.p.relate_id, test.tr.id)], keep order:false, stats:pseudo
 desc select 1 as a from dual order by a limit 1;
 id	estRows	task	access object	operator info
 Projection_6	1.00	root		1->DeferredCauset#1
 └─TableDual_7	1.00	root		rows:1
-drop block if exists t1;
-drop block if exists t2;
-create block t1(a bigint, b bigint);
-create block t2(a bigint, b bigint);
+drop causet if exists t1;
+drop causet if exists t2;
+create causet t1(a bigint, b bigint);
+create causet t2(a bigint, b bigint);
 desc select * from t1 where t1.a in (select t2.a as a from t2 where t2.b > t1.b order by t1.b limit 1);
 id	estRows	task	access object	operator info
 Apply_15	9990.00	root		semi join, equal:[eq(test.t1.a, test.t2.a)]
 ├─TableReader_18(Build)	9990.00	root		data:Selection_17
 │ └─Selection_17	9990.00	cop[einsteindb]		not(isnull(test.t1.a))
-│   └─TableFullScan_16	10000.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+│   └─TableFullScan_16	10000.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
 └─Selection_19(Probe)	0.80	root		not(isnull(test.t2.a))
   └─Limit_20	1.00	root		offset:0, count:1
     └─TableReader_26	1.00	root		data:Limit_25
       └─Limit_25	1.00	cop[einsteindb]		offset:0, count:1
         └─Selection_24	1.00	cop[einsteindb]		gt(test.t2.b, test.t1.b)
-          └─TableFullScan_23	1.25	cop[einsteindb]	block:t2	keep order:false, stats:pseudo
+          └─TableFullScan_23	1.25	cop[einsteindb]	causet:t2	keep order:false, stats:pseudo
 desc select * from t1 where t1.a in (select a from (select t2.a as a, t1.b as b from t2 where t2.b > t1.b) x order by b limit 1);
 id	estRows	task	access object	operator info
 Apply_17	9990.00	root		semi join, equal:[eq(test.t1.a, test.t2.a)]
 ├─TableReader_20(Build)	9990.00	root		data:Selection_19
 │ └─Selection_19	9990.00	cop[einsteindb]		not(isnull(test.t1.a))
-│   └─TableFullScan_18	10000.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+│   └─TableFullScan_18	10000.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
 └─Selection_21(Probe)	0.80	root		not(isnull(test.t2.a))
   └─Projection_22	1.00	root		test.t2.a
     └─Limit_23	1.00	root		offset:0, count:1
       └─TableReader_29	1.00	root		data:Limit_28
         └─Limit_28	1.00	cop[einsteindb]		offset:0, count:1
           └─Selection_27	1.00	cop[einsteindb]		gt(test.t2.b, test.t1.b)
-            └─TableFullScan_26	1.25	cop[einsteindb]	block:t2	keep order:false, stats:pseudo
-drop block if exists t;
-create block t(a int not null, index idx(a));
+            └─TableFullScan_26	1.25	cop[einsteindb]	causet:t2	keep order:false, stats:pseudo
+drop causet if exists t;
+create causet t(a int not null, index idx(a));
 explain select /*+ MilevaDB_INLJ(t2) */ * from t t1 join t t2 on t1.a = t2.a limit 5;
 id	estRows	task	access object	operator info
 Limit_11	5.00	root		offset:0, count:5
 └─IndexJoin_15	5.00	root		inner join, inner:IndexReader_14, outer key:test.t.a, inner key:test.t.a
   ├─TableReader_23(Build)	4.00	root		data:TableFullScan_22
-  │ └─TableFullScan_22	4.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+  │ └─TableFullScan_22	4.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
   └─IndexReader_14(Probe)	1.25	root		index:IndexRangeScan_13
-    └─IndexRangeScan_13	1.25	cop[einsteindb]	block:t2, index:idx(a)	range: decided by [eq(test.t.a, test.t.a)], keep order:false, stats:pseudo
+    └─IndexRangeScan_13	1.25	cop[einsteindb]	causet:t2, index:idx(a)	range: decided by [eq(test.t.a, test.t.a)], keep order:false, stats:pseudo
 explain select /*+ MilevaDB_INLJ(t2) */ * from t t1 left join t t2 on t1.a = t2.a where t2.a is null limit 5;
 id	estRows	task	access object	operator info
 Limit_12	5.00	root		offset:0, count:5
 └─Selection_13	5.00	root		isnull(test.t.a)
   └─IndexJoin_17	5.00	root		left outer join, inner:IndexReader_16, outer key:test.t.a, inner key:test.t.a
     ├─TableReader_25(Build)	4.00	root		data:TableFullScan_24
-    │ └─TableFullScan_24	4.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+    │ └─TableFullScan_24	4.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
     └─IndexReader_16(Probe)	1.25	root		index:IndexRangeScan_15
-      └─IndexRangeScan_15	1.25	cop[einsteindb]	block:t2, index:idx(a)	range: decided by [eq(test.t.a, test.t.a)], keep order:false, stats:pseudo
+      └─IndexRangeScan_15	1.25	cop[einsteindb]	causet:t2, index:idx(a)	range: decided by [eq(test.t.a, test.t.a)], keep order:false, stats:pseudo
 explain select /*+ MilevaDB_SMJ(t1, t2) */ * from t t1 join t t2 on t1.a = t2.a limit 5;
 id	estRows	task	access object	operator info
 Limit_11	5.00	root		offset:0, count:5
 └─MergeJoin_12	5.00	root		inner join, left key:test.t.a, right key:test.t.a
   ├─IndexReader_17(Build)	4.00	root		index:IndexFullScan_16
-  │ └─IndexFullScan_16	4.00	cop[einsteindb]	block:t2, index:idx(a)	keep order:true, stats:pseudo
+  │ └─IndexFullScan_16	4.00	cop[einsteindb]	causet:t2, index:idx(a)	keep order:true, stats:pseudo
   └─IndexReader_15(Probe)	4.00	root		index:IndexFullScan_14
-    └─IndexFullScan_14	4.00	cop[einsteindb]	block:t1, index:idx(a)	keep order:true, stats:pseudo
+    └─IndexFullScan_14	4.00	cop[einsteindb]	causet:t1, index:idx(a)	keep order:true, stats:pseudo
 explain select /*+ MilevaDB_SMJ(t1, t2) */ * from t t1 left join t t2 on t1.a = t2.a where t2.a is null limit 5;
 id	estRows	task	access object	operator info
 Limit_12	5.00	root		offset:0, count:5
 └─Selection_13	5.00	root		isnull(test.t.a)
   └─MergeJoin_14	5.00	root		left outer join, left key:test.t.a, right key:test.t.a
     ├─IndexReader_19(Build)	4.00	root		index:IndexFullScan_18
-    │ └─IndexFullScan_18	4.00	cop[einsteindb]	block:t2, index:idx(a)	keep order:true, stats:pseudo
+    │ └─IndexFullScan_18	4.00	cop[einsteindb]	causet:t2, index:idx(a)	keep order:true, stats:pseudo
     └─IndexReader_17(Probe)	4.00	root		index:IndexFullScan_16
-      └─IndexFullScan_16	4.00	cop[einsteindb]	block:t1, index:idx(a)	keep order:true, stats:pseudo
+      └─IndexFullScan_16	4.00	cop[einsteindb]	causet:t1, index:idx(a)	keep order:true, stats:pseudo
 explain select /*+ MilevaDB_HJ(t1, t2) */ * from t t1 join t t2 on t1.a = t2.a limit 5;
 id	estRows	task	access object	operator info
 Limit_11	5.00	root		offset:0, count:5
 └─HashJoin_31	5.00	root		inner join, equal:[eq(test.t.a, test.t.a)]
   ├─TableReader_38(Build)	10000.00	root		data:TableFullScan_37
-  │ └─TableFullScan_37	10000.00	cop[einsteindb]	block:t2	keep order:false, stats:pseudo
+  │ └─TableFullScan_37	10000.00	cop[einsteindb]	causet:t2	keep order:false, stats:pseudo
   └─TableReader_34(Probe)	4.00	root		data:TableFullScan_33
-    └─TableFullScan_33	4.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+    └─TableFullScan_33	4.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
 explain select /*+ MilevaDB_HJ(t1, t2) */ * from t t1 left join t t2 on t1.a = t2.a where t2.a is null limit 5;
 id	estRows	task	access object	operator info
 Limit_12	5.00	root		offset:0, count:5
 └─Selection_13	5.00	root		isnull(test.t.a)
   └─HashJoin_25	5.00	root		left outer join, equal:[eq(test.t.a, test.t.a)]
     ├─TableReader_27(Build)	4.00	root		data:TableFullScan_26
-    │ └─TableFullScan_26	4.00	cop[einsteindb]	block:t1	keep order:false, stats:pseudo
+    │ └─TableFullScan_26	4.00	cop[einsteindb]	causet:t1	keep order:false, stats:pseudo
     └─TableReader_31(Probe)	10000.00	root		data:TableFullScan_30
-      └─TableFullScan_30	10000.00	cop[einsteindb]	block:t2	keep order:false, stats:pseudo
+      └─TableFullScan_30	10000.00	cop[einsteindb]	causet:t2	keep order:false, stats:pseudo

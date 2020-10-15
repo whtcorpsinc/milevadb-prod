@@ -83,7 +83,7 @@ func (s *testALLEGROSQLSerialSuite) TestFailBusyServerCop(c *C) {
 
 	go func() {
 		defer wg.Done()
-		rs, err := se.Execute(context.Background(), `SELECT variable_value FROM allegrosql.milevadb WHERE variable_name="bootstrapped"`)
+		rs, err := se.InterDircute(context.Background(), `SELECT variable_value FROM allegrosql.milevadb WHERE variable_name="bootstrapped"`)
 		if len(rs) > 0 {
 			defer terror.Call(rs[0].Close)
 		}
@@ -105,10 +105,10 @@ func TestMain(m *testing.M) {
 
 func (s *testALLEGROSQLSuite) TestCoprocessorStreamRecvTimeout(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block cop_stream_timeout (id int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet cop_stream_timeout (id int)")
 	for i := 0; i < 200; i++ {
-		tk.MustExec(fmt.Sprintf("insert into cop_stream_timeout values (%d)", i))
+		tk.MustInterDirc(fmt.Sprintf("insert into cop_stream_timeout values (%d)", i))
 	}
 	tk.Se.GetStochastikVars().EnableStreaming = true
 
@@ -131,7 +131,7 @@ func (s *testALLEGROSQLSuite) TestCoprocessorStreamRecvTimeout(c *C) {
 			enable = false
 		})
 
-		res, err := tk.Se.Execute(ctx, "select * from cop_stream_timeout")
+		res, err := tk.Se.InterDircute(ctx, "select * from cop_stream_timeout")
 		c.Assert(err, IsNil)
 
 		req := res[0].NewChunk()
@@ -171,7 +171,7 @@ func (s *testALLEGROSQLSuite) TestCoprocessorStreamRecvTimeout(c *C) {
 			enable = false
 		})
 
-		res, err := tk.Se.Execute(ctx, "select * from cop_stream_timeout")
+		res, err := tk.Se.InterDircute(ctx, "select * from cop_stream_timeout")
 		c.Assert(err, IsNil)
 
 		req := res[0].NewChunk()

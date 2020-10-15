@@ -87,15 +87,15 @@ func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
 }
 
 // SelectWithRuntimeStats sends a PosetDag request, returns SelectResult.
-// The difference from Select is that SelectWithRuntimeStats will set copPlanIDs into selectResult,
+// The difference from Select is that SelectWithRuntimeStats will set copCausetIDs into selectResult,
 // which can help selectResult to defCauslect runtime stats.
 func SelectWithRuntimeStats(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
-	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int, rootPlanID int) (SelectResult, error) {
+	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copCausetIDs []int, rootCausetID int) (SelectResult, error) {
 	sr, err := Select(ctx, sctx, kvReq, fieldTypes, fb)
 	if err == nil {
 		if selectResult, ok := sr.(*selectResult); ok {
-			selectResult.copPlanIDs = copPlanIDs
-			selectResult.rootPlanID = rootPlanID
+			selectResult.copCausetIDs = copCausetIDs
+			selectResult.rootCausetID = rootCausetID
 		}
 	}
 	return sr, err

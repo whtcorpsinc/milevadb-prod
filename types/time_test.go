@@ -67,7 +67,7 @@ func (s *testTimeSuite) TestDateTime(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Expect string
 	}{
@@ -103,7 +103,7 @@ func (s *testTimeSuite) TestDateTime(c *C) {
 		{"4710072", "2047-10-07 02:00:00"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDatetime(sc, test.Input)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
@@ -159,14 +159,14 @@ func (s *testTimeSuite) TestDateTime(c *C) {
 
 func (s *testTimeSuite) TestTimestamp(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Expect string
 	}{
 		{"2012-12-31 11:30:45", "2012-12-31 11:30:45"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseTimestamp(&stmtctx.StatementContext{TimeZone: time.UTC}, test.Input)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
@@ -187,7 +187,7 @@ func (s *testTimeSuite) TestDate(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Expect string
 	}{
@@ -252,7 +252,7 @@ func (s *testTimeSuite) TestDate(c *C) {
 		{"   2011----12----13    ", "2011-12-13"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDate(sc, test.Input)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
@@ -282,7 +282,7 @@ func (s *testTimeSuite) TestTime(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Expect string
 	}{
@@ -312,13 +312,13 @@ func (s *testTimeSuite) TestTime(c *C) {
 		{"2011-11-11T12:12:12", "12:12:12"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDuration(sc, test.Input, types.MinFsp)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
 	}
 
-	block = []struct {
+	causet = []struct {
 		Input  string
 		Expect string
 	}{
@@ -327,7 +327,7 @@ func (s *testTimeSuite) TestTime(c *C) {
 		{"10:11:12.123456", "10:11:12.123456"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDuration(sc, test.Input, types.MaxFsp)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
@@ -375,7 +375,7 @@ func (s *testTimeSuite) TestTime(c *C) {
 
 func (s *testTimeSuite) TestDurationAdd(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input    string
 		Fsp      int8
 		InputAdd string
@@ -387,7 +387,7 @@ func (s *testTimeSuite) TestDurationAdd(c *C) {
 		{"00:00:00.09", 2, "00:00:00.01", 2, "00:00:00.10"},
 		{"00:00:00.099", 3, "00:00:00.001", 3, "00:00:00.100"},
 	}
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDuration(nil, test.Input, test.Fsp)
 		c.Assert(err, IsNil)
 		ta, err := types.ParseDuration(nil, test.InputAdd, test.FspAdd)
@@ -414,7 +414,7 @@ func (s *testTimeSuite) TestDurationSub(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input    string
 		Fsp      int8
 		InputAdd string
@@ -424,7 +424,7 @@ func (s *testTimeSuite) TestDurationSub(c *C) {
 		{"00:00:00.1", 1, "00:00:00.1", 1, "00:00:00.0"},
 		{"00:00:00", 0, "00:00:00.1", 1, "-00:00:00.1"},
 	}
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDuration(sc, test.Input, test.Fsp)
 		c.Assert(err, IsNil)
 		ta, err := types.ParseDuration(sc, test.InputAdd, test.FspAdd)
@@ -439,7 +439,7 @@ func (s *testTimeSuite) TestTimeFsp(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Fsp    int8
 		Expect string
@@ -456,7 +456,7 @@ func (s *testTimeSuite) TestTimeFsp(c *C) {
 		{"08:59:59.537368", 0, "09:00:00"},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDuration(sc, test.Input, test.Fsp)
 		c.Assert(err, IsNil)
 		c.Assert(t.String(), Equals, test.Expect)
@@ -477,7 +477,7 @@ func (s *testTimeSuite) TestTimeFsp(c *C) {
 }
 func (s *testTimeSuite) TestYear(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Expect int16
 	}{
@@ -487,7 +487,7 @@ func (s *testTimeSuite) TestYear(c *C) {
 		{"99", 1999},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseYear(test.Input)
 		c.Assert(err, IsNil)
 		c.Assert(t, Equals, test.Expect)
@@ -598,7 +598,7 @@ func (s *testTimeSuite) TestCodec(c *C) {
 
 func (s *testTimeSuite) TestParseTimeFromNum(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input                int64
 		ExpectDateTimeError  bool
 		ExpectDateTimeValue  string
@@ -634,7 +634,7 @@ func (s *testTimeSuite) TestParseTimeFromNum(c *C) {
 		{11111111111, false, "2001-11-11 11:11:11", false, "2001-11-11 11:11:11", false, "2001-11-11"},
 	}
 
-	for ith, test := range block {
+	for ith, test := range causet {
 		// testtypes.ParseDatetimeFromNum
 		t, err := types.ParseDatetimeFromNum(nil, test.Input)
 		if test.ExpectDateTimeError {
@@ -1672,7 +1672,7 @@ func (s *testTimeSuite) TestTimeOverflow(c *C) {
 	sc := mock.NewContext().GetStochastikVars().StmtCtx
 	sc.IgnoreZeroInDate = true
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  string
 		Output bool
 	}{
@@ -1688,7 +1688,7 @@ func (s *testTimeSuite) TestTimeOverflow(c *C) {
 		{"2020/01/01-00:00:00", false},
 	}
 
-	for _, test := range block {
+	for _, test := range causet {
 		t, err := types.ParseDatetime(sc, test.Input)
 		c.Assert(err, IsNil)
 		isOverflow, err := types.DateTimeIsOverflow(sc, t)

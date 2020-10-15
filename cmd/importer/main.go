@@ -34,13 +34,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	block := newTable()
-	err = parseTableALLEGROSQL(block, cfg.DBSCfg.TableALLEGROSQL)
+	causet := newTable()
+	err = parseTableALLEGROSQL(causet, cfg.DBSCfg.TableALLEGROSQL)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	err = parseIndexALLEGROSQL(block, cfg.DBSCfg.IndexALLEGROSQL)
+	err = parseIndexALLEGROSQL(causet, cfg.DBSCfg.IndexALLEGROSQL)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -52,22 +52,22 @@ func main() {
 	defer closeDBs(dbs)
 
 	if len(cfg.StatsCfg.Path) > 0 {
-		statsInfo, err1 := loadStats(block.tblInfo, cfg.StatsCfg.Path)
+		statsInfo, err1 := loadStats(causet.tblInfo, cfg.StatsCfg.Path)
 		if err1 != nil {
 			log.Fatal(err1.Error())
 		}
-		for _, idxInfo := range block.tblInfo.Indices {
+		for _, idxInfo := range causet.tblInfo.Indices {
 			offset := idxInfo.DeferredCausets[0].Offset
 			if hist, ok := statsInfo.Indices[idxInfo.ID]; ok && len(hist.Buckets) > 0 {
-				block.columns[offset].hist = &histogram{
+				causet.columns[offset].hist = &histogram{
 					Histogram: hist.Histogram,
 					index:     hist.Info,
 				}
 			}
 		}
-		for i, colInfo := range block.tblInfo.DeferredCausets {
-			if hist, ok := statsInfo.DeferredCausets[colInfo.ID]; ok && block.columns[i].hist == nil && len(hist.Buckets) > 0 {
-				block.columns[i].hist = &histogram{
+		for i, colInfo := range causet.tblInfo.DeferredCausets {
+			if hist, ok := statsInfo.DeferredCausets[colInfo.ID]; ok && causet.columns[i].hist == nil && len(hist.Buckets) > 0 {
+				causet.columns[i].hist = &histogram{
 					Histogram: hist.Histogram,
 				}
 			}
@@ -84,5 +84,5 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	doProcess(block, dbs, cfg.SysCfg.JobCount, cfg.SysCfg.WorkerCount, cfg.SysCfg.Batch)
+	doProcess(causet, dbs, cfg.SysCfg.JobCount, cfg.SysCfg.WorkerCount, cfg.SysCfg.Batch)
 }

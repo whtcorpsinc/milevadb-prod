@@ -24,7 +24,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -50,13 +50,13 @@ const (
 	PseudoVersion uint64 = 0
 
 	// PseudoRowCount export for other pkg to use.
-	// When we haven't analyzed a block, we use pseudo statistics to estimate costs.
+	// When we haven't analyzed a causet, we use pseudo statistics to estimate costs.
 	// It has event count 10000, equal condition selects 1/1000 of total rows, less condition selects 1/3 of total rows,
 	// between condition selects 1/40 of total rows.
 	PseudoRowCount = 10000
 )
 
-// Block represents statistics for a block.
+// Block represents statistics for a causet.
 type Block struct {
 	HistDefCausl
 	Version       uint64
@@ -94,22 +94,22 @@ type HistDefCausl struct {
 	PhysicalID int64
 	DeferredCausets    map[int64]*DeferredCauset
 	Indices    map[int64]*Index
-	// Idx2DeferredCausetIDs maps the index id to its column ids. It's used to calculate the selectivity in planner.
+	// Idx2DeferredCausetIDs maps the index id to its column ids. It's used to calculate the selectivity in causet.
 	Idx2DeferredCausetIDs map[int64][]int64
-	// DefCausID2IdxID maps the column id to index id whose first column is it. It's used to calculate the selectivity in planner.
+	// DefCausID2IdxID maps the column id to index id whose first column is it. It's used to calculate the selectivity in causet.
 	DefCausID2IdxID map[int64]int64
 	Count       int64
-	ModifyCount int64 // Total modify count in a block.
+	ModifyCount int64 // Total modify count in a causet.
 
-	// HavePhysicalID is true means this HistDefCausl is from single block and have its ID's information.
+	// HavePhysicalID is true means this HistDefCausl is from single causet and have its ID's information.
 	// The physical id is used when try to load column stats from storage.
 	HavePhysicalID bool
 	Pseudo         bool
 }
 
 // MemoryUsage returns the total memory usage of this Block.
-// it will only calc the size of DeferredCausets and Indices stats data of block.
-// We ignore the size of other metadata in Block
+// it will only calc the size of DeferredCausets and Indices stats data of causet.
+// We ignore the size of other spacetimedata in Block
 func (t *Block) MemoryUsage() (sum int64) {
 	for _, col := range t.DeferredCausets {
 		if col != nil {
@@ -124,7 +124,7 @@ func (t *Block) MemoryUsage() (sum int64) {
 	return
 }
 
-// Copy copies the current block.
+// Copy copies the current causet.
 func (t *Block) Copy() *Block {
 	newHistDefCausl := HistDefCausl{
 		PhysicalID:     t.PhysicalID,
@@ -239,7 +239,7 @@ func (n *neededDeferredCausetMap) Delete(col blockDeferredCausetID) {
 // and use pseudo estimation.
 var RatioOfPseudoEstimate = atomic.NewFloat64(0.7)
 
-// IsOutdated returns true if the block stats is outdated.
+// IsOutdated returns true if the causet stats is outdated.
 func (t *Block) IsOutdated() bool {
 	if t.Count > 0 && float64(t.ModifyCount)/float64(t.Count) > RatioOfPseudoEstimate.Load() {
 		return true
@@ -360,7 +360,7 @@ func GetOrdinalOfRangeCond(sc *stmtctx.StatementContext, ran *ranger.Range) int 
 }
 
 // ID2UniqueID generates a new HistDefCausl whose `DeferredCausets` is built from UniqueID of given columns.
-func (coll *HistDefCausl) ID2UniqueID(columns []*expression.DeferredCauset) *HistDefCausl {
+func (coll *HistDefCausl) ID2UniqueID(columns []*memex.DeferredCauset) *HistDefCausl {
 	defcaus := make(map[int64]*DeferredCauset)
 	for _, col := range columns {
 		colHist, ok := coll.DeferredCausets[col.ID]
@@ -380,7 +380,7 @@ func (coll *HistDefCausl) ID2UniqueID(columns []*expression.DeferredCauset) *His
 }
 
 // GenerateHistDefCauslFromDeferredCausetInfo generates a new HistDefCausl whose DefCausID2IdxID and IdxID2DefCausIDs is built from the given parameter.
-func (coll *HistDefCausl) GenerateHistDefCauslFromDeferredCausetInfo(infos []*perceptron.DeferredCausetInfo, columns []*expression.DeferredCauset) *HistDefCausl {
+func (coll *HistDefCausl) GenerateHistDefCauslFromDeferredCausetInfo(infos []*perceptron.DeferredCausetInfo, columns []*memex.DeferredCauset) *HistDefCausl {
 	newDefCausHistMap := make(map[int64]*DeferredCauset)
 	colInfoID2UniqueID := make(map[int64]int64, len(columns))
 	colNames2UniqueID := make(map[string]int64)
@@ -577,7 +577,7 @@ func (coll *HistDefCausl) getIndexRowCount(sc *stmtctx.StatementContext, idxID i
 
 const fakePhysicalID int64 = -1
 
-// PseudoTable creates a pseudo block statistics.
+// PseudoTable creates a pseudo causet statistics.
 func PseudoTable(tblInfo *perceptron.TableInfo) *Block {
 	pseudoHistDefCausl := HistDefCausl{
 		Count:          PseudoRowCount,
@@ -758,7 +758,7 @@ func getPseudoRowCountByUnsignedIntRanges(intRanges []*ranger.Range, blockRowCou
 }
 
 // GetAvgRowSize computes average event size for given columns.
-func (coll *HistDefCausl) GetAvgRowSize(ctx stochastikctx.Context, defcaus []*expression.DeferredCauset, isEncodedKey bool, isForScan bool) (size float64) {
+func (coll *HistDefCausl) GetAvgRowSize(ctx stochastikctx.Context, defcaus []*memex.DeferredCauset, isEncodedKey bool, isForScan bool) (size float64) {
 	stochastikVars := ctx.GetStochastikVars()
 	if coll.Pseudo || len(coll.DeferredCausets) == 0 || coll.Count == 0 {
 		size = pseudoDefCausSize * float64(len(defcaus))
@@ -789,7 +789,7 @@ func (coll *HistDefCausl) GetAvgRowSize(ctx stochastikctx.Context, defcaus []*ex
 }
 
 // GetAvgRowSizeListInDisk computes average event size for given columns.
-func (coll *HistDefCausl) GetAvgRowSizeListInDisk(defcaus []*expression.DeferredCauset) (size float64) {
+func (coll *HistDefCausl) GetAvgRowSizeListInDisk(defcaus []*memex.DeferredCauset) (size float64) {
 	if coll.Pseudo || len(coll.DeferredCausets) == 0 || coll.Count == 0 {
 		for _, col := range defcaus {
 			size += float64(chunk.EstimateTypeWidth(col.GetType()))
@@ -810,8 +810,8 @@ func (coll *HistDefCausl) GetAvgRowSizeListInDisk(defcaus []*expression.Deferred
 	return size + float64(8*len(defcaus))
 }
 
-// GetTableAvgRowSize computes average event size for a block scan, exclude the index key-value pairs.
-func (coll *HistDefCausl) GetTableAvgRowSize(ctx stochastikctx.Context, defcaus []*expression.DeferredCauset, storeType ekv.StoreType, handleInDefCauss bool) (size float64) {
+// GetTableAvgRowSize computes average event size for a causet scan, exclude the index key-value pairs.
+func (coll *HistDefCausl) GetTableAvgRowSize(ctx stochastikctx.Context, defcaus []*memex.DeferredCauset, storeType ekv.StoreType, handleInDefCauss bool) (size float64) {
 	size = coll.GetAvgRowSize(ctx, defcaus, false, true)
 	switch storeType {
 	case ekv.EinsteinDB:
@@ -827,7 +827,7 @@ func (coll *HistDefCausl) GetTableAvgRowSize(ctx stochastikctx.Context, defcaus 
 }
 
 // GetIndexAvgRowSize computes average event size for a index scan.
-func (coll *HistDefCausl) GetIndexAvgRowSize(ctx stochastikctx.Context, defcaus []*expression.DeferredCauset, isUnique bool) (size float64) {
+func (coll *HistDefCausl) GetIndexAvgRowSize(ctx stochastikctx.Context, defcaus []*memex.DeferredCauset, isUnique bool) (size float64) {
 	size = coll.GetAvgRowSize(ctx, defcaus, true, true)
 	// blockPrefix(1) + blockID(8) + indexPrefix(2) + indexID(8)
 	// Because the defcaus for index scan always contain the handle, so we don't add the rowID here.

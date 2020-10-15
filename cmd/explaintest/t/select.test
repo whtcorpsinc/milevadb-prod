@@ -123,7 +123,7 @@ select * from (t);
 select * from (t as a, t2 as b);
 select * from (t as a cross join t2 as b);
 
-# block nil plan
+# causet nil plan
 select 1 as a from t;
 select count(*), 1 from t;
 select *, 1 from t;
@@ -132,8 +132,8 @@ select *, 1 from t;
 select 1, count(1), sum(1);
 
 #test topn push down
-drop block if exists t1;
-create block t1(a int primary key, b int, c int, index idx(b, c));
+drop causet if exists t1;
+create causet t1(a int primary key, b int, c int, index idx(b, c));
 insert into t1 values(1, 2, 3);
 insert into t1 values(2, 3, 4);
 insert into t1 values(3 ,4, 5);
@@ -146,9 +146,9 @@ explain select a, c from t1 use index(idx) order by a limit 5;
 select c, a from t1 use index(idx) order by a limit 5;
 
 #test stream aggregation push down
-drop block if exists t;
-create block t (a int, b int, c int, key idx(a, b, c));
-#test for empty block
+drop causet if exists t;
+create causet t (a int, b int, c int, key idx(a, b, c));
+#test for empty causet
 explain select count(a) from t;
 select count(a) from t;
 #test for one event
@@ -167,21 +167,21 @@ explain select count(a) from t where b>0 group by a, b order by a limit 1;
 select count(a) from t where b>0 group by a, b order by a limit 1;
 
 # test outer join simplification, issue #7687
-drop block if exists t;
-create block t (id int primary key, a int, b int);
+drop causet if exists t;
+create causet t (id int primary key, a int, b int);
 explain select * from (t t1 left join t t2 on t1.a = t2.a) left join (t t3 left join t t4 on t3.a = t4.a) on t2.b = 1;
 
-drop block if exists t;
-create block t(a bigint primary key, b bigint);
+drop causet if exists t;
+create causet t(a bigint primary key, b bigint);
 desc select * from t where a = 1;
 desc select * from t where a = '1';
 
 desc select sysdate(), sleep(1), sysdate();
 
-# test select partition block
-drop block if exists th;
+# test select partition causet
+drop causet if exists th;
 set @@stochastik.milevadb_enable_block_partition = '1';
-create block th (a int, b int) partition by hash(a) partitions 3;
+create causet th (a int, b int) partition by hash(a) partitions 3;
 insert into th values (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
 insert into th values (-1,-1),(-2,-2),(-3,-3),(-4,-4),(-5,-5),(-6,-6),(-7,-7),(-8,-8);
 desc select * from th where a=-2;
@@ -189,40 +189,40 @@ desc select * from th;
 desc select * from th partition (p2,p1);
 
 # test != any(subq) and = all(subq)
-drop block if exists t;
-create block t(a int, b int);
+drop causet if exists t;
+create causet t(a int, b int);
 explain select a != any (select a from t t2) from t t1;
 explain select a = all (select a from t t2) from t t1;
 
-drop block if exists t;
-create block t(a int, b int);
-drop block if exists s;
-create block s(a varchar(20), b varchar(20));
+drop causet if exists t;
+create causet t(a int, b int);
+drop causet if exists s;
+create causet s(a varchar(20), b varchar(20));
 explain select a in (select a from s where s.b = t.b) from t;
 explain select a in (select a+b from t t2 where t2.b = t1.b) from t t1;
-drop block t;
-create block t(a int not null, b int);
+drop causet t;
+create causet t(a int not null, b int);
 explain select a in (select a from t t2 where t2.b = t1.b) from t t1;
 
 # test sleep in subquery
 explain select 1 from (select sleep(1)) t;
 
 # test order by rand()
-drop block if exists t;
-create block t(a int, b int);
+drop causet if exists t;
+create causet t(a int, b int);
 explain select a from t order by rand();
 explain select a, b from t order by abs(2);
 explain select a from t order by abs(rand())+1;
 
 # test order by correlated column
-drop block if exists t1;
-create block t1(a int, b int);
-drop block if exists t2;
-create block t2(a int, b int);
+drop causet if exists t1;
+create causet t1(a int, b int);
+drop causet if exists t2;
+create causet t2(a int, b int);
 explain select * from t1 where t1.a in (select t2.a as a from t2 where t2.b > t1.b order by t1.b);
 
 # test fields with windows function
-drop block t;
+drop causet t;
 CREATE TABLE t (id int(10) unsigned NOT NULL AUTO_INCREMENT,
     i int(10) unsigned DEFAULT NULL,
     x int(10) unsigned DEFAULT 0,

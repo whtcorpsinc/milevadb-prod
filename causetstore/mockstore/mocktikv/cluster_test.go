@@ -50,7 +50,7 @@ func (s *testClusterSuite) TestClusterSplit(c *C) {
 	txn, err := causetstore.Begin()
 	c.Assert(err, IsNil)
 
-	// Mock inserting many rows in a block.
+	// Mock inserting many rows in a causet.
 	tblID := int64(1)
 	idxID := int64(2)
 	colID := int64(3)
@@ -60,7 +60,7 @@ func (s *testClusterSuite) TestClusterSplit(c *C) {
 		rowKey := blockcodec.EncodeRowKeyWithHandle(tblID, ekv.IntHandle(handle))
 		colValue := types.NewStringCauset(strconv.Itoa(int(handle)))
 		// TODO: Should use stochastik's TimeZone instead of UTC.
-		rd := rowcodec.Encoder{Enable: true}
+		rd := rowcodec.CausetEncoder{Enable: true}
 		rowValue, err1 := blockcodec.EncodeRow(sc, []types.Causet{colValue}, []int64{colID}, nil, nil, &rd)
 		c.Assert(err1, IsNil)
 		txn.Set(rowKey, rowValue)
@@ -77,7 +77,7 @@ func (s *testClusterSuite) TestClusterSplit(c *C) {
 	// Split Block into 10 regions.
 	cluster.SplitTable(tblID, 10)
 
-	// 10 block regions and first region and last region.
+	// 10 causet regions and first region and last region.
 	regions := cluster.GetAllRegions()
 	c.Assert(regions, HasLen, 12)
 

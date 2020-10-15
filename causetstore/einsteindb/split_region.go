@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/ekvproto/pkg/FIDelpb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
@@ -88,7 +88,7 @@ func (s *einsteindbStore) splitBatchRegionsReq(bo *Backoffer, keys [][]byte, sca
 		}(batch1)
 	}
 
-	srResp := &kvrpcpb.SplitRegionResponse{Regions: make([]*metapb.Region, 0, len(keys)*2)}
+	srResp := &kvrpcpb.SplitRegionResponse{Regions: make([]*spacetimepb.Region, 0, len(keys)*2)}
 	for i := 0; i < len(batches); i++ {
 		batchResp := <-ch
 		if batchResp.err != nil {
@@ -245,7 +245,7 @@ func (s *einsteindbStore) preSplitRegion(ctx context.Context, group groupedMutat
 	regionSize := 0
 	keysLength := group.mutations.len()
 	valsLength := len(group.mutations.values)
-	// The value length maybe zero for pessimistic lock keys
+	// The value length maybe zero for pessimistic dagger keys
 	for i := 0; i < keysLength; i++ {
 		regionSize = regionSize + len(group.mutations.keys[i])
 		if i < valsLength {

@@ -26,60 +26,60 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 )
 
-// Encoder is used to encode a event.
-type Encoder struct {
+// CausetEncoder is used to encode a event.
+type CausetEncoder struct {
 	event
 	tempDefCausIDs []int64
 	values     []*types.Causet
-	// Enable indicates whether this encoder should be use.
+	// Enable indicates whether this causetCausetEncoder should be use.
 	Enable bool
 }
 
 // Encode encodes a event from a datums slice.
-func (encoder *Encoder) Encode(sc *stmtctx.StatementContext, defCausIDs []int64, values []types.Causet, buf []byte) ([]byte, error) {
-	encoder.reset()
-	encoder.appendDefCausVals(defCausIDs, values)
-	numDefCauss, notNullIdx := encoder.reformatDefCauss()
-	err := encoder.encodeRowDefCauss(sc, numDefCauss, notNullIdx)
+func (causetCausetEncoder *CausetEncoder) Encode(sc *stmtctx.StatementContext, defCausIDs []int64, values []types.Causet, buf []byte) ([]byte, error) {
+	causetCausetEncoder.reset()
+	causetCausetEncoder.appendDefCausVals(defCausIDs, values)
+	numDefCauss, notNullIdx := causetCausetEncoder.reformatDefCauss()
+	err := causetCausetEncoder.encodeRowDefCauss(sc, numDefCauss, notNullIdx)
 	if err != nil {
 		return nil, err
 	}
-	return encoder.event.toBytes(buf[:0]), nil
+	return causetCausetEncoder.event.toBytes(buf[:0]), nil
 }
 
-func (encoder *Encoder) reset() {
-	encoder.large = false
-	encoder.numNotNullDefCauss = 0
-	encoder.numNullDefCauss = 0
-	encoder.data = encoder.data[:0]
-	encoder.tempDefCausIDs = encoder.tempDefCausIDs[:0]
-	encoder.values = encoder.values[:0]
-	encoder.offsets32 = encoder.offsets32[:0]
-	encoder.offsets = encoder.offsets[:0]
+func (causetCausetEncoder *CausetEncoder) reset() {
+	causetCausetEncoder.large = false
+	causetCausetEncoder.numNotNullDefCauss = 0
+	causetCausetEncoder.numNullDefCauss = 0
+	causetCausetEncoder.data = causetCausetEncoder.data[:0]
+	causetCausetEncoder.tempDefCausIDs = causetCausetEncoder.tempDefCausIDs[:0]
+	causetCausetEncoder.values = causetCausetEncoder.values[:0]
+	causetCausetEncoder.offsets32 = causetCausetEncoder.offsets32[:0]
+	causetCausetEncoder.offsets = causetCausetEncoder.offsets[:0]
 }
 
-func (encoder *Encoder) appendDefCausVals(defCausIDs []int64, values []types.Causet) {
+func (causetCausetEncoder *CausetEncoder) appendDefCausVals(defCausIDs []int64, values []types.Causet) {
 	for i, defCausID := range defCausIDs {
-		encoder.appendDefCausVal(defCausID, &values[i])
+		causetCausetEncoder.appendDefCausVal(defCausID, &values[i])
 	}
 }
 
-func (encoder *Encoder) appendDefCausVal(defCausID int64, d *types.Causet) {
+func (causetCausetEncoder *CausetEncoder) appendDefCausVal(defCausID int64, d *types.Causet) {
 	if defCausID > 255 {
-		encoder.large = true
+		causetCausetEncoder.large = true
 	}
 	if d.IsNull() {
-		encoder.numNullDefCauss++
+		causetCausetEncoder.numNullDefCauss++
 	} else {
-		encoder.numNotNullDefCauss++
+		causetCausetEncoder.numNotNullDefCauss++
 	}
-	encoder.tempDefCausIDs = append(encoder.tempDefCausIDs, defCausID)
-	encoder.values = append(encoder.values, d)
+	causetCausetEncoder.tempDefCausIDs = append(causetCausetEncoder.tempDefCausIDs, defCausID)
+	causetCausetEncoder.values = append(causetCausetEncoder.values, d)
 }
 
-func (encoder *Encoder) reformatDefCauss() (numDefCauss, notNullIdx int) {
-	r := &encoder.event
-	numDefCauss = len(encoder.tempDefCausIDs)
+func (causetCausetEncoder *CausetEncoder) reformatDefCauss() (numDefCauss, notNullIdx int) {
+	r := &causetCausetEncoder.event
+	numDefCauss = len(causetCausetEncoder.tempDefCausIDs)
 	nullIdx := numDefCauss - int(r.numNullDefCauss)
 	notNullIdx = 0
 	if r.large {
@@ -89,8 +89,8 @@ func (encoder *Encoder) reformatDefCauss() (numDefCauss, notNullIdx int) {
 		r.initDefCausIDs()
 		r.initOffsets()
 	}
-	for i, defCausID := range encoder.tempDefCausIDs {
-		if encoder.values[i].IsNull() {
+	for i, defCausID := range causetCausetEncoder.tempDefCausIDs {
+		if causetCausetEncoder.values[i].IsNull() {
 			if r.large {
 				r.defCausIDs32[nullIdx] = uint32(defCausID)
 			} else {
@@ -103,32 +103,32 @@ func (encoder *Encoder) reformatDefCauss() (numDefCauss, notNullIdx int) {
 			} else {
 				r.defCausIDs[notNullIdx] = byte(defCausID)
 			}
-			encoder.values[notNullIdx] = encoder.values[i]
+			causetCausetEncoder.values[notNullIdx] = causetCausetEncoder.values[i]
 			notNullIdx++
 		}
 	}
 	if r.large {
-		largeNotNullSorter := (*largeNotNullSorter)(encoder)
+		largeNotNullSorter := (*largeNotNullSorter)(causetCausetEncoder)
 		sort.Sort(largeNotNullSorter)
 		if r.numNullDefCauss > 0 {
-			largeNullSorter := (*largeNullSorter)(encoder)
+			largeNullSorter := (*largeNullSorter)(causetCausetEncoder)
 			sort.Sort(largeNullSorter)
 		}
 	} else {
-		smallNotNullSorter := (*smallNotNullSorter)(encoder)
+		smallNotNullSorter := (*smallNotNullSorter)(causetCausetEncoder)
 		sort.Sort(smallNotNullSorter)
 		if r.numNullDefCauss > 0 {
-			smallNullSorter := (*smallNullSorter)(encoder)
+			smallNullSorter := (*smallNullSorter)(causetCausetEncoder)
 			sort.Sort(smallNullSorter)
 		}
 	}
 	return
 }
 
-func (encoder *Encoder) encodeRowDefCauss(sc *stmtctx.StatementContext, numDefCauss, notNullIdx int) error {
-	r := &encoder.event
+func (causetCausetEncoder *CausetEncoder) encodeRowDefCauss(sc *stmtctx.StatementContext, numDefCauss, notNullIdx int) error {
+	r := &causetCausetEncoder.event
 	for i := 0; i < notNullIdx; i++ {
-		d := encoder.values[i]
+		d := causetCausetEncoder.values[i]
 		var err error
 		r.data, err = encodeValueCauset(sc, d, r.data)
 		if err != nil {

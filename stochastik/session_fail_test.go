@@ -25,36 +25,36 @@ import (
 
 func (s *testStochastikSerialSuite) TestFailStatementCommitInRetry(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block t (id int)")
+	tk.MustInterDirc("create causet t (id int)")
 
-	tk.MustExec("begin")
-	tk.MustExec("insert into t values (1)")
-	tk.MustExec("insert into t values (2),(3),(4),(5)")
-	tk.MustExec("insert into t values (6)")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t values (1)")
+	tk.MustInterDirc("insert into t values (2),(3),(4),(5)")
+	tk.MustInterDirc("insert into t values (6)")
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/stochastik/mockCommitError8942", `return(true)`), IsNil)
-	_, err := tk.Exec("commit")
+	_, err := tk.InterDirc("commit")
 	c.Assert(err, NotNil)
 	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/stochastik/mockCommitError8942"), IsNil)
 
-	tk.MustExec("insert into t values (6)")
+	tk.MustInterDirc("insert into t values (6)")
 	tk.MustQuery(`select * from t`).Check(testkit.Rows("6"))
 }
 
 func (s *testStochastikSerialSuite) TestGetTSFailDirtyState(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block t (id int)")
+	tk.MustInterDirc("create causet t (id int)")
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/stochastik/mockGetTSFail", "return"), IsNil)
 	ctx := failpoint.WithHook(context.Background(), func(ctx context.Context, fpname string) bool {
 		return fpname == "github.com/whtcorpsinc/milevadb/stochastik/mockGetTSFail"
 	})
-	_, err := tk.Se.Execute(ctx, "select * from t")
+	_, err := tk.Se.InterDircute(ctx, "select * from t")
 	c.Assert(err, NotNil)
 
 	// Fix a bug that active txn fail set TxnState.fail to error, and then the following write
 	// affected by this fail flag.
-	tk.MustExec("insert into t values (1)")
+	tk.MustInterDirc("insert into t values (1)")
 	tk.MustQuery(`select * from t`).Check(testkit.Rows("1"))
 	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/stochastik/mockGetTSFail"), IsNil)
 }
@@ -66,14 +66,14 @@ func (s *testStochastikSerialSuite) TestGetTSFailDirtyStateInretry(c *C) {
 	}()
 
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block t (id int)")
+	tk.MustInterDirc("create causet t (id int)")
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/stochastik/mockCommitError", `return(true)`), IsNil)
 	// This test will mock a FIDel timeout error, and recover then.
 	// Just make mockGetTSErrorInRetry return true once, and then return false.
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causetstore/einsteindb/mockGetTSErrorInRetry",
 		`1*return(true)->return(false)`), IsNil)
-	tk.MustExec("insert into t values (2)")
+	tk.MustInterDirc("insert into t values (2)")
 	tk.MustQuery(`select * from t`).Check(testkit.Rows("2"))
 }
 
@@ -82,7 +82,7 @@ func (s *testStochastikSerialSuite) TestKillFlagInBackoff(c *C) {
 	// stochastik.KVVars. It works by setting the `killed = 3` first, then using
 	// failpoint to run backoff() and check the vars.Killed using the Hook() function.
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block kill_backoff (id int)")
+	tk.MustInterDirc("create causet kill_backoff (id int)")
 	var killValue uint32
 	tk.Se.GetStochastikVars().KVVars.Hook = func(name string, vars *ekv.Variables) {
 		killValue = atomic.LoadUint32(vars.Killed)

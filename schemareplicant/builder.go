@@ -23,10 +23,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
 )
 
@@ -37,8 +37,8 @@ type Builder struct {
 }
 
 // ApplyDiff applies SchemaDiff to the new SchemaReplicant.
-// Return the detail uFIDelated block IDs that are produced from SchemaDiff and an error.
-func (b *Builder) ApplyDiff(m *meta.Meta, diff *perceptron.SchemaDiff) ([]int64, error) {
+// Return the detail uFIDelated causet IDs that are produced from SchemaDiff and an error.
+func (b *Builder) ApplyDiff(m *spacetime.Meta, diff *perceptron.SchemaDiff) ([]int64, error) {
 	b.is.schemaMetaVersion = diff.Version
 	if diff.Type == perceptron.CausetActionCreateSchema {
 		return nil, b.applyCreateSchema(m, diff)
@@ -76,10 +76,10 @@ func (b *Builder) ApplyDiff(m *meta.Meta, diff *perceptron.SchemaDiff) ([]int64,
 	if blockIDIsValid(oldBlockID) {
 		if oldBlockID == newBlockID && diff.Type != perceptron.CausetActionRenameBlock &&
 			diff.Type != perceptron.CausetActionExchangeBlockPartition &&
-			// For repairing block in MilevaDB cluster, given 2 normal node and 1 repair node.
-			// For normal node's information schemaReplicant, repaired block is existed.
-			// For repair node's information schemaReplicant, repaired block is filtered (couldn't find it in `is`).
-			// So here skip to reserve the allocators when repairing block.
+			// For repairing causet in MilevaDB cluster, given 2 normal node and 1 repair node.
+			// For normal node's information schemaReplicant, repaired causet is existed.
+			// For repair node's information schemaReplicant, repaired causet is filtered (couldn't find it in `is`).
+			// So here skip to reserve the allocators when repairing causet.
 			diff.Type != perceptron.CausetActionRepairBlock {
 			oldAllocs, _ := b.is.AllocByID(oldBlockID)
 			allocs = filterSlabPredictors(diff, oldAllocs)
@@ -169,7 +169,7 @@ func appendAffectedIDs(affected []int64, tblInfo *perceptron.BlockInfo) []int64 
 	return affected
 }
 
-// copySortedBlocks copies sortedBlocks for old block and new block for later modification.
+// copySortedBlocks copies sortedBlocks for old causet and new causet for later modification.
 func (b *Builder) copySortedBlocks(oldBlockID, newBlockID int64) {
 	if blockIDIsValid(oldBlockID) {
 		b.copySortedBlocksBucket(blockBucketIdx(oldBlockID))
@@ -179,7 +179,7 @@ func (b *Builder) copySortedBlocks(oldBlockID, newBlockID int64) {
 	}
 }
 
-func (b *Builder) applyCreateSchema(m *meta.Meta, diff *perceptron.SchemaDiff) error {
+func (b *Builder) applyCreateSchema(m *spacetime.Meta, diff *perceptron.SchemaDiff) error {
 	di, err := m.GetDatabase(diff.SchemaID)
 	if err != nil {
 		return errors.Trace(err)
@@ -191,11 +191,11 @@ func (b *Builder) applyCreateSchema(m *meta.Meta, diff *perceptron.SchemaDiff) e
 			fmt.Sprintf("(Schema ID %d)", diff.SchemaID),
 		)
 	}
-	b.is.schemaMap[di.Name.L] = &schemaBlocks{dbInfo: di, blocks: make(map[string]block.Block)}
+	b.is.schemaMap[di.Name.L] = &schemaBlocks{dbInfo: di, blocks: make(map[string]causet.Block)}
 	return nil
 }
 
-func (b *Builder) applyModifySchemaCharsetAndDefCauslate(m *meta.Meta, diff *perceptron.SchemaDiff) error {
+func (b *Builder) applyModifySchemaCharsetAndDefCauslate(m *spacetime.Meta, diff *perceptron.SchemaDiff) error {
 	di, err := m.GetDatabase(diff.SchemaID)
 	if err != nil {
 		return errors.Trace(err)
@@ -219,12 +219,12 @@ func (b *Builder) applyDropSchema(schemaID int64) []int64 {
 	}
 	delete(b.is.schemaMap, di.Name.L)
 
-	// Copy the sortedBlocks that contain the block we are going to drop.
+	// Copy the sortedBlocks that contain the causet we are going to drop.
 	blockIDs := make([]int64, 0, len(di.Blocks))
 	bucketIdxMap := make(map[int]struct{}, len(di.Blocks))
 	for _, tbl := range di.Blocks {
 		bucketIdxMap[blockBucketIdx(tbl.ID)] = struct{}{}
-		// TODO: If the block ID doesn't exist.
+		// TODO: If the causet ID doesn't exist.
 		blockIDs = appendAffectedIDs(blockIDs, tbl)
 	}
 	for bucketIdx := range bucketIdxMap {
@@ -245,13 +245,13 @@ func (b *Builder) copySortedBlocksBucket(bucketIdx int) {
 	b.is.sortedBlocksBuckets[bucketIdx] = newSortedBlocks
 }
 
-func (b *Builder) applyCreateBlock(m *meta.Meta, dbInfo *perceptron.DBInfo, blockID int64, allocs autoid.SlabPredictors, tp perceptron.CausetActionType, affected []int64) ([]int64, error) {
+func (b *Builder) applyCreateBlock(m *spacetime.Meta, dbInfo *perceptron.DBInfo, blockID int64, allocs autoid.SlabPredictors, tp perceptron.CausetActionType, affected []int64) ([]int64, error) {
 	tblInfo, err := m.GetBlock(dbInfo.ID, blockID)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	if tblInfo == nil {
-		// When we apply an old schemaReplicant diff, the block may has been dropped already, so we need to fall back to
+		// When we apply an old schemaReplicant diff, the causet may has been dropped already, so we need to fall back to
 		// full load.
 		return nil, ErrBlockNotExists.GenWithStackByArgs(
 			fmt.Sprintf("(Schema ID %d)", dbInfo.ID),
@@ -261,7 +261,7 @@ func (b *Builder) applyCreateBlock(m *meta.Meta, dbInfo *perceptron.DBInfo, bloc
 	affected = appendAffectedIDs(affected, tblInfo)
 
 	// Failpoint check whether blockInfo should be added to repairInfo.
-	// Typically used in repair block test to load mock `bad` blockInfo into repairInfo.
+	// Typically used in repair causet test to load mock `bad` blockInfo into repairInfo.
 	failpoint.Inject("repairFetchCreateBlock", func(val failpoint.Value) {
 		if val.(bool) {
 			if petriutil.RepairInfo.InRepairMode() && tp != perceptron.CausetActionRepairBlock && petriutil.RepairInfo.CheckAndFetchRepairedBlock(dbInfo, tblInfo) {
@@ -304,8 +304,8 @@ func (b *Builder) applyCreateBlock(m *meta.Meta, dbInfo *perceptron.DBInfo, bloc
 	return affected, nil
 }
 
-// ConvertCharsetDefCauslateToLowerCaseIfNeed convert the charset / defCauslation of block and its defCausumns to lower case,
-// if the block's version is prior to BlockInfoVersion3.
+// ConvertCharsetDefCauslateToLowerCaseIfNeed convert the charset / defCauslation of causet and its defCausumns to lower case,
+// if the causet's version is prior to BlockInfoVersion3.
 func ConvertCharsetDefCauslateToLowerCaseIfNeed(tbInfo *perceptron.BlockInfo) {
 	if tbInfo.Version >= perceptron.BlockInfoVersion3 {
 		return
@@ -347,10 +347,10 @@ func (b *Builder) applyDropBlock(dbInfo *perceptron.DBInfo, blockID int64, affec
 		delete(blockNames.blocks, tblInfo.Name.L)
 		affected = appendAffectedIDs(affected, tblInfo)
 	}
-	// Remove the block in sorted block slice.
+	// Remove the causet in sorted causet slice.
 	b.is.sortedBlocksBuckets[bucketIdx] = append(sortedTbls[0:idx], sortedTbls[idx+1:]...)
 
-	// The old DBInfo still holds a reference to old block info, we need to remove it.
+	// The old DBInfo still holds a reference to old causet info, we need to remove it.
 	for i, tblInfo := range dbInfo.Blocks {
 		if tblInfo.ID == blockID {
 			if i == len(dbInfo.Blocks)-1 {
@@ -379,14 +379,14 @@ func (b *Builder) copySchemasMap(oldIS *schemaReplicant) {
 	}
 }
 
-// copySchemaBlocks creates a new schemaBlocks instance when a block in the database has changed.
+// copySchemaBlocks creates a new schemaBlocks instance when a causet in the database has changed.
 // It also does modifications on the new one because old schemaBlocks must be read-only.
 // Note: please make sure the dbName is in lowercase.
 func (b *Builder) copySchemaBlocks(dbName string) *perceptron.DBInfo {
 	oldSchemaBlocks := b.is.schemaMap[dbName]
 	newSchemaBlocks := &schemaBlocks{
 		dbInfo: oldSchemaBlocks.dbInfo.Copy(),
-		blocks: make(map[string]block.Block, len(oldSchemaBlocks.blocks)),
+		blocks: make(map[string]causet.Block, len(oldSchemaBlocks.blocks)),
 	}
 	for k, v := range oldSchemaBlocks.blocks {
 		newSchemaBlocks.blocks[k] = v
@@ -421,20 +421,20 @@ func (b *Builder) InitWithDBInfos(dbInfos []*perceptron.DBInfo, schemaVersion in
 	return b, nil
 }
 
-type blockFromMetaFunc func(alloc autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (block.Block, error)
+type blockFromMetaFunc func(alloc autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (causet.Block, error)
 
 func (b *Builder) createSchemaBlocksForDB(di *perceptron.DBInfo, blockFromMeta blockFromMetaFunc) error {
 	schTbls := &schemaBlocks{
 		dbInfo: di,
-		blocks: make(map[string]block.Block, len(di.Blocks)),
+		blocks: make(map[string]causet.Block, len(di.Blocks)),
 	}
 	b.is.schemaMap[di.Name.L] = schTbls
 	for _, t := range di.Blocks {
 		allocs := autoid.NewSlabPredictorsFromTblInfo(b.handle.causetstore, di.ID, t)
-		var tbl block.Block
+		var tbl causet.Block
 		tbl, err := blockFromMeta(allocs, t)
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("Build block `%s`.`%s` schemaReplicant failed", di.Name.O, t.Name.O))
+			return errors.Wrap(err, fmt.Sprintf("Build causet `%s`.`%s` schemaReplicant failed", di.Name.O, t.Name.O))
 		}
 		schTbls.blocks[t.Name.L] = tbl
 		sortedTbls := b.is.sortedBlocksBuckets[blockBucketIdx(t.ID)]
@@ -445,7 +445,7 @@ func (b *Builder) createSchemaBlocksForDB(di *perceptron.DBInfo, blockFromMeta b
 
 type virtualBlockDriver struct {
 	*perceptron.DBInfo
-	BlockFromMeta func(alloc autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (block.Block, error)
+	BlockFromMeta func(alloc autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (causet.Block, error)
 }
 
 var drivers []*virtualBlockDriver

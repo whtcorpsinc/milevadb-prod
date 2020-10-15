@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package meta_test
+package spacetime_test
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -54,7 +54,7 @@ func (s *testSuite) TestMeta(c *C) {
 	c.Assert(err, IsNil)
 	defer txn.Rollback()
 
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	n, err := t.GenGlobalID()
 	c.Assert(err, IsNil)
@@ -103,7 +103,7 @@ func (s *testSuite) TestMeta(c *C) {
 
 	err = t.CreateDatabase(dbInfo)
 	c.Assert(err, NotNil)
-	c.Assert(meta.ErrDBExists.Equal(err), IsTrue)
+	c.Assert(spacetime.ErrDBExists.Equal(err), IsTrue)
 
 	v, err := t.GetDatabase(1)
 	c.Assert(err, IsNil)
@@ -138,19 +138,19 @@ func (s *testSuite) TestMeta(c *C) {
 
 	err = t.CreateBlockOrView(1, tbInfo)
 	c.Assert(err, NotNil)
-	c.Assert(meta.ErrBlockExists.Equal(err), IsTrue)
+	c.Assert(spacetime.ErrBlockExists.Equal(err), IsTrue)
 
 	tbInfo.Name = perceptron.NewCIStr("tt")
 	err = t.UFIDelateBlock(1, tbInfo)
 	c.Assert(err, IsNil)
 
-	block, err := t.GetBlock(1, 1)
+	causet, err := t.GetBlock(1, 1)
 	c.Assert(err, IsNil)
-	c.Assert(block, DeepEquals, tbInfo)
+	c.Assert(causet, DeepEquals, tbInfo)
 
-	block, err = t.GetBlock(1, 2)
+	causet, err = t.GetBlock(1, 2)
 	c.Assert(err, IsNil)
-	c.Assert(block, IsNil)
+	c.Assert(causet, IsNil)
 
 	tbInfo2 := &perceptron.BlockInfo{
 		ID:   2,
@@ -182,13 +182,13 @@ func (s *testSuite) TestMeta(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(blocks, DeepEquals, []*perceptron.BlockInfo{tbInfo})
 
-	// Test case for drop a block without delete auto id key-value entry.
+	// Test case for drop a causet without delete auto id key-value entry.
 	tid := int64(100)
 	tbInfo100 := &perceptron.BlockInfo{
 		ID:   tid,
 		Name: perceptron.NewCIStr("t_rename"),
 	}
-	// Create block.
+	// Create causet.
 	err = t.CreateBlockOrView(1, tbInfo100)
 	c.Assert(err, IsNil)
 	// UFIDelate auto ID.
@@ -197,17 +197,17 @@ func (s *testSuite) TestMeta(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, int64(10))
 	// Fail to uFIDelate auto ID.
-	// The block ID doesn't exist.
+	// The causet ID doesn't exist.
 	nonExistentID := int64(1234)
 	_, err = t.GenAutoBlockID(currentDBID, nonExistentID, 10)
 	c.Assert(err, NotNil)
-	c.Assert(meta.ErrBlockNotExists.Equal(err), IsTrue)
+	c.Assert(spacetime.ErrBlockNotExists.Equal(err), IsTrue)
 	// Fail to uFIDelate auto ID.
 	// The current database ID doesn't exist.
 	currentDBID = nonExistentID
 	_, err = t.GenAutoBlockID(currentDBID, tid, 10)
 	c.Assert(err, NotNil)
-	c.Assert(meta.ErrDBNotExists.Equal(err), IsTrue)
+	c.Assert(spacetime.ErrDBNotExists.Equal(err), IsTrue)
 	// Test case for CreateBlockAndSetAutoID.
 	tbInfo3 := &perceptron.BlockInfo{
 		ID:   3,
@@ -243,7 +243,7 @@ func (s *testSuite) TestMeta(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bootstrapVer, Equals, int64(1))
 
-	// Test case for meta.FinishBootstrap with a version.
+	// Test case for spacetime.FinishBootstrap with a version.
 	err = t.FinishBootstrap(int64(10))
 	c.Assert(err, IsNil)
 	bootstrapVer, err = t.GetBootstrapVersion()
@@ -268,7 +268,7 @@ func (s *testSuite) TestMeta(c *C) {
 	c.Assert(err, IsNil)
 
 	// Test for DBSJobHistoryKey.
-	key = meta.DBSJobHistoryKey(t, 888)
+	key = spacetime.DBSJobHistoryKey(t, 888)
 	c.Assert(key, DeepEquals, []byte{0x6d, 0x44, 0x44, 0x4c, 0x4a, 0x6f, 0x62, 0x48, 0x69, 0xff, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x0, 0x0, 0x0, 0xfc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x68, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3, 0x78, 0xff, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xf7})
 }
 
@@ -279,7 +279,7 @@ func (s *testSuite) TestSnapshot(c *C) {
 	defer causetstore.Close()
 
 	txn, _ := causetstore.Begin()
-	m := meta.NewMeta(txn)
+	m := spacetime.NewMeta(txn)
 	m.GenGlobalID()
 	n, _ := m.GetGlobalID()
 	c.Assert(n, Equals, int64(1))
@@ -288,14 +288,14 @@ func (s *testSuite) TestSnapshot(c *C) {
 	ver1, _ := causetstore.CurrentVersion()
 	time.Sleep(time.Millisecond)
 	txn, _ = causetstore.Begin()
-	m = meta.NewMeta(txn)
+	m = spacetime.NewMeta(txn)
 	m.GenGlobalID()
 	n, _ = m.GetGlobalID()
 	c.Assert(n, Equals, int64(2))
 	txn.Commit(context.Background())
 
 	snapshot, _ := causetstore.GetSnapshot(ver1)
-	snapMeta := meta.NewSnapshotMeta(snapshot)
+	snapMeta := spacetime.NewSnapshotMeta(snapshot)
 	n, _ = snapMeta.GetGlobalID()
 	c.Assert(n, Equals, int64(1))
 	_, err = snapMeta.GenGlobalID()
@@ -314,7 +314,7 @@ func (s *testSuite) TestDBS(c *C) {
 
 	defer txn.Rollback()
 
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	job := &perceptron.Job{ID: 1}
 	err = t.EnQueueDBSJob(job)
@@ -333,7 +333,7 @@ func (s *testSuite) TestDBS(c *C) {
 	err = t.UFIDelateDBSJob(0, job, true)
 	c.Assert(err, IsNil)
 
-	// There are 3 meta key relate to index reorganization:
+	// There are 3 spacetime key relate to index reorganization:
 	// start_handle, end_handle and physical_block_id.
 	// Only start_handle is initialized.
 	err = t.UFIDelateDBSReorgStartHandle(job, ekv.IntHandle(1))
@@ -434,19 +434,19 @@ func (s *testSuite) TestDBS(c *C) {
 	c.Assert(err, IsNil)
 	defer txn1.Rollback()
 
-	m := meta.NewMeta(txn1, meta.AddIndexJobListKey)
+	m := spacetime.NewMeta(txn1, spacetime.AddIndexJobListKey)
 	err = m.EnQueueDBSJob(job)
 	c.Assert(err, IsNil)
 	job.ID = 123
-	err = m.UFIDelateDBSJob(0, job, true, meta.AddIndexJobListKey)
+	err = m.UFIDelateDBSJob(0, job, true, spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
-	v, err = m.GetDBSJobByIdx(0, meta.AddIndexJobListKey)
+	v, err = m.GetDBSJobByIdx(0, spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, job)
-	l, err := m.DBSJobQueueLen(meta.AddIndexJobListKey)
+	l, err := m.DBSJobQueueLen(spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
 	c.Assert(l, Equals, int64(1))
-	jobs, err = m.GetAllDBSJobsInQueue(meta.AddIndexJobListKey)
+	jobs, err = m.GetAllDBSJobsInQueue(spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
 	expectJobs = []*perceptron.Job{job}
 	c.Assert(jobs, DeepEquals, expectJobs)
@@ -467,7 +467,7 @@ func (s *testSuite) BenchmarkGenGlobalIDs(c *C) {
 	c.Assert(err, IsNil)
 	defer txn.Rollback()
 
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	c.ResetTimer()
 	var ids []int64
@@ -488,7 +488,7 @@ func (s *testSuite) BenchmarkGenGlobalIDOneByOne(c *C) {
 	c.Assert(err, IsNil)
 	defer txn.Rollback()
 
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	c.ResetTimer()
 	var id int64

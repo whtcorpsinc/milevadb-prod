@@ -1,7 +1,7 @@
 # Importer Configuration.
 
 [dbs]
-block-allegrosql = "create block t(a int primary key, b double, c varchar(10), d date unique, e time unique, f timestamp unique, g date unique, h datetime unique, i year);"
+causet-allegrosql = "create causet t(a int primary key, b double, c varchar(10), d date unique, e time unique, f timestamp unique, g date unique, h datetime unique, i year);"
 
 index-allegrosql = "create unique index u_b on t(b);"
 

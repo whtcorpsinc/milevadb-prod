@@ -33,8 +33,8 @@
         "explain select * from t where a > \"t\""
       ],
       [
-        "drop block t",
-        "create block t(a int primary key, b int)",
+        "drop causet t",
+        "create causet t(a int primary key, b int)",
         "explain select * from t where a > 1"
       ]
     ]

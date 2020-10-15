@@ -96,5 +96,5 @@ type (
 
 type execStartTimeCtxKeyType struct{}
 
-// ExecStartTimeCtxKey indicates stmt start execution time.
-var ExecStartTimeCtxKey = execStartTimeCtxKeyType{}
+// InterDircStartTimeCtxKey indicates stmt start execution time.
+var InterDircStartTimeCtxKey = execStartTimeCtxKeyType{}

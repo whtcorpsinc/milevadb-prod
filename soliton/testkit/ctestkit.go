@@ -74,7 +74,7 @@ func (tk *CTestKit) OpenStochastik(ctx context.Context) context.Context {
 // OpenStochastikWithDB opens new stochastik ctx if no exists one and use EDB.
 func (tk *CTestKit) OpenStochastikWithDB(ctx context.Context, EDB string) context.Context {
 	ctx = tk.OpenStochastik(ctx)
-	tk.MustExec(ctx, "use "+EDB)
+	tk.MustInterDirc(ctx, "use "+EDB)
 	return ctx
 }
 
@@ -85,13 +85,13 @@ func (tk *CTestKit) CloseStochastik(ctx context.Context) {
 	se.Close()
 }
 
-// Exec executes a allegrosql statement.
-func (tk *CTestKit) Exec(ctx context.Context, allegrosql string, args ...interface{}) (sqlexec.RecordSet, error) {
+// InterDirc executes a allegrosql memex.
+func (tk *CTestKit) InterDirc(ctx context.Context, allegrosql string, args ...interface{}) (sqlexec.RecordSet, error) {
 	var err error
 	tk.c.Assert(getStochastik(ctx), check.NotNil)
 	if len(args) == 0 {
 		var rss []sqlexec.RecordSet
-		rss, err = getStochastik(ctx).Execute(ctx, allegrosql)
+		rss, err = getStochastik(ctx).InterDircute(ctx, allegrosql)
 		if err == nil && len(rss) > 0 {
 			return rss[0], nil
 		}
@@ -105,7 +105,7 @@ func (tk *CTestKit) Exec(ctx context.Context, allegrosql string, args ...interfa
 	for i := 0; i < len(params); i++ {
 		params[i] = types.NewCauset(args[i])
 	}
-	rs, err := getStochastik(ctx).ExecutePreparedStmt(ctx, stmtID, params)
+	rs, err := getStochastik(ctx).InterDircutePreparedStmt(ctx, stmtID, params)
 	if err != nil {
 		return nil, err
 	}
@@ -116,34 +116,34 @@ func (tk *CTestKit) Exec(ctx context.Context, allegrosql string, args ...interfa
 	return rs, nil
 }
 
-// CheckExecResult checks the affected rows and the insert id after executing MustExec.
-func (tk *CTestKit) CheckExecResult(ctx context.Context, affectedRows, insertID int64) {
+// CheckInterDircResult checks the affected rows and the insert id after executing MustInterDirc.
+func (tk *CTestKit) CheckInterDircResult(ctx context.Context, affectedRows, insertID int64) {
 	tk.c.Assert(getStochastik(ctx), check.NotNil)
 	tk.c.Assert(affectedRows, check.Equals, int64(getStochastik(ctx).AffectedRows()))
 	tk.c.Assert(insertID, check.Equals, int64(getStochastik(ctx).LastInsertID()))
 }
 
-// MustExec executes a allegrosql statement and asserts nil error.
-func (tk *CTestKit) MustExec(ctx context.Context, allegrosql string, args ...interface{}) {
-	res, err := tk.Exec(ctx, allegrosql, args...)
+// MustInterDirc executes a allegrosql memex and asserts nil error.
+func (tk *CTestKit) MustInterDirc(ctx context.Context, allegrosql string, args ...interface{}) {
+	res, err := tk.InterDirc(ctx, allegrosql, args...)
 	tk.c.Assert(err, check.IsNil, check.Commentf("allegrosql:%s, %v, error stack %v", allegrosql, args, errors.ErrorStack(err)))
 	if res != nil {
 		tk.c.Assert(res.Close(), check.IsNil)
 	}
 }
 
-// MustQuery query the statements and returns result rows.
+// MustQuery query the memexs and returns result rows.
 // If expected result is set it asserts the query result equals expected result.
 func (tk *CTestKit) MustQuery(ctx context.Context, allegrosql string, args ...interface{}) *Result {
 	comment := check.Commentf("allegrosql:%s, args:%v", allegrosql, args)
-	rs, err := tk.Exec(ctx, allegrosql, args...)
+	rs, err := tk.InterDirc(ctx, allegrosql, args...)
 	tk.c.Assert(errors.ErrorStack(err), check.Equals, "", comment)
 	tk.c.Assert(rs, check.NotNil, comment)
 	return tk.resultSetToResult(ctx, rs, comment)
 }
 
 // resultSetToResult converts ast.RecordSet to testkit.Result.
-// It is used to check results of execute statement in binary mode.
+// It is used to check results of execute memex in binary mode.
 func (tk *CTestKit) resultSetToResult(ctx context.Context, rs sqlexec.RecordSet, comment check.CommentInterface) *Result {
 	rows, err := stochastik.GetRows4Test(context.Background(), getStochastik(ctx), rs)
 	tk.c.Assert(errors.ErrorStack(err), check.Equals, "", comment)
@@ -172,7 +172,7 @@ func (tk *CTestKit) resultSetToResult(ctx context.Context, rs sqlexec.RecordSet,
 // - loops: controls run test how much times.
 // - prepareFunc: provide test data and will be called for every loop.
 // - checkFunc: used to do some check after all workers done.
-// works like create block better be put in front of this method calling.
+// works like create causet better be put in front of this method calling.
 // see more example at TestBatchInsertWithOnDuplicate
 func (tk *CTestKit) ConcurrentRun(c *check.C, concurrent int, loops int,
 	prepareFunc func(ctx context.Context, tk *CTestKit, concurrent int, currentLoop int) [][][]interface{},
@@ -209,7 +209,7 @@ func (tk *CTestKit) ConcurrentRun(c *check.C, concurrent int, loops int,
 
 	ctx := tk.OpenStochastikWithDB(context.Background(), "test")
 	defer tk.CloseStochastik(ctx)
-	tk.MustExec(ctx, "use test")
+	tk.MustInterDirc(ctx, "use test")
 
 	for j := 0; j < loops; j++ {
 		quantum := prepareFunc(ctx, tk, concurrent, j)

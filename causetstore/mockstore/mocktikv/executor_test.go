@@ -29,16 +29,16 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
-var _ = Suite(&testExecutorSuite{})
+var _ = Suite(&testInterlockingDirectorateSuite{})
 
-type testExecutorSuite struct {
+type testInterlockingDirectorateSuite struct {
 	cluster   *mockeinsteindb.Cluster
 	causetstore     ekv.CausetStorage
 	mvccStore mockeinsteindb.MVCCStore
 	dom       *petri.Petri
 }
 
-func (s *testExecutorSuite) SetUpSuite(c *C) {
+func (s *testInterlockingDirectorateSuite) SetUpSuite(c *C) {
 	rpcClient, cluster, FIDelClient, err := mockeinsteindb.NewEinsteinDBAndFIDelClient("")
 	c.Assert(err, IsNil)
 	mockeinsteindb.BootstrapWithSingleStore(cluster)
@@ -53,24 +53,24 @@ func (s *testExecutorSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *testExecutorSuite) TearDownSuite(c *C) {
+func (s *testInterlockingDirectorateSuite) TearDownSuite(c *C) {
 	s.dom.Close()
 	s.causetstore.Close()
 }
 
-func (s *testExecutorSuite) TestResolvedLargeTxnLocks(c *C) {
-	// This test checks the resolve lock functionality.
-	// When a txn meets the lock of a large transaction, it should not block by the
-	// lock.
+func (s *testInterlockingDirectorateSuite) TestResolvedLargeTxnLocks(c *C) {
+	// This test checks the resolve dagger functionality.
+	// When a txn meets the dagger of a large transaction, it should not causet by the
+	// dagger.
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t (id int primary key, val int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t (id int primary key, val int)")
 	dom := petri.GetPetri(tk.Se)
 	schemaReplicant := dom.SchemaReplicant()
 	tbl, err := schemaReplicant.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 
-	tk.MustExec("insert into t values (1, 1)")
+	tk.MustInterDirc("insert into t values (1, 1)")
 
 	oracle := s.causetstore.GetOracle()
 	tso, err := oracle.GetTimestamp(context.Background())
@@ -81,14 +81,14 @@ func (s *testExecutorSuite) TestResolvedLargeTxnLocks(c *C) {
 	c.Assert(pairs, HasLen, 1)
 	c.Assert(pairs[0].Err, IsNil)
 
-	// Simulate a large txn (holding a pk lock with large TTL).
-	// Secondary lock 200ms, primary lock 100s
+	// Simulate a large txn (holding a pk dagger with large TTL).
+	// Secondary dagger 200ms, primary dagger 100s
 	mockeinsteindb.MustPrewriteOK(c, s.mvccStore, mockeinsteindb.PutMutations("primary", "value"), "primary", tso, 100000)
 	mockeinsteindb.MustPrewriteOK(c, s.mvccStore, mockeinsteindb.PutMutations(string(key), "value"), "primary", tso, 200)
 
-	// Simulate the action of reading meet the lock of a large txn.
-	// The lock of the large transaction should not block read.
-	// The first time, this query should meet a lock on the secondary key, then resolve lock.
+	// Simulate the action of reading meet the dagger of a large txn.
+	// The dagger of the large transaction should not causet read.
+	// The first time, this query should meet a dagger on the secondary key, then resolve dagger.
 	// After that, the query should read the previous version data.
 	tk.MustQuery("select * from t").Check(testkit.Rows("1 1"))
 
@@ -96,9 +96,9 @@ func (s *testExecutorSuite) TestResolvedLargeTxnLocks(c *C) {
 	tk.MustQuery("select * from t where id in (1)").Check(testkit.Rows("1 1"))
 
 	// Cover PointGet.
-	tk.MustExec("begin")
+	tk.MustInterDirc("begin")
 	tk.MustQuery("select * from t where id = 1").Check(testkit.Rows("1 1"))
-	tk.MustExec("rollback")
+	tk.MustInterDirc("rollback")
 
 	// And check the large txn is still alive.
 	pairs = s.mvccStore.Scan([]byte("primary"), nil, 1, tso, kvrpcpb.IsolationLevel_SI, nil)
@@ -107,16 +107,16 @@ func (s *testExecutorSuite) TestResolvedLargeTxnLocks(c *C) {
 	c.Assert(ok, IsTrue)
 }
 
-func (s *testExecutorSuite) TestIssue15662(c *C) {
+func (s *testInterlockingDirectorateSuite) TestIssue15662(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 
-	tk.MustExec("create block V (id int primary key, col_int int)")
-	tk.MustExec("insert into V values (1, 8)")
+	tk.MustInterDirc("create causet V (id int primary key, col_int int)")
+	tk.MustInterDirc("insert into V values (1, 8)")
 
-	tk.MustExec("create block F (id int primary key, col_int int)")
-	tk.MustExec("insert into F values (1, 8)")
+	tk.MustInterDirc("create causet F (id int primary key, col_int int)")
+	tk.MustInterDirc("insert into F values (1, 8)")
 
 	tk.MustQuery("select block1.`col_int` as field1, block1.`col_int` as field2 from V as block1 left join F as block2 on block1.`col_int` = block2.`col_int` order by field1, field2 desc limit 2").
 		Check(testkit.Rows("8 8"))

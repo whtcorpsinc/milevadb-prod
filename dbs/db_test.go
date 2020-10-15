@@ -37,17 +37,17 @@ import (
 	testdbsutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
@@ -112,13 +112,13 @@ func setUpSuite(s *testDBSuite, c *C) {
 	s.s, err = stochastik.CreateStochastik4Test(s.causetstore)
 	c.Assert(err, IsNil)
 
-	_, err = s.s.Execute(context.Background(), "create database test_db")
+	_, err = s.s.InterDircute(context.Background(), "create database test_db")
 	c.Assert(err, IsNil)
-	s.s.Execute(context.Background(), "set @@global.milevadb_max_delta_schema_count= 4096")
+	s.s.InterDircute(context.Background(), "set @@global.milevadb_max_delta_schema_count= 4096")
 }
 
 func tearDownSuite(s *testDBSuite, c *C) {
-	s.s.Execute(context.Background(), "drop database if exists test_db")
+	s.s.InterDircute(context.Background(), "drop database if exists test_db")
 	s.s.Close()
 	s.dom.Close()
 	s.causetstore.Close()
@@ -142,48 +142,48 @@ type testDBSuite7 struct{ *testDBSuite }
 type testSerialDBSuite struct{ *testDBSuite }
 
 func testAddIndexWithPK(tk *testkit.TestKit, s *testSerialDBSuite, c *C) {
-	tk.MustExec("drop block if exists test_add_index_with_pk")
-	tk.MustExec("create block test_add_index_with_pk(a int not null, b int not null default '0', primary key(a))")
-	tk.MustExec("insert into test_add_index_with_pk values(1, 2)")
-	tk.MustExec("alter block test_add_index_with_pk add index idx (a)")
+	tk.MustInterDirc("drop causet if exists test_add_index_with_pk")
+	tk.MustInterDirc("create causet test_add_index_with_pk(a int not null, b int not null default '0', primary key(a))")
+	tk.MustInterDirc("insert into test_add_index_with_pk values(1, 2)")
+	tk.MustInterDirc("alter causet test_add_index_with_pk add index idx (a)")
 	tk.MustQuery("select a from test_add_index_with_pk").Check(testkit.Rows("1"))
-	tk.MustExec("insert into test_add_index_with_pk values(2, 2)")
-	tk.MustExec("alter block test_add_index_with_pk add index idx1 (a, b)")
+	tk.MustInterDirc("insert into test_add_index_with_pk values(2, 2)")
+	tk.MustInterDirc("alter causet test_add_index_with_pk add index idx1 (a, b)")
 	tk.MustQuery("select * from test_add_index_with_pk").Check(testkit.Rows("1 2", "2 2"))
-	tk.MustExec("drop block if exists test_add_index_with_pk1")
-	tk.MustExec("create block test_add_index_with_pk1(a int not null, b int not null default '0', c int, d int, primary key(c))")
-	tk.MustExec("insert into test_add_index_with_pk1 values(1, 1, 1, 1)")
-	tk.MustExec("alter block test_add_index_with_pk1 add index idx (c)")
-	tk.MustExec("insert into test_add_index_with_pk1 values(2, 2, 2, 2)")
+	tk.MustInterDirc("drop causet if exists test_add_index_with_pk1")
+	tk.MustInterDirc("create causet test_add_index_with_pk1(a int not null, b int not null default '0', c int, d int, primary key(c))")
+	tk.MustInterDirc("insert into test_add_index_with_pk1 values(1, 1, 1, 1)")
+	tk.MustInterDirc("alter causet test_add_index_with_pk1 add index idx (c)")
+	tk.MustInterDirc("insert into test_add_index_with_pk1 values(2, 2, 2, 2)")
 	tk.MustQuery("select * from test_add_index_with_pk1").Check(testkit.Rows("1 1 1 1", "2 2 2 2"))
-	tk.MustExec("drop block if exists test_add_index_with_pk2")
-	tk.MustExec("create block test_add_index_with_pk2(a int not null, b int not null default '0', c int unsigned, d int, primary key(c))")
-	tk.MustExec("insert into test_add_index_with_pk2 values(1, 1, 1, 1)")
-	tk.MustExec("alter block test_add_index_with_pk2 add index idx (c)")
-	tk.MustExec("insert into test_add_index_with_pk2 values(2, 2, 2, 2)")
+	tk.MustInterDirc("drop causet if exists test_add_index_with_pk2")
+	tk.MustInterDirc("create causet test_add_index_with_pk2(a int not null, b int not null default '0', c int unsigned, d int, primary key(c))")
+	tk.MustInterDirc("insert into test_add_index_with_pk2 values(1, 1, 1, 1)")
+	tk.MustInterDirc("alter causet test_add_index_with_pk2 add index idx (c)")
+	tk.MustInterDirc("insert into test_add_index_with_pk2 values(2, 2, 2, 2)")
 	tk.MustQuery("select * from test_add_index_with_pk2").Check(testkit.Rows("1 1 1 1", "2 2 2 2"))
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int, b int, c int, primary key(a, b));")
-	tk.MustExec("insert into t values (1, 2, 3);")
-	tk.MustExec("create index idx on t (a, b);")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int, b int, c int, primary key(a, b));")
+	tk.MustInterDirc("insert into t values (1, 2, 3);")
+	tk.MustInterDirc("create index idx on t (a, b);")
 }
 
 func (s *testSerialDBSuite) TestAddIndexWithPK(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 	defer config.RestoreFunc()()
 	config.UFIDelateGlobal(func(conf *config.Config) {
 		conf.AlterPrimaryKey = false
 	})
 
 	testAddIndexWithPK(tk, s, c)
-	tk.MustExec("set @@milevadb_enable_clustered_index = 1;")
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1;")
 	testAddIndexWithPK(tk, s, c)
 }
 
 func (s *testDBSuite5) TestAddIndexWithDupIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 
 	err1 := dbs.ErrDupKeyName.GenWithStack("index already exist %s", "idx")
 	err2 := dbs.ErrDupKeyName.GenWithStack("index already exist %s; "+
@@ -191,8 +191,8 @@ func (s *testDBSuite5) TestAddIndexWithDupIndex(c *C) {
 		"please check by `ADMIN SHOW DBS JOBS`", "idx")
 
 	// When there is already an duplicate index, show error message.
-	tk.MustExec("create block test_add_index_with_dup (a int, key idx (a))")
-	_, err := tk.Exec("alter block test_add_index_with_dup add index idx (a)")
+	tk.MustInterDirc("create causet test_add_index_with_dup (a int, key idx (a))")
+	_, err := tk.InterDirc("alter causet test_add_index_with_dup add index idx (a)")
 	c.Check(errors.Cause(err1).(*terror.Error).Equal(err), Equals, true)
 	c.Assert(errors.Cause(err1).Error() == err.Error(), IsTrue)
 
@@ -201,49 +201,49 @@ func (s *testDBSuite5) TestAddIndexWithDupIndex(c *C) {
 	t := s.testGetBlock(c, "test_add_index_with_dup")
 	indexInfo := t.Meta().FindIndexByName("idx")
 	indexInfo.State = perceptron.StateNone
-	_, err = tk.Exec("alter block test_add_index_with_dup add index idx (a)")
+	_, err = tk.InterDirc("alter causet test_add_index_with_dup add index idx (a)")
 	c.Check(errors.Cause(err2).(*terror.Error).Equal(err), Equals, true)
 	c.Assert(errors.Cause(err2).Error() == err.Error(), IsTrue)
 
-	tk.MustExec("drop block test_add_index_with_dup")
+	tk.MustInterDirc("drop causet test_add_index_with_dup")
 }
 
 func (s *testDBSuite1) TestRenameIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("create block t (pk int primary key, c int default 1, c1 int default 1, unique key k1(c), key k2(c1))")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("create causet t (pk int primary key, c int default 1, c1 int default 1, unique key k1(c), key k2(c1))")
 
 	// Test rename success
-	tk.MustExec("alter block t rename index k1 to k3")
-	tk.MustExec("admin check index t k3")
+	tk.MustInterDirc("alter causet t rename index k1 to k3")
+	tk.MustInterDirc("admin check index t k3")
 
 	// Test rename to the same name
-	tk.MustExec("alter block t rename index k3 to k3")
-	tk.MustExec("admin check index t k3")
+	tk.MustInterDirc("alter causet t rename index k3 to k3")
+	tk.MustInterDirc("admin check index t k3")
 
 	// Test rename on non-exists keys
-	tk.MustGetErrCode("alter block t rename index x to x", errno.ErrKeyDoesNotExist)
+	tk.MustGetErrCode("alter causet t rename index x to x", errno.ErrKeyDoesNotExist)
 
 	// Test rename on already-exists keys
-	tk.MustGetErrCode("alter block t rename index k3 to k2", errno.ErrDupKeyName)
+	tk.MustGetErrCode("alter causet t rename index k3 to k2", errno.ErrDupKeyName)
 
-	tk.MustExec("alter block t rename index k2 to K2")
-	tk.MustGetErrCode("alter block t rename key k3 to K2", errno.ErrDupKeyName)
+	tk.MustInterDirc("alter causet t rename index k2 to K2")
+	tk.MustGetErrCode("alter causet t rename key k3 to K2", errno.ErrDupKeyName)
 }
 
-func testGetBlockByName(c *C, ctx stochastikctx.Context, EDB, block string) block.Block {
+func testGetBlockByName(c *C, ctx stochastikctx.Context, EDB, causet string) causet.Block {
 	dom := petri.GetPetri(ctx)
-	// Make sure the block schemaReplicant is the new schemaReplicant.
+	// Make sure the causet schemaReplicant is the new schemaReplicant.
 	err := dom.Reload()
 	c.Assert(err, IsNil)
-	tbl, err := dom.SchemaReplicant().BlockByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(block))
+	tbl, err := dom.SchemaReplicant().BlockByName(perceptron.NewCIStr(EDB), perceptron.NewCIStr(causet))
 	c.Assert(err, IsNil)
 	return tbl
 }
 
 func testGetSchemaByName(c *C, ctx stochastikctx.Context, EDB string) *perceptron.DBInfo {
 	dom := petri.GetPetri(ctx)
-	// Make sure the block schemaReplicant is the new schemaReplicant.
+	// Make sure the causet schemaReplicant is the new schemaReplicant.
 	err := dom.Reload()
 	c.Assert(err, IsNil)
 	dbInfo, ok := dom.SchemaReplicant().SchemaByName(perceptron.NewCIStr(EDB))
@@ -251,7 +251,7 @@ func testGetSchemaByName(c *C, ctx stochastikctx.Context, EDB string) *perceptro
 	return dbInfo
 }
 
-func (s *testDBSuite) testGetBlock(c *C, name string) block.Block {
+func (s *testDBSuite) testGetBlock(c *C, name string) causet.Block {
 	ctx := s.s.(stochastikctx.Context)
 	return testGetBlockByName(c, ctx, s.schemaName, name)
 }
@@ -259,7 +259,7 @@ func (s *testDBSuite) testGetBlock(c *C, name string) block.Block {
 func (s *testDBSuite) testGetDB(c *C, dbName string) *perceptron.DBInfo {
 	ctx := s.s.(stochastikctx.Context)
 	dom := petri.GetPetri(ctx)
-	// Make sure the block schemaReplicant is the new schemaReplicant.
+	// Make sure the causet schemaReplicant is the new schemaReplicant.
 	err := dom.Reload()
 	c.Assert(err, IsNil)
 	EDB, ok := dom.SchemaReplicant().SchemaByName(perceptron.NewCIStr(dbName))
@@ -267,19 +267,19 @@ func (s *testDBSuite) testGetDB(c *C, dbName string) *perceptron.DBInfo {
 	return EDB
 }
 
-func backgroundExec(s ekv.CausetStorage, allegrosql string, done chan error) {
+func backgroundInterDirc(s ekv.CausetStorage, allegrosql string, done chan error) {
 	se, err := stochastik.CreateStochastik4Test(s)
 	if err != nil {
 		done <- errors.Trace(err)
 		return
 	}
 	defer se.Close()
-	_, err = se.Execute(context.Background(), "use test_db")
+	_, err = se.InterDircute(context.Background(), "use test_db")
 	if err != nil {
 		done <- errors.Trace(err)
 		return
 	}
-	_, err = se.Execute(context.Background(), allegrosql)
+	_, err = se.InterDircute(context.Background(), allegrosql)
 	done <- errors.Trace(err)
 }
 
@@ -287,7 +287,7 @@ func backgroundExec(s ekv.CausetStorage, allegrosql string, done chan error) {
 func (s *testDBSuite5) TestAddPrimaryKeyRollback1(c *C) {
 	hasNullValsInKey := false
 	idxName := "PRIMARY"
-	addIdxALLEGROSQL := "alter block t1 add primary key c3_index (c3);"
+	addIdxALLEGROSQL := "alter causet t1 add primary key c3_index (c3);"
 	errMsg := "[ekv:1062]Duplicate entry '' for key 'PRIMARY'"
 	testAddIndexRollback(c, s.causetstore, s.lease, idxName, addIdxALLEGROSQL, errMsg, hasNullValsInKey)
 }
@@ -296,7 +296,7 @@ func (s *testDBSuite5) TestAddPrimaryKeyRollback1(c *C) {
 func (s *testDBSuite1) TestAddPrimaryKeyRollback2(c *C) {
 	hasNullValsInKey := true
 	idxName := "PRIMARY"
-	addIdxALLEGROSQL := "alter block t1 add primary key c3_index (c3);"
+	addIdxALLEGROSQL := "alter causet t1 add primary key c3_index (c3);"
 	errMsg := "[dbs:1138]Invalid use of NULL value"
 	testAddIndexRollback(c, s.causetstore, s.lease, idxName, addIdxALLEGROSQL, errMsg, hasNullValsInKey)
 }
@@ -311,14 +311,14 @@ func (s *testDBSuite2) TestAddUniqueIndexRollback(c *C) {
 
 func (s *testSerialDBSuite) TestAddExpressionIndexRollback(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (c1 int, c2 int, c3 int, unique key(c1))")
-	tk.MustExec("insert into t1 values (20, 20, 20), (40, 40, 40), (80, 80, 80), (160, 160, 160);")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (c1 int, c2 int, c3 int, unique key(c1))")
+	tk.MustInterDirc("insert into t1 values (20, 20, 20), (40, 40, 40), (80, 80, 80), (160, 160, 160);")
 
 	var checkErr error
 	tk1 := testkit.NewTestKit(c, s.causetstore)
-	_, checkErr = tk1.Exec("use test_db")
+	_, checkErr = tk1.InterDirc("use test_db")
 
 	d := s.dom.DBS()
 	hook := &dbs.TestDBSCallback{}
@@ -327,12 +327,12 @@ func (s *testSerialDBSuite) TestAddExpressionIndexRollback(c *C) {
 			if checkErr != nil {
 				return
 			}
-			_, checkErr = tk1.Exec("delete from t1 where c1 = 40;")
+			_, checkErr = tk1.InterDirc("delete from t1 where c1 = 40;")
 		}
 	}
 	d.(dbs.DBSForTest).SetHook(hook)
 
-	tk.MustGetErrMsg("alter block t1 add index expr_idx ((pow(c1, c2)));", "[dbs:8202]Cannot decode index value, because [types:1690]DOUBLE value is out of range in 'pow(160, 160)'")
+	tk.MustGetErrMsg("alter causet t1 add index expr_idx ((pow(c1, c2)));", "[dbs:8202]Cannot decode index value, because [types:1690]DOUBLE value is out of range in 'pow(160, 160)'")
 	c.Assert(checkErr, IsNil)
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("20 20 20", "80 80 80", "160 160 160"))
 }
@@ -345,14 +345,14 @@ func batchInsert(tk *testkit.TestKit, tbl string, start, end int) {
 			dml += ","
 		}
 	}
-	tk.MustExec(dml)
+	tk.MustInterDirc(dml)
 }
 
 func testAddIndexRollback(c *C, causetstore ekv.CausetStorage, lease time.Duration, idxName, addIdxALLEGROSQL, errMsg string, hasNullValsInKey bool) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (c1 int, c2 int, c3 int, unique key(c1))")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (c1 int, c2 int, c3 int, unique key(c1))")
 	// defaultBatchSize is equal to dbs.defaultBatchSize
 	base := defaultBatchSize * 2
 	count := base
@@ -361,17 +361,17 @@ func testAddIndexRollback(c *C, causetstore ekv.CausetStorage, lease time.Durati
 	// add some null rows
 	if hasNullValsInKey {
 		for i := count - 10; i < count; i++ {
-			tk.MustExec("insert into t1 values (?, ?, null)", i+10, i)
+			tk.MustInterDirc("insert into t1 values (?, ?, null)", i+10, i)
 		}
 	} else {
 		// add some duplicate rows
 		for i := count - 10; i < count; i++ {
-			tk.MustExec("insert into t1 values (?, ?, ?)", i+10, i, i)
+			tk.MustInterDirc("insert into t1 values (?, ?, ?)", i+10, i, i)
 		}
 	}
 
 	done := make(chan error, 1)
-	go backgroundExec(causetstore, addIdxALLEGROSQL, done)
+	go backgroundInterDirc(causetstore, addIdxALLEGROSQL, done)
 
 	times := 0
 	ticker := time.NewTicker(lease / 2)
@@ -391,8 +391,8 @@ LOOP:
 			// delete some rows, and add some data
 			for i := count; i < count+step; i++ {
 				n := rand.Intn(count)
-				tk.MustExec("delete from t1 where c1 = ?", n)
-				tk.MustExec("insert into t1 values (?, ?, ?)", i+10, i, i)
+				tk.MustInterDirc("delete from t1 where c1 = ?", n)
+				tk.MustInterDirc("insert into t1 values (?, ?, ?)", i+10, i, i)
 			}
 			count += step
 			times++
@@ -407,26 +407,26 @@ LOOP:
 
 	// delete duplicated/null rows, then add index
 	for i := base - 10; i < base; i++ {
-		tk.MustExec("delete from t1 where c1 = ?", i+10)
+		tk.MustInterDirc("delete from t1 where c1 = ?", i+10)
 	}
-	stochastikExec(c, causetstore, addIdxALLEGROSQL)
-	tk.MustExec("drop block t1")
+	stochastikInterDirc(c, causetstore, addIdxALLEGROSQL)
+	tk.MustInterDirc("drop causet t1")
 }
 
 func (s *testDBSuite5) TestCancelAddPrimaryKey(c *C) {
 	idxName := "primary"
-	addIdxALLEGROSQL := "alter block t1 add primary key idx_c2 (c2);"
+	addIdxALLEGROSQL := "alter causet t1 add primary key idx_c2 (c2);"
 	testCancelAddIndex(c, s.causetstore, s.dom.DBS(), s.lease, idxName, addIdxALLEGROSQL, "")
 
 	// Check the defCausumn's flag when the "add primary key" failed.
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
+	tk.MustInterDirc("use test_db")
 	ctx := tk.Se.(stochastikctx.Context)
 	c.Assert(ctx.NewTxn(context.Background()), IsNil)
 	t := testGetBlockByName(c, ctx, "test_db", "t1")
 	defCaus1Flag := t.DefCauss()[1].Flag
 	c.Assert(!allegrosql.HasNotNullFlag(defCaus1Flag) && !allegrosql.HasPreventNullInsertFlag(defCaus1Flag) && allegrosql.HasUnsignedFlag(defCaus1Flag), IsTrue)
-	tk.MustExec("drop block t1")
+	tk.MustInterDirc("drop causet t1")
 }
 
 func (s *testDBSuite3) TestCancelAddIndex(c *C) {
@@ -435,25 +435,25 @@ func (s *testDBSuite3) TestCancelAddIndex(c *C) {
 	testCancelAddIndex(c, s.causetstore, s.dom.DBS(), s.lease, idxName, addIdxALLEGROSQL, "")
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block t1")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet t1")
 }
 
 func testCancelAddIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, lease time.Duration, idxName, addIdxALLEGROSQL, sqlModeALLEGROSQL string) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (c1 int, c2 int unsigned, c3 int, unique key(c1))")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (c1 int, c2 int unsigned, c3 int, unique key(c1))")
 	// defaultBatchSize is equal to dbs.defaultBatchSize
 	count := defaultBatchSize * 32
 	start := 0
 	// add some rows
 	if len(sqlModeALLEGROSQL) != 0 {
 		// Insert some null values.
-		tk.MustExec(sqlModeALLEGROSQL)
-		tk.MustExec("insert into t1 set c1 = ?", 0)
-		tk.MustExec("insert into t1 set c2 = ?", 1)
-		tk.MustExec("insert into t1 set c3 = ?", 2)
+		tk.MustInterDirc(sqlModeALLEGROSQL)
+		tk.MustInterDirc("insert into t1 set c1 = ?", 0)
+		tk.MustInterDirc("insert into t1 set c2 = ?", 1)
+		tk.MustInterDirc("insert into t1 set c3 = ?", 2)
 		start = 3
 	}
 	for i := start; i < count; i += defaultBatchSize {
@@ -464,18 +464,18 @@ func testCancelAddIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, lease ti
 	hook := &dbs.TestDBSCallback{}
 	originBatchSize := tk.MustQuery("select @@global.milevadb_dbs_reorg_batch_size")
 	// Set batch size to lower try to slow down add-index reorganization, This if for hook to cancel this dbs job.
-	tk.MustExec("set @@global.milevadb_dbs_reorg_batch_size = 32")
-	defer tk.MustExec(fmt.Sprintf("set @@global.milevadb_dbs_reorg_batch_size = %v", originBatchSize.Rows()[0][0]))
+	tk.MustInterDirc("set @@global.milevadb_dbs_reorg_batch_size = 32")
+	defer tk.MustInterDirc(fmt.Sprintf("set @@global.milevadb_dbs_reorg_batch_size = %v", originBatchSize.Rows()[0][0]))
 	// let hook.OnJobUFIDelatedExported has chance to cancel the job.
 	// the hook.OnJobUFIDelatedExported is called when the job is uFIDelated, runReorgJob will wait dbs.ReorgWaitTimeout, then return the dbs.runDBSJob.
 	// After that dbs call d.hook.OnJobUFIDelated(job), so that we can canceled the job in this test case.
 	var checkErr error
 	ctx := tk.Se.(stochastikctx.Context)
-	hook.OnJobUFIDelatedExported, c3IdxInfo, checkErr = backgroundExecOnJobUFIDelatedExported(c, causetstore, ctx, hook, idxName)
+	hook.OnJobUFIDelatedExported, c3IdxInfo, checkErr = backgroundInterDircOnJobUFIDelatedExported(c, causetstore, ctx, hook, idxName)
 	originalHook := d.GetHook()
 	d.(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
-	go backgroundExec(causetstore, addIdxALLEGROSQL, done)
+	go backgroundInterDirc(causetstore, addIdxALLEGROSQL, done)
 
 	times := 0
 	ticker := time.NewTicker(lease / 2)
@@ -496,8 +496,8 @@ LOOP:
 			// delete some rows, and add some data
 			for i := count; i < count+step; i++ {
 				n := rand.Intn(count)
-				tk.MustExec("delete from t1 where c1 = ?", n)
-				tk.MustExec("insert into t1 values (?, ?, ?)", i+10, i, i)
+				tk.MustInterDirc("delete from t1 where c1 = ?", n)
+				tk.MustInterDirc("insert into t1 values (?, ?, ?)", i+10, i, i)
 			}
 			count += step
 			times++
@@ -517,13 +517,13 @@ LOOP:
 // TestCancelAddIndex1 tests canceling dbs job when the add index worker is not started.
 func (s *testDBSuite4) TestCancelAddIndex1(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t")
-	s.mustExec(tk, c, "create block t(c1 int, c2 int)")
-	defer s.mustExec(tk, c, "drop block t;")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t")
+	s.mustInterDirc(tk, c, "create causet t(c1 int, c2 int)")
+	defer s.mustInterDirc(tk, c, "drop causet t;")
 
 	for i := 0; i < 50; i++ {
-		s.mustExec(tk, c, "insert into t values (?, ?)", i, i)
+		s.mustInterDirc(tk, c, "insert into t values (?, ?)", i, i)
 	}
 
 	var checkErr error
@@ -559,7 +559,7 @@ func (s *testDBSuite4) TestCancelAddIndex1(c *C) {
 	}
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	rs, err := tk.Exec("alter block t add index idx_c2(c2)")
+	rs, err := tk.InterDirc("alter causet t add index idx_c2(c2)")
 	if rs != nil {
 		rs.Close()
 	}
@@ -572,35 +572,35 @@ func (s *testDBSuite4) TestCancelAddIndex1(c *C) {
 	for _, idx := range t.Indices() {
 		c.Assert(strings.EqualFold(idx.Meta().Name.L, "idx_c2"), IsFalse)
 	}
-	s.mustExec(tk, c, "alter block t add index idx_c2(c2)")
-	s.mustExec(tk, c, "alter block t drop index idx_c2")
+	s.mustInterDirc(tk, c, "alter causet t add index idx_c2(c2)")
+	s.mustInterDirc(tk, c, "alter causet t drop index idx_c2")
 }
 
 // TestCancelDropIndex tests cancel dbs job which type is drop primary key.
 func (s *testDBSuite4) TestCancelDropPrimaryKey(c *C) {
 	idxName := "primary"
-	addIdxALLEGROSQL := "alter block t add primary key idx_c2 (c2);"
-	dropIdxALLEGROSQL := "alter block t drop primary key;"
+	addIdxALLEGROSQL := "alter causet t add primary key idx_c2 (c2);"
+	dropIdxALLEGROSQL := "alter causet t drop primary key;"
 	testCancelDropIndex(c, s.causetstore, s.dom.DBS(), idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL)
 }
 
 // TestCancelDropIndex tests cancel dbs job which type is drop index.
 func (s *testDBSuite5) TestCancelDropIndex(c *C) {
 	idxName := "idx_c2"
-	addIdxALLEGROSQL := "alter block t add index idx_c2 (c2);"
-	dropIdxALLEGROSQL := "alter block t drop index idx_c2;"
+	addIdxALLEGROSQL := "alter causet t add index idx_c2 (c2);"
+	dropIdxALLEGROSQL := "alter causet t drop index idx_c2;"
 	testCancelDropIndex(c, s.causetstore, s.dom.DBS(), idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL)
 }
 
 // testCancelDropIndex tests cancel dbs job which type is drop index.
 func testCancelDropIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, idxName, addIdxALLEGROSQL, dropIdxALLEGROSQL string) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(c1 int, c2 int)")
-	defer tk.MustExec("drop block t;")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(c1 int, c2 int)")
+	defer tk.MustInterDirc("drop causet t;")
 	for i := 0; i < 5; i++ {
-		tk.MustExec("insert into t values (?, ?)", i, i)
+		tk.MustInterDirc("insert into t values (?, ?)", i, i)
 	}
 	testCases := []struct {
 		needAddIndex   bool
@@ -655,9 +655,9 @@ func testCancelDropIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, idxName
 	for i := range testCases {
 		testCase = &testCases[i]
 		if testCase.needAddIndex {
-			tk.MustExec(addIdxALLEGROSQL)
+			tk.MustInterDirc(addIdxALLEGROSQL)
 		}
-		rs, err := tk.Exec(dropIdxALLEGROSQL)
+		rs, err := tk.InterDirc(dropIdxALLEGROSQL)
 		if rs != nil {
 			rs.Close()
 		}
@@ -678,18 +678,18 @@ func testCancelDropIndex(c *C, causetstore ekv.CausetStorage, d dbs.DBS, idxName
 		}
 	}
 	d.(dbs.DBSForTest).SetHook(originalHook)
-	tk.MustExec(addIdxALLEGROSQL)
-	tk.MustExec(dropIdxALLEGROSQL)
+	tk.MustInterDirc(addIdxALLEGROSQL)
+	tk.MustInterDirc(dropIdxALLEGROSQL)
 }
 
-// TestCancelTruncateBlock tests cancel dbs job which type is truncate block.
+// TestCancelTruncateBlock tests cancel dbs job which type is truncate causet.
 func (s *testDBSuite5) TestCancelTruncateBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "create database if not exists test_truncate_block")
-	s.mustExec(tk, c, "drop block if exists t")
-	s.mustExec(tk, c, "create block t(c1 int, c2 int)")
-	defer s.mustExec(tk, c, "drop block t;")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "create database if not exists test_truncate_block")
+	s.mustInterDirc(tk, c, "drop causet if exists t")
+	s.mustInterDirc(tk, c, "create causet t(c1 int, c2 int)")
+	defer s.mustInterDirc(tk, c, "drop causet t;")
 	var checkErr error
 	hook := &dbs.TestDBSCallback{}
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
@@ -721,7 +721,7 @@ func (s *testDBSuite5) TestCancelTruncateBlock(c *C) {
 	}
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	_, err := tk.Exec("truncate block t")
+	_, err := tk.InterDirc("truncate causet t")
 	c.Assert(checkErr, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:8214]Cancelled DBS job")
@@ -730,23 +730,23 @@ func (s *testDBSuite5) TestCancelTruncateBlock(c *C) {
 
 func (s *testDBSuite5) TestParallelDropSchemaAndDropBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "create database if not exists test_drop_schema_block")
-	s.mustExec(tk, c, "use test_drop_schema_block")
-	s.mustExec(tk, c, "create block t(c1 int, c2 int)")
+	s.mustInterDirc(tk, c, "create database if not exists test_drop_schema_block")
+	s.mustInterDirc(tk, c, "use test_drop_schema_block")
+	s.mustInterDirc(tk, c, "create causet t(c1 int, c2 int)")
 	var checkErr error
 	hook := &dbs.TestDBSCallback{}
 	dbInfo := testGetSchemaByName(c, tk.Se, "test_drop_schema_block")
 	done := false
 	var wg sync.WaitGroup
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test_drop_schema_block")
+	tk2.MustInterDirc("use test_drop_schema_block")
 	hook.OnJobUFIDelatedExported = func(job *perceptron.Job) {
 		if job.Type == perceptron.CausetActionDropSchema && job.State == perceptron.JobStateRunning &&
 			job.SchemaState == perceptron.StateWriteOnly && job.SchemaID == dbInfo.ID && done == false {
 			wg.Add(1)
 			done = true
 			go func() {
-				_, checkErr = tk2.Exec("drop block t")
+				_, checkErr = tk2.InterDirc("drop causet t")
 				wg.Done()
 			}()
 			time.Sleep(5 * time.Millisecond)
@@ -754,24 +754,24 @@ func (s *testDBSuite5) TestParallelDropSchemaAndDropBlock(c *C) {
 	}
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	s.mustExec(tk, c, "drop database test_drop_schema_block")
+	s.mustInterDirc(tk, c, "drop database test_drop_schema_block")
 	s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
 	wg.Wait()
 	c.Assert(done, IsTrue)
 	c.Assert(checkErr, NotNil)
 	// There are two possible assert result because:
-	// 1: If drop-database is finished before drop-block being put into the dbs job queue, it will return "unknown block" error directly in the previous check.
-	// 2: If drop-block has passed the previous check and been put into the dbs job queue, then drop-database finished, it will return schemaReplicant change error.
+	// 1: If drop-database is finished before drop-causet being put into the dbs job queue, it will return "unknown causet" error directly in the previous check.
+	// 2: If drop-causet has passed the previous check and been put into the dbs job queue, then drop-database finished, it will return schemaReplicant change error.
 	assertRes := checkErr.Error() == "[petri:8028]Information schemaReplicant is changed during the execution of the"+
-		" statement(for example, block definition may be uFIDelated by other DBS ran in parallel). "+
+		" memex(for example, causet definition may be uFIDelated by other DBS ran in parallel). "+
 		"If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]" ||
-		checkErr.Error() == "[schemaReplicant:1051]Unknown block 'test_drop_schema_block.t'"
+		checkErr.Error() == "[schemaReplicant:1051]Unknown causet 'test_drop_schema_block.t'"
 
 	c.Assert(assertRes, Equals, true)
 
 	// Below behaviour is use to mock query `curl "http://$IP:10080/tiflash/replica"`
 	fn := func(jobs []*perceptron.Job) (bool, error) {
-		return executor.GetDropOrTruncateBlockInfoFromJobs(jobs, 0, s.dom, func(job *perceptron.Job, info *perceptron.BlockInfo) (bool, error) {
+		return interlock.GetDropOrTruncateBlockInfoFromJobs(jobs, 0, s.dom, func(job *perceptron.Job, info *perceptron.BlockInfo) (bool, error) {
 			return false, nil
 		})
 	}
@@ -786,15 +786,15 @@ func (s *testDBSuite5) TestParallelDropSchemaAndDropBlock(c *C) {
 // TestCancelRenameIndex tests cancel dbs job which type is rename index.
 func (s *testDBSuite1) TestCancelRenameIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "create database if not exists test_rename_index")
-	s.mustExec(tk, c, "drop block if exists t")
-	s.mustExec(tk, c, "create block t(c1 int, c2 int)")
-	defer s.mustExec(tk, c, "drop block t;")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "create database if not exists test_rename_index")
+	s.mustInterDirc(tk, c, "drop causet if exists t")
+	s.mustInterDirc(tk, c, "create causet t(c1 int, c2 int)")
+	defer s.mustInterDirc(tk, c, "drop causet t;")
 	for i := 0; i < 100; i++ {
-		s.mustExec(tk, c, "insert into t values (?, ?)", i, i)
+		s.mustInterDirc(tk, c, "insert into t values (?, ?)", i, i)
 	}
-	s.mustExec(tk, c, "alter block t add index idx_c2(c2)")
+	s.mustInterDirc(tk, c, "alter causet t add index idx_c2(c2)")
 	var checkErr error
 	hook := &dbs.TestDBSCallback{}
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
@@ -826,7 +826,7 @@ func (s *testDBSuite1) TestCancelRenameIndex(c *C) {
 	}
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	rs, err := tk.Exec("alter block t rename index idx_c2 to idx_c3")
+	rs, err := tk.InterDirc("alter causet t rename index idx_c2 to idx_c3")
 	if rs != nil {
 		rs.Close()
 	}
@@ -838,10 +838,10 @@ func (s *testDBSuite1) TestCancelRenameIndex(c *C) {
 	for _, idx := range t.Indices() {
 		c.Assert(strings.EqualFold(idx.Meta().Name.L, "idx_c3"), IsFalse)
 	}
-	s.mustExec(tk, c, "alter block t rename index idx_c2 to idx_c3")
+	s.mustInterDirc(tk, c, "alter causet t rename index idx_c2 to idx_c3")
 }
 
-// TestCancelDropBlock tests cancel dbs job which type is drop block.
+// TestCancelDropBlock tests cancel dbs job which type is drop causet.
 func (s *testDBSuite2) TestCancelDropBlockAndSchema(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	testCases := []struct {
@@ -851,7 +851,7 @@ func (s *testDBSuite2) TestCancelDropBlockAndSchema(c *C) {
 		JobSchemaState   perceptron.SchemaState
 		cancelSucc       bool
 	}{
-		// Check drop block.
+		// Check drop causet.
 		// perceptron.JobStateNone means the jobs is canceled before the first run.
 		{true, perceptron.CausetActionDropBlock, perceptron.JobStateNone, perceptron.StateNone, true},
 		{false, perceptron.CausetActionDropBlock, perceptron.JobStateRunning, perceptron.StateWriteOnly, false},
@@ -866,7 +866,7 @@ func (s *testDBSuite2) TestCancelDropBlockAndSchema(c *C) {
 	hook := &dbs.TestDBSCallback{}
 	var jobID int64
 	testCase := &testCases[0]
-	s.mustExec(tk, c, "create database if not exists test_drop_db")
+	s.mustInterDirc(tk, c, "create database if not exists test_drop_db")
 	dbInfo := s.testGetDB(c, "test_drop_db")
 
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
@@ -905,30 +905,30 @@ func (s *testDBSuite2) TestCancelDropBlockAndSchema(c *C) {
 	for i := range testCases {
 		testCase = &testCases[i]
 		if testCase.needAddBlockOrDB {
-			s.mustExec(tk, c, "create database if not exists test_drop_db")
-			s.mustExec(tk, c, "use test_drop_db")
-			s.mustExec(tk, c, "create block if not exists t(c1 int, c2 int)")
+			s.mustInterDirc(tk, c, "create database if not exists test_drop_db")
+			s.mustInterDirc(tk, c, "use test_drop_db")
+			s.mustInterDirc(tk, c, "create causet if not exists t(c1 int, c2 int)")
 		}
 
 		dbInfo = s.testGetDB(c, "test_drop_db")
 
 		if testCase.action == perceptron.CausetActionDropBlock {
-			allegrosql = "drop block t;"
+			allegrosql = "drop causet t;"
 		} else if testCase.action == perceptron.CausetActionDropSchema {
 			allegrosql = "drop database test_drop_db;"
 		}
 
-		_, err = tk.Exec(allegrosql)
+		_, err = tk.InterDirc(allegrosql)
 		if testCase.cancelSucc {
 			c.Assert(checkErr, IsNil)
 			c.Assert(err, NotNil)
 			c.Assert(err.Error(), Equals, "[dbs:8214]Cancelled DBS job")
-			s.mustExec(tk, c, "insert into t values (?, ?)", i, i)
+			s.mustInterDirc(tk, c, "insert into t values (?, ?)", i, i)
 		} else {
 			c.Assert(err, IsNil)
 			c.Assert(checkErr, NotNil)
 			c.Assert(checkErr.Error(), Equals, admin.ErrCannotCancelDBSJob.GenWithStackByArgs(jobID).Error())
-			_, err = tk.Exec("insert into t values (?, ?)", i, i)
+			_, err = tk.InterDirc("insert into t values (?, ?)", i, i)
 			c.Assert(err, NotNil)
 		}
 	}
@@ -936,58 +936,58 @@ func (s *testDBSuite2) TestCancelDropBlockAndSchema(c *C) {
 
 func (s *testDBSuite3) TestAddAnonymousIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	s.mustExec(tk, c, "create block t_anonymous_index (c1 int, c2 int, C3 int)")
-	s.mustExec(tk, c, "alter block t_anonymous_index add index (c1, c2)")
+	tk.MustInterDirc("use " + s.schemaName)
+	s.mustInterDirc(tk, c, "create causet t_anonymous_index (c1 int, c2 int, C3 int)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index (c1, c2)")
 	// for dropping empty index
-	_, err := tk.Exec("alter block t_anonymous_index drop index")
+	_, err := tk.InterDirc("alter causet t_anonymous_index drop index")
 	c.Assert(err, NotNil)
 	// The index name is c1 when adding index (c1, c2).
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c1")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c1")
 	t := s.testGetBlock(c, "t_anonymous_index")
 	c.Assert(t.Indices(), HasLen, 0)
 	// for adding some indices that the first defCausumn name is c1
-	s.mustExec(tk, c, "alter block t_anonymous_index add index (c1)")
-	_, err = tk.Exec("alter block t_anonymous_index add index c1 (c2)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index (c1)")
+	_, err = tk.InterDirc("alter causet t_anonymous_index add index c1 (c2)")
 	c.Assert(err, NotNil)
 	t = s.testGetBlock(c, "t_anonymous_index")
 	c.Assert(t.Indices(), HasLen, 1)
 	idx := t.Indices()[0].Meta().Name.L
 	c.Assert(idx, Equals, "c1")
 	// The MyALLEGROSQL will be a warning.
-	s.mustExec(tk, c, "alter block t_anonymous_index add index c1_3 (c1)")
-	s.mustExec(tk, c, "alter block t_anonymous_index add index (c1, c2, C3)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index c1_3 (c1)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index (c1, c2, C3)")
 	// The MyALLEGROSQL will be a warning.
-	s.mustExec(tk, c, "alter block t_anonymous_index add index (c1)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index (c1)")
 	t = s.testGetBlock(c, "t_anonymous_index")
 	c.Assert(t.Indices(), HasLen, 4)
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c1")
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c1_2")
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c1_3")
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c1_4")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c1")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c1_2")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c1_3")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c1_4")
 	// for case insensitive
-	s.mustExec(tk, c, "alter block t_anonymous_index add index (C3)")
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index c3")
-	s.mustExec(tk, c, "alter block t_anonymous_index add index c3 (C3)")
-	s.mustExec(tk, c, "alter block t_anonymous_index drop index C3")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index (C3)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index c3")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index add index c3 (C3)")
+	s.mustInterDirc(tk, c, "alter causet t_anonymous_index drop index C3")
 	// for anonymous index with defCausumn name `primary`
-	s.mustExec(tk, c, "create block t_primary (`primary` int, b int, key (`primary`))")
+	s.mustInterDirc(tk, c, "create causet t_primary (`primary` int, b int, key (`primary`))")
 	t = s.testGetBlock(c, "t_primary")
 	c.Assert(t.Indices()[0].Meta().Name.String(), Equals, "primary_2")
-	s.mustExec(tk, c, "alter block t_primary add index (`primary`);")
+	s.mustInterDirc(tk, c, "alter causet t_primary add index (`primary`);")
 	t = s.testGetBlock(c, "t_primary")
 	c.Assert(t.Indices()[0].Meta().Name.String(), Equals, "primary_2")
 	c.Assert(t.Indices()[1].Meta().Name.String(), Equals, "primary_3")
-	s.mustExec(tk, c, "alter block t_primary add primary key(b);")
+	s.mustInterDirc(tk, c, "alter causet t_primary add primary key(b);")
 	t = s.testGetBlock(c, "t_primary")
 	c.Assert(t.Indices()[0].Meta().Name.String(), Equals, "primary_2")
 	c.Assert(t.Indices()[1].Meta().Name.String(), Equals, "primary_3")
 	c.Assert(t.Indices()[2].Meta().Name.L, Equals, "primary")
-	s.mustExec(tk, c, "create block t_primary_2 (`primary` int, key primary_2 (`primary`), key (`primary`))")
+	s.mustInterDirc(tk, c, "create causet t_primary_2 (`primary` int, key primary_2 (`primary`), key (`primary`))")
 	t = s.testGetBlock(c, "t_primary_2")
 	c.Assert(t.Indices()[0].Meta().Name.String(), Equals, "primary_2")
 	c.Assert(t.Indices()[1].Meta().Name.String(), Equals, "primary_3")
-	s.mustExec(tk, c, "create block t_primary_3 (`primary_2` int, key(`primary_2`), `primary` int, key(`primary`));")
+	s.mustInterDirc(tk, c, "create causet t_primary_3 (`primary_2` int, key(`primary_2`), `primary` int, key(`primary`));")
 	t = s.testGetBlock(c, "t_primary_3")
 	c.Assert(t.Indices()[0].Meta().Name.String(), Equals, "primary_2")
 	c.Assert(t.Indices()[1].Meta().Name.String(), Equals, "primary_3")
@@ -995,60 +995,60 @@ func (s *testDBSuite3) TestAddAnonymousIndex(c *C) {
 
 func (s *testDBSuite4) TestAlterLock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	s.mustExec(tk, c, "create block t_index_lock (c1 int, c2 int, C3 int)")
-	s.mustExec(tk, c, "alter block t_index_lock add index (c1, c2), lock=none")
+	tk.MustInterDirc("use " + s.schemaName)
+	s.mustInterDirc(tk, c, "create causet t_index_lock (c1 int, c2 int, C3 int)")
+	s.mustInterDirc(tk, c, "alter causet t_index_lock add index (c1, c2), dagger=none")
 }
 
 func (s *testDBSuite5) TestAddMultiDeferredCausetsIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 
-	tk.MustExec("drop database if exists milevadb;")
-	tk.MustExec("create database milevadb;")
-	tk.MustExec("use milevadb;")
-	tk.MustExec("create block milevadb.test (a int auto_increment primary key, b int);")
-	tk.MustExec("insert milevadb.test values (1, 1);")
-	tk.MustExec("uFIDelate milevadb.test set b = b + 1 where a = 1;")
-	tk.MustExec("insert into milevadb.test values (2, 2);")
+	tk.MustInterDirc("drop database if exists milevadb;")
+	tk.MustInterDirc("create database milevadb;")
+	tk.MustInterDirc("use milevadb;")
+	tk.MustInterDirc("create causet milevadb.test (a int auto_increment primary key, b int);")
+	tk.MustInterDirc("insert milevadb.test values (1, 1);")
+	tk.MustInterDirc("uFIDelate milevadb.test set b = b + 1 where a = 1;")
+	tk.MustInterDirc("insert into milevadb.test values (2, 2);")
 	// Test that the b value is nil.
-	tk.MustExec("insert into milevadb.test (a) values (3);")
-	tk.MustExec("insert into milevadb.test values (4, 4);")
+	tk.MustInterDirc("insert into milevadb.test (a) values (3);")
+	tk.MustInterDirc("insert into milevadb.test values (4, 4);")
 	// Test that the b value is nil again.
-	tk.MustExec("insert into milevadb.test (a) values (5);")
-	tk.MustExec("insert milevadb.test values (6, 6);")
-	tk.MustExec("alter block milevadb.test add index idx1 (a, b);")
-	tk.MustExec("admin check block test")
+	tk.MustInterDirc("insert into milevadb.test (a) values (5);")
+	tk.MustInterDirc("insert milevadb.test values (6, 6);")
+	tk.MustInterDirc("alter causet milevadb.test add index idx1 (a, b);")
+	tk.MustInterDirc("admin check causet test")
 }
 
 func (s *testDBSuite6) TestAddMultiDeferredCausetsIndexClusterIndex(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("drop database if exists test_add_multi_defCaus_index_clustered;")
-	tk.MustExec("create database test_add_multi_defCaus_index_clustered;")
-	tk.MustExec("use test_add_multi_defCaus_index_clustered;")
+	tk.MustInterDirc("drop database if exists test_add_multi_defCaus_index_clustered;")
+	tk.MustInterDirc("create database test_add_multi_defCaus_index_clustered;")
+	tk.MustInterDirc("use test_add_multi_defCaus_index_clustered;")
 
-	tk.MustExec("set @@milevadb_enable_clustered_index = 1")
-	tk.MustExec("create block t (a int, b varchar(10), c int, primary key (a, b));")
-	tk.MustExec("insert into t values (1, '1', 1), (2, '2', NULL), (3, '3', 3);")
-	tk.MustExec("create index idx on t (a, c);")
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1")
+	tk.MustInterDirc("create causet t (a int, b varchar(10), c int, primary key (a, b));")
+	tk.MustInterDirc("insert into t values (1, '1', 1), (2, '2', NULL), (3, '3', 3);")
+	tk.MustInterDirc("create index idx on t (a, c);")
 
-	tk.MustExec("admin check index t idx;")
-	tk.MustExec("admin check block t;")
+	tk.MustInterDirc("admin check index t idx;")
+	tk.MustInterDirc("admin check causet t;")
 
-	tk.MustExec("insert into t values (5, '5', 5), (6, '6', NULL);")
+	tk.MustInterDirc("insert into t values (5, '5', 5), (6, '6', NULL);")
 
-	tk.MustExec("admin check index t idx;")
-	tk.MustExec("admin check block t;")
+	tk.MustInterDirc("admin check index t idx;")
+	tk.MustInterDirc("admin check causet t;")
 }
 
 func (s *testDBSuite1) TestAddPrimaryKey1(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPlain,
-		"create block test_add_index (c1 bigint, c2 bigint, c3 bigint, unique key(c1))", "primary")
+		"create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, unique key(c1))", "primary")
 }
 
 func (s *testDBSuite2) TestAddPrimaryKey2(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
 			      partition by range (c3) (
 			      partition p0 values less than (3440),
 			      partition p1 values less than (61440),
@@ -1059,13 +1059,13 @@ func (s *testDBSuite2) TestAddPrimaryKey2(c *C) {
 
 func (s *testDBSuite3) TestAddPrimaryKey3(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
 			      partition by hash (c3) partitions 4;`, "primary")
 }
 
 func (s *testDBSuite4) TestAddPrimaryKey4(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, key(c1))
 			      partition by range defCausumns (c3) (
 			      partition p0 values less than (3440),
 			      partition p1 values less than (61440),
@@ -1076,12 +1076,12 @@ func (s *testDBSuite4) TestAddPrimaryKey4(c *C) {
 
 func (s *testDBSuite1) TestAddIndex1(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPlain,
-		"create block test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))", "")
+		"create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))", "")
 }
 
 func (s *testDBSuite2) TestAddIndex2(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
 			      partition by range (c1) (
 			      partition p0 values less than (3440),
 			      partition p1 values less than (61440),
@@ -1092,13 +1092,13 @@ func (s *testDBSuite2) TestAddIndex2(c *C) {
 
 func (s *testDBSuite3) TestAddIndex3(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
 			      partition by hash (c1) partitions 4;`, "")
 }
 
 func (s *testDBSuite4) TestAddIndex4(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testPartition,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c1))
 			      partition by range defCausumns (c1) (
 			      partition p0 values less than (3440),
 			      partition p1 values less than (61440),
@@ -1109,7 +1109,7 @@ func (s *testDBSuite4) TestAddIndex4(c *C) {
 
 func (s *testDBSuite5) TestAddIndex5(c *C) {
 	testAddIndex(c, s.causetstore, s.lease, testClusteredIndex,
-		`create block test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c2, c3))`, "")
+		`create causet test_add_index (c1 bigint, c2 bigint, c3 bigint, primary key(c2, c3))`, "")
 }
 
 type testAddIndexType int8
@@ -1122,15 +1122,15 @@ const (
 
 func testAddIndex(c *C, causetstore ekv.CausetStorage, lease time.Duration, tp testAddIndexType, createBlockALLEGROSQL, idxTp string) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test_db")
+	tk.MustInterDirc("use test_db")
 	switch tp {
 	case testPartition:
-		tk.MustExec("set @@stochastik.milevadb_enable_block_partition = '1';")
+		tk.MustInterDirc("set @@stochastik.milevadb_enable_block_partition = '1';")
 	case testClusteredIndex:
-		tk.MustExec("set @@milevadb_enable_clustered_index = 1")
+		tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1")
 	}
-	tk.MustExec("drop block if exists test_add_index")
-	tk.MustExec(createBlockALLEGROSQL)
+	tk.MustInterDirc("drop causet if exists test_add_index")
+	tk.MustInterDirc(createBlockALLEGROSQL)
 
 	done := make(chan error, 1)
 	start := -10
@@ -1149,17 +1149,17 @@ func testAddIndex(c *C, causetstore ekv.CausetStorage, lease time.Duration, tp t
 		for j := 0; j < rand.Intn(maxBatch); j++ {
 			n += j
 			allegrosql := fmt.Sprintf("insert into test_add_index values (%d, %d, %d)", n, n, n)
-			tk.MustExec(allegrosql)
+			tk.MustInterDirc(allegrosql)
 			otherKeys = append(otherKeys, n)
 		}
 	}
 	// Encounter the value of math.MaxInt64 in midbse of
 	v := math.MaxInt64 - defaultBatchSize/2
-	tk.MustExec(fmt.Sprintf("insert into test_add_index values (%d, %d, %d)", v, v, v))
+	tk.MustInterDirc(fmt.Sprintf("insert into test_add_index values (%d, %d, %d)", v, v, v))
 	otherKeys = append(otherKeys, v)
 
-	addIdxALLEGROSQL := fmt.Sprintf("alter block test_add_index add %s key c3_index(c3)", idxTp)
-	testdbsutil.StochastikExecInGoroutine(c, causetstore, addIdxALLEGROSQL, done)
+	addIdxALLEGROSQL := fmt.Sprintf("alter causet test_add_index add %s key c3_index(c3)", idxTp)
+	testdbsutil.StochastikInterDircInGoroutine(c, causetstore, addIdxALLEGROSQL, done)
 
 	deletedKeys := make(map[int]struct{})
 
@@ -1186,9 +1186,9 @@ LOOP:
 				n := rand.Intn(num)
 				deletedKeys[n] = struct{}{}
 				allegrosql := fmt.Sprintf("delete from test_add_index where c1 = %d", n)
-				tk.MustExec(allegrosql)
+				tk.MustInterDirc(allegrosql)
 				allegrosql = fmt.Sprintf("insert into test_add_index values (%d, %d, %d)", i, i, i)
-				tk.MustExec(allegrosql)
+				tk.MustInterDirc(allegrosql)
 			}
 			num += step
 		}
@@ -1212,7 +1212,7 @@ LOOP:
 	rows := tk.MustQuery(fmt.Sprintf("select c1 from test_add_index where c3 >= %d order by c1", start)).Rows()
 	matchRows(c, rows, expectedRows)
 
-	tk.MustExec("admin check block test_add_index")
+	tk.MustInterDirc("admin check causet test_add_index")
 	if tp == testPartition {
 		return
 	}
@@ -1230,14 +1230,14 @@ LOOP:
 	handles := ekv.NewHandleMap()
 	startKey := t.RecordKey(ekv.IntHandle(math.MinInt64))
 	err := t.IterRecords(ctx, startKey, t.DefCauss(),
-		func(h ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+		func(h ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 			handles.Set(h, struct{}{})
 			return true, nil
 		})
 	c.Assert(err, IsNil)
 
 	// check in index
-	var nidx block.Index
+	var nidx causet.Index
 	idxName := "c3_index"
 	if len(idxTp) != 0 {
 		idxName = "primary"
@@ -1273,24 +1273,24 @@ LOOP:
 		handles.Delete(h)
 	}
 	c.Assert(handles.Len(), Equals, 0)
-	tk.MustExec("drop block test_add_index")
+	tk.MustInterDirc("drop causet test_add_index")
 }
 
-// TestCancelAddBlockAndDropBlockPartition tests cancel dbs job which type is add/drop block partition.
+// TestCancelAddBlockAndDropBlockPartition tests cancel dbs job which type is add/drop causet partition.
 func (s *testDBSuite1) TestCancelAddBlockAndDropBlockPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "create database if not exists test_partition_block")
-	s.mustExec(tk, c, "use test_partition_block")
-	s.mustExec(tk, c, "drop block if exists t_part")
-	s.mustExec(tk, c, `create block t_part (a int key)
+	s.mustInterDirc(tk, c, "create database if not exists test_partition_block")
+	s.mustInterDirc(tk, c, "use test_partition_block")
+	s.mustInterDirc(tk, c, "drop causet if exists t_part")
+	s.mustInterDirc(tk, c, `create causet t_part (a int key)
 		partition by range(a) (
 		partition p0 values less than (10),
 		partition p1 values less than (20)
 	);`)
-	defer s.mustExec(tk, c, "drop block t_part;")
+	defer s.mustInterDirc(tk, c, "drop causet t_part;")
 	base := 10
 	for i := 0; i < base; i++ {
-		s.mustExec(tk, c, "insert into t_part values (?)", i)
+		s.mustInterDirc(tk, c, "insert into t_part values (?)", i)
 	}
 
 	testCases := []struct {
@@ -1301,7 +1301,7 @@ func (s *testDBSuite1) TestCancelAddBlockAndDropBlockPartition(c *C) {
 	}{
 		{perceptron.CausetActionAddBlockPartition, perceptron.JobStateNone, perceptron.StateNone, true},
 		{perceptron.CausetActionDropBlockPartition, perceptron.JobStateNone, perceptron.StateNone, true},
-		// Add block partition now can be cancelled in ReplicaOnly state.
+		// Add causet partition now can be cancelled in ReplicaOnly state.
 		{perceptron.CausetActionAddBlockPartition, perceptron.JobStateRunning, perceptron.StateReplicaOnly, true},
 	}
 	var checkErr error
@@ -1344,18 +1344,18 @@ func (s *testDBSuite1) TestCancelAddBlockAndDropBlockPartition(c *C) {
 	for i := range testCases {
 		testCase = &testCases[i]
 		if testCase.action == perceptron.CausetActionAddBlockPartition {
-			allegrosql = `alter block t_part add partition (
+			allegrosql = `alter causet t_part add partition (
 				partition p2 values less than (30)
 				);`
 		} else if testCase.action == perceptron.CausetActionDropBlockPartition {
-			allegrosql = "alter block t_part drop partition p1;"
+			allegrosql = "alter causet t_part drop partition p1;"
 		}
-		_, err = tk.Exec(allegrosql)
+		_, err = tk.InterDirc(allegrosql)
 		if testCase.cancelSucc {
 			c.Assert(checkErr, IsNil)
 			c.Assert(err, NotNil)
 			c.Assert(err.Error(), Equals, "[dbs:8214]Cancelled DBS job")
-			s.mustExec(tk, c, "insert into t_part values (?)", i+base)
+			s.mustInterDirc(tk, c, "insert into t_part values (?)", i+base)
 
 			ctx := s.s.(stochastikctx.Context)
 			is := petri.GetPetri(ctx).SchemaReplicant()
@@ -1368,7 +1368,7 @@ func (s *testDBSuite1) TestCancelAddBlockAndDropBlockPartition(c *C) {
 			c.Assert(err, IsNil, Commentf("err:%v", err))
 			c.Assert(checkErr, NotNil)
 			c.Assert(checkErr.Error(), Equals, admin.ErrCannotCancelDBSJob.GenWithStackByArgs(jobID).Error())
-			_, err = tk.Exec("insert into t_part values (?)", i)
+			_, err = tk.InterDirc("insert into t_part values (?)", i)
 			c.Assert(err, NotNil)
 		}
 	}
@@ -1377,34 +1377,34 @@ func (s *testDBSuite1) TestCancelAddBlockAndDropBlockPartition(c *C) {
 
 func (s *testDBSuite1) TestDropPrimaryKey(c *C) {
 	idxName := "primary"
-	createALLEGROSQL := "create block test_drop_index (c1 int, c2 int, c3 int, unique key(c1), primary key(c3))"
-	dropIdxALLEGROSQL := "alter block test_drop_index drop primary key;"
+	createALLEGROSQL := "create causet test_drop_index (c1 int, c2 int, c3 int, unique key(c1), primary key(c3))"
+	dropIdxALLEGROSQL := "alter causet test_drop_index drop primary key;"
 	testDropIndex(c, s.causetstore, s.lease, createALLEGROSQL, dropIdxALLEGROSQL, idxName)
 }
 
 func (s *testDBSuite2) TestDropIndex(c *C) {
 	idxName := "c3_index"
-	createALLEGROSQL := "create block test_drop_index (c1 int, c2 int, c3 int, unique key(c1), key c3_index(c3))"
-	dropIdxALLEGROSQL := "alter block test_drop_index drop index c3_index;"
+	createALLEGROSQL := "create causet test_drop_index (c1 int, c2 int, c3 int, unique key(c1), key c3_index(c3))"
+	dropIdxALLEGROSQL := "alter causet test_drop_index drop index c3_index;"
 	testDropIndex(c, s.causetstore, s.lease, createALLEGROSQL, dropIdxALLEGROSQL, idxName)
 }
 
 func testDropIndex(c *C, causetstore ekv.CausetStorage, lease time.Duration, createALLEGROSQL, dropIdxALLEGROSQL, idxName string) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists test_drop_index")
-	tk.MustExec(createALLEGROSQL)
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists test_drop_index")
+	tk.MustInterDirc(createALLEGROSQL)
 	done := make(chan error, 1)
-	tk.MustExec("delete from test_drop_index")
+	tk.MustInterDirc("delete from test_drop_index")
 
 	num := 100
 	//  add some rows
 	for i := 0; i < num; i++ {
-		tk.MustExec("insert into test_drop_index values (?, ?, ?)", i, i, i)
+		tk.MustInterDirc("insert into test_drop_index values (?, ?, ?)", i, i, i)
 	}
 	ctx := tk.Se.(stochastikctx.Context)
 	t := testGetBlockByName(c, ctx, "test_db", "test_drop_index")
-	var c3idx block.Index
+	var c3idx causet.Index
 	for _, tidx := range t.Indices() {
 		if tidx.Meta().Name.L == idxName {
 			c3idx = tidx
@@ -1413,7 +1413,7 @@ func testDropIndex(c *C, causetstore ekv.CausetStorage, lease time.Duration, cre
 	}
 	c.Assert(c3idx, NotNil)
 
-	testdbsutil.StochastikExecInGoroutine(c, causetstore, dropIdxALLEGROSQL, done)
+	testdbsutil.StochastikInterDircInGoroutine(c, causetstore, dropIdxALLEGROSQL, done)
 
 	ticker := time.NewTicker(lease / 2)
 	defer ticker.Stop()
@@ -1430,8 +1430,8 @@ LOOP:
 			// delete some rows, and add some data
 			for i := num; i < num+step; i++ {
 				n := rand.Intn(num)
-				tk.MustExec("uFIDelate test_drop_index set c2 = 1 where c1 = ?", n)
-				tk.MustExec("insert into test_drop_index values (?, ?, ?)", i, i, i)
+				tk.MustInterDirc("uFIDelate test_drop_index set c2 = 1 where c1 = ?", n)
+				tk.MustInterDirc("insert into test_drop_index values (?, ?, ?)", i, i, i)
 			}
 			num += step
 		}
@@ -1443,7 +1443,7 @@ LOOP:
 	// Check in index, it must be no index in KV.
 	// Make sure there is no index with name c3_index.
 	t = testGetBlockByName(c, ctx, "test_db", "test_drop_index")
-	var nidx block.Index
+	var nidx causet.Index
 	for _, tidx := range t.Indices() {
 		if tidx.Meta().Name.L == idxName {
 			nidx = tidx
@@ -1454,16 +1454,16 @@ LOOP:
 
 	idx := blocks.NewIndex(t.Meta().ID, t.Meta(), c3idx.Meta())
 	checkDelRangeDone(c, ctx, idx)
-	tk.MustExec("drop block test_drop_index")
+	tk.MustInterDirc("drop causet test_drop_index")
 }
 
 // TestCancelDropDeferredCauset tests cancel dbs job which type is drop defCausumn.
 func (s *testDBSuite3) TestCancelDropDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	s.mustExec(tk, c, "drop block if exists test_drop_defCausumn")
-	s.mustExec(tk, c, "create block test_drop_defCausumn(c1 int, c2 int)")
-	defer s.mustExec(tk, c, "drop block test_drop_defCausumn;")
+	tk.MustInterDirc("use " + s.schemaName)
+	s.mustInterDirc(tk, c, "drop causet if exists test_drop_defCausumn")
+	s.mustInterDirc(tk, c, "create causet test_drop_defCausumn(c1 int, c2 int)")
+	defer s.mustInterDirc(tk, c, "drop causet test_drop_defCausumn;")
 	testCases := []struct {
 		needAddDeferredCauset  bool
 		jobState       perceptron.JobState
@@ -1511,12 +1511,12 @@ func (s *testDBSuite3) TestCancelDropDeferredCauset(c *C) {
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	var err1 error
-	var c3idx block.Index
+	var c3idx causet.Index
 	for i := range testCases {
 		testCase = &testCases[i]
 		if testCase.needAddDeferredCauset {
-			s.mustExec(tk, c, "alter block test_drop_defCausumn add defCausumn c3 int")
-			s.mustExec(tk, c, "alter block test_drop_defCausumn add index idx_c3(c3)")
+			s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add defCausumn c3 int")
+			s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add index idx_c3(c3)")
 			tt := s.testGetBlock(c, "test_drop_defCausumn")
 			for _, idx := range tt.Indices() {
 				if strings.EqualFold(idx.Meta().Name.L, "idx_c3") {
@@ -1525,9 +1525,9 @@ func (s *testDBSuite3) TestCancelDropDeferredCauset(c *C) {
 				}
 			}
 		}
-		_, err1 = tk.Exec("alter block test_drop_defCausumn drop defCausumn c3")
-		var defCaus1 *block.DeferredCauset
-		var idx1 block.Index
+		_, err1 = tk.InterDirc("alter causet test_drop_defCausumn drop defCausumn c3")
+		var defCaus1 *causet.DeferredCauset
+		var idx1 causet.Index
 		t := s.testGetBlock(c, "test_drop_defCausumn")
 		for _, defCaus := range t.DefCauss() {
 			if strings.EqualFold(defCaus.Name.L, "c3") {
@@ -1560,17 +1560,17 @@ func (s *testDBSuite3) TestCancelDropDeferredCauset(c *C) {
 		}
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
-	s.mustExec(tk, c, "alter block test_drop_defCausumn add defCausumn c3 int")
-	s.mustExec(tk, c, "alter block test_drop_defCausumn drop defCausumn c3")
+	s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add defCausumn c3 int")
+	s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn drop defCausumn c3")
 }
 
 // TestCancelDropDeferredCausets tests cancel dbs job which type is drop multi-defCausumns.
 func (s *testDBSuite3) TestCancelDropDeferredCausets(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	s.mustExec(tk, c, "drop block if exists test_drop_defCausumn")
-	s.mustExec(tk, c, "create block test_drop_defCausumn(c1 int, c2 int)")
-	defer s.mustExec(tk, c, "drop block test_drop_defCausumn;")
+	tk.MustInterDirc("use " + s.schemaName)
+	s.mustInterDirc(tk, c, "drop causet if exists test_drop_defCausumn")
+	s.mustInterDirc(tk, c, "create causet test_drop_defCausumn(c1 int, c2 int)")
+	defer s.mustInterDirc(tk, c, "drop causet test_drop_defCausumn;")
 	testCases := []struct {
 		needAddDeferredCauset  bool
 		jobState       perceptron.JobState
@@ -1618,12 +1618,12 @@ func (s *testDBSuite3) TestCancelDropDeferredCausets(c *C) {
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	var err1 error
-	var c3idx block.Index
+	var c3idx causet.Index
 	for i := range testCases {
 		testCase = &testCases[i]
 		if testCase.needAddDeferredCauset {
-			s.mustExec(tk, c, "alter block test_drop_defCausumn add defCausumn c3 int, add defCausumn c4 int")
-			s.mustExec(tk, c, "alter block test_drop_defCausumn add index idx_c3(c3)")
+			s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add defCausumn c3 int, add defCausumn c4 int")
+			s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add index idx_c3(c3)")
 			tt := s.testGetBlock(c, "test_drop_defCausumn")
 			for _, idx := range tt.Indices() {
 				if strings.EqualFold(idx.Meta().Name.L, "idx_c3") {
@@ -1632,11 +1632,11 @@ func (s *testDBSuite3) TestCancelDropDeferredCausets(c *C) {
 				}
 			}
 		}
-		_, err1 = tk.Exec("alter block test_drop_defCausumn drop defCausumn c3, drop defCausumn c4")
+		_, err1 = tk.InterDirc("alter causet test_drop_defCausumn drop defCausumn c3, drop defCausumn c4")
 		t := s.testGetBlock(c, "test_drop_defCausumn")
-		defCaus3 := block.FindDefCaus(t.DefCauss(), "c3")
-		defCaus4 := block.FindDefCaus(t.DefCauss(), "c4")
-		var idx3 block.Index
+		defCaus3 := causet.FindDefCaus(t.DefCauss(), "c3")
+		defCaus4 := causet.FindDefCaus(t.DefCauss(), "c4")
+		var idx3 causet.Index
 		for _, idx := range t.Indices() {
 			if strings.EqualFold(idx.Meta().Name.L, "idx_c3") {
 				idx3 = idx
@@ -1665,11 +1665,11 @@ func (s *testDBSuite3) TestCancelDropDeferredCausets(c *C) {
 		}
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
-	s.mustExec(tk, c, "alter block test_drop_defCausumn add defCausumn c3 int, add defCausumn c4 int")
-	s.mustExec(tk, c, "alter block test_drop_defCausumn drop defCausumn c3, drop defCausumn c4")
+	s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn add defCausumn c3 int, add defCausumn c4 int")
+	s.mustInterDirc(tk, c, "alter causet test_drop_defCausumn drop defCausumn c3, drop defCausumn c4")
 }
 
-func checkDelRangeDone(c *C, ctx stochastikctx.Context, idx block.Index) {
+func checkDelRangeDone(c *C, ctx stochastikctx.Context, idx causet.Index) {
 	startTime := time.Now()
 	f := func() map[int64]struct{} {
 		handles := make(map[int64]struct{})
@@ -1711,74 +1711,74 @@ func checkDelRangeDone(c *C, ctx stochastikctx.Context, idx block.Index) {
 
 func (s *testDBSuite5) TestAlterPrimaryKey(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block test_add_pk(a int, b int unsigned , c varchar(255) default 'abc', d int as (a+b), e int as (a+1) stored, index idx(b))")
-	defer tk.MustExec("drop block test_add_pk")
+	tk.MustInterDirc("create causet test_add_pk(a int, b int unsigned , c varchar(255) default 'abc', d int as (a+b), e int as (a+1) stored, index idx(b))")
+	defer tk.MustInterDirc("drop causet test_add_pk")
 
 	// for generated defCausumns
-	tk.MustGetErrCode("alter block test_add_pk add primary key(d);", errno.ErrUnsupportedOnGeneratedDeferredCauset)
+	tk.MustGetErrCode("alter causet test_add_pk add primary key(d);", errno.ErrUnsupportedOnGeneratedDeferredCauset)
 	// The primary key name is the same as the existing index name.
-	tk.MustExec("alter block test_add_pk add primary key idx(e)")
-	tk.MustExec("drop index `primary` on test_add_pk")
+	tk.MustInterDirc("alter causet test_add_pk add primary key idx(e)")
+	tk.MustInterDirc("drop index `primary` on test_add_pk")
 
-	// for describing block
-	tk.MustExec("create block test_add_pk1(a int, index idx(a))")
+	// for describing causet
+	tk.MustInterDirc("create causet test_add_pk1(a int, index idx(a))")
 	tk.MustQuery("desc test_add_pk1").Check(solitonutil.RowsWithSep(",", `a,int(11),YES,MUL,<nil>,`))
-	tk.MustExec("alter block test_add_pk1 add primary key idx(a)")
+	tk.MustInterDirc("alter causet test_add_pk1 add primary key idx(a)")
 	tk.MustQuery("desc test_add_pk1").Check(solitonutil.RowsWithSep(",", `a,int(11),NO,PRI,<nil>,`))
-	tk.MustExec("alter block test_add_pk1 drop primary key")
+	tk.MustInterDirc("alter causet test_add_pk1 drop primary key")
 	tk.MustQuery("desc test_add_pk1").Check(solitonutil.RowsWithSep(",", `a,int(11),NO,MUL,<nil>,`))
-	tk.MustExec("create block test_add_pk2(a int, b int, index idx(a))")
-	tk.MustExec("alter block test_add_pk2 add primary key idx(a, b)")
+	tk.MustInterDirc("create causet test_add_pk2(a int, b int, index idx(a))")
+	tk.MustInterDirc("alter causet test_add_pk2 add primary key idx(a, b)")
 	tk.MustQuery("desc test_add_pk2").Check(solitonutil.RowsWithSep(",", ""+
 		"a int(11) NO PRI <nil> ]\n"+
 		"[b int(11) NO PRI <nil> "))
-	tk.MustQuery("show create block test_add_pk2").Check(solitonutil.RowsWithSep("|", ""+
+	tk.MustQuery("show create causet test_add_pk2").Check(solitonutil.RowsWithSep("|", ""+
 		"test_add_pk2 CREATE TABLE `test_add_pk2` (\n"+
 		"  `a` int(11) NOT NULL,\n"+
 		"  `b` int(11) NOT NULL,\n"+
 		"  KEY `idx` (`a`),\n"+
 		"  PRIMARY KEY (`a`,`b`)\n"+
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("alter block test_add_pk2 drop primary key")
+	tk.MustInterDirc("alter causet test_add_pk2 drop primary key")
 	tk.MustQuery("desc test_add_pk2").Check(solitonutil.RowsWithSep(",", ""+
 		"a int(11) NO MUL <nil> ]\n"+
 		"[b int(11) NO  <nil> "))
 
-	// Check if the primary key exists before checking the block's pkIsHandle.
-	tk.MustGetErrCode("alter block test_add_pk drop primary key", errno.ErrCantDropFieldOrKey)
+	// Check if the primary key exists before checking the causet's pkIsHandle.
+	tk.MustGetErrCode("alter causet test_add_pk drop primary key", errno.ErrCantDropFieldOrKey)
 
 	// for the limit of name
 	validName := strings.Repeat("a", allegrosql.MaxIndexIdentifierLen)
 	invalidName := strings.Repeat("b", allegrosql.MaxIndexIdentifierLen+1)
-	tk.MustGetErrCode("alter block test_add_pk add primary key "+invalidName+"(a)", errno.ErrTooLongIdent)
+	tk.MustGetErrCode("alter causet test_add_pk add primary key "+invalidName+"(a)", errno.ErrTooLongIdent)
 	// for valid name
-	tk.MustExec("alter block test_add_pk add primary key " + validName + "(a)")
+	tk.MustInterDirc("alter causet test_add_pk add primary key " + validName + "(a)")
 	// for multiple primary key
-	tk.MustGetErrCode("alter block test_add_pk add primary key (a)", errno.ErrMultiplePriKey)
-	tk.MustExec("alter block test_add_pk drop primary key")
+	tk.MustGetErrCode("alter causet test_add_pk add primary key (a)", errno.ErrMultiplePriKey)
+	tk.MustInterDirc("alter causet test_add_pk drop primary key")
 	// for not existing primary key
-	tk.MustGetErrCode("alter block test_add_pk drop primary key", errno.ErrCantDropFieldOrKey)
+	tk.MustGetErrCode("alter causet test_add_pk drop primary key", errno.ErrCantDropFieldOrKey)
 	tk.MustGetErrCode("drop index `primary` on test_add_pk", errno.ErrCantDropFieldOrKey)
 
 	// for too many key parts specified
-	tk.MustGetErrCode("alter block test_add_pk add primary key idx_test(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17);",
+	tk.MustGetErrCode("alter causet test_add_pk add primary key idx_test(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17);",
 		errno.ErrTooManyKeyParts)
 
 	// for the limit of comment's length
 	validComment := "'" + strings.Repeat("a", dbs.MaxCommentLength) + "'"
 	invalidComment := "'" + strings.Repeat("b", dbs.MaxCommentLength+1) + "'"
-	tk.MustGetErrCode("alter block test_add_pk add primary key(a) comment "+invalidComment, errno.ErrTooLongIndexComment)
+	tk.MustGetErrCode("alter causet test_add_pk add primary key(a) comment "+invalidComment, errno.ErrTooLongIndexComment)
 	// for empty sql_mode
 	r := tk.MustQuery("select @@sql_mode")
 	sqlMode := r.Rows()[0][0].(string)
-	tk.MustExec("set @@sql_mode=''")
-	tk.MustExec("alter block test_add_pk add primary key(a) comment " + invalidComment)
+	tk.MustInterDirc("set @@sql_mode=''")
+	tk.MustInterDirc("alter causet test_add_pk add primary key(a) comment " + invalidComment)
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1688|Comment for index 'PRIMARY' is too long (max = 1024)"))
-	tk.MustExec("set @@sql_mode= '" + sqlMode + "'")
-	tk.MustExec("alter block test_add_pk drop primary key")
+	tk.MustInterDirc("set @@sql_mode= '" + sqlMode + "'")
+	tk.MustInterDirc("alter causet test_add_pk drop primary key")
 	// for valid comment
-	tk.MustExec("alter block test_add_pk add primary key(a, b, c) comment " + validComment)
+	tk.MustInterDirc("alter causet test_add_pk add primary key(a, b, c) comment " + validComment)
 	ctx := tk.Se.(stochastikctx.Context)
 	c.Assert(ctx.NewTxn(context.Background()), IsNil)
 	t := testGetBlockByName(c, ctx, "test", "test_add_pk")
@@ -1788,40 +1788,40 @@ func (s *testDBSuite5) TestAlterPrimaryKey(c *C) {
 	c.Assert(allegrosql.HasNotNullFlag(defCaus1Flag) && !allegrosql.HasPreventNullInsertFlag(defCaus1Flag), IsTrue)
 	c.Assert(allegrosql.HasNotNullFlag(defCaus2Flag) && !allegrosql.HasPreventNullInsertFlag(defCaus2Flag) && allegrosql.HasUnsignedFlag(defCaus2Flag), IsTrue)
 	c.Assert(allegrosql.HasNotNullFlag(defCaus3Flag) && !allegrosql.HasPreventNullInsertFlag(defCaus3Flag) && !allegrosql.HasNoDefaultValueFlag(defCaus3Flag), IsTrue)
-	tk.MustExec("alter block test_add_pk drop primary key")
+	tk.MustInterDirc("alter causet test_add_pk drop primary key")
 
 	// for null values in primary key
-	tk.MustExec("drop block test_add_pk")
-	tk.MustExec("create block test_add_pk(a int, b int unsigned , c varchar(255) default 'abc', index idx(b))")
-	tk.MustExec("insert into test_add_pk set a = 0, b = 0, c = 0")
-	tk.MustExec("insert into test_add_pk set a = 1")
-	tk.MustGetErrCode("alter block test_add_pk add primary key (b)", errno.ErrInvalidUseOfNull)
-	tk.MustExec("insert into test_add_pk set a = 2, b = 2")
-	tk.MustGetErrCode("alter block test_add_pk add primary key (a, b)", errno.ErrInvalidUseOfNull)
-	tk.MustExec("insert into test_add_pk set a = 3, c = 3")
-	tk.MustGetErrCode("alter block test_add_pk add primary key (c, b, a)", errno.ErrInvalidUseOfNull)
+	tk.MustInterDirc("drop causet test_add_pk")
+	tk.MustInterDirc("create causet test_add_pk(a int, b int unsigned , c varchar(255) default 'abc', index idx(b))")
+	tk.MustInterDirc("insert into test_add_pk set a = 0, b = 0, c = 0")
+	tk.MustInterDirc("insert into test_add_pk set a = 1")
+	tk.MustGetErrCode("alter causet test_add_pk add primary key (b)", errno.ErrInvalidUseOfNull)
+	tk.MustInterDirc("insert into test_add_pk set a = 2, b = 2")
+	tk.MustGetErrCode("alter causet test_add_pk add primary key (a, b)", errno.ErrInvalidUseOfNull)
+	tk.MustInterDirc("insert into test_add_pk set a = 3, c = 3")
+	tk.MustGetErrCode("alter causet test_add_pk add primary key (c, b, a)", errno.ErrInvalidUseOfNull)
 }
 
 func (s *testDBSuite4) TestAddIndexWithDupDefCauss(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 	err1 := schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs("b")
 	err2 := schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs("B")
 
-	tk.MustExec("create block test_add_index_with_dup (a int, b int)")
-	_, err := tk.Exec("create index c on test_add_index_with_dup(b, a, b)")
+	tk.MustInterDirc("create causet test_add_index_with_dup (a int, b int)")
+	_, err := tk.InterDirc("create index c on test_add_index_with_dup(b, a, b)")
 	c.Check(errors.Cause(err1).(*terror.Error).Equal(err), Equals, true)
 
-	_, err = tk.Exec("create index c on test_add_index_with_dup(b, a, B)")
+	_, err = tk.InterDirc("create index c on test_add_index_with_dup(b, a, B)")
 	c.Check(errors.Cause(err2).(*terror.Error).Equal(err), Equals, true)
 
-	_, err = tk.Exec("alter block test_add_index_with_dup add index c (b, a, b)")
+	_, err = tk.InterDirc("alter causet test_add_index_with_dup add index c (b, a, b)")
 	c.Check(errors.Cause(err1).(*terror.Error).Equal(err), Equals, true)
 
-	_, err = tk.Exec("alter block test_add_index_with_dup add index c (b, a, B)")
+	_, err = tk.InterDirc("alter causet test_add_index_with_dup add index c (b, a, B)")
 	c.Check(errors.Cause(err2).(*terror.Error).Equal(err), Equals, true)
 
-	tk.MustExec("drop block test_add_index_with_dup")
+	tk.MustInterDirc("drop causet test_add_index_with_dup")
 }
 
 // checkGlobalIndexRow reads one record from global index and check. Only support int handle.
@@ -1895,13 +1895,13 @@ func (s *testSerialDBSuite) TestAddGlobalIndex(c *C) {
 		conf.EnableGlobalIndex = true
 	})
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("create block test_t1 (a int, b int) partition by range (b)" +
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("create causet test_t1 (a int, b int) partition by range (b)" +
 		" (partition p0 values less than (10), " +
 		"  partition p1 values less than (maxvalue));")
-	tk.MustExec("insert test_t1 values (1, 1)")
-	tk.MustExec("alter block test_t1 add unique index p_a (a);")
-	tk.MustExec("insert test_t1 values (2, 11)")
+	tk.MustInterDirc("insert test_t1 values (1, 1)")
+	tk.MustInterDirc("alter causet test_t1 add unique index p_a (a);")
+	tk.MustInterDirc("insert test_t1 values (2, 11)")
 	t := s.testGetBlock(c, "test_t1")
 	tblInfo := t.Meta()
 	indexInfo := tblInfo.FindIndexByName("p_a")
@@ -1927,12 +1927,12 @@ func (s *testSerialDBSuite) TestAddGlobalIndex(c *C) {
 	txn.Commit(context.Background())
 
 	// Test add global Primary Key index
-	tk.MustExec("create block test_t2 (a int, b int) partition by range (b)" +
+	tk.MustInterDirc("create causet test_t2 (a int, b int) partition by range (b)" +
 		" (partition p0 values less than (10), " +
 		"  partition p1 values less than (maxvalue));")
-	tk.MustExec("insert test_t2 values (1, 1)")
-	tk.MustExec("alter block test_t2 add primary key (a);")
-	tk.MustExec("insert test_t2 values (2, 11)")
+	tk.MustInterDirc("insert test_t2 values (1, 1)")
+	tk.MustInterDirc("alter causet test_t2 add primary key (a);")
+	tk.MustInterDirc("insert test_t2 values (2, 11)")
 	t = s.testGetBlock(c, "test_t2")
 	tblInfo = t.Meta()
 	indexInfo = t.Meta().FindIndexByName("primary")
@@ -1967,7 +1967,7 @@ func (s *testDBSuite) showDeferredCausets(tk *testkit.TestKit, c *C, blockName s
 
 func (s *testDBSuite5) TestCreateIndexType(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 	allegrosql := `CREATE TABLE test_index (
 		price int(5) DEFAULT '0' NOT NULL,
 		area varchar(40) DEFAULT '' NOT NULL,
@@ -1977,25 +1977,25 @@ func (s *testDBSuite5) TestCreateIndexType(c *C) {
 		schoolsyes enum('Y','N') DEFAULT 'Y' NOT NULL,
 		petsyes enum('Y','N') DEFAULT 'Y' NOT NULL,
 		KEY price (price,area,type,transityes,shopsyes,schoolsyes,petsyes));`
-	tk.MustExec(allegrosql)
+	tk.MustInterDirc(allegrosql)
 }
 
 func (s *testDBSuite1) TestDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("create block t2 (c1 int, c2 int, c3 int)")
-	tk.MustExec("set @@milevadb_disable_txn_auto_retry = 0")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("create causet t2 (c1 int, c2 int, c3 int)")
+	tk.MustInterDirc("set @@milevadb_disable_txn_auto_retry = 0")
 	s.testAddDeferredCauset(tk, c)
 	s.testDropDeferredCauset(tk, c)
-	tk.MustExec("drop block t2")
+	tk.MustInterDirc("drop causet t2")
 }
 
-func stochastikExec(c *C, s ekv.CausetStorage, allegrosql string) {
+func stochastikInterDirc(c *C, s ekv.CausetStorage, allegrosql string) {
 	se, err := stochastik.CreateStochastik4Test(s)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db")
+	_, err = se.InterDircute(context.Background(), "use test_db")
 	c.Assert(err, IsNil)
-	rs, err := se.Execute(context.Background(), allegrosql)
+	rs, err := se.InterDircute(context.Background(), allegrosql)
 	c.Assert(err, IsNil, Commentf("err:%v", errors.ErrorStack(err)))
 	c.Assert(rs, IsNil)
 	se.Close()
@@ -2008,7 +2008,7 @@ func (s *testDBSuite) testAddDeferredCauset(tk *testkit.TestKit, c *C) {
 	// add some rows
 	batchInsert(tk, "t2", 0, num)
 
-	testdbsutil.StochastikExecInGoroutine(c, s.causetstore, "alter block t2 add defCausumn c4 int default -1", done)
+	testdbsutil.StochastikInterDircInGoroutine(c, s.causetstore, "alter causet t2 add defCausumn c4 int default -1", done)
 
 	ticker := time.NewTicker(s.lease / 2)
 	defer ticker.Stop()
@@ -2025,19 +2025,19 @@ LOOP:
 			// delete some rows, and add some data
 			for i := num; i < num+step; i++ {
 				n := rand.Intn(num)
-				tk.MustExec("begin")
-				tk.MustExec("delete from t2 where c1 = ?", n)
-				tk.MustExec("commit")
+				tk.MustInterDirc("begin")
+				tk.MustInterDirc("delete from t2 where c1 = ?", n)
+				tk.MustInterDirc("commit")
 
-				// Make sure that statement of insert and show use the same schemaReplicant.
-				tk.MustExec("begin")
-				_, err := tk.Exec("insert into t2 values (?, ?, ?)", i, i, i)
+				// Make sure that memex of insert and show use the same schemaReplicant.
+				tk.MustInterDirc("begin")
+				_, err := tk.InterDirc("insert into t2 values (?, ?, ?)", i, i, i)
 				if err != nil {
 					// if err is failed, the defCausumn number must be 4 now.
 					values := s.showDeferredCausets(tk, c, "t2")
 					c.Assert(values, HasLen, 4, Commentf("err:%v", errors.ErrorStack(err)))
 				}
-				tk.MustExec("commit")
+				tk.MustInterDirc("commit")
 			}
 			num += step
 		}
@@ -2045,7 +2045,7 @@ LOOP:
 
 	// add data, here c4 must exist
 	for i := num; i < num+step; i++ {
-		tk.MustExec("insert into t2 values (?, ?, ?, ?)", i, i, i, i)
+		tk.MustInterDirc("insert into t2 values (?, ?, ?, ?)", i, i, i, i)
 	}
 
 	rows := s.mustQuery(tk, c, "select count(c4) from t2")
@@ -2074,7 +2074,7 @@ LOOP:
 		}
 	}()
 	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(),
-		func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+		func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 			i++
 			// c4 must be -1 or > 0
 			v, err1 := data[3].ToInt64(ctx.GetStochastikVars().StmtCtx)
@@ -2092,17 +2092,17 @@ LOOP:
 	c.Assert(j, Equals, int(count)-step)
 
 	// for modifying defCausumns after adding defCausumns
-	tk.MustExec("alter block t2 modify c4 int default 11")
+	tk.MustInterDirc("alter causet t2 modify c4 int default 11")
 	for i := num + step; i < num+step+10; i++ {
-		s.mustExec(tk, c, "insert into t2 values (?, ?, ?, ?)", i, i, i, i)
+		s.mustInterDirc(tk, c, "insert into t2 values (?, ?, ?, ?)", i, i, i, i)
 	}
 	rows = s.mustQuery(tk, c, "select count(c4) from t2 where c4 = -1")
 	matchRows(c, rows, [][]interface{}{{count - int64(step)}})
 
 	// add timestamp type defCausumn
-	s.mustExec(tk, c, "create block test_on_uFIDelate_c (c1 int, c2 timestamp);")
-	defer tk.MustExec("drop block test_on_uFIDelate_c;")
-	s.mustExec(tk, c, "alter block test_on_uFIDelate_c add defCausumn c3 timestamp null default '2020-02-11' on uFIDelate current_timestamp;")
+	s.mustInterDirc(tk, c, "create causet test_on_uFIDelate_c (c1 int, c2 timestamp);")
+	defer tk.MustInterDirc("drop causet test_on_uFIDelate_c;")
+	s.mustInterDirc(tk, c, "alter causet test_on_uFIDelate_c add defCausumn c3 timestamp null default '2020-02-11' on uFIDelate current_timestamp;")
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err := is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("test_on_uFIDelate_c"))
 	c.Assert(err, IsNil)
@@ -2112,9 +2112,9 @@ LOOP:
 	hasNotNull := allegrosql.HasNotNullFlag(defCausC.Flag)
 	c.Assert(hasNotNull, IsFalse)
 	// add datetime type defCausumn
-	s.mustExec(tk, c, "create block test_on_uFIDelate_d (c1 int, c2 datetime);")
-	defer tk.MustExec("drop block test_on_uFIDelate_d;")
-	s.mustExec(tk, c, "alter block test_on_uFIDelate_d add defCausumn c3 datetime on uFIDelate current_timestamp;")
+	s.mustInterDirc(tk, c, "create causet test_on_uFIDelate_d (c1 int, c2 datetime);")
+	defer tk.MustInterDirc("drop causet test_on_uFIDelate_d;")
+	s.mustInterDirc(tk, c, "alter causet test_on_uFIDelate_d add defCausumn c3 datetime on uFIDelate current_timestamp;")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err = is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("test_on_uFIDelate_d"))
 	c.Assert(err, IsNil)
@@ -2125,34 +2125,34 @@ LOOP:
 	c.Assert(hasNotNull, IsFalse)
 
 	// add year type defCausumn
-	s.mustExec(tk, c, "create block test_on_uFIDelate_e (c1 int);")
-	defer tk.MustExec("drop block test_on_uFIDelate_e;")
-	s.mustExec(tk, c, "insert into test_on_uFIDelate_e (c1) values (0);")
-	s.mustExec(tk, c, "alter block test_on_uFIDelate_e add defCausumn c2 year not null;")
+	s.mustInterDirc(tk, c, "create causet test_on_uFIDelate_e (c1 int);")
+	defer tk.MustInterDirc("drop causet test_on_uFIDelate_e;")
+	s.mustInterDirc(tk, c, "insert into test_on_uFIDelate_e (c1) values (0);")
+	s.mustInterDirc(tk, c, "alter causet test_on_uFIDelate_e add defCausumn c2 year not null;")
 	tk.MustQuery("select c2 from test_on_uFIDelate_e").Check(testkit.Rows("0"))
 
 	// test add unsupported constraint
-	s.mustExec(tk, c, "create block t_add_unsupported_constraint (a int);")
-	_, err = tk.Exec("ALTER TABLE t_add_unsupported_constraint ADD id int AUTO_INCREMENT;")
+	s.mustInterDirc(tk, c, "create causet t_add_unsupported_constraint (a int);")
+	_, err = tk.InterDirc("ALTER TABLE t_add_unsupported_constraint ADD id int AUTO_INCREMENT;")
 	c.Assert(err.Error(), Equals, "[dbs:8200]unsupported add defCausumn 'id' constraint AUTO_INCREMENT when altering 'test_db.t_add_unsupported_constraint'")
-	_, err = tk.Exec("ALTER TABLE t_add_unsupported_constraint ADD id int KEY;")
+	_, err = tk.InterDirc("ALTER TABLE t_add_unsupported_constraint ADD id int KEY;")
 	c.Assert(err.Error(), Equals, "[dbs:8200]unsupported add defCausumn 'id' constraint PRIMARY KEY when altering 'test_db.t_add_unsupported_constraint'")
-	_, err = tk.Exec("ALTER TABLE t_add_unsupported_constraint ADD id int UNIQUE;")
+	_, err = tk.InterDirc("ALTER TABLE t_add_unsupported_constraint ADD id int UNIQUE;")
 	c.Assert(err.Error(), Equals, "[dbs:8200]unsupported add defCausumn 'id' constraint UNIQUE KEY when altering 'test_db.t_add_unsupported_constraint'")
 }
 
 func (s *testDBSuite) testDropDeferredCauset(tk *testkit.TestKit, c *C) {
 	done := make(chan error, 1)
-	s.mustExec(tk, c, "delete from t2")
+	s.mustInterDirc(tk, c, "delete from t2")
 
 	num := 100
 	// add some rows
 	for i := 0; i < num; i++ {
-		s.mustExec(tk, c, "insert into t2 values (?, ?, ?, ?)", i, i, i, i)
+		s.mustInterDirc(tk, c, "insert into t2 values (?, ?, ?, ?)", i, i, i, i)
 	}
 
 	// get c4 defCausumn id
-	testdbsutil.StochastikExecInGoroutine(c, s.causetstore, "alter block t2 drop defCausumn c4", done)
+	testdbsutil.StochastikInterDircInGoroutine(c, s.causetstore, "alter causet t2 drop defCausumn c4", done)
 
 	ticker := time.NewTicker(s.lease / 2)
 	defer ticker.Stop()
@@ -2168,15 +2168,15 @@ LOOP:
 		case <-ticker.C:
 			// delete some rows, and add some data
 			for i := num; i < num+step; i++ {
-				// Make sure that statement of insert and show use the same schemaReplicant.
-				tk.MustExec("begin")
-				_, err := tk.Exec("insert into t2 values (?, ?, ?)", i, i, i)
+				// Make sure that memex of insert and show use the same schemaReplicant.
+				tk.MustInterDirc("begin")
+				_, err := tk.InterDirc("insert into t2 values (?, ?, ?)", i, i, i)
 				if err != nil {
 					// If executing is failed, the defCausumn number must be 4 now.
 					values := s.showDeferredCausets(tk, c, "t2")
 					c.Assert(values, HasLen, 4, Commentf("err:%v", errors.ErrorStack(err)))
 				}
-				tk.MustExec("commit")
+				tk.MustInterDirc("commit")
 			}
 			num += step
 		}
@@ -2184,7 +2184,7 @@ LOOP:
 
 	// add data, here c4 must not exist
 	for i := num; i < num+step; i++ {
-		s.mustExec(tk, c, "insert into t2 values (?, ?, ?)", i, i, i)
+		s.mustInterDirc(tk, c, "insert into t2 values (?, ?, ?)", i, i, i)
 	}
 
 	rows := s.mustQuery(tk, c, "select count(*) from t2")
@@ -2200,13 +2200,13 @@ LOOP:
 // otherwise they will not be consist with Block.DefCaus(), then the server will panic.
 func (s *testDBSuite6) TestDropDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("create database drop_defCaus_db")
-	tk.MustExec("use drop_defCaus_db")
+	tk.MustInterDirc("create database drop_defCaus_db")
+	tk.MustInterDirc("use drop_defCaus_db")
 	num := 25
 	multiDBS := make([]string, 0, num)
-	allegrosql := "create block t2 (c1 int, c2 int, c3 int, "
+	allegrosql := "create causet t2 (c1 int, c2 int, c3 int, "
 	for i := 4; i < 4+num; i++ {
-		multiDBS = append(multiDBS, fmt.Sprintf("alter block t2 drop defCausumn c%d", i))
+		multiDBS = append(multiDBS, fmt.Sprintf("alter causet t2 drop defCausumn c%d", i))
 
 		if i != 3+num {
 			allegrosql += fmt.Sprintf("c%d int, ", i)
@@ -2214,13 +2214,13 @@ func (s *testDBSuite6) TestDropDeferredCauset(c *C) {
 			allegrosql += fmt.Sprintf("c%d int)", i)
 		}
 	}
-	tk.MustExec(allegrosql)
+	tk.MustInterDirc(allegrosql)
 	dmlDone := make(chan error, num)
 	dbsDone := make(chan error, num)
 
-	testdbsutil.ExecMultiALLEGROSQLInGoroutine(c, s.causetstore, "drop_defCaus_db", multiDBS, dbsDone)
+	testdbsutil.InterDircMultiALLEGROSQLInGoroutine(c, s.causetstore, "drop_defCaus_db", multiDBS, dbsDone)
 	for i := 0; i < num; i++ {
-		testdbsutil.ExecMultiALLEGROSQLInGoroutine(c, s.causetstore, "drop_defCaus_db", []string{"insert into t2 set c1 = 1, c2 = 1, c3 = 1, c4 = 1"}, dmlDone)
+		testdbsutil.InterDircMultiALLEGROSQLInGoroutine(c, s.causetstore, "drop_defCaus_db", []string{"insert into t2 set c1 = 1, c2 = 1, c3 = 1, c4 = 1"}, dmlDone)
 	}
 	for i := 0; i < num; i++ {
 		select {
@@ -2229,28 +2229,28 @@ func (s *testDBSuite6) TestDropDeferredCauset(c *C) {
 		}
 	}
 
-	// Test for drop partition block defCausumn.
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (a int,b int) partition by hash(a) partitions 4;")
-	_, err := tk.Exec("alter block t1 drop defCausumn a")
+	// Test for drop partition causet defCausumn.
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (a int,b int) partition by hash(a) partitions 4;")
+	_, err := tk.InterDirc("alter causet t1 drop defCausumn a")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[expression:1054]Unknown defCausumn 'a' in 'expression'")
+	c.Assert(err.Error(), Equals, "[memex:1054]Unknown defCausumn 'a' in 'memex'")
 
-	tk.MustExec("drop database drop_defCaus_db")
+	tk.MustInterDirc("drop database drop_defCaus_db")
 }
 
 func (s *testDBSuite4) TestChangeDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 
-	s.mustExec(tk, c, "create block t3 (a int default '0', b varchar(10), d int not null default '0')")
-	s.mustExec(tk, c, "insert into t3 set b = 'a'")
+	s.mustInterDirc(tk, c, "create causet t3 (a int default '0', b varchar(10), d int not null default '0')")
+	s.mustInterDirc(tk, c, "insert into t3 set b = 'a'")
 	tk.MustQuery("select a from t3").Check(testkit.Rows("0"))
-	s.mustExec(tk, c, "alter block t3 change a aa bigint")
-	s.mustExec(tk, c, "insert into t3 set b = 'b'")
+	s.mustInterDirc(tk, c, "alter causet t3 change a aa bigint")
+	s.mustInterDirc(tk, c, "insert into t3 set b = 'b'")
 	tk.MustQuery("select aa from t3").Check(testkit.Rows("0", "<nil>"))
 	// for no default flag
-	s.mustExec(tk, c, "alter block t3 change d dd bigint not null")
+	s.mustInterDirc(tk, c, "alter causet t3 change d dd bigint not null")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err := is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("t3"))
@@ -2260,7 +2260,7 @@ func (s *testDBSuite4) TestChangeDeferredCauset(c *C) {
 	hasNoDefault := allegrosql.HasNoDefaultValueFlag(defCausD.Flag)
 	c.Assert(hasNoDefault, IsTrue)
 	// for the following definitions: 'not null', 'null', 'default value' and 'comment'
-	s.mustExec(tk, c, "alter block t3 change b b varchar(20) null default 'c' comment 'my comment'")
+	s.mustInterDirc(tk, c, "alter causet t3 change b b varchar(20) null default 'c' comment 'my comment'")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err = is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("t3"))
 	c.Assert(err, IsNil)
@@ -2269,11 +2269,11 @@ func (s *testDBSuite4) TestChangeDeferredCauset(c *C) {
 	c.Assert(defCausB.Comment, Equals, "my comment")
 	hasNotNull := allegrosql.HasNotNullFlag(defCausB.Flag)
 	c.Assert(hasNotNull, IsFalse)
-	s.mustExec(tk, c, "insert into t3 set aa = 3, dd = 5")
+	s.mustInterDirc(tk, c, "insert into t3 set aa = 3, dd = 5")
 	tk.MustQuery("select b from t3").Check(testkit.Rows("a", "b", "c"))
 	// for timestamp
-	s.mustExec(tk, c, "alter block t3 add defCausumn c timestamp not null")
-	s.mustExec(tk, c, "alter block t3 change c c timestamp null default '2020-02-11' comment 'defCaus c comment' on uFIDelate current_timestamp")
+	s.mustInterDirc(tk, c, "alter causet t3 add defCausumn c timestamp not null")
+	s.mustInterDirc(tk, c, "alter causet t3 change c c timestamp null default '2020-02-11' comment 'defCaus c comment' on uFIDelate current_timestamp")
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err = is.BlockByName(perceptron.NewCIStr("test_db"), perceptron.NewCIStr("t3"))
 	c.Assert(err, IsNil)
@@ -2283,34 +2283,34 @@ func (s *testDBSuite4) TestChangeDeferredCauset(c *C) {
 	hasNotNull = allegrosql.HasNotNullFlag(defCausC.Flag)
 	c.Assert(hasNotNull, IsFalse)
 	// for enum
-	s.mustExec(tk, c, "alter block t3 add defCausumn en enum('a', 'b', 'c') not null default 'a'")
+	s.mustInterDirc(tk, c, "alter causet t3 add defCausumn en enum('a', 'b', 'c') not null default 'a'")
 
 	// for failing tests
-	allegrosql := "alter block t3 change aa a bigint default ''"
+	allegrosql := "alter causet t3 change aa a bigint default ''"
 	tk.MustGetErrCode(allegrosql, errno.ErrInvalidDefault)
-	allegrosql = "alter block t3 change a testx.t3.aa bigint"
+	allegrosql = "alter causet t3 change a testx.t3.aa bigint"
 	tk.MustGetErrCode(allegrosql, errno.ErrWrongDBName)
-	allegrosql = "alter block t3 change t.a aa bigint"
+	allegrosql = "alter causet t3 change t.a aa bigint"
 	tk.MustGetErrCode(allegrosql, errno.ErrWrongBlockName)
-	s.mustExec(tk, c, "create block t4 (c1 int, c2 int, c3 int default 1, index (c1));")
-	tk.MustExec("insert into t4(c2) values (null);")
-	allegrosql = "alter block t4 change c1 a1 int not null;"
+	s.mustInterDirc(tk, c, "create causet t4 (c1 int, c2 int, c3 int default 1, index (c1));")
+	tk.MustInterDirc("insert into t4(c2) values (null);")
+	allegrosql = "alter causet t4 change c1 a1 int not null;"
 	tk.MustGetErrCode(allegrosql, errno.ErrInvalidUseOfNull)
-	allegrosql = "alter block t4 change c2 a bigint not null;"
+	allegrosql = "alter causet t4 change c2 a bigint not null;"
 	tk.MustGetErrCode(allegrosql, allegrosql.WarnDataTruncated)
-	allegrosql = "alter block t3 modify en enum('a', 'z', 'b', 'c') not null default 'a'"
+	allegrosql = "alter causet t3 modify en enum('a', 'z', 'b', 'c') not null default 'a'"
 	tk.MustGetErrCode(allegrosql, errno.ErrUnsupportedDBSOperation)
 	// Rename to an existing defCausumn.
-	s.mustExec(tk, c, "alter block t3 add defCausumn a bigint")
-	allegrosql = "alter block t3 change aa a bigint"
+	s.mustInterDirc(tk, c, "alter causet t3 add defCausumn a bigint")
+	allegrosql = "alter causet t3 change aa a bigint"
 	tk.MustGetErrCode(allegrosql, errno.ErrDupFieldName)
 
-	tk.MustExec("drop block t3")
+	tk.MustInterDirc("drop causet t3")
 }
 
 func (s *testDBSuite5) TestRenameDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 
 	assertDefCausNames := func(blockName string, defCausNames ...string) {
 		defcaus := s.testGetBlock(c, blockName).DefCauss()
@@ -2320,62 +2320,62 @@ func (s *testDBSuite5) TestRenameDeferredCauset(c *C) {
 		}
 	}
 
-	s.mustExec(tk, c, "create block test_rename_defCausumn (id int not null primary key auto_increment, defCaus1 int)")
-	s.mustExec(tk, c, "alter block test_rename_defCausumn rename defCausumn defCaus1 to defCaus1")
+	s.mustInterDirc(tk, c, "create causet test_rename_defCausumn (id int not null primary key auto_increment, defCaus1 int)")
+	s.mustInterDirc(tk, c, "alter causet test_rename_defCausumn rename defCausumn defCaus1 to defCaus1")
 	assertDefCausNames("test_rename_defCausumn", "id", "defCaus1")
-	s.mustExec(tk, c, "alter block test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
+	s.mustInterDirc(tk, c, "alter causet test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
 	assertDefCausNames("test_rename_defCausumn", "id", "defCaus2")
 
 	// Test renaming non-exist defCausumns.
-	tk.MustGetErrCode("alter block test_rename_defCausumn rename defCausumn non_exist_defCaus to defCaus3", errno.ErrBadField)
+	tk.MustGetErrCode("alter causet test_rename_defCausumn rename defCausumn non_exist_defCaus to defCaus3", errno.ErrBadField)
 
 	// Test renaming to an exist defCausumn.
-	tk.MustGetErrCode("alter block test_rename_defCausumn rename defCausumn defCaus2 to id", errno.ErrDupFieldName)
+	tk.MustGetErrCode("alter causet test_rename_defCausumn rename defCausumn defCaus2 to id", errno.ErrDupFieldName)
 
 	// Test renaming the defCausumn with foreign key.
-	tk.MustExec("drop block test_rename_defCausumn")
-	tk.MustExec("create block test_rename_defCausumn_base (base int)")
-	tk.MustExec("create block test_rename_defCausumn (defCaus int, foreign key (defCaus) references test_rename_defCausumn_base(base))")
+	tk.MustInterDirc("drop causet test_rename_defCausumn")
+	tk.MustInterDirc("create causet test_rename_defCausumn_base (base int)")
+	tk.MustInterDirc("create causet test_rename_defCausumn (defCaus int, foreign key (defCaus) references test_rename_defCausumn_base(base))")
 
-	tk.MustGetErrCode("alter block test_rename_defCausumn rename defCausumn defCaus to defCaus1", errno.ErrFKIncompatibleDeferredCausets)
+	tk.MustGetErrCode("alter causet test_rename_defCausumn rename defCausumn defCaus to defCaus1", errno.ErrFKIncompatibleDeferredCausets)
 
-	tk.MustExec("drop block test_rename_defCausumn_base")
+	tk.MustInterDirc("drop causet test_rename_defCausumn_base")
 
 	// Test renaming generated defCausumns.
-	tk.MustExec("drop block test_rename_defCausumn")
-	tk.MustExec("create block test_rename_defCausumn (id int, defCaus1 int generated always as (id + 1))")
+	tk.MustInterDirc("drop causet test_rename_defCausumn")
+	tk.MustInterDirc("create causet test_rename_defCausumn (id int, defCaus1 int generated always as (id + 1))")
 
-	s.mustExec(tk, c, "alter block test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
+	s.mustInterDirc(tk, c, "alter causet test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
 	assertDefCausNames("test_rename_defCausumn", "id", "defCaus2")
-	s.mustExec(tk, c, "alter block test_rename_defCausumn rename defCausumn defCaus2 to defCaus1")
+	s.mustInterDirc(tk, c, "alter causet test_rename_defCausumn rename defCausumn defCaus2 to defCaus1")
 	assertDefCausNames("test_rename_defCausumn", "id", "defCaus1")
-	tk.MustGetErrCode("alter block test_rename_defCausumn rename defCausumn id to id1", errno.ErrBadField)
+	tk.MustGetErrCode("alter causet test_rename_defCausumn rename defCausumn id to id1", errno.ErrBadField)
 
 	// Test renaming view defCausumns.
-	tk.MustExec("drop block test_rename_defCausumn")
-	s.mustExec(tk, c, "create block test_rename_defCausumn (id int, defCaus1 int)")
-	s.mustExec(tk, c, "create view test_rename_defCausumn_view as select * from test_rename_defCausumn")
+	tk.MustInterDirc("drop causet test_rename_defCausumn")
+	s.mustInterDirc(tk, c, "create causet test_rename_defCausumn (id int, defCaus1 int)")
+	s.mustInterDirc(tk, c, "create view test_rename_defCausumn_view as select * from test_rename_defCausumn")
 
-	s.mustExec(tk, c, "alter block test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
+	s.mustInterDirc(tk, c, "alter causet test_rename_defCausumn rename defCausumn defCaus1 to defCaus2")
 	tk.MustGetErrCode("select * from test_rename_defCausumn_view", errno.ErrViewInvalid)
 
-	s.mustExec(tk, c, "drop view test_rename_defCausumn_view")
-	tk.MustExec("drop block test_rename_defCausumn")
+	s.mustInterDirc(tk, c, "drop view test_rename_defCausumn_view")
+	tk.MustInterDirc("drop causet test_rename_defCausumn")
 }
 
 func (s *testDBSuite7) TestSelectInViewFromAnotherDB(c *C) {
-	_, _ = s.s.Execute(context.Background(), "create database test_db2")
+	_, _ = s.s.InterDircute(context.Background(), "create database test_db2")
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("create block t(a int)")
-	tk.MustExec("use test_db2")
-	tk.MustExec("create allegrosql security invoker view v as select * from " + s.schemaName + ".t")
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("select test_db2.v.a from test_db2.v")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("create causet t(a int)")
+	tk.MustInterDirc("use test_db2")
+	tk.MustInterDirc("create allegrosql security invoker view v as select * from " + s.schemaName + ".t")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("select test_db2.v.a from test_db2.v")
 }
 
-func (s *testDBSuite) mustExec(tk *testkit.TestKit, c *C, query string, args ...interface{}) {
-	tk.MustExec(query, args...)
+func (s *testDBSuite) mustInterDirc(tk *testkit.TestKit, c *C, query string, args ...interface{}) {
+	tk.MustInterDirc(query, args...)
 }
 
 func (s *testDBSuite) mustQuery(tk *testkit.TestKit, c *C, query string, args ...interface{}) [][]interface{} {
@@ -2399,13 +2399,13 @@ func match(c *C, event []interface{}, expected ...interface{}) {
 	}
 }
 
-// TestCreateBlockWithLike2 tests create block with like when refer block have non-public defCausumn/index.
+// TestCreateBlockWithLike2 tests create causet with like when refer causet have non-public defCausumn/index.
 func (s *testSerialDBSuite) TestCreateBlockWithLike2(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t1,t2;")
-	defer tk.MustExec("drop block if exists t1,t2;")
-	tk.MustExec("create block t1 (a int, b int, c int, index idx1(c));")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t1,t2;")
+	defer tk.MustInterDirc("drop causet if exists t1,t2;")
+	tk.MustInterDirc("create causet t1 (a int, b int, c int, index idx1(c));")
 
 	tbl1 := testGetBlockByName(c, s.s, "test_db", "t1")
 	doneCh := make(chan error, 2)
@@ -2427,36 +2427,36 @@ func (s *testSerialDBSuite) TestCreateBlockWithLike2(c *C) {
 			}
 
 			onceChecker.CausetStore(job.ID, true)
-			go backgroundExec(s.causetstore, "create block t2 like t1", doneCh)
+			go backgroundInterDirc(s.causetstore, "create causet t2 like t1", doneCh)
 		}
 	}
 	originalHook := s.dom.DBS().GetHook()
 	defer s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 
-	// create block when refer block add defCausumn
-	tk.MustExec("alter block t1 add defCausumn d int")
+	// create causet when refer causet add defCausumn
+	tk.MustInterDirc("alter causet t1 add defCausumn d int")
 	checkTbl2 := func() {
 		err := <-doneCh
 		c.Assert(err, IsNil)
-		tk.MustExec("alter block t2 add defCausumn e int")
+		tk.MustInterDirc("alter causet t2 add defCausumn e int")
 		t2Info := testGetBlockByName(c, s.s, "test_db", "t2")
 		c.Assert(len(t2Info.Meta().DeferredCausets), Equals, len(t2Info.DefCauss()))
 	}
 	checkTbl2()
 
-	// create block when refer block drop defCausumn
-	tk.MustExec("drop block t2;")
-	tk.MustExec("alter block t1 drop defCausumn b;")
+	// create causet when refer causet drop defCausumn
+	tk.MustInterDirc("drop causet t2;")
+	tk.MustInterDirc("alter causet t1 drop defCausumn b;")
 	checkTbl2()
 
-	// create block when refer block add index
-	tk.MustExec("drop block t2;")
-	tk.MustExec("alter block t1 add index idx2(a);")
+	// create causet when refer causet add index
+	tk.MustInterDirc("drop causet t2;")
+	tk.MustInterDirc("alter causet t1 add index idx2(a);")
 	checkTbl2 = func() {
 		err := <-doneCh
 		c.Assert(err, IsNil)
-		tk.MustExec("alter block t2 add defCausumn e int")
+		tk.MustInterDirc("alter causet t2 add defCausumn e int")
 		tbl2 := testGetBlockByName(c, s.s, "test_db", "t2")
 		c.Assert(len(tbl2.Meta().DeferredCausets), Equals, len(tbl2.DefCauss()))
 
@@ -2466,19 +2466,19 @@ func (s *testSerialDBSuite) TestCreateBlockWithLike2(c *C) {
 	}
 	checkTbl2()
 
-	// create block when refer block drop index.
-	tk.MustExec("drop block t2;")
-	tk.MustExec("alter block t1 drop index idx2;")
+	// create causet when refer causet drop index.
+	tk.MustInterDirc("drop causet t2;")
+	tk.MustInterDirc("alter causet t1 drop index idx2;")
 	checkTbl2()
 
-	// Test for block has tiflash  replica.
+	// Test for causet has tiflash  replica.
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount", `return(true)`), IsNil)
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
-	tk.MustExec("drop block if exists t1,t2;")
-	tk.MustExec("create block t1 (a int) partition by hash(a) partitions 2;")
-	tk.MustExec("alter block t1 set tiflash replica 3 location labels 'a','b';")
+	tk.MustInterDirc("drop causet if exists t1,t2;")
+	tk.MustInterDirc("create causet t1 (a int) partition by hash(a) partitions 2;")
+	tk.MustInterDirc("alter causet t1 set tiflash replica 3 location labels 'a','b';")
 	t1 := testGetBlockByName(c, s.s, "test_db", "t1")
 	// Mock for all partitions replica was available.
 	partition := t1.Meta().Partition
@@ -2492,13 +2492,13 @@ func (s *testSerialDBSuite) TestCreateBlockWithLike2(c *C) {
 	c.Assert(t1.Meta().TiFlashReplica.Available, IsTrue)
 	c.Assert(t1.Meta().TiFlashReplica.AvailablePartitionIDs, DeepEquals, []int64{partition.Definitions[0].ID, partition.Definitions[1].ID})
 
-	tk.MustExec("create block t2 like t1")
+	tk.MustInterDirc("create causet t2 like t1")
 	t2 := testGetBlockByName(c, s.s, "test_db", "t2")
 	c.Assert(t2.Meta().TiFlashReplica.Count, Equals, t1.Meta().TiFlashReplica.Count)
 	c.Assert(t2.Meta().TiFlashReplica.LocationLabels, DeepEquals, t1.Meta().TiFlashReplica.LocationLabels)
 	c.Assert(t2.Meta().TiFlashReplica.Available, IsFalse)
 	c.Assert(t2.Meta().TiFlashReplica.AvailablePartitionIDs, HasLen, 0)
-	// Test for not affecting the original block.
+	// Test for not affecting the original causet.
 	t1 = testGetBlockByName(c, s.s, "test_db", "t1")
 	c.Assert(t1.Meta().TiFlashReplica, NotNil)
 	c.Assert(t1.Meta().TiFlashReplica.Available, IsTrue)
@@ -2507,9 +2507,9 @@ func (s *testSerialDBSuite) TestCreateBlockWithLike2(c *C) {
 
 func (s *testSerialDBSuite) TestCreateBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("CREATE TABLE `t` (`a` double DEFAULT 1.0 DEFAULT now() DEFAULT 2.0 );")
-	tk.MustExec("CREATE TABLE IF NOT EXISTS `t` (`a` double DEFAULT 1.0 DEFAULT now() DEFAULT 2.0 );")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("CREATE TABLE `t` (`a` double DEFAULT 1.0 DEFAULT now() DEFAULT 2.0 );")
+	tk.MustInterDirc("CREATE TABLE IF NOT EXISTS `t` (`a` double DEFAULT 1.0 DEFAULT now() DEFAULT 2.0 );")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	tbl, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
@@ -2523,80 +2523,80 @@ func (s *testSerialDBSuite) TestCreateBlock(c *C) {
 	c.Assert(ok, IsTrue)
 	c.Assert(d, Equals, "2.0")
 
-	tk.MustExec("drop block t")
+	tk.MustInterDirc("drop causet t")
 
 	tk.MustGetErrCode("CREATE TABLE `t` (`a` int) DEFAULT CHARSET=abcdefg", errno.ErrUnknownCharacterSet)
 
-	tk.MustExec("CREATE TABLE `defCauslateTest` (`a` int, `b` varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_slovak_ci")
+	tk.MustInterDirc("CREATE TABLE `defCauslateTest` (`a` int, `b` varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_slovak_ci")
 	expects := "defCauslateTest CREATE TABLE `defCauslateTest` (\n  `a` int(11) DEFAULT NULL,\n  `b` varchar(10) COLLATE utf8_slovak_ci DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_slovak_ci"
-	tk.MustQuery("show create block defCauslateTest").Check(testkit.Rows(expects))
+	tk.MustQuery("show create causet defCauslateTest").Check(testkit.Rows(expects))
 
 	tk.MustGetErrCode("CREATE TABLE `defCauslateTest2` (`a` int) CHARSET utf8 COLLATE utf8mb4_unicode_ci", errno.ErrDefCauslationCharsetMismatch)
 	tk.MustGetErrCode("CREATE TABLE `defCauslateTest3` (`a` int) COLLATE utf8mb4_unicode_ci CHARSET utf8", errno.ErrConflictingDeclarations)
 
-	tk.MustExec("CREATE TABLE `defCauslateTest4` (`a` int) COLLATE utf8_uniCOde_ci")
+	tk.MustInterDirc("CREATE TABLE `defCauslateTest4` (`a` int) COLLATE utf8_uniCOde_ci")
 	expects = "defCauslateTest4 CREATE TABLE `defCauslateTest4` (\n  `a` int(11) DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci"
-	tk.MustQuery("show create block defCauslateTest4").Check(testkit.Rows(expects))
+	tk.MustQuery("show create causet defCauslateTest4").Check(testkit.Rows(expects))
 
-	tk.MustExec("create database test2 default charset utf8 defCauslate utf8_general_ci")
-	tk.MustExec("use test2")
-	tk.MustExec("create block dbDefCauslateTest (a varchar(10))")
+	tk.MustInterDirc("create database test2 default charset utf8 defCauslate utf8_general_ci")
+	tk.MustInterDirc("use test2")
+	tk.MustInterDirc("create causet dbDefCauslateTest (a varchar(10))")
 	expects = "dbDefCauslateTest CREATE TABLE `dbDefCauslateTest` (\n  `a` varchar(10) COLLATE utf8_general_ci DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci"
-	tk.MustQuery("show create block dbDefCauslateTest").Check(testkit.Rows(expects))
+	tk.MustQuery("show create causet dbDefCauslateTest").Check(testkit.Rows(expects))
 
 	// test for enum defCausumn
-	tk.MustExec("use test")
-	failALLEGROSQL := "create block t_enum (a enum('e','e'));"
+	tk.MustInterDirc("use test")
+	failALLEGROSQL := "create causet t_enum (a enum('e','e'));"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
 	defCauslate.SetNewDefCauslationEnabledForTest(true)
 	defer defCauslate.SetNewDefCauslationEnabledForTest(false)
 	tk = testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	failALLEGROSQL = "create block t_enum (a enum('e','E')) charset=utf8 defCauslate=utf8_general_ci;"
+	tk.MustInterDirc("use test")
+	failALLEGROSQL = "create causet t_enum (a enum('e','E')) charset=utf8 defCauslate=utf8_general_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a enum('abc','Abc')) charset=utf8 defCauslate=utf8_general_ci;"
+	failALLEGROSQL = "create causet t_enum (a enum('abc','Abc')) charset=utf8 defCauslate=utf8_general_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a enum('e','E')) charset=utf8 defCauslate=utf8_unicode_ci;"
+	failALLEGROSQL = "create causet t_enum (a enum('e','E')) charset=utf8 defCauslate=utf8_unicode_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a enum('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;"
+	failALLEGROSQL = "create causet t_enum (a enum('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
 	// test for set defCausumn
-	failALLEGROSQL = "create block t_enum (a set('e','e'));"
+	failALLEGROSQL = "create causet t_enum (a set('e','e'));"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a set('e','E')) charset=utf8 defCauslate=utf8_general_ci;"
+	failALLEGROSQL = "create causet t_enum (a set('e','E')) charset=utf8 defCauslate=utf8_general_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a set('abc','Abc')) charset=utf8 defCauslate=utf8_general_ci;"
+	failALLEGROSQL = "create causet t_enum (a set('abc','Abc')) charset=utf8 defCauslate=utf8_general_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	_, err = tk.Exec("create block t_enum (a enum('B','b')) charset=utf8 defCauslate=utf8_general_ci;")
+	_, err = tk.InterDirc("create causet t_enum (a enum('B','b')) charset=utf8 defCauslate=utf8_general_ci;")
 	c.Assert(err.Error(), Equals, "[types:1291]DeferredCauset 'a' has duplicated value 'b' in ENUM")
-	failALLEGROSQL = "create block t_enum (a set('e','E')) charset=utf8 defCauslate=utf8_unicode_ci;"
+	failALLEGROSQL = "create causet t_enum (a set('e','E')) charset=utf8 defCauslate=utf8_unicode_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	failALLEGROSQL = "create block t_enum (a set('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;"
+	failALLEGROSQL = "create causet t_enum (a set('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrDuplicatedValueInType)
-	_, err = tk.Exec("create block t_enum (a enum('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;")
+	_, err = tk.InterDirc("create causet t_enum (a enum('ss','ß')) charset=utf8 defCauslate=utf8_unicode_ci;")
 	c.Assert(err.Error(), Equals, "[types:1291]DeferredCauset 'a' has duplicated value 'ß' in ENUM")
 
-	// test for block option "union" not supported
-	tk.MustExec("use test")
-	tk.MustExec("CREATE TABLE x (a INT) ENGINE = MyISAM;")
-	tk.MustExec("CREATE TABLE y (a INT) ENGINE = MyISAM;")
+	// test for causet option "union" not supported
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("CREATE TABLE x (a INT) ENGINE = MyISAM;")
+	tk.MustInterDirc("CREATE TABLE y (a INT) ENGINE = MyISAM;")
 	failALLEGROSQL = "CREATE TABLE z (a INT) ENGINE = MERGE UNION = (x, y);"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrBlockOptionUnionUnsupported)
 	failALLEGROSQL = "ALTER TABLE x UNION = (y);"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrBlockOptionUnionUnsupported)
-	tk.MustExec("drop block x;")
-	tk.MustExec("drop block y;")
+	tk.MustInterDirc("drop causet x;")
+	tk.MustInterDirc("drop causet y;")
 
-	// test for block option "insert method" not supported
-	tk.MustExec("use test")
-	tk.MustExec("CREATE TABLE x (a INT) ENGINE = MyISAM;")
-	tk.MustExec("CREATE TABLE y (a INT) ENGINE = MyISAM;")
+	// test for causet option "insert method" not supported
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("CREATE TABLE x (a INT) ENGINE = MyISAM;")
+	tk.MustInterDirc("CREATE TABLE y (a INT) ENGINE = MyISAM;")
 	failALLEGROSQL = "CREATE TABLE z (a INT) ENGINE = MERGE INSERT_METHOD=LAST;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrBlockOptionInsertMethodUnsupported)
 	failALLEGROSQL = "ALTER TABLE x INSERT_METHOD=LAST;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrBlockOptionInsertMethodUnsupported)
-	tk.MustExec("drop block x;")
-	tk.MustExec("drop block y;")
+	tk.MustInterDirc("drop causet x;")
+	tk.MustInterDirc("drop causet y;")
 }
 
 func (s *testSerialDBSuite) TestRepairBlock(c *C) {
@@ -2610,72 +2610,72 @@ func (s *testSerialDBSuite) TestRepairBlock(c *C) {
 		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/repairFetchCreateBlock"), IsNil)
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t, other_block, origin")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t, other_block, origin")
 
-	// Test repair block when MilevaDB is not in repair mode.
-	tk.MustExec("CREATE TABLE t (a int primary key, b varchar(10));")
-	_, err := tk.Exec("admin repair block t CREATE TABLE t (a float primary key, b varchar(5));")
+	// Test repair causet when MilevaDB is not in repair mode.
+	tk.MustInterDirc("CREATE TABLE t (a int primary key, b varchar(10));")
+	_, err := tk.InterDirc("admin repair causet t CREATE TABLE t (a float primary key, b varchar(5));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: MilevaDB is not in REPAIR MODE")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: MilevaDB is not in REPAIR MODE")
 
-	// Test repair block when the repaired list is empty.
+	// Test repair causet when the repaired list is empty.
 	petriutil.RepairInfo.SetRepairMode(true)
-	_, err = tk.Exec("admin repair block t CREATE TABLE t (a float primary key, b varchar(5));")
+	_, err = tk.InterDirc("admin repair causet t CREATE TABLE t (a float primary key, b varchar(5));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: repair list is empty")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: repair list is empty")
 
-	// Test repair block when it's database isn't in repairInfo.
+	// Test repair causet when it's database isn't in repairInfo.
 	petriutil.RepairInfo.SetRepairBlockList([]string{"test.other_block"})
-	_, err = tk.Exec("admin repair block t CREATE TABLE t (a float primary key, b varchar(5));")
+	_, err = tk.InterDirc("admin repair causet t CREATE TABLE t (a float primary key, b varchar(5));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: database test is not in repair")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: database test is not in repair")
 
-	// Test repair block when the block isn't in repairInfo.
-	tk.MustExec("CREATE TABLE other_block (a int, b varchar(1), key using hash(b));")
-	_, err = tk.Exec("admin repair block t CREATE TABLE t (a float primary key, b varchar(5));")
+	// Test repair causet when the causet isn't in repairInfo.
+	tk.MustInterDirc("CREATE TABLE other_block (a int, b varchar(1), key using hash(b));")
+	_, err = tk.InterDirc("admin repair causet t CREATE TABLE t (a float primary key, b varchar(5));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: block t is not in repair")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: causet t is not in repair")
 
-	// Test user can't access to the repaired block.
-	_, err = tk.Exec("select * from other_block")
+	// Test user can't access to the repaired causet.
+	_, err = tk.InterDirc("select * from other_block")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[schemaReplicant:1146]Block 'test.other_block' doesn't exist")
 
-	// Test create statement use the same name with what is in repaired.
-	_, err = tk.Exec("CREATE TABLE other_block (a int);")
+	// Test create memex use the same name with what is in repaired.
+	_, err = tk.InterDirc("CREATE TABLE other_block (a int);")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:1103]Incorrect block name 'other_block'%!(EXTRA string=this block is in repair)")
+	c.Assert(err.Error(), Equals, "[dbs:1103]Incorrect causet name 'other_block'%!(EXTRA string=this causet is in repair)")
 
-	// Test defCausumn lost in repair block.
-	_, err = tk.Exec("admin repair block other_block CREATE TABLE other_block (a int, c char(1));")
+	// Test defCausumn lost in repair causet.
+	_, err = tk.InterDirc("admin repair causet other_block CREATE TABLE other_block (a int, c char(1));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: DeferredCauset c has lost")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: DeferredCauset c has lost")
 
 	// Test defCausumn type should be the same.
-	_, err = tk.Exec("admin repair block other_block CREATE TABLE other_block (a bigint, b varchar(1), key using hash(b));")
+	_, err = tk.InterDirc("admin repair causet other_block CREATE TABLE other_block (a bigint, b varchar(1), key using hash(b));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: DeferredCauset a type should be the same")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: DeferredCauset a type should be the same")
 
-	// Test index lost in repair block.
-	_, err = tk.Exec("admin repair block other_block CREATE TABLE other_block (a int unique);")
+	// Test index lost in repair causet.
+	_, err = tk.InterDirc("admin repair causet other_block CREATE TABLE other_block (a int unique);")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Index a has lost")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Index a has lost")
 
 	// Test index type should be the same.
-	_, err = tk.Exec("admin repair block other_block CREATE TABLE other_block (a int, b varchar(2) unique)")
+	_, err = tk.InterDirc("admin repair causet other_block CREATE TABLE other_block (a int, b varchar(2) unique)")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Index b type should be the same")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Index b type should be the same")
 
-	// Test sub create statement in repair statement with the same name.
-	_, err = tk.Exec("admin repair block other_block CREATE TABLE other_block (a int);")
+	// Test sub create memex in repair memex with the same name.
+	_, err = tk.InterDirc("admin repair causet other_block CREATE TABLE other_block (a int);")
 	c.Assert(err, IsNil)
 
-	// Test whether repair block name is case sensitive.
+	// Test whether repair causet name is case sensitive.
 	petriutil.RepairInfo.SetRepairMode(true)
 	petriutil.RepairInfo.SetRepairBlockList([]string{"test.other_block2"})
-	tk.MustExec("CREATE TABLE otHer_tAblE2 (a int, b varchar(1));")
-	_, err = tk.Exec("admin repair block otHer_tAblE2 CREATE TABLE otHeR_tAbLe (a int, b varchar(2));")
+	tk.MustInterDirc("CREATE TABLE otHer_tAblE2 (a int, b varchar(1));")
+	_, err = tk.InterDirc("admin repair causet otHer_tAblE2 CREATE TABLE otHeR_tAbLe (a int, b varchar(2));")
 	c.Assert(err, IsNil)
 	repairBlock := testGetBlockByName(c, s.s, "test", "otHeR_tAbLe")
 	c.Assert(repairBlock.Meta().Name.O, Equals, "otHeR_tAbLe")
@@ -2683,14 +2683,14 @@ func (s *testSerialDBSuite) TestRepairBlock(c *C) {
 	// Test memory and system database is not for repair.
 	petriutil.RepairInfo.SetRepairMode(true)
 	petriutil.RepairInfo.SetRepairBlockList([]string{"test.xxx"})
-	_, err = tk.Exec("admin repair block performance_schema.xxx CREATE TABLE yyy (a int);")
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: memory or system database is not for repair")
+	_, err = tk.InterDirc("admin repair causet performance_schema.xxx CREATE TABLE yyy (a int);")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: memory or system database is not for repair")
 
 	// Test the repair detail.
 	turnRepairModeAndInit(true)
 	defer turnRepairModeAndInit(false)
 	// Petri reload the blockInfo and add it into repairInfo.
-	tk.MustExec("CREATE TABLE origin (a int primary key auto_increment, b varchar(10), c int);")
+	tk.MustInterDirc("CREATE TABLE origin (a int primary key auto_increment, b varchar(10), c int);")
 	// Repaired blockInfo has been filtered by `petri.SchemaReplicant()`, so get it in repairInfo.
 	originBlockInfo, _ := petriutil.RepairInfo.GetRepairedBlockInfoByBlockName("test", "origin")
 
@@ -2701,16 +2701,16 @@ func (s *testSerialDBSuite) TestRepairBlock(c *C) {
 			return
 		}
 		if job.BlockID != originBlockInfo.ID {
-			repairErr = errors.New("block id should be the same")
+			repairErr = errors.New("causet id should be the same")
 			return
 		}
 		if job.SchemaState != perceptron.StateNone {
 			repairErr = errors.New("repair job state should be the none")
 			return
 		}
-		// Test whether it's readable, when repaired block is still stateNone.
+		// Test whether it's readable, when repaired causet is still stateNone.
 		tkInternal := testkit.NewTestKitWithInit(c, s.causetstore)
-		_, repairErr = tkInternal.Exec("select * from origin")
+		_, repairErr = tkInternal.InterDirc("select * from origin")
 		// Repaired blockInfo has been filtered by `petri.SchemaReplicant()`, here will get an error cause user can't get access to it.
 		if repairErr != nil && terror.ErrorEqual(repairErr, schemareplicant.ErrBlockNotExists) {
 			repairErr = nil
@@ -2720,8 +2720,8 @@ func (s *testSerialDBSuite) TestRepairBlock(c *C) {
 	defer s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 
-	// Exec the repair statement to override the blockInfo.
-	tk.MustExec("admin repair block origin CREATE TABLE origin (a int primary key auto_increment, b varchar(5), c int);")
+	// InterDirc the repair memex to override the blockInfo.
+	tk.MustInterDirc("admin repair causet origin CREATE TABLE origin (a int primary key auto_increment, b varchar(5), c int);")
 	c.Assert(repairErr, IsNil)
 
 	// Check the repaired blockInfo is exactly the same with old one in blockID, indexID, defCausID.
@@ -2741,8 +2741,8 @@ func (s *testSerialDBSuite) TestRepairBlock(c *C) {
 	c.Assert(repairBlock.Meta().DeferredCausets[1].Flen, Equals, 5)
 	c.Assert(repairBlock.Meta().DeferredCausets[2].Tp, Equals, allegrosql.TypeLong)
 
-	// Exec the show create block statement to make sure new blockInfo has been set.
-	result := tk.MustQuery("show create block origin")
+	// InterDirc the show create causet memex to make sure new blockInfo has been set.
+	result := tk.MustQuery("show create causet origin")
 	c.Assert(result.Rows()[0][1], Equals, "CREATE TABLE `origin` (\n  `a` int(11) NOT NULL AUTO_INCREMENT,\n  `b` varchar(5) DEFAULT NULL,\n  `c` int(11) DEFAULT NULL,\n  PRIMARY KEY (`a`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin")
 
 }
@@ -2762,48 +2762,48 @@ func (s *testSerialDBSuite) TestRepairBlockWithPartition(c *C) {
 		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/repairFetchCreateBlock"), IsNil)
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists origin")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists origin")
 
 	turnRepairModeAndInit(true)
 	defer turnRepairModeAndInit(false)
 	// Petri reload the blockInfo and add it into repairInfo.
-	tk.MustExec("create block origin (a int not null) partition by RANGE(a) (" +
+	tk.MustInterDirc("create causet origin (a int not null) partition by RANGE(a) (" +
 		"partition p10 values less than (10)," +
 		"partition p30 values less than (30)," +
 		"partition p50 values less than (50)," +
 		"partition p70 values less than (70)," +
 		"partition p90 values less than (90));")
 	// Test for some old partition has lost.
-	_, err := tk.Exec("admin repair block origin create block origin (a int not null) partition by RANGE(a) (" +
+	_, err := tk.InterDirc("admin repair causet origin create causet origin (a int not null) partition by RANGE(a) (" +
 		"partition p10 values less than (10)," +
 		"partition p30 values less than (30)," +
 		"partition p50 values less than (50)," +
 		"partition p90 values less than (90)," +
 		"partition p100 values less than (100));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Partition p100 has lost")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Partition p100 has lost")
 
 	// Test for some partition changed the condition.
-	_, err = tk.Exec("admin repair block origin create block origin (a int not null) partition by RANGE(a) (" +
+	_, err = tk.InterDirc("admin repair causet origin create causet origin (a int not null) partition by RANGE(a) (" +
 		"partition p10 values less than (10)," +
 		"partition p20 values less than (25)," +
 		"partition p50 values less than (50)," +
 		"partition p90 values less than (90));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Partition p20 has lost")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Partition p20 has lost")
 
 	// Test for some partition changed the partition name.
-	_, err = tk.Exec("admin repair block origin create block origin (a int not null) partition by RANGE(a) (" +
+	_, err = tk.InterDirc("admin repair causet origin create causet origin (a int not null) partition by RANGE(a) (" +
 		"partition p10 values less than (10)," +
 		"partition p30 values less than (30)," +
 		"partition pNew values less than (50)," +
 		"partition p90 values less than (90));")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Partition pnew has lost")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Partition pnew has lost")
 
 	originBlockInfo, _ := petriutil.RepairInfo.GetRepairedBlockInfoByBlockName("test", "origin")
-	tk.MustExec("admin repair block origin create block origin_rename (a int not null) partition by RANGE(a) (" +
+	tk.MustInterDirc("admin repair causet origin create causet origin_rename (a int not null) partition by RANGE(a) (" +
 		"partition p10 values less than (10)," +
 		"partition p30 values less than (30)," +
 		"partition p50 values less than (50)," +
@@ -2819,18 +2819,18 @@ func (s *testSerialDBSuite) TestRepairBlockWithPartition(c *C) {
 	c.Assert(repairBlock.Meta().Partition.Definitions[3].ID, Equals, originBlockInfo.Partition.Definitions[4].ID)
 
 	// Test hash partition.
-	tk.MustExec("drop block if exists origin")
+	tk.MustInterDirc("drop causet if exists origin")
 	petriutil.RepairInfo.SetRepairMode(true)
 	petriutil.RepairInfo.SetRepairBlockList([]string{"test.origin"})
-	tk.MustExec("create block origin (a varchar(1), b int not null, c int, key idx(c)) partition by hash(b) partitions 30")
+	tk.MustInterDirc("create causet origin (a varchar(1), b int not null, c int, key idx(c)) partition by hash(b) partitions 30")
 
 	// Test partition num in repair should be exactly same with old one, other wise will cause partition semantic problem.
-	_, err = tk.Exec("admin repair block origin create block origin (a varchar(2), b int not null, c int, key idx(c)) partition by hash(b) partitions 20")
+	_, err = tk.InterDirc("admin repair causet origin create causet origin (a varchar(2), b int not null, c int, key idx(c)) partition by hash(b) partitions 20")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair block: Hash partition num should be the same")
+	c.Assert(err.Error(), Equals, "[dbs:8215]Failed to repair causet: Hash partition num should be the same")
 
 	originBlockInfo, _ = petriutil.RepairInfo.GetRepairedBlockInfoByBlockName("test", "origin")
-	tk.MustExec("admin repair block origin create block origin (a varchar(3), b int not null, c int, key idx(c)) partition by hash(b) partitions 30")
+	tk.MustInterDirc("admin repair causet origin create causet origin (a varchar(3), b int not null, c int, key idx(c)) partition by hash(b) partitions 30")
 	repairBlock = testGetBlockByName(c, s.s, "test", "origin")
 	c.Assert(repairBlock.Meta().ID, Equals, originBlockInfo.ID)
 	c.Assert(len(repairBlock.Meta().Partition.Definitions), Equals, 30)
@@ -2841,210 +2841,210 @@ func (s *testSerialDBSuite) TestRepairBlockWithPartition(c *C) {
 
 func (s *testDBSuite2) TestCreateBlockWithSetDefCaus(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
-	tk.MustExec("create block t_set (a int, b set('e') default '');")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("create causet t_set (a int, b set('e') default '');")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` int(11) DEFAULT NULL,\n" +
 		"  `b` set('e') DEFAULT ''\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("drop block t_set")
-	tk.MustExec("create block t_set (a set('a', 'b', 'c', 'd') default 'a,c,c');")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("drop causet t_set")
+	tk.MustInterDirc("create causet t_set (a set('a', 'b', 'c', 'd') default 'a,c,c');")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` set('a','b','c','d') DEFAULT 'a,c'\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
 
 	// It's for failure cases.
 	// The type of default value is string.
-	tk.MustExec("drop block t_set")
-	failedALLEGROSQL := "create block t_set (a set('1', '4', '10') default '3');"
+	tk.MustInterDirc("drop causet t_set")
+	failedALLEGROSQL := "create causet t_set (a set('1', '4', '10') default '3');"
 	tk.MustGetErrCode(failedALLEGROSQL, errno.ErrInvalidDefault)
-	failedALLEGROSQL = "create block t_set (a set('1', '4', '10') default '1,4,11');"
+	failedALLEGROSQL = "create causet t_set (a set('1', '4', '10') default '1,4,11');"
 	tk.MustGetErrCode(failedALLEGROSQL, errno.ErrInvalidDefault)
-	failedALLEGROSQL = "create block t_set (a set('1', '4', '10') default '1 ,4');"
+	failedALLEGROSQL = "create causet t_set (a set('1', '4', '10') default '1 ,4');"
 	tk.MustGetErrCode(failedALLEGROSQL, errno.ErrInvalidDefault)
 	// The type of default value is int.
-	failedALLEGROSQL = "create block t_set (a set('1', '4', '10') default 0);"
+	failedALLEGROSQL = "create causet t_set (a set('1', '4', '10') default 0);"
 	tk.MustGetErrCode(failedALLEGROSQL, errno.ErrInvalidDefault)
-	failedALLEGROSQL = "create block t_set (a set('1', '4', '10') default 8);"
+	failedALLEGROSQL = "create causet t_set (a set('1', '4', '10') default 8);"
 	tk.MustGetErrCode(failedALLEGROSQL, errno.ErrInvalidDefault)
 
 	// The type of default value is int.
 	// It's for successful cases
-	tk.MustExec("create block t_set (a set('1', '4', '10', '21') default 1);")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("create causet t_set (a set('1', '4', '10', '21') default 1);")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` set('1','4','10','21') DEFAULT '1'\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("drop block t_set")
-	tk.MustExec("create block t_set (a set('1', '4', '10', '21') default 2);")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("drop causet t_set")
+	tk.MustInterDirc("create causet t_set (a set('1', '4', '10', '21') default 2);")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` set('1','4','10','21') DEFAULT '4'\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("drop block t_set")
-	tk.MustExec("create block t_set (a set('1', '4', '10', '21') default 3);")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("drop causet t_set")
+	tk.MustInterDirc("create causet t_set (a set('1', '4', '10', '21') default 3);")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` set('1','4','10','21') DEFAULT '1,4'\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("drop block t_set")
-	tk.MustExec("create block t_set (a set('1', '4', '10', '21') default 15);")
-	tk.MustQuery("show create block t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
+	tk.MustInterDirc("drop causet t_set")
+	tk.MustInterDirc("create causet t_set (a set('1', '4', '10', '21') default 15);")
+	tk.MustQuery("show create causet t_set").Check(testkit.Rows("t_set CREATE TABLE `t_set` (\n" +
 		"  `a` set('1','4','10','21') DEFAULT '1,4,10,21'\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
-	tk.MustExec("insert into t_set value()")
+	tk.MustInterDirc("insert into t_set value()")
 	tk.MustQuery("select * from t_set").Check(testkit.Rows("1,4,10,21"))
 }
 
 func (s *testDBSuite2) TestBlockForeignKey(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t1 (a int, b int);")
-	// test create block with foreign key.
-	failALLEGROSQL := "create block t2 (c int, foreign key (a) references t1(a));"
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t1 (a int, b int);")
+	// test create causet with foreign key.
+	failALLEGROSQL := "create causet t2 (c int, foreign key (a) references t1(a));"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrKeyDeferredCausetDoesNotExits)
 	// test add foreign key.
-	tk.MustExec("create block t3 (a int, b int);")
-	failALLEGROSQL = "alter block t1 add foreign key (c) REFERENCES t3(a);"
+	tk.MustInterDirc("create causet t3 (a int, b int);")
+	failALLEGROSQL = "alter causet t1 add foreign key (c) REFERENCES t3(a);"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrKeyDeferredCausetDoesNotExits)
 	// test oreign key not match error
-	failALLEGROSQL = "alter block t1 add foreign key (a) REFERENCES t3(a, b);"
+	failALLEGROSQL = "alter causet t1 add foreign key (a) REFERENCES t3(a, b);"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrWrongFkDef)
 	// Test drop defCausumn with foreign key.
-	tk.MustExec("create block t4 (c int,d int,foreign key (d) references t1 (b));")
-	failALLEGROSQL = "alter block t4 drop defCausumn d"
+	tk.MustInterDirc("create causet t4 (c int,d int,foreign key (d) references t1 (b));")
+	failALLEGROSQL = "alter causet t4 drop defCausumn d"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrFkDeferredCausetCannotDrop)
 	// Test change defCausumn with foreign key.
-	failALLEGROSQL = "alter block t4 change defCausumn d e bigint;"
+	failALLEGROSQL = "alter causet t4 change defCausumn d e bigint;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrFKIncompatibleDeferredCausets)
 	// Test modify defCausumn with foreign key.
-	failALLEGROSQL = "alter block t4 modify defCausumn d bigint;"
+	failALLEGROSQL = "alter causet t4 modify defCausumn d bigint;"
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrFKIncompatibleDeferredCausets)
 	tk.MustQuery("select count(*) from information_schema.KEY_COLUMN_USAGE;")
-	tk.MustExec("alter block t4 drop foreign key d")
-	tk.MustExec("alter block t4 modify defCausumn d bigint;")
-	tk.MustExec("drop block if exists t1,t2,t3,t4;")
+	tk.MustInterDirc("alter causet t4 drop foreign key d")
+	tk.MustInterDirc("alter causet t4 modify defCausumn d bigint;")
+	tk.MustInterDirc("drop causet if exists t1,t2,t3,t4;")
 }
 
 func (s *testDBSuite3) TestFKOnGeneratedDeferredCausets(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	// test add foreign key to generated defCausumn
 
 	// foreign key constraint cannot be defined on a virtual generated defCausumn.
-	tk.MustExec("create block t1 (a int primary key);")
-	tk.MustGetErrCode("create block t2 (a int, b int as (a+1) virtual, foreign key (b) references t1(a));", errno.ErrCannotAddForeign)
-	tk.MustExec("create block t2 (a int, b int generated always as (a+1) virtual);")
-	tk.MustGetErrCode("alter block t2 add foreign key (b) references t1(a);", errno.ErrCannotAddForeign)
-	tk.MustExec("drop block t1, t2;")
+	tk.MustInterDirc("create causet t1 (a int primary key);")
+	tk.MustGetErrCode("create causet t2 (a int, b int as (a+1) virtual, foreign key (b) references t1(a));", errno.ErrCannotAddForeign)
+	tk.MustInterDirc("create causet t2 (a int, b int generated always as (a+1) virtual);")
+	tk.MustGetErrCode("alter causet t2 add foreign key (b) references t1(a);", errno.ErrCannotAddForeign)
+	tk.MustInterDirc("drop causet t1, t2;")
 
 	// foreign key constraint can be defined on a stored generated defCausumn.
-	tk.MustExec("create block t2 (a int primary key);")
-	tk.MustExec("create block t1 (a int, b int as (a+1) stored, foreign key (b) references t2(a));")
-	tk.MustExec("create block t3 (a int, b int generated always as (a+1) stored);")
-	tk.MustExec("alter block t3 add foreign key (b) references t2(a);")
-	tk.MustExec("drop block t1, t2, t3;")
+	tk.MustInterDirc("create causet t2 (a int primary key);")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1) stored, foreign key (b) references t2(a));")
+	tk.MustInterDirc("create causet t3 (a int, b int generated always as (a+1) stored);")
+	tk.MustInterDirc("alter causet t3 add foreign key (b) references t2(a);")
+	tk.MustInterDirc("drop causet t1, t2, t3;")
 
 	// foreign key constraint can reference a stored generated defCausumn.
-	tk.MustExec("create block t1 (a int, b int generated always as (a+1) stored primary key);")
-	tk.MustExec("create block t2 (a int, foreign key (a) references t1(b));")
-	tk.MustExec("create block t3 (a int);")
-	tk.MustExec("alter block t3 add foreign key (a) references t1(b);")
-	tk.MustExec("drop block t1, t2, t3;")
+	tk.MustInterDirc("create causet t1 (a int, b int generated always as (a+1) stored primary key);")
+	tk.MustInterDirc("create causet t2 (a int, foreign key (a) references t1(b));")
+	tk.MustInterDirc("create causet t3 (a int);")
+	tk.MustInterDirc("alter causet t3 add foreign key (a) references t1(b);")
+	tk.MustInterDirc("drop causet t1, t2, t3;")
 
 	// rejected FK options on stored generated defCausumns
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate cascade);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set default);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on delete set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on delete set default);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustExec("create block t2 (a int primary key);")
-	tk.MustExec("create block t1 (a int, b int generated always as (a+1) stored);")
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on uFIDelate cascade;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on uFIDelate set default;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on delete set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on delete set default;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustExec("drop block t1, t2;")
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate cascade);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set default);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on delete set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on delete set default);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustInterDirc("create causet t2 (a int primary key);")
+	tk.MustInterDirc("create causet t1 (a int, b int generated always as (a+1) stored);")
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on uFIDelate cascade;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on uFIDelate set default;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on delete set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on delete set default;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustInterDirc("drop causet t1, t2;")
 	// defCausumn name with uppercase characters
-	tk.MustGetErrCode("create block t1 (A int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustExec("create block t2 (a int primary key);")
-	tk.MustExec("create block t1 (A int, b int generated always as (a+1) stored);")
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
-	tk.MustExec("drop block t1, t2;")
+	tk.MustGetErrCode("create causet t1 (A int, b int generated always as (a+1) stored, foreign key (b) references t2(a) on uFIDelate set null);", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustInterDirc("create causet t2 (a int primary key);")
+	tk.MustInterDirc("create causet t1 (A int, b int generated always as (a+1) stored);")
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrWrongFKOptionForGeneratedDeferredCauset)
+	tk.MustInterDirc("drop causet t1, t2;")
 
 	// special case: MilevaDB error different from MyALLEGROSQL 8.0
 	// MyALLEGROSQL: ERROR 3104 (HY000): Cannot define foreign key with ON UFIDelATE SET NULL clause on a generated defCausumn.
 	// MilevaDB:  ERROR 1146 (42S02): Block 'test.t2' doesn't exist
-	tk.MustExec("create block t1 (a int, b int generated always as (a+1) stored);")
-	tk.MustGetErrCode("alter block t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrNoSuchBlock)
-	tk.MustExec("drop block t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int generated always as (a+1) stored);")
+	tk.MustGetErrCode("alter causet t1 add foreign key (b) references t2(a) on uFIDelate set null;", errno.ErrNoSuchBlock)
+	tk.MustInterDirc("drop causet t1;")
 
 	// allowed FK options on stored generated defCausumns
-	tk.MustExec("create block t1 (a int primary key, b char(5));")
-	tk.MustExec("create block t2 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on uFIDelate restrict);")
-	tk.MustExec("create block t3 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on uFIDelate no action);")
-	tk.MustExec("create block t4 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete restrict);")
-	tk.MustExec("create block t5 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete cascade);")
-	tk.MustExec("create block t6 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete no action);")
-	tk.MustExec("drop block t2,t3,t4,t5,t6;")
-	tk.MustExec("create block t2 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t2 add foreign key (b) references t1(a) on uFIDelate restrict;")
-	tk.MustExec("create block t3 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t3 add foreign key (b) references t1(a) on uFIDelate no action;")
-	tk.MustExec("create block t4 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t4 add foreign key (b) references t1(a) on delete restrict;")
-	tk.MustExec("create block t5 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t5 add foreign key (b) references t1(a) on delete cascade;")
-	tk.MustExec("create block t6 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t6 add foreign key (b) references t1(a) on delete no action;")
-	tk.MustExec("drop block t1,t2,t3,t4,t5,t6;")
+	tk.MustInterDirc("create causet t1 (a int primary key, b char(5));")
+	tk.MustInterDirc("create causet t2 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on uFIDelate restrict);")
+	tk.MustInterDirc("create causet t3 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on uFIDelate no action);")
+	tk.MustInterDirc("create causet t4 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete restrict);")
+	tk.MustInterDirc("create causet t5 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete cascade);")
+	tk.MustInterDirc("create causet t6 (a int, b int generated always as (a % 10) stored, foreign key (b) references t1(a) on delete no action);")
+	tk.MustInterDirc("drop causet t2,t3,t4,t5,t6;")
+	tk.MustInterDirc("create causet t2 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t2 add foreign key (b) references t1(a) on uFIDelate restrict;")
+	tk.MustInterDirc("create causet t3 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t3 add foreign key (b) references t1(a) on uFIDelate no action;")
+	tk.MustInterDirc("create causet t4 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t4 add foreign key (b) references t1(a) on delete restrict;")
+	tk.MustInterDirc("create causet t5 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t5 add foreign key (b) references t1(a) on delete cascade;")
+	tk.MustInterDirc("create causet t6 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t6 add foreign key (b) references t1(a) on delete no action;")
+	tk.MustInterDirc("drop causet t1,t2,t3,t4,t5,t6;")
 
 	// rejected FK options on the base defCausumns of a stored generated defCausumns
-	tk.MustExec("create block t2 (a int primary key);")
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate set null);", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate cascade);", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate set default);", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete set null);", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete cascade);", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("create block t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete set default);", errno.ErrCannotAddForeign)
-	tk.MustExec("create block t1 (a int, b int generated always as (a+1) stored);")
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on uFIDelate set null;", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on uFIDelate cascade;", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on uFIDelate set default;", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on delete set null;", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on delete cascade;", errno.ErrCannotAddForeign)
-	tk.MustGetErrCode("alter block t1 add foreign key (a) references t2(a) on delete set default;", errno.ErrCannotAddForeign)
-	tk.MustExec("drop block t1, t2;")
+	tk.MustInterDirc("create causet t2 (a int primary key);")
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate set null);", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate cascade);", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on uFIDelate set default);", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete set null);", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete cascade);", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("create causet t1 (a int, b int generated always as (a+1) stored, foreign key (a) references t2(a) on delete set default);", errno.ErrCannotAddForeign)
+	tk.MustInterDirc("create causet t1 (a int, b int generated always as (a+1) stored);")
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on uFIDelate set null;", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on uFIDelate cascade;", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on uFIDelate set default;", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on delete set null;", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on delete cascade;", errno.ErrCannotAddForeign)
+	tk.MustGetErrCode("alter causet t1 add foreign key (a) references t2(a) on delete set default;", errno.ErrCannotAddForeign)
+	tk.MustInterDirc("drop causet t1, t2;")
 
 	// allowed FK options on the base defCausumns of a stored generated defCausumns
-	tk.MustExec("create block t1 (a int primary key, b char(5));")
-	tk.MustExec("create block t2 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on uFIDelate restrict);")
-	tk.MustExec("create block t3 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on uFIDelate no action);")
-	tk.MustExec("create block t4 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on delete restrict);")
-	tk.MustExec("create block t5 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on delete no action);")
-	tk.MustExec("drop block t2,t3,t4,t5")
-	tk.MustExec("create block t2 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t2 add foreign key (a) references t1(a) on uFIDelate restrict;")
-	tk.MustExec("create block t3 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t3 add foreign key (a) references t1(a) on uFIDelate no action;")
-	tk.MustExec("create block t4 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t4 add foreign key (a) references t1(a) on delete restrict;")
-	tk.MustExec("create block t5 (a int, b int generated always as (a % 10) stored);")
-	tk.MustExec("alter block t5 add foreign key (a) references t1(a) on delete no action;")
-	tk.MustExec("drop block t1,t2,t3,t4,t5;")
+	tk.MustInterDirc("create causet t1 (a int primary key, b char(5));")
+	tk.MustInterDirc("create causet t2 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on uFIDelate restrict);")
+	tk.MustInterDirc("create causet t3 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on uFIDelate no action);")
+	tk.MustInterDirc("create causet t4 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on delete restrict);")
+	tk.MustInterDirc("create causet t5 (a int, b int generated always as (a % 10) stored, foreign key (a) references t1(a) on delete no action);")
+	tk.MustInterDirc("drop causet t2,t3,t4,t5")
+	tk.MustInterDirc("create causet t2 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t2 add foreign key (a) references t1(a) on uFIDelate restrict;")
+	tk.MustInterDirc("create causet t3 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t3 add foreign key (a) references t1(a) on uFIDelate no action;")
+	tk.MustInterDirc("create causet t4 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t4 add foreign key (a) references t1(a) on delete restrict;")
+	tk.MustInterDirc("create causet t5 (a int, b int generated always as (a % 10) stored);")
+	tk.MustInterDirc("alter causet t5 add foreign key (a) references t1(a) on delete no action;")
+	tk.MustInterDirc("drop causet t1,t2,t3,t4,t5;")
 }
 
 func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block truncate_block (c1 int, c2 int)")
-	tk.MustExec("insert truncate_block values (1, 1), (2, 2)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet truncate_block (c1 int, c2 int)")
+	tk.MustInterDirc("insert truncate_block values (1, 1), (2, 2)")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	oldTblInfo, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("truncate_block"))
 	c.Assert(err, IsNil)
 	oldTblID := oldTblInfo.Meta().ID
 
-	tk.MustExec("truncate block truncate_block")
+	tk.MustInterDirc("truncate causet truncate_block")
 
-	tk.MustExec("insert truncate_block values (3, 3), (4, 4)")
+	tk.MustInterDirc("insert truncate_block values (3, 3), (4, 4)")
 	tk.MustQuery("select * from truncate_block").Check(testkit.Rows("3 3", "4 4"))
 
 	is = petri.GetPetri(ctx).SchemaReplicant()
@@ -3052,7 +3052,7 @@ func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newTblInfo.Meta().ID, Greater, oldTblID)
 
-	// Verify that the old block data has been deleted by background worker.
+	// Verify that the old causet data has been deleted by background worker.
 	blockPrefix := blockcodec.EncodeBlockPrefix(oldTblID)
 	hasOldBlockData := true
 	for i := 0; i < waitForCleanDataRound; i++ {
@@ -3077,22 +3077,22 @@ func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 	}
 	c.Assert(hasOldBlockData, IsFalse)
 
-	// Test for truncate block should clear the tiflash available status.
+	// Test for truncate causet should clear the tiflash available status.
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount", `return(true)`), IsNil)
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
-	tk.MustExec("drop block if exists t1;")
-	tk.MustExec("create block t1 (a int);")
-	tk.MustExec("alter block t1 set tiflash replica 3 location labels 'a','b';")
+	tk.MustInterDirc("drop causet if exists t1;")
+	tk.MustInterDirc("create causet t1 (a int);")
+	tk.MustInterDirc("alter causet t1 set tiflash replica 3 location labels 'a','b';")
 	t1 := testGetBlockByName(c, s.s, "test", "t1")
-	// Mock for block tiflash replica was available.
+	// Mock for causet tiflash replica was available.
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, t1.Meta().ID, true)
 	c.Assert(err, IsNil)
 	t1 = testGetBlockByName(c, s.s, "test", "t1")
 	c.Assert(t1.Meta().TiFlashReplica, NotNil)
 	c.Assert(t1.Meta().TiFlashReplica.Available, IsTrue)
 
-	tk.MustExec("truncate block t1")
+	tk.MustInterDirc("truncate causet t1")
 	t2 := testGetBlockByName(c, s.s, "test", "t1")
 	c.Assert(t2.Meta().TiFlashReplica.Count, Equals, t1.Meta().TiFlashReplica.Count)
 	c.Assert(t2.Meta().TiFlashReplica.LocationLabels, DeepEquals, t1.Meta().TiFlashReplica.LocationLabels)
@@ -3100,9 +3100,9 @@ func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 	c.Assert(t2.Meta().TiFlashReplica.AvailablePartitionIDs, HasLen, 0)
 
 	// Test for truncate partition should clear the tiflash available status.
-	tk.MustExec("drop block if exists t1;")
-	tk.MustExec("create block t1 (a int) partition by hash(a) partitions 2;")
-	tk.MustExec("alter block t1 set tiflash replica 3 location labels 'a','b';")
+	tk.MustInterDirc("drop causet if exists t1;")
+	tk.MustInterDirc("create causet t1 (a int) partition by hash(a) partitions 2;")
+	tk.MustInterDirc("alter causet t1 set tiflash replica 3 location labels 'a','b';")
 	t1 = testGetBlockByName(c, s.s, "test", "t1")
 	// Mock for all partitions replica was available.
 	partition := t1.Meta().Partition
@@ -3116,14 +3116,14 @@ func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 	c.Assert(t1.Meta().TiFlashReplica.Available, IsTrue)
 	c.Assert(t1.Meta().TiFlashReplica.AvailablePartitionIDs, DeepEquals, []int64{partition.Definitions[0].ID, partition.Definitions[1].ID})
 
-	tk.MustExec("alter block t1 truncate partition p0")
+	tk.MustInterDirc("alter causet t1 truncate partition p0")
 	t2 = testGetBlockByName(c, s.s, "test", "t1")
 	c.Assert(t2.Meta().TiFlashReplica.Count, Equals, t1.Meta().TiFlashReplica.Count)
 	c.Assert(t2.Meta().TiFlashReplica.LocationLabels, DeepEquals, t1.Meta().TiFlashReplica.LocationLabels)
 	c.Assert(t2.Meta().TiFlashReplica.Available, IsFalse)
 	c.Assert(t2.Meta().TiFlashReplica.AvailablePartitionIDs, DeepEquals, []int64{partition.Definitions[1].ID})
 	// Test for truncate twice.
-	tk.MustExec("alter block t1 truncate partition p0")
+	tk.MustInterDirc("alter causet t1 truncate partition p0")
 	t2 = testGetBlockByName(c, s.s, "test", "t1")
 	c.Assert(t2.Meta().TiFlashReplica.Count, Equals, t1.Meta().TiFlashReplica.Count)
 	c.Assert(t2.Meta().TiFlashReplica.LocationLabels, DeepEquals, t1.Meta().TiFlashReplica.LocationLabels)
@@ -3134,42 +3134,42 @@ func (s *testSerialDBSuite) TestTruncateBlock(c *C) {
 
 func (s *testDBSuite4) TestRenameBlock(c *C) {
 	isAlterBlock := false
-	s.testRenameBlock(c, "rename block %s to %s", isAlterBlock)
+	s.testRenameBlock(c, "rename causet %s to %s", isAlterBlock)
 }
 
 func (s *testDBSuite5) TestAlterBlockRenameBlock(c *C) {
 	isAlterBlock := true
-	s.testRenameBlock(c, "alter block %s rename to %s", isAlterBlock)
+	s.testRenameBlock(c, "alter causet %s rename to %s", isAlterBlock)
 }
 
 func (s *testDBSuite) testRenameBlock(c *C, allegrosql string, isAlterBlock bool) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	// for different databases
-	tk.MustExec("create block t (c1 int, c2 int)")
-	tk.MustExec("insert t values (1, 1), (2, 2)")
+	tk.MustInterDirc("create causet t (c1 int, c2 int)")
+	tk.MustInterDirc("insert t values (1, 1), (2, 2)")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	oldTblInfo, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 	oldTblID := oldTblInfo.Meta().ID
-	tk.MustExec("create database test1")
-	tk.MustExec("use test1")
-	tk.MustExec(fmt.Sprintf(allegrosql, "test.t", "test1.t1"))
+	tk.MustInterDirc("create database test1")
+	tk.MustInterDirc("use test1")
+	tk.MustInterDirc(fmt.Sprintf(allegrosql, "test.t", "test1.t1"))
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	newTblInfo, err := is.BlockByName(perceptron.NewCIStr("test1"), perceptron.NewCIStr("t1"))
 	c.Assert(err, IsNil)
 	c.Assert(newTblInfo.Meta().ID, Equals, oldTblID)
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 1", "2 2"))
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 
 	// Make sure t doesn't exist.
-	tk.MustExec("create block t (c1 int, c2 int)")
-	tk.MustExec("drop block t")
+	tk.MustInterDirc("create causet t (c1 int, c2 int)")
+	tk.MustInterDirc("drop causet t")
 
 	// for the same database
-	tk.MustExec("use test1")
-	tk.MustExec(fmt.Sprintf(allegrosql, "t1", "t2"))
+	tk.MustInterDirc("use test1")
+	tk.MustInterDirc(fmt.Sprintf(allegrosql, "t1", "t2"))
 	is = petri.GetPetri(ctx).SchemaReplicant()
 	newTblInfo, err = is.BlockByName(perceptron.NewCIStr("test1"), perceptron.NewCIStr("t2"))
 	c.Assert(err, IsNil)
@@ -3201,8 +3201,8 @@ func (s *testDBSuite) testRenameBlock(c *C, allegrosql string, isAlterBlock bool
 	failALLEGROSQL = fmt.Sprintf(allegrosql, "test1.t2", "test_not_exist.t")
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrErrorOnRename)
 
-	tk.MustExec("use test1")
-	tk.MustExec("create block if not exists t_exist (c1 int, c2 int)")
+	tk.MustInterDirc("use test1")
+	tk.MustInterDirc("create causet if not exists t_exist (c1 int, c2 int)")
 	failALLEGROSQL = fmt.Sprintf(allegrosql, "test1.t2", "test1.t_exist")
 	tk.MustGetErrCode(failALLEGROSQL, errno.ErrBlockExists)
 	failALLEGROSQL = fmt.Sprintf(allegrosql, "test.t_not_exist", "test1.t_exist")
@@ -3224,48 +3224,48 @@ func (s *testDBSuite) testRenameBlock(c *C, allegrosql string, isAlterBlock bool
 		tk.MustGetErrCode(failALLEGROSQL, errno.ErrFileNotFound)
 	}
 
-	// for the same block name
-	tk.MustExec("use test1")
-	tk.MustExec("create block if not exists t (c1 int, c2 int)")
-	tk.MustExec("create block if not exists t1 (c1 int, c2 int)")
+	// for the same causet name
+	tk.MustInterDirc("use test1")
+	tk.MustInterDirc("create causet if not exists t (c1 int, c2 int)")
+	tk.MustInterDirc("create causet if not exists t1 (c1 int, c2 int)")
 	if isAlterBlock {
-		tk.MustExec(fmt.Sprintf(allegrosql, "test1.t", "t"))
-		tk.MustExec(fmt.Sprintf(allegrosql, "test1.t1", "test1.T1"))
+		tk.MustInterDirc(fmt.Sprintf(allegrosql, "test1.t", "t"))
+		tk.MustInterDirc(fmt.Sprintf(allegrosql, "test1.t1", "test1.T1"))
 	} else {
 		tk.MustGetErrCode(fmt.Sprintf(allegrosql, "test1.t", "t"), errno.ErrBlockExists)
 		tk.MustGetErrCode(fmt.Sprintf(allegrosql, "test1.t1", "test1.T1"), errno.ErrBlockExists)
 	}
 
-	// Test rename block name too long.
-	tk.MustGetErrCode("rename block test1.t1 to test1.txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", errno.ErrTooLongIdent)
-	tk.MustGetErrCode("alter  block test1.t1 rename to test1.txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", errno.ErrTooLongIdent)
+	// Test rename causet name too long.
+	tk.MustGetErrCode("rename causet test1.t1 to test1.txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", errno.ErrTooLongIdent)
+	tk.MustGetErrCode("alter  causet test1.t1 rename to test1.txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", errno.ErrTooLongIdent)
 
-	tk.MustExec("drop database test1")
+	tk.MustInterDirc("drop database test1")
 }
 
 func (s *testDBSuite1) TestRenameMultiBlocks(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t1(id int)")
-	tk.MustExec("create block t2(id int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t1(id int)")
+	tk.MustInterDirc("create causet t2(id int)")
 	// Currently it will fail only.
-	allegrosql := fmt.Sprintf("rename block t1 to t3, t2 to t4")
-	_, err := tk.Exec(allegrosql)
+	allegrosql := fmt.Sprintf("rename causet t1 to t3, t2 to t4")
+	_, err := tk.InterDirc(allegrosql)
 	c.Assert(err, NotNil)
 	originErr := errors.Cause(err)
 	c.Assert(originErr.Error(), Equals, "can't run multi schemaReplicant change")
 
-	tk.MustExec("drop block t1, t2")
+	tk.MustInterDirc("drop causet t1, t2")
 }
 
 func (s *testDBSuite2) TestAddNotNullDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
+	tk.MustInterDirc("use test_db")
 	// for different databases
-	tk.MustExec("create block tnn (c1 int primary key auto_increment, c2 int)")
-	tk.MustExec("insert tnn (c2) values (0)" + strings.Repeat(",(0)", 99))
+	tk.MustInterDirc("create causet tnn (c1 int primary key auto_increment, c2 int)")
+	tk.MustInterDirc("insert tnn (c2) values (0)" + strings.Repeat(",(0)", 99))
 	done := make(chan error, 1)
-	testdbsutil.StochastikExecInGoroutine(c, s.causetstore, "alter block tnn add defCausumn c3 int not null default 3", done)
+	testdbsutil.StochastikInterDircInGoroutine(c, s.causetstore, "alter causet tnn add defCausumn c3 int not null default 3", done)
 	uFIDelateCnt := 0
 out:
 	for {
@@ -3274,62 +3274,62 @@ out:
 			c.Assert(err, IsNil)
 			break out
 		default:
-			tk.MustExec("uFIDelate tnn set c2 = c2 + 1 where c1 = 99")
+			tk.MustInterDirc("uFIDelate tnn set c2 = c2 + 1 where c1 = 99")
 			uFIDelateCnt++
 		}
 	}
 	expected := fmt.Sprintf("%d %d", uFIDelateCnt, 3)
 	tk.MustQuery("select c2, c3 from tnn where c1 = 99").Check(testkit.Rows(expected))
 
-	tk.MustExec("drop block tnn")
+	tk.MustInterDirc("drop causet tnn")
 }
 
 func (s *testDBSuite3) TestGeneratedDeferredCausetDBS(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 
-	// Check create block with virtual and stored generated defCausumns.
-	tk.MustExec(`CREATE TABLE test_gv_dbs(a int, b int as (a+8) virtual, c int as (b + 2) stored)`)
+	// Check create causet with virtual and stored generated defCausumns.
+	tk.MustInterDirc(`CREATE TABLE test_gv_dbs(a int, b int as (a+8) virtual, c int as (b + 2) stored)`)
 
-	// Check desc block with virtual and stored generated defCausumns.
+	// Check desc causet with virtual and stored generated defCausumns.
 	result := tk.MustQuery(`DESC test_gv_dbs`)
 	result.Check(testkit.Rows(`a int(11) YES  <nil> `, `b int(11) YES  <nil> VIRTUAL GENERATED`, `c int(11) YES  <nil> STORED GENERATED`))
 
-	// Check show create block with virtual and stored generated defCausumns.
-	result = tk.MustQuery(`show create block test_gv_dbs`)
+	// Check show create causet with virtual and stored generated defCausumns.
+	result = tk.MustQuery(`show create causet test_gv_dbs`)
 	result.Check(testkit.Rows(
 		"test_gv_dbs CREATE TABLE `test_gv_dbs` (\n  `a` int(11) DEFAULT NULL,\n  `b` int(11) GENERATED ALWAYS AS (`a` + 8) VIRTUAL,\n  `c` int(11) GENERATED ALWAYS AS (`b` + 2) STORED\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
 	))
 
-	// Check generated expression with blanks.
-	tk.MustExec("create block block_with_gen_defCaus_blanks (a int, b char(20) as (cast( \r\n\t a \r\n\tas  char)), c int as (a+100))")
-	result = tk.MustQuery(`show create block block_with_gen_defCaus_blanks`)
+	// Check generated memex with blanks.
+	tk.MustInterDirc("create causet block_with_gen_defCaus_blanks (a int, b char(20) as (cast( \r\n\t a \r\n\tas  char)), c int as (a+100))")
+	result = tk.MustQuery(`show create causet block_with_gen_defCaus_blanks`)
 	result.Check(testkit.Rows("block_with_gen_defCaus_blanks CREATE TABLE `block_with_gen_defCaus_blanks` (\n" +
 		"  `a` int(11) DEFAULT NULL,\n" +
 		"  `b` char(20) GENERATED ALWAYS AS (cast(`a` as char)) VIRTUAL,\n" +
 		"  `c` int(11) GENERATED ALWAYS AS (`a` + 100) VIRTUAL\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
 
-	// Check generated expression with charset latin1 ("latin1" != allegrosql.DefaultCharset).
-	tk.MustExec("create block block_with_gen_defCaus_latin1 (a int, b char(20) as (cast( \r\n\t a \r\n\tas  char charset latin1)), c int as (a+100))")
-	result = tk.MustQuery(`show create block block_with_gen_defCaus_latin1`)
+	// Check generated memex with charset latin1 ("latin1" != allegrosql.DefaultCharset).
+	tk.MustInterDirc("create causet block_with_gen_defCaus_latin1 (a int, b char(20) as (cast( \r\n\t a \r\n\tas  char charset latin1)), c int as (a+100))")
+	result = tk.MustQuery(`show create causet block_with_gen_defCaus_latin1`)
 	result.Check(testkit.Rows("block_with_gen_defCaus_latin1 CREATE TABLE `block_with_gen_defCaus_latin1` (\n" +
 		"  `a` int(11) DEFAULT NULL,\n" +
 		"  `b` char(20) GENERATED ALWAYS AS (cast(`a` as char charset latin1)) VIRTUAL,\n" +
 		"  `c` int(11) GENERATED ALWAYS AS (`a` + 100) VIRTUAL\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
 
-	// Check generated expression with string (issue 9457).
-	tk.MustExec("create block block_with_gen_defCaus_string (first_name varchar(10), last_name varchar(10), full_name varchar(255) AS (CONCAT(first_name,' ',last_name)))")
-	result = tk.MustQuery(`show create block block_with_gen_defCaus_string`)
+	// Check generated memex with string (issue 9457).
+	tk.MustInterDirc("create causet block_with_gen_defCaus_string (first_name varchar(10), last_name varchar(10), full_name varchar(255) AS (CONCAT(first_name,' ',last_name)))")
+	result = tk.MustQuery(`show create causet block_with_gen_defCaus_string`)
 	result.Check(testkit.Rows("block_with_gen_defCaus_string CREATE TABLE `block_with_gen_defCaus_string` (\n" +
 		"  `first_name` varchar(10) DEFAULT NULL,\n" +
 		"  `last_name` varchar(10) DEFAULT NULL,\n" +
 		"  `full_name` varchar(255) GENERATED ALWAYS AS (concat(`first_name`, ' ', `last_name`)) VIRTUAL\n" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
 
-	tk.MustExec("alter block block_with_gen_defCaus_string modify defCausumn full_name varchar(255) GENERATED ALWAYS AS (CONCAT(last_name,' ' ,first_name) ) VIRTUAL")
-	result = tk.MustQuery(`show create block block_with_gen_defCaus_string`)
+	tk.MustInterDirc("alter causet block_with_gen_defCaus_string modify defCausumn full_name varchar(255) GENERATED ALWAYS AS (CONCAT(last_name,' ' ,first_name) ) VIRTUAL")
+	result = tk.MustQuery(`show create causet block_with_gen_defCaus_string`)
 	result.Check(testkit.Rows("block_with_gen_defCaus_string CREATE TABLE `block_with_gen_defCaus_string` (\n" +
 		"  `first_name` varchar(10) DEFAULT NULL,\n" +
 		"  `last_name` varchar(10) DEFAULT NULL,\n" +
@@ -3341,134 +3341,134 @@ func (s *testDBSuite3) TestGeneratedDeferredCausetDBS(c *C) {
 		err  int
 	}{
 		// Drop/rename defCausumns dependent by other defCausumn.
-		{`alter block test_gv_dbs drop defCausumn a`, errno.ErrDependentByGeneratedDeferredCauset},
-		{`alter block test_gv_dbs change defCausumn a anew int`, errno.ErrBadField},
+		{`alter causet test_gv_dbs drop defCausumn a`, errno.ErrDependentByGeneratedDeferredCauset},
+		{`alter causet test_gv_dbs change defCausumn a anew int`, errno.ErrBadField},
 
 		// Modify/change stored status of generated defCausumns.
-		{`alter block test_gv_dbs modify defCausumn b bigint`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
-		{`alter block test_gv_dbs change defCausumn c cnew bigint as (a+100)`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`alter causet test_gv_dbs modify defCausumn b bigint`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`alter causet test_gv_dbs change defCausumn c cnew bigint as (a+100)`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
 
 		// Modify/change generated defCausumns breaking prior.
-		{`alter block test_gv_dbs modify defCausumn b int as (c+100)`, errno.ErrGeneratedDeferredCausetNonPrior},
-		{`alter block test_gv_dbs change defCausumn b bnew int as (c+100)`, errno.ErrGeneratedDeferredCausetNonPrior},
+		{`alter causet test_gv_dbs modify defCausumn b int as (c+100)`, errno.ErrGeneratedDeferredCausetNonPrior},
+		{`alter causet test_gv_dbs change defCausumn b bnew int as (c+100)`, errno.ErrGeneratedDeferredCausetNonPrior},
 
-		// Refer not exist defCausumns in generation expression.
-		{`create block test_gv_dbs_bad (a int, b int as (c+8))`, errno.ErrBadField},
+		// Refer not exist defCausumns in generation memex.
+		{`create causet test_gv_dbs_bad (a int, b int as (c+8))`, errno.ErrBadField},
 
 		// Refer generated defCausumns non prior.
-		{`create block test_gv_dbs_bad (a int, b int as (c+1), c int as (a+1))`, errno.ErrGeneratedDeferredCausetNonPrior},
+		{`create causet test_gv_dbs_bad (a int, b int as (c+1), c int as (a+1))`, errno.ErrGeneratedDeferredCausetNonPrior},
 
 		// Virtual generated defCausumns cannot be primary key.
-		{`create block test_gv_dbs_bad (a int, b int, c int as (a+b) primary key)`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
-		{`create block test_gv_dbs_bad (a int, b int, c int as (a+b), primary key(c))`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
-		{`create block test_gv_dbs_bad (a int, b int, c int as (a+b), primary key(a, c))`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`create causet test_gv_dbs_bad (a int, b int, c int as (a+b) primary key)`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`create causet test_gv_dbs_bad (a int, b int, c int as (a+b), primary key(c))`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`create causet test_gv_dbs_bad (a int, b int, c int as (a+b), primary key(a, c))`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
 
-		// Add stored generated defCausumn through alter block.
-		{`alter block test_gv_dbs add defCausumn d int as (b+2) stored`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
-		{`alter block test_gv_dbs modify defCausumn b int as (a + 8) stored`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		// Add stored generated defCausumn through alter causet.
+		{`alter causet test_gv_dbs add defCausumn d int as (b+2) stored`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
+		{`alter causet test_gv_dbs modify defCausumn b int as (a + 8) stored`, errno.ErrUnsupportedOnGeneratedDeferredCauset},
 	}
 	for _, tt := range genExprTests {
 		tk.MustGetErrCode(tt.stmt, tt.err)
 	}
 
-	// Check alter block modify/change generated defCausumn.
+	// Check alter causet modify/change generated defCausumn.
 	modStoredDefCausErrMsg := "[dbs:3106]'modifying a stored defCausumn' is not supported for generated defCausumns."
-	_, err := tk.Exec(`alter block test_gv_dbs modify defCausumn c bigint as (b+200) stored`)
+	_, err := tk.InterDirc(`alter causet test_gv_dbs modify defCausumn c bigint as (b+200) stored`)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, modStoredDefCausErrMsg)
 
 	result = tk.MustQuery(`DESC test_gv_dbs`)
 	result.Check(testkit.Rows(`a int(11) YES  <nil> `, `b int(11) YES  <nil> VIRTUAL GENERATED`, `c int(11) YES  <nil> STORED GENERATED`))
 
-	tk.MustExec(`alter block test_gv_dbs change defCausumn b b bigint as (a+100) virtual`)
+	tk.MustInterDirc(`alter causet test_gv_dbs change defCausumn b b bigint as (a+100) virtual`)
 	result = tk.MustQuery(`DESC test_gv_dbs`)
 	result.Check(testkit.Rows(`a int(11) YES  <nil> `, `b bigint(20) YES  <nil> VIRTUAL GENERATED`, `c int(11) YES  <nil> STORED GENERATED`))
 
-	tk.MustExec(`alter block test_gv_dbs change defCausumn c cnew bigint`)
+	tk.MustInterDirc(`alter causet test_gv_dbs change defCausumn c cnew bigint`)
 	result = tk.MustQuery(`DESC test_gv_dbs`)
 	result.Check(testkit.Rows(`a int(11) YES  <nil> `, `b bigint(20) YES  <nil> VIRTUAL GENERATED`, `cnew bigint(20) YES  <nil> `))
 }
 
 func (s *testDBSuite4) TestComment(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("drop block if exists ct, ct1")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("drop causet if exists ct, ct1")
 
 	validComment := strings.Repeat("a", 1024)
 	invalidComment := strings.Repeat("b", 1025)
 
-	tk.MustExec("create block ct (c int, d int, e int, key (c) comment '" + validComment + "')")
-	tk.MustExec("create index i on ct (d) comment '" + validComment + "'")
-	tk.MustExec("alter block ct add key (e) comment '" + validComment + "'")
+	tk.MustInterDirc("create causet ct (c int, d int, e int, key (c) comment '" + validComment + "')")
+	tk.MustInterDirc("create index i on ct (d) comment '" + validComment + "'")
+	tk.MustInterDirc("alter causet ct add key (e) comment '" + validComment + "'")
 
-	tk.MustGetErrCode("create block ct1 (c int, key (c) comment '"+invalidComment+"')", errno.ErrTooLongIndexComment)
+	tk.MustGetErrCode("create causet ct1 (c int, key (c) comment '"+invalidComment+"')", errno.ErrTooLongIndexComment)
 	tk.MustGetErrCode("create index i1 on ct (d) comment '"+invalidComment+"b"+"'", errno.ErrTooLongIndexComment)
-	tk.MustGetErrCode("alter block ct add key (e) comment '"+invalidComment+"'", errno.ErrTooLongIndexComment)
+	tk.MustGetErrCode("alter causet ct add key (e) comment '"+invalidComment+"'", errno.ErrTooLongIndexComment)
 
-	tk.MustExec("set @@sql_mode=''")
-	tk.MustExec("create block ct1 (c int, d int, e int, key (c) comment '" + invalidComment + "')")
+	tk.MustInterDirc("set @@sql_mode=''")
+	tk.MustInterDirc("create causet ct1 (c int, d int, e int, key (c) comment '" + invalidComment + "')")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1688|Comment for index 'c' is too long (max = 1024)"))
-	tk.MustExec("create index i1 on ct1 (d) comment '" + invalidComment + "b" + "'")
+	tk.MustInterDirc("create index i1 on ct1 (d) comment '" + invalidComment + "b" + "'")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1688|Comment for index 'i1' is too long (max = 1024)"))
-	tk.MustExec("alter block ct1 add key (e) comment '" + invalidComment + "'")
+	tk.MustInterDirc("alter causet ct1 add key (e) comment '" + invalidComment + "'")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1688|Comment for index 'e' is too long (max = 1024)"))
 
-	tk.MustExec("drop block if exists ct, ct1")
+	tk.MustInterDirc("drop causet if exists ct, ct1")
 }
 
 func (s *testSerialDBSuite) TestRebaseAutoID(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange", `return(true)`), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange"), IsNil)
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
+	tk.MustInterDirc("use " + s.schemaName)
 
-	tk.MustExec("drop database if exists milevadb;")
-	tk.MustExec("create database milevadb;")
-	tk.MustExec("use milevadb;")
-	tk.MustExec("create block milevadb.test (a int auto_increment primary key, b int);")
-	tk.MustExec("insert milevadb.test values (null, 1);")
+	tk.MustInterDirc("drop database if exists milevadb;")
+	tk.MustInterDirc("create database milevadb;")
+	tk.MustInterDirc("use milevadb;")
+	tk.MustInterDirc("create causet milevadb.test (a int auto_increment primary key, b int);")
+	tk.MustInterDirc("insert milevadb.test values (null, 1);")
 	tk.MustQuery("select * from milevadb.test").Check(testkit.Rows("1 1"))
-	tk.MustExec("alter block milevadb.test auto_increment = 6000;")
-	tk.MustExec("insert milevadb.test values (null, 1);")
+	tk.MustInterDirc("alter causet milevadb.test auto_increment = 6000;")
+	tk.MustInterDirc("insert milevadb.test values (null, 1);")
 	tk.MustQuery("select * from milevadb.test").Check(testkit.Rows("1 1", "6000 1"))
-	tk.MustExec("alter block milevadb.test auto_increment = 5;")
-	tk.MustExec("insert milevadb.test values (null, 1);")
+	tk.MustInterDirc("alter causet milevadb.test auto_increment = 5;")
+	tk.MustInterDirc("insert milevadb.test values (null, 1);")
 	tk.MustQuery("select * from milevadb.test").Check(testkit.Rows("1 1", "6000 1", "11000 1"))
 
-	// Current range for block test is [11000, 15999].
+	// Current range for causet test is [11000, 15999].
 	// Though it does not have a tuple "a = 15999", its global next auto increment id should be 16000.
 	// Anyway it is not compatible with MyALLEGROSQL.
-	tk.MustExec("alter block milevadb.test auto_increment = 12000;")
-	tk.MustExec("insert milevadb.test values (null, 1);")
+	tk.MustInterDirc("alter causet milevadb.test auto_increment = 12000;")
+	tk.MustInterDirc("insert milevadb.test values (null, 1);")
 	tk.MustQuery("select * from milevadb.test").Check(testkit.Rows("1 1", "6000 1", "11000 1", "16000 1"))
 
-	tk.MustExec("create block milevadb.test2 (a int);")
-	tk.MustGetErrCode("alter block milevadb.test2 add defCausumn b int auto_increment key, auto_increment=10;", errno.ErrUnsupportedDBSOperation)
+	tk.MustInterDirc("create causet milevadb.test2 (a int);")
+	tk.MustGetErrCode("alter causet milevadb.test2 add defCausumn b int auto_increment key, auto_increment=10;", errno.ErrUnsupportedDBSOperation)
 }
 
 func (s *testDBSuite5) TestCheckDeferredCausetDefaultValue(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists text_default_text;")
-	tk.MustGetErrCode("create block text_default_text(c1 text not null default '');", errno.ErrBlobCantHaveDefault)
-	tk.MustGetErrCode("create block text_default_text(c1 text not null default 'scds');", errno.ErrBlobCantHaveDefault)
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists text_default_text;")
+	tk.MustGetErrCode("create causet text_default_text(c1 text not null default '');", errno.ErrBlobCantHaveDefault)
+	tk.MustGetErrCode("create causet text_default_text(c1 text not null default 'scds');", errno.ErrBlobCantHaveDefault)
 
-	tk.MustExec("drop block if exists text_default_json;")
-	tk.MustGetErrCode("create block text_default_json(c1 json not null default '');", errno.ErrBlobCantHaveDefault)
-	tk.MustGetErrCode("create block text_default_json(c1 json not null default 'dfew555');", errno.ErrBlobCantHaveDefault)
+	tk.MustInterDirc("drop causet if exists text_default_json;")
+	tk.MustGetErrCode("create causet text_default_json(c1 json not null default '');", errno.ErrBlobCantHaveDefault)
+	tk.MustGetErrCode("create causet text_default_json(c1 json not null default 'dfew555');", errno.ErrBlobCantHaveDefault)
 
-	tk.MustExec("drop block if exists text_default_blob;")
-	tk.MustGetErrCode("create block text_default_blob(c1 blob not null default '');", errno.ErrBlobCantHaveDefault)
-	tk.MustGetErrCode("create block text_default_blob(c1 blob not null default 'scds54');", errno.ErrBlobCantHaveDefault)
+	tk.MustInterDirc("drop causet if exists text_default_blob;")
+	tk.MustGetErrCode("create causet text_default_blob(c1 blob not null default '');", errno.ErrBlobCantHaveDefault)
+	tk.MustGetErrCode("create causet text_default_blob(c1 blob not null default 'scds54');", errno.ErrBlobCantHaveDefault)
 
-	tk.MustExec("set sql_mode='';")
-	tk.MustExec("create block text_default_text(c1 text not null default '');")
-	tk.MustQuery(`show create block text_default_text`).Check(solitonutil.RowsWithSep("|",
+	tk.MustInterDirc("set sql_mode='';")
+	tk.MustInterDirc("create causet text_default_text(c1 text not null default '');")
+	tk.MustQuery(`show create causet text_default_text`).Check(solitonutil.RowsWithSep("|",
 		"text_default_text CREATE TABLE `text_default_text` (\n"+
 			"  `c1` text NOT NULL\n"+
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
@@ -3479,8 +3479,8 @@ func (s *testDBSuite5) TestCheckDeferredCausetDefaultValue(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tblInfo.Meta().DeferredCausets[0].DefaultValue, Equals, "")
 
-	tk.MustExec("create block text_default_blob(c1 blob not null default '');")
-	tk.MustQuery(`show create block text_default_blob`).Check(solitonutil.RowsWithSep("|",
+	tk.MustInterDirc("create causet text_default_blob(c1 blob not null default '');")
+	tk.MustQuery(`show create causet text_default_blob`).Check(solitonutil.RowsWithSep("|",
 		"text_default_blob CREATE TABLE `text_default_blob` (\n"+
 			"  `c1` blob NOT NULL\n"+
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
@@ -3490,8 +3490,8 @@ func (s *testDBSuite5) TestCheckDeferredCausetDefaultValue(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tblInfo.Meta().DeferredCausets[0].DefaultValue, Equals, "")
 
-	tk.MustExec("create block text_default_json(c1 json not null default '');")
-	tk.MustQuery(`show create block text_default_json`).Check(solitonutil.RowsWithSep("|",
+	tk.MustInterDirc("create causet text_default_json(c1 json not null default '');")
+	tk.MustQuery(`show create causet text_default_json`).Check(solitonutil.RowsWithSep("|",
 		"text_default_json CREATE TABLE `text_default_json` (\n"+
 			"  `c1` json NOT NULL DEFAULT 'null'\n"+
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
@@ -3504,36 +3504,36 @@ func (s *testDBSuite5) TestCheckDeferredCausetDefaultValue(c *C) {
 
 func (s *testDBSuite1) TestCharacterSetInDeferredCausets(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("create database varchar_test;")
-	defer tk.MustExec("drop database varchar_test;")
-	tk.MustExec("use varchar_test")
-	tk.MustExec("create block t (c1 int, s1 varchar(10), s2 text)")
+	tk.MustInterDirc("create database varchar_test;")
+	defer tk.MustInterDirc("drop database varchar_test;")
+	tk.MustInterDirc("use varchar_test")
+	tk.MustInterDirc("create causet t (c1 int, s1 varchar(10), s2 text)")
 	tk.MustQuery("select count(*) from information_schema.defCausumns where block_schema = 'varchar_test' and character_set_name != 'utf8mb4'").Check(testkit.Rows("0"))
 	tk.MustQuery("select count(*) from information_schema.defCausumns where block_schema = 'varchar_test' and character_set_name = 'utf8mb4'").Check(testkit.Rows("2"))
 
-	tk.MustExec("create block t1(id int) charset=UTF8;")
-	tk.MustExec("create block t2(id int) charset=BINARY;")
-	tk.MustExec("create block t3(id int) charset=LATIN1;")
-	tk.MustExec("create block t4(id int) charset=ASCII;")
-	tk.MustExec("create block t5(id int) charset=UTF8MB4;")
+	tk.MustInterDirc("create causet t1(id int) charset=UTF8;")
+	tk.MustInterDirc("create causet t2(id int) charset=BINARY;")
+	tk.MustInterDirc("create causet t3(id int) charset=LATIN1;")
+	tk.MustInterDirc("create causet t4(id int) charset=ASCII;")
+	tk.MustInterDirc("create causet t5(id int) charset=UTF8MB4;")
 
-	tk.MustExec("create block t11(id int) charset=utf8;")
-	tk.MustExec("create block t12(id int) charset=binary;")
-	tk.MustExec("create block t13(id int) charset=latin1;")
-	tk.MustExec("create block t14(id int) charset=ascii;")
-	tk.MustExec("create block t15(id int) charset=utf8mb4;")
+	tk.MustInterDirc("create causet t11(id int) charset=utf8;")
+	tk.MustInterDirc("create causet t12(id int) charset=binary;")
+	tk.MustInterDirc("create causet t13(id int) charset=latin1;")
+	tk.MustInterDirc("create causet t14(id int) charset=ascii;")
+	tk.MustInterDirc("create causet t15(id int) charset=utf8mb4;")
 }
 
 func (s *testDBSuite2) TestAddNotNullDeferredCausetWhileInsertOnDupUFIDelate(c *C) {
 	tk1 := testkit.NewTestKit(c, s.causetstore)
-	tk1.MustExec("use " + s.schemaName)
+	tk1.MustInterDirc("use " + s.schemaName)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use " + s.schemaName)
+	tk2.MustInterDirc("use " + s.schemaName)
 	closeCh := make(chan bool)
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	tk1.MustExec("create block nn (a int primary key, b int)")
-	tk1.MustExec("insert nn values (1, 1)")
+	tk1.MustInterDirc("create causet nn (a int primary key, b int)")
+	tk1.MustInterDirc("insert nn values (1, 1)")
 	var tk2Err error
 	go func() {
 		defer wg.Done()
@@ -3543,13 +3543,13 @@ func (s *testDBSuite2) TestAddNotNullDeferredCausetWhileInsertOnDupUFIDelate(c *
 				return
 			default:
 			}
-			_, tk2Err = tk2.Exec("insert nn (a, b) values (1, 1) on duplicate key uFIDelate a = 1, b = values(b) + 1")
+			_, tk2Err = tk2.InterDirc("insert nn (a, b) values (1, 1) on duplicate key uFIDelate a = 1, b = values(b) + 1")
 			if tk2Err != nil {
 				return
 			}
 		}
 	}()
-	tk1.MustExec("alter block nn add defCausumn c int not null default 3 after a")
+	tk1.MustInterDirc("alter causet nn add defCausumn c int not null default 3 after a")
 	close(closeCh)
 	wg.Wait()
 	c.Assert(tk2Err, IsNil)
@@ -3558,15 +3558,15 @@ func (s *testDBSuite2) TestAddNotNullDeferredCausetWhileInsertOnDupUFIDelate(c *
 
 func (s *testDBSuite3) TestDeferredCausetModifyingDefinition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists test2;")
-	tk.MustExec("create block test2 (c1 int, c2 int, c3 int default 1, index (c1));")
-	tk.MustExec("alter block test2 change c2 a int not null;")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists test2;")
+	tk.MustInterDirc("create causet test2 (c1 int, c2 int, c3 int default 1, index (c1));")
+	tk.MustInterDirc("alter causet test2 change c2 a int not null;")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	t, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("test2"))
 	c.Assert(err, IsNil)
-	var c2 *block.DeferredCauset
+	var c2 *causet.DeferredCauset
 	for _, defCaus := range t.DefCauss() {
 		if defCaus.Name.L == "a" {
 			c2 = defCaus
@@ -3574,62 +3574,62 @@ func (s *testDBSuite3) TestDeferredCausetModifyingDefinition(c *C) {
 	}
 	c.Assert(allegrosql.HasNotNullFlag(c2.Flag), IsTrue)
 
-	tk.MustExec("drop block if exists test2;")
-	tk.MustExec("create block test2 (c1 int, c2 int, c3 int default 1, index (c1));")
-	tk.MustExec("insert into test2(c2) values (null);")
-	tk.MustGetErrCode("alter block test2 change c2 a int not null", errno.ErrInvalidUseOfNull)
-	tk.MustGetErrCode("alter block test2 change c1 a1 bigint not null;", allegrosql.WarnDataTruncated)
+	tk.MustInterDirc("drop causet if exists test2;")
+	tk.MustInterDirc("create causet test2 (c1 int, c2 int, c3 int default 1, index (c1));")
+	tk.MustInterDirc("insert into test2(c2) values (null);")
+	tk.MustGetErrCode("alter causet test2 change c2 a int not null", errno.ErrInvalidUseOfNull)
+	tk.MustGetErrCode("alter causet test2 change c1 a1 bigint not null;", allegrosql.WarnDataTruncated)
 }
 
 func (s *testDBSuite4) TestCheckTooBigFieldLength(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists tr_01;")
-	tk.MustExec("create block tr_01 (id int, name varchar(20000), purchased date )  default charset=utf8 defCauslate=utf8_bin;")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists tr_01;")
+	tk.MustInterDirc("create causet tr_01 (id int, name varchar(20000), purchased date )  default charset=utf8 defCauslate=utf8_bin;")
 
-	tk.MustExec("drop block if exists tr_02;")
-	tk.MustExec("create block tr_02 (id int, name varchar(16000), purchased date )  default charset=utf8mb4 defCauslate=utf8mb4_bin;")
+	tk.MustInterDirc("drop causet if exists tr_02;")
+	tk.MustInterDirc("create causet tr_02 (id int, name varchar(16000), purchased date )  default charset=utf8mb4 defCauslate=utf8mb4_bin;")
 
-	tk.MustExec("drop block if exists tr_03;")
-	tk.MustExec("create block tr_03 (id int, name varchar(65534), purchased date ) default charset=latin1;")
+	tk.MustInterDirc("drop causet if exists tr_03;")
+	tk.MustInterDirc("create causet tr_03 (id int, name varchar(65534), purchased date ) default charset=latin1;")
 
-	tk.MustExec("drop block if exists tr_04;")
-	tk.MustExec("create block tr_04 (a varchar(20000) ) default charset utf8;")
-	tk.MustGetErrCode("alter block tr_04 add defCausumn b varchar(20000) charset utf8mb4;", errno.ErrTooBigFieldlength)
-	tk.MustGetErrCode("alter block tr_04 convert to character set utf8mb4;", errno.ErrTooBigFieldlength)
-	tk.MustGetErrCode("create block tr (id int, name varchar(30000), purchased date )  default charset=utf8 defCauslate=utf8_bin;", errno.ErrTooBigFieldlength)
-	tk.MustGetErrCode("create block tr (id int, name varchar(20000) charset utf8mb4, purchased date ) default charset=utf8 defCauslate=utf8_bin;", errno.ErrTooBigFieldlength)
-	tk.MustGetErrCode("create block tr (id int, name varchar(65536), purchased date ) default charset=latin1;", errno.ErrTooBigFieldlength)
+	tk.MustInterDirc("drop causet if exists tr_04;")
+	tk.MustInterDirc("create causet tr_04 (a varchar(20000) ) default charset utf8;")
+	tk.MustGetErrCode("alter causet tr_04 add defCausumn b varchar(20000) charset utf8mb4;", errno.ErrTooBigFieldlength)
+	tk.MustGetErrCode("alter causet tr_04 convert to character set utf8mb4;", errno.ErrTooBigFieldlength)
+	tk.MustGetErrCode("create causet tr (id int, name varchar(30000), purchased date )  default charset=utf8 defCauslate=utf8_bin;", errno.ErrTooBigFieldlength)
+	tk.MustGetErrCode("create causet tr (id int, name varchar(20000) charset utf8mb4, purchased date ) default charset=utf8 defCauslate=utf8_bin;", errno.ErrTooBigFieldlength)
+	tk.MustGetErrCode("create causet tr (id int, name varchar(65536), purchased date ) default charset=latin1;", errno.ErrTooBigFieldlength)
 
-	tk.MustExec("drop block if exists tr_05;")
-	tk.MustExec("create block tr_05 (a varchar(16000) charset utf8);")
-	tk.MustExec("alter block tr_05 modify defCausumn a varchar(16000) charset utf8;")
-	tk.MustExec("alter block tr_05 modify defCausumn a varchar(16000) charset utf8mb4;")
+	tk.MustInterDirc("drop causet if exists tr_05;")
+	tk.MustInterDirc("create causet tr_05 (a varchar(16000) charset utf8);")
+	tk.MustInterDirc("alter causet tr_05 modify defCausumn a varchar(16000) charset utf8;")
+	tk.MustInterDirc("alter causet tr_05 modify defCausumn a varchar(16000) charset utf8mb4;")
 }
 
 func (s *testDBSuite5) TestCheckConvertToCharacter(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	defer tk.MustExec("drop block t")
-	tk.MustExec("create block t(a varchar(10) charset binary);")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	defer tk.MustInterDirc("drop causet t")
+	tk.MustInterDirc("create causet t(a varchar(10) charset binary);")
 	ctx := tk.Se.(stochastikctx.Context)
 	is := petri.GetPetri(ctx).SchemaReplicant()
 	t, err := is.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	tk.MustGetErrCode("alter block t modify defCausumn a varchar(10) charset utf8 defCauslate utf8_bin", errno.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t modify defCausumn a varchar(10) charset utf8mb4 defCauslate utf8mb4_bin", errno.ErrUnsupportedDBSOperation)
-	tk.MustGetErrCode("alter block t modify defCausumn a varchar(10) charset latin1 defCauslate latin1_bin", errno.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t modify defCausumn a varchar(10) charset utf8 defCauslate utf8_bin", errno.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t modify defCausumn a varchar(10) charset utf8mb4 defCauslate utf8mb4_bin", errno.ErrUnsupportedDBSOperation)
+	tk.MustGetErrCode("alter causet t modify defCausumn a varchar(10) charset latin1 defCauslate latin1_bin", errno.ErrUnsupportedDBSOperation)
 	c.Assert(t.DefCauss()[0].Charset, Equals, "binary")
 }
 
 func (s *testDBSuite5) TestModifyDeferredCausetRollBack(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (c1 int, c2 int, c3 int default 1, index (c1));")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (c1 int, c2 int, c3 int default 1, index (c1));")
 
-	var c2 *block.DeferredCauset
+	var c2 *causet.DeferredCauset
 	var checkErr error
 	hook := &dbs.TestDBSCallback{}
 	hook.OnJobUFIDelatedExported = func(job *perceptron.Job) {
@@ -3686,12 +3686,12 @@ func (s *testDBSuite5) TestModifyDeferredCausetRollBack(c *C) {
 	originalHook := s.dom.DBS().GetHook()
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
-	go backgroundExec(s.causetstore, "alter block t1 change c2 c2 bigint not null;", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 change c2 c2 bigint not null;", done)
 
 	err := <-done
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:8214]Cancelled DBS job")
-	s.mustExec(tk, c, "insert into t1(c2) values (null);")
+	s.mustInterDirc(tk, c, "insert into t1(c2) values (null);")
 
 	t := s.testGetBlock(c, "t1")
 	for _, defCaus := range t.DefCauss() {
@@ -3701,7 +3701,7 @@ func (s *testDBSuite5) TestModifyDeferredCausetRollBack(c *C) {
 	}
 	c.Assert(allegrosql.HasNotNullFlag(c2.Flag), IsFalse)
 	s.dom.DBS().(dbs.DBSForTest).SetHook(originalHook)
-	s.mustExec(tk, c, "drop block t1")
+	s.mustInterDirc(tk, c, "drop causet t1")
 }
 
 func (s *testSerialDBSuite) TestModifyDeferredCausetNullToNotNullWithChangingVal2(c *C) {
@@ -3715,31 +3715,31 @@ func (s *testSerialDBSuite) TestModifyDeferredCausetNullToNotNullWithChangingVal
 		failpoint.Disable("github.com/whtcorpsinc/milevadb/dbs/mockInsertValueAfterCheckNull")
 	}()
 
-	tk.MustExec(`create block tt (a bigint, b int, unique index idx(a));`)
-	tk.MustExec("insert into tt values (1,1),(2,2),(3,3);")
-	_, err := tk.Exec("alter block tt modify a int not null;")
+	tk.MustInterDirc(`create causet tt (a bigint, b int, unique index idx(a));`)
+	tk.MustInterDirc("insert into tt values (1,1),(2,2),(3,3);")
+	_, err := tk.InterDirc("alter causet tt modify a int not null;")
 	c.Assert(err.Error(), Equals, "[dbs:1265]Data truncated for defCausumn 'a' at event 1")
-	tk.MustExec("drop block tt")
+	tk.MustInterDirc("drop causet tt")
 }
 
 func (s *testDBSuite1) TestModifyDeferredCausetNullToNotNull(c *C) {
-	sql1 := "alter block t1 change c2 c2 int not null;"
-	sql2 := "alter block t1 change c2 c2 int not null;"
+	sql1 := "alter causet t1 change c2 c2 int not null;"
+	sql2 := "alter causet t1 change c2 c2 int not null;"
 	testModifyDeferredCausetNullToNotNull(c, s.testDBSuite, false, sql1, sql2)
 }
 
 func (s *testSerialDBSuite) TestModifyDeferredCausetNullToNotNullWithChangingVal(c *C) {
-	sql1 := "alter block t1 change c2 c2 tinyint not null;"
-	sql2 := "alter block t1 change c2 c2 tinyint not null;"
+	sql1 := "alter causet t1 change c2 c2 tinyint not null;"
+	sql2 := "alter causet t1 change c2 c2 tinyint not null;"
 	testModifyDeferredCausetNullToNotNull(c, s.testDBSuite, true, sql1, sql2)
 	c2 := getModifyDeferredCauset(c, s.s.(stochastikctx.Context), s.schemaName, "t1", "c2", false)
 	c.Assert(c2.FieldType.Tp, Equals, allegrosql.TypeTiny)
 }
 
-func getModifyDeferredCauset(c *C, ctx stochastikctx.Context, EDB, tbl, defCausName string, allDeferredCauset bool) *block.DeferredCauset {
+func getModifyDeferredCauset(c *C, ctx stochastikctx.Context, EDB, tbl, defCausName string, allDeferredCauset bool) *causet.DeferredCauset {
 	t := testGetBlockByName(c, ctx, EDB, tbl)
 	defCausName = strings.ToLower(defCausName)
-	var defcaus []*block.DeferredCauset
+	var defcaus []*causet.DeferredCauset
 	if allDeferredCauset {
 		defcaus = t.(*blocks.BlockCommon).DeferredCausets
 	} else {
@@ -3756,10 +3756,10 @@ func getModifyDeferredCauset(c *C, ctx stochastikctx.Context, EDB, tbl, defCausN
 func testModifyDeferredCausetNullToNotNull(c *C, s *testDBSuite, enableChangeDeferredCausetType bool, sql1, sql2 string) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test_db")
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (c1 int, c2 int);")
+	tk2.MustInterDirc("use test_db")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (c1 int, c2 int);")
 
 	if enableChangeDeferredCausetType {
 		enableChangeDeferredCausetType := tk.Se.GetStochastikVars().EnableChangeDeferredCausetType
@@ -3778,19 +3778,19 @@ func testModifyDeferredCausetNullToNotNull(c *C, s *testDBSuite, enableChangeDef
 	// Check insert null before job first uFIDelate.
 	times := 0
 	hook := &dbs.TestDBSCallback{}
-	tk.MustExec("delete from t1")
+	tk.MustInterDirc("delete from t1")
 	var checkErr error
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
 		if tbl.Meta().ID != job.BlockID {
 			return
 		}
 		if times == 0 {
-			_, checkErr = tk2.Exec("insert into t1 values ();")
+			_, checkErr = tk2.InterDirc("insert into t1 values ();")
 		}
 		times++
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	_, err := tk.Exec(sql1)
+	_, err := tk.InterDirc(sql1)
 	c.Assert(checkErr, IsNil)
 	c.Assert(err, NotNil)
 	if enableChangeDeferredCausetType {
@@ -3801,7 +3801,7 @@ func testModifyDeferredCausetNullToNotNull(c *C, s *testDBSuite, enableChangeDef
 	tk.MustQuery("select * from t1").Check(testkit.Rows("<nil> <nil>"))
 
 	// Check insert error when defCausumn has PreventNullInsertFlag.
-	tk.MustExec("delete from t1")
+	tk.MustInterDirc("delete from t1")
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
 		if tbl.Meta().ID != job.BlockID {
 			return
@@ -3810,27 +3810,27 @@ func testModifyDeferredCausetNullToNotNull(c *C, s *testDBSuite, enableChangeDef
 			return
 		}
 		// now c2 has PreventNullInsertFlag, an error is expected.
-		_, checkErr = tk2.Exec("insert into t1 values ();")
+		_, checkErr = tk2.InterDirc("insert into t1 values ();")
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
-	tk.MustExec(sql2)
-	c.Assert(checkErr.Error(), Equals, "[block:1048]DeferredCauset 'c2' cannot be null")
+	tk.MustInterDirc(sql2)
+	c.Assert(checkErr.Error(), Equals, "[causet:1048]DeferredCauset 'c2' cannot be null")
 
 	c2 := getModifyDeferredCauset(c, s.s.(stochastikctx.Context), s.schemaName, "t1", "c2", false)
 	c.Assert(allegrosql.HasNotNullFlag(c2.Flag), IsTrue)
 	c.Assert(allegrosql.HasPreventNullInsertFlag(c2.Flag), IsFalse)
-	_, err = tk.Exec("insert into t1 values ();")
+	_, err = tk.InterDirc("insert into t1 values ();")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[block:1364]Field 'c2' doesn't have a default value")
+	c.Assert(err.Error(), Equals, "[causet:1364]Field 'c2' doesn't have a default value")
 }
 
 func (s *testDBSuite2) TestTransactionOnAddDropDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (a int, b int);")
-	s.mustExec(tk, c, "create block t2 (a int, b int);")
-	s.mustExec(tk, c, "insert into t2 values (2,0)")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (a int, b int);")
+	s.mustInterDirc(tk, c, "create causet t2 (a int, b int);")
+	s.mustInterDirc(tk, c, "insert into t2 values (2,0)")
 
 	transactions := [][]string{
 		{
@@ -3863,7 +3863,7 @@ func (s *testDBSuite2) TestTransactionOnAddDropDeferredCauset(c *C) {
 		// do transaction.
 		for _, transaction := range transactions {
 			for _, allegrosql := range transaction {
-				if _, checkErr = tk.Exec(allegrosql); checkErr != nil {
+				if _, checkErr = tk.InterDirc(allegrosql); checkErr != nil {
 					checkErr = errors.Errorf("err: %s, allegrosql: %s, job schemaReplicant state: %s", checkErr.Error(), allegrosql, job.SchemaState)
 					return
 				}
@@ -3873,15 +3873,15 @@ func (s *testDBSuite2) TestTransactionOnAddDropDeferredCauset(c *C) {
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
 	// test transaction on add defCausumn.
-	go backgroundExec(s.causetstore, "alter block t1 add defCausumn c int not null after a", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 add defCausumn c int not null after a", done)
 	err := <-done
 	c.Assert(err, IsNil)
 	c.Assert(checkErr, IsNil)
 	tk.MustQuery("select a,b from t1 order by a").Check(testkit.Rows("1 1", "1 1", "1 1", "2 2", "2 2", "2 2"))
-	s.mustExec(tk, c, "delete from t1")
+	s.mustInterDirc(tk, c, "delete from t1")
 
 	// test transaction on drop defCausumn.
-	go backgroundExec(s.causetstore, "alter block t1 drop defCausumn c", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 drop defCausumn c", done)
 	err = <-done
 	c.Assert(err, IsNil)
 	c.Assert(checkErr, IsNil)
@@ -3890,9 +3890,9 @@ func (s *testDBSuite2) TestTransactionOnAddDropDeferredCauset(c *C) {
 
 func (s *testDBSuite3) TestTransactionWithWriteOnlyDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (a int key);")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (a int key);")
 
 	transactions := [][]string{
 		{
@@ -3919,7 +3919,7 @@ func (s *testDBSuite3) TestTransactionWithWriteOnlyDeferredCauset(c *C) {
 		// do transaction.
 		for _, transaction := range transactions {
 			for _, allegrosql := range transaction {
-				if _, checkErr = tk.Exec(allegrosql); checkErr != nil {
+				if _, checkErr = tk.InterDirc(allegrosql); checkErr != nil {
 					checkErr = errors.Errorf("err: %s, allegrosql: %s, job schemaReplicant state: %s", checkErr.Error(), allegrosql, job.SchemaState)
 					return
 				}
@@ -3929,15 +3929,15 @@ func (s *testDBSuite3) TestTransactionWithWriteOnlyDeferredCauset(c *C) {
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
 	// test transaction on add defCausumn.
-	go backgroundExec(s.causetstore, "alter block t1 add defCausumn c int not null", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 add defCausumn c int not null", done)
 	err := <-done
 	c.Assert(err, IsNil)
 	c.Assert(checkErr, IsNil)
 	tk.MustQuery("select a from t1").Check(testkit.Rows("2"))
-	s.mustExec(tk, c, "delete from t1")
+	s.mustInterDirc(tk, c, "delete from t1")
 
 	// test transaction on drop defCausumn.
-	go backgroundExec(s.causetstore, "alter block t1 drop defCausumn c", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 drop defCausumn c", done)
 	err = <-done
 	c.Assert(err, IsNil)
 	c.Assert(checkErr, IsNil)
@@ -3946,15 +3946,15 @@ func (s *testDBSuite3) TestTransactionWithWriteOnlyDeferredCauset(c *C) {
 
 func (s *testDBSuite4) TestAddDeferredCauset2(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	s.mustExec(tk, c, "use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (a int key, b int);")
-	defer s.mustExec(tk, c, "drop block if exists t1, t2")
+	s.mustInterDirc(tk, c, "use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (a int key, b int);")
+	defer s.mustInterDirc(tk, c, "drop causet if exists t1, t2")
 
 	originHook := s.dom.DBS().GetHook()
 	defer s.dom.DBS().(dbs.DBSForTest).SetHook(originHook)
 	hook := &dbs.TestDBSCallback{}
-	var writeOnlyBlock block.Block
+	var writeOnlyBlock causet.Block
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
 		if job.SchemaState == perceptron.StateWriteOnly {
 			writeOnlyBlock, _ = s.dom.SchemaReplicant().BlockByID(job.BlockID)
@@ -3963,11 +3963,11 @@ func (s *testDBSuite4) TestAddDeferredCauset2(c *C) {
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 	done := make(chan error, 1)
 	// test transaction on add defCausumn.
-	go backgroundExec(s.causetstore, "alter block t1 add defCausumn c int not null", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t1 add defCausumn c int not null", done)
 	err := <-done
 	c.Assert(err, IsNil)
 
-	s.mustExec(tk, c, "insert into t1 values (1,1,1)")
+	s.mustInterDirc(tk, c, "insert into t1 values (1,1,1)")
 	tk.MustQuery("select a,b,c from t1").Check(testkit.Rows("1 1 1"))
 
 	// mock for outdated milevadb uFIDelate record.
@@ -3980,7 +3980,7 @@ func (s *testDBSuite4) TestAddDeferredCauset2(c *C) {
 	c.Assert(len(oldRow), Equals, 3)
 	err = writeOnlyBlock.RemoveRecord(tk.Se, ekv.IntHandle(1), oldRow)
 	c.Assert(err, IsNil)
-	_, err = writeOnlyBlock.AddRecord(tk.Se, types.MakeCausets(oldRow[0].GetInt64(), 2, oldRow[2].GetInt64()), block.IsUFIDelate)
+	_, err = writeOnlyBlock.AddRecord(tk.Se, types.MakeCausets(oldRow[0].GetInt64(), 2, oldRow[2].GetInt64()), causet.IsUFIDelate)
 	c.Assert(err, IsNil)
 	tk.Se.StmtCommit()
 	err = tk.Se.CommitTxn(ctx)
@@ -3990,22 +3990,22 @@ func (s *testDBSuite4) TestAddDeferredCauset2(c *C) {
 
 	// Test for _milevadb_rowid
 	var re *testkit.Result
-	s.mustExec(tk, c, "create block t2 (a int);")
+	s.mustInterDirc(tk, c, "create causet t2 (a int);")
 	hook.OnJobRunBeforeExported = func(job *perceptron.Job) {
 		if job.SchemaState != perceptron.StateWriteOnly {
 			return
 		}
 		// allow write _milevadb_rowid first
-		s.mustExec(tk, c, "set @@milevadb_opt_write_row_id=1")
-		s.mustExec(tk, c, "begin")
-		s.mustExec(tk, c, "insert into t2 (a,_milevadb_rowid) values (1,2);")
+		s.mustInterDirc(tk, c, "set @@milevadb_opt_write_row_id=1")
+		s.mustInterDirc(tk, c, "begin")
+		s.mustInterDirc(tk, c, "insert into t2 (a,_milevadb_rowid) values (1,2);")
 		re = tk.MustQuery(" select a,_milevadb_rowid from t2;")
-		s.mustExec(tk, c, "commit")
+		s.mustInterDirc(tk, c, "commit")
 
 	}
 	s.dom.DBS().(dbs.DBSForTest).SetHook(hook)
 
-	go backgroundExec(s.causetstore, "alter block t2 add defCausumn b int not null default 3", done)
+	go backgroundInterDirc(s.causetstore, "alter causet t2 add defCausumn b int not null default 3", done)
 	err = <-done
 	c.Assert(err, IsNil)
 	re.Check(testkit.Rows("1 2"))
@@ -4014,105 +4014,105 @@ func (s *testDBSuite4) TestAddDeferredCauset2(c *C) {
 
 func (s *testDBSuite4) TestIfNotExists(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (a int key);")
+	tk.MustInterDirc("use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (a int key);")
 
 	// ADD COLUMN
-	allegrosql := "alter block t1 add defCausumn b int"
-	s.mustExec(tk, c, allegrosql)
+	allegrosql := "alter causet t1 add defCausumn b int"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrDupFieldName)
-	s.mustExec(tk, c, "alter block t1 add defCausumn if not exists b int")
+	s.mustInterDirc(tk, c, "alter causet t1 add defCausumn if not exists b int")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1060|Duplicate defCausumn name 'b'"))
 
 	// ADD INDEX
-	allegrosql = "alter block t1 add index idx_b (b)"
-	s.mustExec(tk, c, allegrosql)
+	allegrosql = "alter causet t1 add index idx_b (b)"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrDupKeyName)
-	s.mustExec(tk, c, "alter block t1 add index if not exists idx_b (b)")
+	s.mustInterDirc(tk, c, "alter causet t1 add index if not exists idx_b (b)")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1061|index already exist idx_b"))
 
 	// CREATE INDEX
 	allegrosql = "create index idx_b on t1 (b)"
 	tk.MustGetErrCode(allegrosql, errno.ErrDupKeyName)
-	s.mustExec(tk, c, "create index if not exists idx_b on t1 (b)")
+	s.mustInterDirc(tk, c, "create index if not exists idx_b on t1 (b)")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1061|index already exist idx_b"))
 
 	// ADD PARTITION
-	s.mustExec(tk, c, "drop block if exists t2")
-	s.mustExec(tk, c, "create block t2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
-	allegrosql = "alter block t2 add partition (partition p2 values less than (30))"
-	s.mustExec(tk, c, allegrosql)
+	s.mustInterDirc(tk, c, "drop causet if exists t2")
+	s.mustInterDirc(tk, c, "create causet t2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
+	allegrosql = "alter causet t2 add partition (partition p2 values less than (30))"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrSameNamePartition)
-	s.mustExec(tk, c, "alter block t2 add partition if not exists (partition p2 values less than (30))")
+	s.mustInterDirc(tk, c, "alter causet t2 add partition if not exists (partition p2 values less than (30))")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1517|Duplicate partition name p2"))
 }
 
 func (s *testDBSuite4) TestIfExists(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	s.mustExec(tk, c, "drop block if exists t1")
-	s.mustExec(tk, c, "create block t1 (a int key, b int);")
+	tk.MustInterDirc("use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t1")
+	s.mustInterDirc(tk, c, "create causet t1 (a int key, b int);")
 
 	// DROP COLUMN
-	allegrosql := "alter block t1 drop defCausumn b"
-	s.mustExec(tk, c, allegrosql)
+	allegrosql := "alter causet t1 drop defCausumn b"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrCantDropFieldOrKey)
-	s.mustExec(tk, c, "alter block t1 drop defCausumn if exists b") // only `a` exists now
+	s.mustInterDirc(tk, c, "alter causet t1 drop defCausumn if exists b") // only `a` exists now
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1091|defCausumn b doesn't exist"))
 
 	// CHANGE COLUMN
-	allegrosql = "alter block t1 change defCausumn b c int"
+	allegrosql = "alter causet t1 change defCausumn b c int"
 	tk.MustGetErrCode(allegrosql, errno.ErrBadField)
-	s.mustExec(tk, c, "alter block t1 change defCausumn if exists b c int")
+	s.mustInterDirc(tk, c, "alter causet t1 change defCausumn if exists b c int")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1054|Unknown defCausumn 'b' in 't1'"))
-	s.mustExec(tk, c, "alter block t1 change defCausumn if exists a c int") // only `c` exists now
+	s.mustInterDirc(tk, c, "alter causet t1 change defCausumn if exists a c int") // only `c` exists now
 
 	// MODIFY COLUMN
-	allegrosql = "alter block t1 modify defCausumn a bigint"
+	allegrosql = "alter causet t1 modify defCausumn a bigint"
 	tk.MustGetErrCode(allegrosql, errno.ErrBadField)
-	s.mustExec(tk, c, "alter block t1 modify defCausumn if exists a bigint")
+	s.mustInterDirc(tk, c, "alter causet t1 modify defCausumn if exists a bigint")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1054|Unknown defCausumn 'a' in 't1'"))
-	s.mustExec(tk, c, "alter block t1 modify defCausumn if exists c bigint") // only `c` exists now
+	s.mustInterDirc(tk, c, "alter causet t1 modify defCausumn if exists c bigint") // only `c` exists now
 
 	// DROP INDEX
-	s.mustExec(tk, c, "alter block t1 add index idx_c (c)")
-	allegrosql = "alter block t1 drop index idx_c"
-	s.mustExec(tk, c, allegrosql)
+	s.mustInterDirc(tk, c, "alter causet t1 add index idx_c (c)")
+	allegrosql = "alter causet t1 drop index idx_c"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrCantDropFieldOrKey)
-	s.mustExec(tk, c, "alter block t1 drop index if exists idx_c")
+	s.mustInterDirc(tk, c, "alter causet t1 drop index if exists idx_c")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1091|index idx_c doesn't exist"))
 
 	// DROP PARTITION
-	s.mustExec(tk, c, "drop block if exists t2")
-	s.mustExec(tk, c, "create block t2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
-	allegrosql = "alter block t2 drop partition p1"
-	s.mustExec(tk, c, allegrosql)
+	s.mustInterDirc(tk, c, "drop causet if exists t2")
+	s.mustInterDirc(tk, c, "create causet t2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
+	allegrosql = "alter causet t2 drop partition p1"
+	s.mustInterDirc(tk, c, allegrosql)
 	tk.MustGetErrCode(allegrosql, errno.ErrDropPartitionNonExistent)
-	s.mustExec(tk, c, "alter block t2 drop partition if exists p1")
+	s.mustInterDirc(tk, c, "alter causet t2 drop partition if exists p1")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Note|1507|Error in list of partitions to p1"))
 }
 
 func testAddIndexForGeneratedDeferredCauset(tk *testkit.TestKit, s *testSerialDBSuite, c *C) {
-	tk.MustExec("use test_db")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(y year NOT NULL DEFAULT '2155')")
-	defer s.mustExec(tk, c, "drop block t;")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(y year NOT NULL DEFAULT '2155')")
+	defer s.mustInterDirc(tk, c, "drop causet t;")
 	for i := 0; i < 50; i++ {
-		s.mustExec(tk, c, "insert into t values (?)", i)
+		s.mustInterDirc(tk, c, "insert into t values (?)", i)
 	}
-	tk.MustExec("insert into t values()")
-	tk.MustExec("ALTER TABLE t ADD COLUMN y1 year as (y + 2)")
-	_, err := tk.Exec("ALTER TABLE t ADD INDEX idx_y(y1)")
+	tk.MustInterDirc("insert into t values()")
+	tk.MustInterDirc("ALTER TABLE t ADD COLUMN y1 year as (y + 2)")
+	_, err := tk.InterDirc("ALTER TABLE t ADD INDEX idx_y(y1)")
 	c.Assert(err, IsNil)
 
 	t := s.testGetBlock(c, "t")
@@ -4121,26 +4121,26 @@ func testAddIndexForGeneratedDeferredCauset(tk *testkit.TestKit, s *testSerialDB
 	}
 	// NOTE: this test case contains a bug, it should be uncommented after the bug is fixed.
 	// TODO: Fix bug https://github.com/whtcorpsinc/milevadb/issues/12181
-	//s.mustExec(c, "delete from t where y = 2155")
-	//s.mustExec(c, "alter block t add index idx_y(y1)")
-	//s.mustExec(c, "alter block t drop index idx_y")
+	//s.mustInterDirc(c, "delete from t where y = 2155")
+	//s.mustInterDirc(c, "alter causet t add index idx_y(y1)")
+	//s.mustInterDirc(c, "alter causet t drop index idx_y")
 
 	// Fix issue 9311.
-	tk.MustExec("drop block if exists gcai_block")
-	tk.MustExec("create block gcai_block (id int primary key);")
-	tk.MustExec("insert into gcai_block values(1);")
-	tk.MustExec("ALTER TABLE gcai_block ADD COLUMN d date DEFAULT '9999-12-31';")
-	tk.MustExec("ALTER TABLE gcai_block ADD COLUMN d1 date as (DATE_SUB(d, INTERVAL 31 DAY));")
-	tk.MustExec("ALTER TABLE gcai_block ADD INDEX idx(d1);")
+	tk.MustInterDirc("drop causet if exists gcai_block")
+	tk.MustInterDirc("create causet gcai_block (id int primary key);")
+	tk.MustInterDirc("insert into gcai_block values(1);")
+	tk.MustInterDirc("ALTER TABLE gcai_block ADD COLUMN d date DEFAULT '9999-12-31';")
+	tk.MustInterDirc("ALTER TABLE gcai_block ADD COLUMN d1 date as (DATE_SUB(d, INTERVAL 31 DAY));")
+	tk.MustInterDirc("ALTER TABLE gcai_block ADD INDEX idx(d1);")
 	tk.MustQuery("select * from gcai_block").Check(testkit.Rows("1 9999-12-31 9999-11-30"))
 	tk.MustQuery("select d1 from gcai_block use index(idx)").Check(testkit.Rows("9999-11-30"))
-	tk.MustExec("admin check block gcai_block")
-	// The defCausumn is PKIsHandle in generated defCausumn expression.
-	tk.MustExec("ALTER TABLE gcai_block ADD COLUMN id1 int as (id+5);")
-	tk.MustExec("ALTER TABLE gcai_block ADD INDEX idx1(id1);")
+	tk.MustInterDirc("admin check causet gcai_block")
+	// The defCausumn is PKIsHandle in generated defCausumn memex.
+	tk.MustInterDirc("ALTER TABLE gcai_block ADD COLUMN id1 int as (id+5);")
+	tk.MustInterDirc("ALTER TABLE gcai_block ADD INDEX idx1(id1);")
 	tk.MustQuery("select * from gcai_block").Check(testkit.Rows("1 9999-12-31 9999-11-30 6"))
 	tk.MustQuery("select id1 from gcai_block use index(idx1)").Check(testkit.Rows("6"))
-	tk.MustExec("admin check block gcai_block")
+	tk.MustInterDirc("admin check causet gcai_block")
 }
 func (s *testSerialDBSuite) TestAddIndexForGeneratedDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
@@ -4150,168 +4150,168 @@ func (s *testSerialDBSuite) TestAddIndexForGeneratedDeferredCauset(c *C) {
 	})
 
 	testAddIndexForGeneratedDeferredCauset(tk, s, c)
-	tk.MustExec("set @@milevadb_enable_clustered_index = 1;")
+	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1;")
 	testAddIndexForGeneratedDeferredCauset(tk, s, c)
 }
 
 func (s *testDBSuite5) TestModifyGeneratedDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("create database if not exists test;")
-	tk.MustExec("use test")
+	tk.MustInterDirc("create database if not exists test;")
+	tk.MustInterDirc("use test")
 	modIdxDefCausErrMsg := "[dbs:3106]'modifying an indexed defCausumn' is not supported for generated defCausumns."
 	modStoredDefCausErrMsg := "[dbs:3106]'modifying a stored defCausumn' is not supported for generated defCausumns."
 
 	// Modify defCausumn with single-defCaus-index.
-	tk.MustExec("drop block if exists t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1), index idx(b));")
-	tk.MustExec("insert into t1 set a=1;")
-	_, err := tk.Exec("alter block t1 modify defCausumn b int as (a+2);")
+	tk.MustInterDirc("drop causet if exists t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1), index idx(b));")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	_, err := tk.InterDirc("alter causet t1 modify defCausumn b int as (a+2);")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, modIdxDefCausErrMsg)
-	tk.MustExec("drop index idx on t1;")
-	tk.MustExec("alter block t1 modify b int as (a+2);")
+	tk.MustInterDirc("drop index idx on t1;")
+	tk.MustInterDirc("alter causet t1 modify b int as (a+2);")
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 3"))
 
 	// Modify defCausumn with multi-defCaus-index.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1), index idx(a, b));")
-	tk.MustExec("insert into t1 set a=1;")
-	_, err = tk.Exec("alter block t1 modify defCausumn b int as (a+2);")
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1), index idx(a, b));")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	_, err = tk.InterDirc("alter causet t1 modify defCausumn b int as (a+2);")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, modIdxDefCausErrMsg)
-	tk.MustExec("drop index idx on t1;")
-	tk.MustExec("alter block t1 modify b int as (a+2);")
+	tk.MustInterDirc("drop index idx on t1;")
+	tk.MustInterDirc("alter causet t1 modify b int as (a+2);")
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 3"))
 
-	// Modify defCausumn with stored status to a different expression.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1) stored);")
-	tk.MustExec("insert into t1 set a=1;")
-	_, err = tk.Exec("alter block t1 modify defCausumn b int as (a+2) stored;")
+	// Modify defCausumn with stored status to a different memex.
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1) stored);")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	_, err = tk.InterDirc("alter causet t1 modify defCausumn b int as (a+2) stored;")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, modStoredDefCausErrMsg)
 
-	// Modify defCausumn with stored status to the same expression.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1) stored);")
-	tk.MustExec("insert into t1 set a=1;")
-	tk.MustExec("alter block t1 modify defCausumn b bigint as (a+1) stored;")
-	tk.MustExec("alter block t1 modify defCausumn b bigint as (a + 1) stored;")
+	// Modify defCausumn with stored status to the same memex.
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1) stored);")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	tk.MustInterDirc("alter causet t1 modify defCausumn b bigint as (a+1) stored;")
+	tk.MustInterDirc("alter causet t1 modify defCausumn b bigint as (a + 1) stored;")
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 2"))
 
-	// Modify defCausumn with index to the same expression.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1), index idx(b));")
-	tk.MustExec("insert into t1 set a=1;")
-	tk.MustExec("alter block t1 modify defCausumn b bigint as (a+1);")
-	tk.MustExec("alter block t1 modify defCausumn b bigint as (a + 1);")
+	// Modify defCausumn with index to the same memex.
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1), index idx(b));")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	tk.MustInterDirc("alter causet t1 modify defCausumn b bigint as (a+1);")
+	tk.MustInterDirc("alter causet t1 modify defCausumn b bigint as (a + 1);")
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 2"))
 
 	// Modify defCausumn from non-generated to stored generated.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int);")
-	_, err = tk.Exec("alter block t1 modify defCausumn b bigint as (a+1) stored;")
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int);")
+	_, err = tk.InterDirc("alter causet t1 modify defCausumn b bigint as (a+1) stored;")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, modStoredDefCausErrMsg)
 
 	// Modify defCausumn from stored generated to non-generated.
-	tk.MustExec("drop block t1;")
-	tk.MustExec("create block t1 (a int, b int as (a+1) stored);")
-	tk.MustExec("insert into t1 set a=1;")
-	tk.MustExec("alter block t1 modify defCausumn b int;")
+	tk.MustInterDirc("drop causet t1;")
+	tk.MustInterDirc("create causet t1 (a int, b int as (a+1) stored);")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	tk.MustInterDirc("alter causet t1 modify defCausumn b int;")
 	tk.MustQuery("select * from t1").Check(testkit.Rows("1 2"))
 }
 
 func (s *testDBSuite5) TestDefaultALLEGROSQLFunction(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("create database if not exists test;")
-	tk.MustExec("use test;")
-	tk.MustExec("drop block if exists t1, t2, t3, t4;")
+	tk.MustInterDirc("create database if not exists test;")
+	tk.MustInterDirc("use test;")
+	tk.MustInterDirc("drop causet if exists t1, t2, t3, t4;")
 
 	// For issue #13189
-	// Use `DEFAULT()` in `INSERT` / `INSERT ON DUPLICATE KEY UFIDelATE` statement
-	tk.MustExec("create block t1(a int primary key, b int default 20, c int default 30, d int default 40);")
-	tk.MustExec("insert into t1 set a = 1, b = default(c);")
+	// Use `DEFAULT()` in `INSERT` / `INSERT ON DUPLICATE KEY UFIDelATE` memex
+	tk.MustInterDirc("create causet t1(a int primary key, b int default 20, c int default 30, d int default 40);")
+	tk.MustInterDirc("insert into t1 set a = 1, b = default(c);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 30 30 40"))
-	tk.MustExec("insert into t1 set a = 2, b = default(c), c = default(d), d = default(b);")
+	tk.MustInterDirc("insert into t1 set a = 2, b = default(c), c = default(d), d = default(b);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 30 30 40", "2 30 40 20"))
-	tk.MustExec("insert into t1 values (2, 3, 4, 5) on duplicate key uFIDelate b = default(d), c = default(b);")
+	tk.MustInterDirc("insert into t1 values (2, 3, 4, 5) on duplicate key uFIDelate b = default(d), c = default(b);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 30 30 40", "2 40 20 20"))
-	tk.MustExec("delete from t1")
-	tk.MustExec("insert into t1 set a = default(b) + default(c) - default(d)")
+	tk.MustInterDirc("delete from t1")
+	tk.MustInterDirc("insert into t1 set a = default(b) + default(c) - default(d)")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("10 20 30 40"))
-	// Use `DEFAULT()` in `UFIDelATE` statement
-	tk.MustExec("delete from t1;")
-	tk.MustExec("insert into t1 value (1, 2, 3, 4);")
-	tk.MustExec("uFIDelate t1 set a = 1, c = default(b);")
+	// Use `DEFAULT()` in `UFIDelATE` memex
+	tk.MustInterDirc("delete from t1;")
+	tk.MustInterDirc("insert into t1 value (1, 2, 3, 4);")
+	tk.MustInterDirc("uFIDelate t1 set a = 1, c = default(b);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 2 20 4"))
-	tk.MustExec("insert into t1 value (2, 2, 3, 4);")
-	tk.MustExec("uFIDelate t1 set c = default(b), b = default(c) where a = 2;")
+	tk.MustInterDirc("insert into t1 value (2, 2, 3, 4);")
+	tk.MustInterDirc("uFIDelate t1 set c = default(b), b = default(c) where a = 2;")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 2 20 4", "2 30 20 4"))
-	tk.MustExec("delete from t1")
-	tk.MustExec("insert into t1 set a = 10")
-	tk.MustExec("uFIDelate t1 set a = 10, b = default(c) + default(d)")
+	tk.MustInterDirc("delete from t1")
+	tk.MustInterDirc("insert into t1 set a = 10")
+	tk.MustInterDirc("uFIDelate t1 set a = 10, b = default(c) + default(d)")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("10 70 30 40"))
-	// Use `DEFAULT()` in `REPLACE` statement
-	tk.MustExec("delete from t1;")
-	tk.MustExec("insert into t1 value (1, 2, 3, 4);")
-	tk.MustExec("replace into t1 set a = 1, c = default(b);")
+	// Use `DEFAULT()` in `REPLACE` memex
+	tk.MustInterDirc("delete from t1;")
+	tk.MustInterDirc("insert into t1 value (1, 2, 3, 4);")
+	tk.MustInterDirc("replace into t1 set a = 1, c = default(b);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 20 20 40"))
-	tk.MustExec("insert into t1 value (2, 2, 3, 4);")
-	tk.MustExec("replace into t1 set a = 2, d = default(b), c = default(d);")
+	tk.MustInterDirc("insert into t1 value (2, 2, 3, 4);")
+	tk.MustInterDirc("replace into t1 set a = 2, d = default(b), c = default(d);")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("1 20 20 40", "2 20 40 20"))
-	tk.MustExec("delete from t1")
-	tk.MustExec("insert into t1 set a = 10, c = 3")
-	tk.MustExec("replace into t1 set a = 10, b = default(c) + default(d)")
+	tk.MustInterDirc("delete from t1")
+	tk.MustInterDirc("insert into t1 set a = 10, c = 3")
+	tk.MustInterDirc("replace into t1 set a = 10, b = default(c) + default(d)")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("10 70 30 40"))
-	tk.MustExec("replace into t1 set a = 20, d = default(c) + default(b)")
+	tk.MustInterDirc("replace into t1 set a = 20, d = default(c) + default(b)")
 	tk.MustQuery("select * from t1;").Check(testkit.Rows("10 70 30 40", "20 20 30 50"))
 
-	// Use `DEFAULT()` in expression of generate defCausumns, issue #12471
-	tk.MustExec("create block t2(a int default 9, b int as (1 + default(a)));")
-	tk.MustExec("insert into t2 values(1, default);")
+	// Use `DEFAULT()` in memex of generate defCausumns, issue #12471
+	tk.MustInterDirc("create causet t2(a int default 9, b int as (1 + default(a)));")
+	tk.MustInterDirc("insert into t2 values(1, default);")
 	tk.MustQuery("select * from t2;").Check(testkit.Rows("1 10"))
 
 	// Use `DEFAULT()` with subquery, issue #13390
-	tk.MustExec("create block t3(f1 int default 11);")
-	tk.MustExec("insert into t3 value ();")
+	tk.MustInterDirc("create causet t3(f1 int default 11);")
+	tk.MustInterDirc("insert into t3 value ();")
 	tk.MustQuery("select default(f1) from (select * from t3) t1;").Check(testkit.Rows("11"))
 	tk.MustQuery("select default(f1) from (select * from (select * from t3) t1 ) t1;").Check(testkit.Rows("11"))
 
-	tk.MustExec("create block t4(a int default 4);")
-	tk.MustExec("insert into t4 value (2);")
+	tk.MustInterDirc("create causet t4(a int default 4);")
+	tk.MustInterDirc("insert into t4 value (2);")
 	tk.MustQuery("select default(c) from (select b as c from (select a as b from t4) t3) t2;").Check(testkit.Rows("4"))
 	tk.MustGetErrCode("select default(a) from (select a from (select 1 as a) t4) t4;", errno.ErrNoDefaultForField)
 
-	tk.MustExec("drop block t1, t2, t3, t4;")
+	tk.MustInterDirc("drop causet t1, t2, t3, t4;")
 }
 
 func (s *testDBSuite4) TestIssue9100(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("create block employ (a int, b int) partition by range (b) (partition p0 values less than (1));")
-	_, err := tk.Exec("alter block employ add unique index p_a (a);")
-	c.Assert(err.Error(), Equals, "[dbs:1503]A UNIQUE INDEX must include all defCausumns in the block's partitioning function")
-	_, err = tk.Exec("alter block employ add primary key p_a (a);")
-	c.Assert(err.Error(), Equals, "[dbs:1503]A PRIMARY must include all defCausumns in the block's partitioning function")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("create causet employ (a int, b int) partition by range (b) (partition p0 values less than (1));")
+	_, err := tk.InterDirc("alter causet employ add unique index p_a (a);")
+	c.Assert(err.Error(), Equals, "[dbs:1503]A UNIQUE INDEX must include all defCausumns in the causet's partitioning function")
+	_, err = tk.InterDirc("alter causet employ add primary key p_a (a);")
+	c.Assert(err.Error(), Equals, "[dbs:1503]A PRIMARY must include all defCausumns in the causet's partitioning function")
 
-	tk.MustExec("create block issue9100t1 (defCaus1 int not null, defCaus2 date not null, defCaus3 int not null, unique key (defCaus1, defCaus2)) partition by range( defCaus1 ) (partition p1 values less than (11))")
-	tk.MustExec("alter block issue9100t1 add unique index p_defCaus1 (defCaus1)")
-	tk.MustExec("alter block issue9100t1 add primary key p_defCaus1 (defCaus1)")
+	tk.MustInterDirc("create causet issue9100t1 (defCaus1 int not null, defCaus2 date not null, defCaus3 int not null, unique key (defCaus1, defCaus2)) partition by range( defCaus1 ) (partition p1 values less than (11))")
+	tk.MustInterDirc("alter causet issue9100t1 add unique index p_defCaus1 (defCaus1)")
+	tk.MustInterDirc("alter causet issue9100t1 add primary key p_defCaus1 (defCaus1)")
 
-	tk.MustExec("create block issue9100t2 (defCaus1 int not null, defCaus2 date not null, defCaus3 int not null, unique key (defCaus1, defCaus3)) partition by range( defCaus1 + defCaus3 ) (partition p1 values less than (11))")
-	_, err = tk.Exec("alter block issue9100t2 add unique index p_defCaus1 (defCaus1)")
-	c.Assert(err.Error(), Equals, "[dbs:1503]A UNIQUE INDEX must include all defCausumns in the block's partitioning function")
-	_, err = tk.Exec("alter block issue9100t2 add primary key p_defCaus1 (defCaus1)")
-	c.Assert(err.Error(), Equals, "[dbs:1503]A PRIMARY must include all defCausumns in the block's partitioning function")
+	tk.MustInterDirc("create causet issue9100t2 (defCaus1 int not null, defCaus2 date not null, defCaus3 int not null, unique key (defCaus1, defCaus3)) partition by range( defCaus1 + defCaus3 ) (partition p1 values less than (11))")
+	_, err = tk.InterDirc("alter causet issue9100t2 add unique index p_defCaus1 (defCaus1)")
+	c.Assert(err.Error(), Equals, "[dbs:1503]A UNIQUE INDEX must include all defCausumns in the causet's partitioning function")
+	_, err = tk.InterDirc("alter causet issue9100t2 add primary key p_defCaus1 (defCaus1)")
+	c.Assert(err.Error(), Equals, "[dbs:1503]A PRIMARY must include all defCausumns in the causet's partitioning function")
 }
 
 func (s *testSerialDBSuite) TestProcessDeferredCausetFlags(c *C) {
 	// check `processDeferredCausetFlags()`
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("create block t(a year(4) comment 'xxx', b year, c bit)")
-	defer s.mustExec(tk, c, "drop block t;")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("create causet t(a year(4) comment 'xxx', b year, c bit)")
+	defer s.mustInterDirc(tk, c, "drop causet t;")
 
 	check := func(n string, f func(uint) bool) {
 		t := testGetBlockByName(c, tk.Se, "test_db", "t")
@@ -4327,18 +4327,18 @@ func (s *testSerialDBSuite) TestProcessDeferredCausetFlags(c *C) {
 		return allegrosql.HasUnsignedFlag(f) && allegrosql.HasZerofillFlag(f) && !allegrosql.HasBinaryFlag(f)
 	}
 
-	tk.MustExec("alter block t modify a year(4)")
+	tk.MustInterDirc("alter causet t modify a year(4)")
 	check("a", yearcheck)
 
-	tk.MustExec("alter block t modify a year(4) unsigned")
+	tk.MustInterDirc("alter causet t modify a year(4) unsigned")
 	check("a", yearcheck)
 
-	tk.MustExec("alter block t modify a year(4) zerofill")
+	tk.MustInterDirc("alter causet t modify a year(4) zerofill")
 
-	tk.MustExec("alter block t modify b year")
+	tk.MustInterDirc("alter causet t modify b year")
 	check("b", yearcheck)
 
-	tk.MustExec("alter block t modify c bit")
+	tk.MustInterDirc("alter causet t modify c bit")
 	check("c", func(f uint) bool {
 		return allegrosql.HasUnsignedFlag(f) && !allegrosql.HasBinaryFlag(f)
 	})
@@ -4346,24 +4346,24 @@ func (s *testSerialDBSuite) TestProcessDeferredCausetFlags(c *C) {
 
 func (s *testSerialDBSuite) TestModifyDeferredCausetCharset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	tk.MustExec("create block t_mcc(a varchar(8) charset utf8, b varchar(8) charset utf8)")
-	defer s.mustExec(tk, c, "drop block t_mcc;")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("create causet t_mcc(a varchar(8) charset utf8, b varchar(8) charset utf8)")
+	defer s.mustInterDirc(tk, c, "drop causet t_mcc;")
 
-	result := tk.MustQuery(`show create block t_mcc`)
+	result := tk.MustQuery(`show create causet t_mcc`)
 	result.Check(testkit.Rows(
 		"t_mcc CREATE TABLE `t_mcc` (\n" +
 			"  `a` varchar(8) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,\n" +
 			"  `b` varchar(8) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL\n" +
 			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"))
 
-	tk.MustExec("alter block t_mcc modify defCausumn a varchar(8);")
+	tk.MustInterDirc("alter causet t_mcc modify defCausumn a varchar(8);")
 	t := s.testGetBlock(c, "t_mcc")
 	t.Meta().Version = perceptron.BlockInfoVersion0
-	// When the block version is BlockInfoVersion0, the following statement don't change "b" charset.
+	// When the causet version is BlockInfoVersion0, the following memex don't change "b" charset.
 	// So the behavior is not compatible with MyALLEGROSQL.
-	tk.MustExec("alter block t_mcc modify defCausumn b varchar(8);")
-	result = tk.MustQuery(`show create block t_mcc`)
+	tk.MustInterDirc("alter causet t_mcc modify defCausumn b varchar(8);")
+	result = tk.MustQuery(`show create causet t_mcc`)
 	result.Check(testkit.Rows(
 		"t_mcc CREATE TABLE `t_mcc` (\n" +
 			"  `a` varchar(8) DEFAULT NULL,\n" +
@@ -4376,34 +4376,34 @@ func (s *testSerialDBSuite) TestSetBlockFlashReplica(c *C) {
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount", `return(true)`), IsNil)
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db")
-	s.mustExec(tk, c, "drop block if exists t_flash;")
-	tk.MustExec("create block t_flash(a int, b int)")
-	defer s.mustExec(tk, c, "drop block t_flash;")
+	tk.MustInterDirc("use test_db")
+	s.mustInterDirc(tk, c, "drop causet if exists t_flash;")
+	tk.MustInterDirc("create causet t_flash(a int, b int)")
+	defer s.mustInterDirc(tk, c, "drop causet t_flash;")
 
 	t := s.testGetBlock(c, "t_flash")
 	c.Assert(t.Meta().TiFlashReplica, IsNil)
 
-	tk.MustExec("alter block t_flash set tiflash replica 2 location labels 'a','b';")
+	tk.MustInterDirc("alter causet t_flash set tiflash replica 2 location labels 'a','b';")
 	t = s.testGetBlock(c, "t_flash")
 	c.Assert(t.Meta().TiFlashReplica, NotNil)
 	c.Assert(t.Meta().TiFlashReplica.Count, Equals, uint64(2))
 	c.Assert(strings.Join(t.Meta().TiFlashReplica.LocationLabels, ","), Equals, "a,b")
 
-	tk.MustExec("alter block t_flash set tiflash replica 0")
+	tk.MustInterDirc("alter causet t_flash set tiflash replica 0")
 	t = s.testGetBlock(c, "t_flash")
 	c.Assert(t.Meta().TiFlashReplica, IsNil)
 
-	// Test set tiflash replica for partition block.
-	s.mustExec(tk, c, "drop block if exists t_flash;")
-	tk.MustExec("create block t_flash(a int, b int) partition by hash(a) partitions 3")
-	tk.MustExec("alter block t_flash set tiflash replica 2 location labels 'a','b';")
+	// Test set tiflash replica for partition causet.
+	s.mustInterDirc(tk, c, "drop causet if exists t_flash;")
+	tk.MustInterDirc("create causet t_flash(a int, b int) partition by hash(a) partitions 3")
+	tk.MustInterDirc("alter causet t_flash set tiflash replica 2 location labels 'a','b';")
 	t = s.testGetBlock(c, "t_flash")
 	c.Assert(t.Meta().TiFlashReplica, NotNil)
 	c.Assert(t.Meta().TiFlashReplica.Count, Equals, uint64(2))
 	c.Assert(strings.Join(t.Meta().TiFlashReplica.LocationLabels, ","), Equals, "a,b")
 
-	// Use block ID as physical ID, mock for partition feature was not enabled.
+	// Use causet ID as physical ID, mock for partition feature was not enabled.
 	err := petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, t.Meta().ID, true)
 	c.Assert(err, IsNil)
 	t = s.testGetBlock(c, "t_flash")
@@ -4450,7 +4450,7 @@ func (s *testSerialDBSuite) TestSetBlockFlashReplica(c *C) {
 	c.Assert(t.Meta().TiFlashReplica.Available, Equals, false)
 	c.Assert(t.Meta().TiFlashReplica.AvailablePartitionIDs, DeepEquals, []int64{partition.Definitions[0].ID, partition.Definitions[2].ID})
 
-	// Test for uFIDelate block replica with unknown block ID.
+	// Test for uFIDelate causet replica with unknown causet ID.
 	err = petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, math.MaxInt64, false)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[schemaReplicant:1146]Block which ID = 9223372036854775807 does not exist.")
@@ -4467,36 +4467,36 @@ func (s *testSerialDBSuite) TestSetBlockFlashReplica(c *C) {
 	failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	// Test for set replica count more than the tiflash causetstore count.
-	s.mustExec(tk, c, "drop block if exists t_flash;")
-	tk.MustExec("create block t_flash(a int, b int)")
-	_, err = tk.Exec("alter block t_flash set tiflash replica 2 location labels 'a','b';")
+	s.mustInterDirc(tk, c, "drop causet if exists t_flash;")
+	tk.MustInterDirc("create causet t_flash(a int, b int)")
+	_, err = tk.InterDirc("alter causet t_flash set tiflash replica 2 location labels 'a','b';")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "the tiflash replica count: 2 should be less than the total tiflash server count: 0")
 }
 
 func (s *testSerialDBSuite) TestAlterShardRowIDBits(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange", `return(true)`), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange"), IsNil)
 	}()
 
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	// Test alter shard_row_id_bits
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (a int) shard_row_id_bits = 5")
-	tk.MustExec(fmt.Sprintf("alter block t1 auto_increment = %d;", 1<<56))
-	tk.MustExec("insert into t1 set a=1;")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (a int) shard_row_id_bits = 5")
+	tk.MustInterDirc(fmt.Sprintf("alter causet t1 auto_increment = %d;", 1<<56))
+	tk.MustInterDirc("insert into t1 set a=1;")
 
 	// Test increase shard_row_id_bits failed by overflow global auto ID.
-	_, err := tk.Exec("alter block t1 SHARD_ROW_ID_BITS = 10;")
+	_, err := tk.InterDirc("alter causet t1 SHARD_ROW_ID_BITS = 10;")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[autoid:1467]shard_row_id_bits 10 will cause next global auto ID 72057594037932936 overflow")
 
 	// Test reduce shard_row_id_bits will be ok.
-	tk.MustExec("alter block t1 SHARD_ROW_ID_BITS = 3;")
+	tk.MustInterDirc("alter causet t1 SHARD_ROW_ID_BITS = 3;")
 	checkShardRowID := func(maxShardRowIDBits, shardRowIDBits uint64) {
 		tbl := testGetBlockByName(c, tk.Se, "test", "t1")
 		c.Assert(tbl.Meta().MaxShardRowIDBits == maxShardRowIDBits, IsTrue)
@@ -4505,69 +4505,69 @@ func (s *testSerialDBSuite) TestAlterShardRowIDBits(c *C) {
 	checkShardRowID(5, 3)
 
 	// Test reduce shard_row_id_bits but calculate overflow should use the max record shard_row_id_bits.
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (a int) shard_row_id_bits = 10")
-	tk.MustExec("alter block t1 SHARD_ROW_ID_BITS = 5;")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (a int) shard_row_id_bits = 10")
+	tk.MustInterDirc("alter causet t1 SHARD_ROW_ID_BITS = 5;")
 	checkShardRowID(10, 5)
-	tk.MustExec(fmt.Sprintf("alter block t1 auto_increment = %d;", 1<<56))
-	_, err = tk.Exec("insert into t1 set a=1;")
+	tk.MustInterDirc(fmt.Sprintf("alter causet t1 auto_increment = %d;", 1<<56))
+	_, err = tk.InterDirc("insert into t1 set a=1;")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[autoid:1467]Failed to read auto-increment value from storage engine")
 }
 
 // port from allegrosql
-// https://github.com/allegrosql/allegrosql-server/blob/124c7ab1d6f914637521fd4463a993aa73403513/allegrosql-test/t/lock.test
+// https://github.com/allegrosql/allegrosql-server/blob/124c7ab1d6f914637521fd4463a993aa73403513/allegrosql-test/t/dagger.test
 func (s *testDBSuite2) TestLock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 
-	/* Testing of block locking */
-	tk.MustExec("DROP TABLE IF EXISTS t1")
-	tk.MustExec("CREATE TABLE t1 (  `id` int(11) NOT NULL default '0', `id2` int(11) NOT NULL default '0', `id3` int(11) NOT NULL default '0', `dummy1` char(30) default NULL, PRIMARY KEY  (`id`,`id2`), KEY `index_id3` (`id3`))")
-	tk.MustExec("insert into t1 (id,id2) values (1,1),(1,2),(1,3)")
-	tk.MustExec("LOCK TABLE t1 WRITE")
-	tk.MustExec("select dummy1,count(distinct id) from t1 group by dummy1")
-	tk.MustExec("uFIDelate t1 set id=-1 where id=1")
-	tk.MustExec("LOCK TABLE t1 READ")
-	_, err := tk.Exec("uFIDelate t1 set id=1 where id=1")
+	/* Testing of causet locking */
+	tk.MustInterDirc("DROP TABLE IF EXISTS t1")
+	tk.MustInterDirc("CREATE TABLE t1 (  `id` int(11) NOT NULL default '0', `id2` int(11) NOT NULL default '0', `id3` int(11) NOT NULL default '0', `dummy1` char(30) default NULL, PRIMARY KEY  (`id`,`id2`), KEY `index_id3` (`id3`))")
+	tk.MustInterDirc("insert into t1 (id,id2) values (1,1),(1,2),(1,3)")
+	tk.MustInterDirc("LOCK TABLE t1 WRITE")
+	tk.MustInterDirc("select dummy1,count(distinct id) from t1 group by dummy1")
+	tk.MustInterDirc("uFIDelate t1 set id=-1 where id=1")
+	tk.MustInterDirc("LOCK TABLE t1 READ")
+	_, err := tk.InterDirc("uFIDelate t1 set id=1 where id=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
-	tk.MustExec("unlock blocks")
-	tk.MustExec("uFIDelate t1 set id=1 where id=-1")
-	tk.MustExec("drop block t1")
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("uFIDelate t1 set id=1 where id=-1")
+	tk.MustInterDirc("drop causet t1")
 }
 
 // port from allegrosql
 // https://github.com/allegrosql/allegrosql-server/blob/4f1d7cf5fcb11a3f84cff27e37100d7295e7d5ca/allegrosql-test/t/blocklock.test
 func (s *testDBSuite2) TestBlockLock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1,t2")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1,t2")
 
-	/* Test of lock blocks */
-	tk.MustExec("create block t1 ( n int auto_increment primary key)")
-	tk.MustExec("lock blocks t1 write")
-	tk.MustExec("insert into t1 values(NULL)")
-	tk.MustExec("unlock blocks")
+	/* Test of dagger blocks */
+	tk.MustInterDirc("create causet t1 ( n int auto_increment primary key)")
+	tk.MustInterDirc("dagger blocks t1 write")
+	tk.MustInterDirc("insert into t1 values(NULL)")
+	tk.MustInterDirc("unlock blocks")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockNone)
 
-	tk.MustExec("lock blocks t1 write")
-	tk.MustExec("insert into t1 values(NULL)")
-	tk.MustExec("unlock blocks")
+	tk.MustInterDirc("dagger blocks t1 write")
+	tk.MustInterDirc("insert into t1 values(NULL)")
+	tk.MustInterDirc("unlock blocks")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockNone)
 
-	tk.MustExec("drop block if exists t1")
+	tk.MustInterDirc("drop causet if exists t1")
 
 	/* Test of locking and delete of files */
-	tk.MustExec("drop block if exists t1,t2")
-	tk.MustExec("CREATE TABLE t1 (a int)")
-	tk.MustExec("CREATE TABLE t2 (a int)")
-	tk.MustExec("lock blocks t1 write, t2 write")
-	tk.MustExec("drop block t1,t2")
+	tk.MustInterDirc("drop causet if exists t1,t2")
+	tk.MustInterDirc("CREATE TABLE t1 (a int)")
+	tk.MustInterDirc("CREATE TABLE t2 (a int)")
+	tk.MustInterDirc("dagger blocks t1 write, t2 write")
+	tk.MustInterDirc("drop causet t1,t2")
 
-	tk.MustExec("CREATE TABLE t1 (a int)")
-	tk.MustExec("CREATE TABLE t2 (a int)")
-	tk.MustExec("lock blocks t1 write, t2 write")
-	tk.MustExec("drop block t2,t1")
+	tk.MustInterDirc("CREATE TABLE t1 (a int)")
+	tk.MustInterDirc("CREATE TABLE t2 (a int)")
+	tk.MustInterDirc("dagger blocks t1 write, t2 write")
+	tk.MustInterDirc("drop causet t2,t1")
 }
 
 // port from allegrosql
@@ -4575,72 +4575,72 @@ func (s *testDBSuite2) TestBlockLock(c *C) {
 func (s *testDBSuite2) TestBlockLocksLostCommit(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk2.MustExec("use test")
+	tk.MustInterDirc("use test")
+	tk2.MustInterDirc("use test")
 
-	tk.MustExec("DROP TABLE IF EXISTS t1")
-	tk.MustExec("CREATE TABLE t1(a INT)")
-	tk.MustExec("LOCK TABLES t1 WRITE")
-	tk.MustExec("INSERT INTO t1 VALUES(10)")
+	tk.MustInterDirc("DROP TABLE IF EXISTS t1")
+	tk.MustInterDirc("CREATE TABLE t1(a INT)")
+	tk.MustInterDirc("LOCK TABLES t1 WRITE")
+	tk.MustInterDirc("INSERT INTO t1 VALUES(10)")
 
-	_, err := tk2.Exec("SELECT * FROM t1")
+	_, err := tk2.InterDirc("SELECT * FROM t1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
 
 	tk.Se.Close()
 
-	tk2.MustExec("SELECT * FROM t1")
-	tk2.MustExec("DROP TABLE t1")
+	tk2.MustInterDirc("SELECT * FROM t1")
+	tk2.MustInterDirc("DROP TABLE t1")
 
-	tk.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
 }
 
-// test write local lock
+// test write local dagger
 func (s *testDBSuite2) TestWriteLocal(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk2.MustExec("use test")
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 ( n int auto_increment primary key)")
+	tk.MustInterDirc("use test")
+	tk2.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 ( n int auto_increment primary key)")
 
 	// Test: allow read
-	tk.MustExec("lock blocks t1 write local")
-	tk.MustExec("insert into t1 values(NULL)")
+	tk.MustInterDirc("dagger blocks t1 write local")
+	tk.MustInterDirc("insert into t1 values(NULL)")
 	tk2.MustQuery("select count(*) from t1")
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
 	// Test: forbid write
-	tk.MustExec("lock blocks t1 write local")
-	_, err := tk2.Exec("insert into t1 values(NULL)")
+	tk.MustInterDirc("dagger blocks t1 write local")
+	_, err := tk2.InterDirc("insert into t1 values(NULL)")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
-	// Test mutex: lock write local first
-	tk.MustExec("lock blocks t1 write local")
-	_, err = tk2.Exec("lock blocks t1 write local")
+	// Test mutex: dagger write local first
+	tk.MustInterDirc("dagger blocks t1 write local")
+	_, err = tk2.InterDirc("dagger blocks t1 write local")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("lock blocks t1 write")
+	_, err = tk2.InterDirc("dagger blocks t1 write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("lock blocks t1 read")
+	_, err = tk2.InterDirc("dagger blocks t1 read")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
-	// Test mutex: lock write first
-	tk.MustExec("lock blocks t1 write")
-	_, err = tk2.Exec("lock blocks t1 write local")
+	// Test mutex: dagger write first
+	tk.MustInterDirc("dagger blocks t1 write")
+	_, err = tk2.InterDirc("dagger blocks t1 write local")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
-	// Test mutex: lock read first
-	tk.MustExec("lock blocks t1 read")
-	_, err = tk2.Exec("lock blocks t1 write local")
+	// Test mutex: dagger read first
+	tk.MustInterDirc("dagger blocks t1 read")
+	_, err = tk2.InterDirc("dagger blocks t1 write local")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 }
 
 func (s *testSerialDBSuite) TestSkipSchemaChecker(c *C) {
@@ -4648,32 +4648,32 @@ func (s *testSerialDBSuite) TestSkipSchemaChecker(c *C) {
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (a int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (a int)")
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test")
+	tk2.MustInterDirc("use test")
 
 	// Test skip schemaReplicant checker for CausetActionSetTiFlashReplica.
-	tk.MustExec("begin")
-	tk.MustExec("insert into t1 set a=1;")
-	tk2.MustExec("alter block t1 set tiflash replica 2 location labels 'a','b';")
-	tk.MustExec("commit")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	tk2.MustInterDirc("alter causet t1 set tiflash replica 2 location labels 'a','b';")
+	tk.MustInterDirc("commit")
 
 	// Test skip schemaReplicant checker for CausetActionUFIDelateTiFlashReplicaStatus.
-	tk.MustExec("begin")
-	tk.MustExec("insert into t1 set a=1;")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t1 set a=1;")
 	tb := testGetBlockByName(c, tk.Se, "test", "t1")
 	err := petri.GetPetri(tk.Se).DBS().UFIDelateBlockReplicaInfo(tk.Se, tb.Meta().ID, true)
 	c.Assert(err, IsNil)
-	tk.MustExec("commit")
+	tk.MustInterDirc("commit")
 
 	// Test can't skip schemaReplicant checker.
-	tk.MustExec("begin")
-	tk.MustExec("insert into t1 set a=1;")
-	tk2.MustExec("alter block t1 add defCausumn b int;")
-	_, err = tk.Exec("commit")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t1 set a=1;")
+	tk2.MustInterDirc("alter causet t1 add defCausumn b int;")
+	_, err = tk.InterDirc("commit")
 	c.Assert(terror.ErrorEqual(petri.ErrSchemaReplicantChanged, err), IsTrue)
 }
 
@@ -4682,207 +4682,207 @@ func (s *testDBSuite2) TestLockBlocks(c *C) {
 		c.Skip("skip race test")
 	}
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1,t2")
-	defer tk.MustExec("drop block if exists t1,t2")
-	tk.MustExec("create block t1 (a int)")
-	tk.MustExec("create block t2 (a int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1,t2")
+	defer tk.MustInterDirc("drop causet if exists t1,t2")
+	tk.MustInterDirc("create causet t1 (a int)")
+	tk.MustInterDirc("create causet t2 (a int)")
 
-	// Test lock 1 block.
-	tk.MustExec("lock blocks t1 write")
+	// Test dagger 1 causet.
+	tk.MustInterDirc("dagger blocks t1 write")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockWrite)
-	tk.MustExec("lock blocks t1 read")
+	tk.MustInterDirc("dagger blocks t1 read")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockRead)
-	tk.MustExec("lock blocks t1 write")
+	tk.MustInterDirc("dagger blocks t1 write")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockWrite)
 
-	// Test lock multi blocks.
-	tk.MustExec("lock blocks t1 write, t2 read")
+	// Test dagger multi blocks.
+	tk.MustInterDirc("dagger blocks t1 write, t2 read")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockWrite)
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockRead)
-	tk.MustExec("lock blocks t1 read, t2 write")
+	tk.MustInterDirc("dagger blocks t1 read, t2 write")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockRead)
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockWrite)
-	tk.MustExec("lock blocks t2 write")
+	tk.MustInterDirc("dagger blocks t2 write")
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockWrite)
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockNone)
-	tk.MustExec("lock blocks t1 write")
+	tk.MustInterDirc("dagger blocks t1 write")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockWrite)
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockNone)
 
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test")
+	tk2.MustInterDirc("use test")
 
-	// Test read lock.
-	tk.MustExec("lock blocks t1 read")
+	// Test read dagger.
+	tk.MustInterDirc("dagger blocks t1 read")
 	tk.MustQuery("select * from t1")
 	tk2.MustQuery("select * from t1")
-	_, err := tk.Exec("insert into t1 set a=1")
+	_, err := tk.InterDirc("insert into t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
-	_, err = tk.Exec("uFIDelate t1 set a=1")
+	_, err = tk.InterDirc("uFIDelate t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
-	_, err = tk.Exec("delete from t1")
-	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
-
-	_, err = tk2.Exec("insert into t1 set a=1")
-	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("uFIDelate t1 set a=1")
-	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("delete from t1")
-	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk2.MustExec("lock blocks t1 read")
-	_, err = tk2.Exec("insert into t1 set a=1")
+	_, err = tk.InterDirc("delete from t1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
 
-	// Test write lock.
-	_, err = tk.Exec("lock blocks t1 write")
+	_, err = tk2.InterDirc("insert into t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk2.MustExec("unlock blocks")
-	tk.MustExec("lock blocks t1 write")
+	_, err = tk2.InterDirc("uFIDelate t1 set a=1")
+	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
+	_, err = tk2.InterDirc("delete from t1")
+	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
+	tk2.MustInterDirc("dagger blocks t1 read")
+	_, err = tk2.InterDirc("insert into t1 set a=1")
+	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLockedForWrite), IsTrue)
+
+	// Test write dagger.
+	_, err = tk.InterDirc("dagger blocks t1 write")
+	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
+	tk2.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger blocks t1 write")
 	tk.MustQuery("select * from t1")
-	tk.MustExec("delete from t1")
-	tk.MustExec("insert into t1 set a=1")
+	tk.MustInterDirc("delete from t1")
+	tk.MustInterDirc("insert into t1 set a=1")
 
-	_, err = tk2.Exec("select * from t1")
+	_, err = tk2.InterDirc("select * from t1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("insert into t1 set a=1")
+	_, err = tk2.InterDirc("insert into t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("lock blocks t1 write")
+	_, err = tk2.InterDirc("dagger blocks t1 write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
 
-	// Test write local lock.
-	tk.MustExec("lock blocks t1 write local")
+	// Test write local dagger.
+	tk.MustInterDirc("dagger blocks t1 write local")
 	tk.MustQuery("select * from t1")
-	tk.MustExec("delete from t1")
-	tk.MustExec("insert into t1 set a=1")
+	tk.MustInterDirc("delete from t1")
+	tk.MustInterDirc("insert into t1 set a=1")
 
 	tk2.MustQuery("select * from t1")
-	_, err = tk2.Exec("delete from t1")
+	_, err = tk2.InterDirc("delete from t1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("insert into t1 set a=1")
+	_, err = tk2.InterDirc("insert into t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("lock blocks t1 write")
+	_, err = tk2.InterDirc("dagger blocks t1 write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("lock blocks t1 read")
+	_, err = tk2.InterDirc("dagger blocks t1 read")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
 
-	// Test none unique block.
-	_, err = tk.Exec("lock blocks t1 read, t1 write")
+	// Test none unique causet.
+	_, err = tk.InterDirc("dagger blocks t1 read, t1 write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrNonuniqBlock), IsTrue)
 
-	// Test lock block by other stochastik in transaction and commit without retry.
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
-	tk.MustExec("set @@stochastik.milevadb_disable_txn_auto_retry=1")
-	tk.MustExec("begin")
-	tk.MustExec("insert into t1 set a=1")
-	tk2.MustExec("lock blocks t1 write")
-	_, err = tk.Exec("commit")
+	// Test dagger causet by other stochastik in transaction and commit without retry.
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("set @@stochastik.milevadb_disable_txn_auto_retry=1")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t1 set a=1")
+	tk2.MustInterDirc("dagger blocks t1 write")
+	_, err = tk.InterDirc("commit")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "previous statement: insert into t1 set a=1: [petri:8028]Information schemaReplicant is changed during the execution of the statement(for example, block definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
+	c.Assert(err.Error(), Equals, "previous memex: insert into t1 set a=1: [petri:8028]Information schemaReplicant is changed during the execution of the memex(for example, causet definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
 
-	// Test lock block by other stochastik in transaction and commit with retry.
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
-	tk.MustExec("set @@stochastik.milevadb_disable_txn_auto_retry=0")
-	tk.MustExec("begin")
-	tk.MustExec("insert into t1 set a=1")
-	tk2.MustExec("lock blocks t1 write")
-	_, err = tk.Exec("commit")
+	// Test dagger causet by other stochastik in transaction and commit with retry.
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("set @@stochastik.milevadb_disable_txn_auto_retry=0")
+	tk.MustInterDirc("begin")
+	tk.MustInterDirc("insert into t1 set a=1")
+	tk2.MustInterDirc("dagger blocks t1 write")
+	_, err = tk.InterDirc("commit")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue, Commentf("err: %v\n", err))
 
-	// Test for lock the same block multiple times.
-	tk2.MustExec("lock blocks t1 write")
-	tk2.MustExec("lock blocks t1 write, t2 read")
+	// Test for dagger the same causet multiple times.
+	tk2.MustInterDirc("dagger blocks t1 write")
+	tk2.MustInterDirc("dagger blocks t1 write, t2 read")
 
-	// Test lock blocks and drop blocks
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
-	tk.MustExec("lock blocks t1 write, t2 write")
-	tk.MustExec("drop block t1")
-	tk2.MustExec("create block t1 (a int)")
-	tk.MustExec("lock blocks t1 write, t2 read")
+	// Test dagger blocks and drop blocks
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger blocks t1 write, t2 write")
+	tk.MustInterDirc("drop causet t1")
+	tk2.MustInterDirc("create causet t1 (a int)")
+	tk.MustInterDirc("dagger blocks t1 write, t2 read")
 
-	// Test lock blocks and drop database.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("create database test_lock")
-	tk.MustExec("create block test_lock.t3 (a int)")
-	tk.MustExec("lock blocks t1 write, test_lock.t3 write")
-	tk2.MustExec("create block t3 (a int)")
-	tk.MustExec("lock blocks t1 write, t3 write")
-	tk.MustExec("drop block t3")
+	// Test dagger blocks and drop database.
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("create database test_lock")
+	tk.MustInterDirc("create causet test_lock.t3 (a int)")
+	tk.MustInterDirc("dagger blocks t1 write, test_lock.t3 write")
+	tk2.MustInterDirc("create causet t3 (a int)")
+	tk.MustInterDirc("dagger blocks t1 write, t3 write")
+	tk.MustInterDirc("drop causet t3")
 
-	// Test lock blocks and truncate blocks.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("lock blocks t1 write, t2 read")
-	tk.MustExec("truncate block t1")
-	tk.MustExec("insert into t1 set a=1")
-	_, err = tk2.Exec("insert into t1 set a=1")
+	// Test dagger blocks and truncate blocks.
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger blocks t1 write, t2 read")
+	tk.MustInterDirc("truncate causet t1")
+	tk.MustInterDirc("insert into t1 set a=1")
+	_, err = tk2.InterDirc("insert into t1 set a=1")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
 
-	// Test for lock unsupported schemaReplicant blocks.
-	_, err = tk2.Exec("lock blocks performance_schema.global_status write")
+	// Test for dagger unsupported schemaReplicant blocks.
+	_, err = tk2.InterDirc("dagger blocks performance_schema.global_status write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrAccessDenied), IsTrue)
-	_, err = tk2.Exec("lock blocks information_schema.blocks write")
+	_, err = tk2.InterDirc("dagger blocks information_schema.blocks write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrAccessDenied), IsTrue)
-	_, err = tk2.Exec("lock blocks allegrosql.EDB write")
+	_, err = tk2.InterDirc("dagger blocks allegrosql.EDB write")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrAccessDenied), IsTrue)
 
-	// Test create block/view when stochastik is holding the block locks.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("lock blocks t1 write, t2 read")
-	_, err = tk.Exec("create block t3 (a int)")
+	// Test create causet/view when stochastik is holding the causet locks.
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger blocks t1 write, t2 read")
+	_, err = tk.InterDirc("create causet t3 (a int)")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLocked), IsTrue)
-	_, err = tk.Exec("create view v1 as select * from t1;")
+	_, err = tk.InterDirc("create view v1 as select * from t1;")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockNotLocked), IsTrue)
 
 	// Test for locking view was not supported.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("create view v1 as select * from t1;")
-	_, err = tk.Exec("lock blocks v1 read")
-	c.Assert(terror.ErrorEqual(err, block.ErrUnsupportedOp), IsTrue)
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("create view v1 as select * from t1;")
+	_, err = tk.InterDirc("dagger blocks v1 read")
+	c.Assert(terror.ErrorEqual(err, causet.ErrUnsupportedOp), IsTrue)
 
 	// Test for locking sequence was not supported.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("create sequence seq")
-	_, err = tk.Exec("lock blocks seq read")
-	c.Assert(terror.ErrorEqual(err, block.ErrUnsupportedOp), IsTrue)
-	tk.MustExec("drop sequence seq")
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("create sequence seq")
+	_, err = tk.InterDirc("dagger blocks seq read")
+	c.Assert(terror.ErrorEqual(err, causet.ErrUnsupportedOp), IsTrue)
+	tk.MustInterDirc("drop sequence seq")
 
-	// Test for create/drop/alter database when stochastik is holding the block locks.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("lock block t1 write")
-	_, err = tk.Exec("drop database test")
-	c.Assert(terror.ErrorEqual(err, block.ErrLockOrActiveTransaction), IsTrue)
-	_, err = tk.Exec("create database test_lock")
-	c.Assert(terror.ErrorEqual(err, block.ErrLockOrActiveTransaction), IsTrue)
-	_, err = tk.Exec("alter database test charset='utf8mb4'")
-	c.Assert(terror.ErrorEqual(err, block.ErrLockOrActiveTransaction), IsTrue)
-	// Test alter/drop database when other stochastik is holding the block locks of the database.
-	tk2.MustExec("create database test_lock2")
-	_, err = tk2.Exec("drop database test")
+	// Test for create/drop/alter database when stochastik is holding the causet locks.
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger causet t1 write")
+	_, err = tk.InterDirc("drop database test")
+	c.Assert(terror.ErrorEqual(err, causet.ErrLockOrActiveTransaction), IsTrue)
+	_, err = tk.InterDirc("create database test_lock")
+	c.Assert(terror.ErrorEqual(err, causet.ErrLockOrActiveTransaction), IsTrue)
+	_, err = tk.InterDirc("alter database test charset='utf8mb4'")
+	c.Assert(terror.ErrorEqual(err, causet.ErrLockOrActiveTransaction), IsTrue)
+	// Test alter/drop database when other stochastik is holding the causet locks of the database.
+	tk2.MustInterDirc("create database test_lock2")
+	_, err = tk2.InterDirc("drop database test")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	_, err = tk2.Exec("alter database test charset='utf8mb4'")
+	_, err = tk2.InterDirc("alter database test charset='utf8mb4'")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
 
-	// Test for admin cleanup block locks.
-	tk.MustExec("unlock blocks")
-	tk.MustExec("lock block t1 write, t2 write")
-	_, err = tk2.Exec("lock blocks t1 write, t2 read")
+	// Test for admin cleanup causet locks.
+	tk.MustInterDirc("unlock blocks")
+	tk.MustInterDirc("dagger causet t1 write, t2 write")
+	_, err = tk2.InterDirc("dagger blocks t1 write, t2 read")
 	c.Assert(terror.ErrorEqual(err, schemareplicant.ErrBlockLocked), IsTrue)
-	tk2.MustExec("admin cleanup block lock t1,t2")
+	tk2.MustInterDirc("admin cleanup causet dagger t1,t2")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockNone)
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockNone)
-	// cleanup unlocked block.
-	tk2.MustExec("admin cleanup block lock t1,t2")
+	// cleanup unlocked causet.
+	tk2.MustInterDirc("admin cleanup causet dagger t1,t2")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockNone)
 	checkBlockLock(c, tk.Se, "test", "t2", perceptron.BlockLockNone)
-	tk2.MustExec("lock blocks t1 write, t2 read")
+	tk2.MustInterDirc("dagger blocks t1 write, t2 read")
 	checkBlockLock(c, tk2.Se, "test", "t1", perceptron.BlockLockWrite)
 	checkBlockLock(c, tk2.Se, "test", "t2", perceptron.BlockLockRead)
 
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 }
 
 func (s *testDBSuite2) TestBlocksLockDelayClean(c *C) {
@@ -4891,14 +4891,14 @@ func (s *testDBSuite2) TestBlocksLockDelayClean(c *C) {
 	}
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test")
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1,t2")
-	defer tk.MustExec("drop block if exists t1,t2")
-	tk.MustExec("create block t1 (a int)")
-	tk.MustExec("create block t2 (a int)")
+	tk2.MustInterDirc("use test")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1,t2")
+	defer tk.MustInterDirc("drop causet if exists t1,t2")
+	tk.MustInterDirc("create causet t1 (a int)")
+	tk.MustInterDirc("create causet t2 (a int)")
 
-	tk.MustExec("lock blocks t1 write")
+	tk.MustInterDirc("dagger blocks t1 write")
 	checkBlockLock(c, tk.Se, "test", "t1", perceptron.BlockLockWrite)
 	config.UFIDelateGlobal(func(conf *config.Config) {
 		conf.DelayCleanBlockLock = 100
@@ -4921,52 +4921,52 @@ func (s *testDBSuite2) TestBlocksLockDelayClean(c *C) {
 	})
 }
 
-// TestConcurrentLockBlocks test concurrent lock/unlock blocks.
+// TestConcurrentLockBlocks test concurrent dagger/unlock blocks.
 func (s *testDBSuite4) TestConcurrentLockBlocks(c *C) {
 	if israce.RaceEnabled {
 		c.Skip("skip race test")
 	}
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (a int)")
-	tk2.MustExec("use test")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (a int)")
+	tk2.MustInterDirc("use test")
 
-	// Test concurrent lock blocks read.
-	sql1 := "lock blocks t1 read"
-	sql2 := "lock blocks t1 read"
-	s.testParallelExecALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
+	// Test concurrent dagger blocks read.
+	sql1 := "dagger blocks t1 read"
+	sql2 := "dagger blocks t1 read"
+	s.testParallelInterDircALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, IsNil)
 	})
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
-	// Test concurrent lock blocks write.
-	sql1 = "lock blocks t1 write"
-	sql2 = "lock blocks t1 write"
-	s.testParallelExecALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
+	// Test concurrent dagger blocks write.
+	sql1 = "dagger blocks t1 write"
+	sql2 = "dagger blocks t1 write"
+	s.testParallelInterDircALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(terror.ErrorEqual(err2, schemareplicant.ErrBlockLocked), IsTrue)
 	})
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 
-	// Test concurrent lock blocks write local.
-	sql1 = "lock blocks t1 write local"
-	sql2 = "lock blocks t1 write local"
-	s.testParallelExecALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
+	// Test concurrent dagger blocks write local.
+	sql1 = "dagger blocks t1 write local"
+	sql2 = "dagger blocks t1 write local"
+	s.testParallelInterDircALLEGROSQL(c, sql1, sql2, tk.Se, tk2.Se, func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(terror.ErrorEqual(err2, schemareplicant.ErrBlockLocked), IsTrue)
 	})
 
-	tk.MustExec("unlock blocks")
-	tk2.MustExec("unlock blocks")
+	tk.MustInterDirc("unlock blocks")
+	tk2.MustInterDirc("unlock blocks")
 }
 
-func (s *testDBSuite4) testParallelExecALLEGROSQL(c *C, sql1, sql2 string, se1, se2 stochastik.Stochastik, f checkRet) {
+func (s *testDBSuite4) testParallelInterDircALLEGROSQL(c *C, sql1, sql2 string, se1, se2 stochastik.Stochastik, f checkRet) {
 	callback := &dbs.TestDBSCallback{}
 	times := 0
 	callback.OnJobRunBeforeExported = func(job *perceptron.Job) {
@@ -5024,12 +5024,12 @@ func (s *testDBSuite4) testParallelExecALLEGROSQL(c *C, sql1, sql2 string, se1, 
 	}()
 	go func() {
 		defer wg.Done()
-		_, err1 = se1.Execute(context.Background(), sql1)
+		_, err1 = se1.InterDircute(context.Background(), sql1)
 	}()
 	go func() {
 		defer wg.Done()
 		<-ch
-		_, err2 = se2.Execute(context.Background(), sql2)
+		_, err2 = se2.InterDircute(context.Background(), sql2)
 	}()
 
 	wg.Wait()
@@ -5054,11 +5054,11 @@ func checkBlockLock(c *C, se stochastik.Stochastik, dbName, blockName string, lo
 func (s *testDBSuite2) TestDBSWithInvalidBlockInfo(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	defer tk.MustExec("drop block if exists t")
-	// Test create with invalid expression.
-	_, err := tk.Exec(`CREATE TABLE t (
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	defer tk.MustInterDirc("drop causet if exists t")
+	// Test create with invalid memex.
+	_, err := tk.InterDirc(`CREATE TABLE t (
 		c0 int(11) ,
   		c1 int(11),
     	c2 decimal(16,4) GENERATED ALWAYS AS ((case when (c0 = 0) then 0when (c0 > 0) then (c1 / c0) end))
@@ -5066,87 +5066,87 @@ func (s *testDBSuite2) TestDBSWithInvalidBlockInfo(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 4 defCausumn 88 near \"then (c1 / c0) end))\n\t);\" ")
 
-	tk.MustExec("create block t (a bigint, b int, c int generated always as (b+1)) partition by hash(a) partitions 4;")
+	tk.MustInterDirc("create causet t (a bigint, b int, c int generated always as (b+1)) partition by hash(a) partitions 4;")
 	// Test drop partition defCausumn.
-	_, err = tk.Exec("alter block t drop defCausumn a;")
+	_, err = tk.InterDirc("alter causet t drop defCausumn a;")
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "[expression:1054]Unknown defCausumn 'a' in 'expression'")
-	// Test modify defCausumn with invalid expression.
-	_, err = tk.Exec("alter block t modify defCausumn c int GENERATED ALWAYS AS ((case when (a = 0) then 0when (a > 0) then (b / a) end));")
+	c.Assert(err.Error(), Equals, "[memex:1054]Unknown defCausumn 'a' in 'memex'")
+	// Test modify defCausumn with invalid memex.
+	_, err = tk.InterDirc("alter causet t modify defCausumn c int GENERATED ALWAYS AS ((case when (a = 0) then 0when (a > 0) then (b / a) end));")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 97 near \"then (b / a) end));\" ")
-	// Test add defCausumn with invalid expression.
-	_, err = tk.Exec("alter block t add defCausumn d int GENERATED ALWAYS AS ((case when (a = 0) then 0when (a > 0) then (b / a) end));")
+	// Test add defCausumn with invalid memex.
+	_, err = tk.InterDirc("alter causet t add defCausumn d int GENERATED ALWAYS AS ((case when (a = 0) then 0when (a > 0) then (b / a) end));")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[BerolinaSQL:1064]You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use line 1 defCausumn 94 near \"then (b / a) end));\" ")
 }
 
 func (s *testDBSuite4) TestDeferredCausetCheck(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("drop block if exists defCausumn_check")
-	tk.MustExec("create block defCausumn_check (pk int primary key, a int check (a > 1))")
-	defer tk.MustExec("drop block if exists defCausumn_check")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("drop causet if exists defCausumn_check")
+	tk.MustInterDirc("create causet defCausumn_check (pk int primary key, a int check (a > 1))")
+	defer tk.MustInterDirc("drop causet if exists defCausumn_check")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8231|DeferredCauset check is not supported"))
 }
 
 func (s *testDBSuite5) TestAlterCheck(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("drop block if exists alter_check")
-	tk.MustExec("create block alter_check (pk int primary key)")
-	defer tk.MustExec("drop block if exists alter_check")
-	tk.MustExec("alter block alter_check alter check crcn ENFORCED")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("drop causet if exists alter_check")
+	tk.MustInterDirc("create causet alter_check (pk int primary key)")
+	defer tk.MustInterDirc("drop causet if exists alter_check")
+	tk.MustInterDirc("alter causet alter_check alter check crcn ENFORCED")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8231|ALTER CHECK is not supported"))
 }
 
 func (s *testDBSuite6) TestDropCheck(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("drop block if exists drop_check")
-	tk.MustExec("create block drop_check (pk int primary key)")
-	defer tk.MustExec("drop block if exists drop_check")
-	tk.MustExec("alter block drop_check drop check crcn")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("drop causet if exists drop_check")
+	tk.MustInterDirc("create causet drop_check (pk int primary key)")
+	defer tk.MustInterDirc("drop causet if exists drop_check")
+	tk.MustInterDirc("alter causet drop_check drop check crcn")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8231|DROP CHECK is not supported"))
 }
 
 func (s *testDBSuite7) TestAddConstraintCheck(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("drop block if exists add_constraint_check")
-	tk.MustExec("create block add_constraint_check (pk int primary key, a int)")
-	defer tk.MustExec("drop block if exists add_constraint_check")
-	tk.MustExec("alter block add_constraint_check add constraint crn check (a > 1)")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("drop causet if exists add_constraint_check")
+	tk.MustInterDirc("create causet add_constraint_check (pk int primary key, a int)")
+	defer tk.MustInterDirc("drop causet if exists add_constraint_check")
+	tk.MustInterDirc("alter causet add_constraint_check add constraint crn check (a > 1)")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8231|ADD CONSTRAINT CHECK is not supported"))
 }
 
 func (s *testDBSuite6) TestAlterOrderBy(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use " + s.schemaName)
-	tk.MustExec("create block ob (pk int primary key, c int default 1, c1 int default 1, KEY cl(c1))")
+	tk.MustInterDirc("use " + s.schemaName)
+	tk.MustInterDirc("create causet ob (pk int primary key, c int default 1, c1 int default 1, KEY cl(c1))")
 
 	// Test order by with primary key
-	tk.MustExec("alter block ob order by c")
+	tk.MustInterDirc("alter causet ob order by c")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
-	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1105|ORDER BY ignored as there is a user-defined clustered index in the block 'ob'"))
+	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|1105|ORDER BY ignored as there is a user-defined clustered index in the causet 'ob'"))
 
 	// Test order by with no primary key
-	tk.MustExec("drop block if exists ob")
-	tk.MustExec("create block ob (c int default 1, c1 int default 1, KEY cl(c1))")
-	tk.MustExec("alter block ob order by c")
+	tk.MustInterDirc("drop causet if exists ob")
+	tk.MustInterDirc("create causet ob (c int default 1, c1 int default 1, KEY cl(c1))")
+	tk.MustInterDirc("alter causet ob order by c")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(0))
-	tk.MustExec("drop block if exists ob")
+	tk.MustInterDirc("drop causet if exists ob")
 }
 
 func (s *testSerialDBSuite) TestDBSJobErrorCount(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists dbs_error_block, new_dbs_error_block")
-	tk.MustExec("create block dbs_error_block(a int)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists dbs_error_block, new_dbs_error_block")
+	tk.MustInterDirc("create causet dbs_error_block(a int)")
 	is := s.dom.SchemaReplicant()
 	schemaName := perceptron.NewCIStr("test")
 	blockName := perceptron.NewCIStr("dbs_error_block")
@@ -5172,7 +5172,7 @@ func (s *testSerialDBSuite) TestDBSJobErrorCount(c *C) {
 
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	job.ID, err = t.GenGlobalID()
 	c.Assert(err, IsNil)
 	job.Version = 1
@@ -5199,19 +5199,19 @@ func (s *testSerialDBSuite) TestDBSJobErrorCount(c *C) {
 
 func (s *testDBSuite1) TestAlterBlockWithValidation(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
 
-	tk.MustExec("create block t1 (c1 int, c2 int as (c1 + 1));")
+	tk.MustInterDirc("create causet t1 (c1 int, c2 int as (c1 + 1));")
 
-	// Test for alter block with validation.
-	tk.MustExec("alter block t1 with validation")
+	// Test for alter causet with validation.
+	tk.MustInterDirc("alter causet t1 with validation")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8200|ALTER TABLE WITH VALIDATION is currently unsupported"))
 
-	// Test for alter block without validation.
-	tk.MustExec("alter block t1 without validation")
+	// Test for alter causet without validation.
+	tk.MustInterDirc("alter causet t1 without validation")
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(1))
 	tk.MustQuery("show warnings").Check(solitonutil.RowsWithSep("|", "Warning|8200|ALTER TABLE WITHOUT VALIDATION is currently unsupported"))
 }
@@ -5219,21 +5219,21 @@ func (s *testDBSuite1) TestAlterBlockWithValidation(c *C) {
 func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 	// Prepare work.
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("drop database if exists test_db")
-	tk.MustExec("create database test_db")
-	tk.MustExec("use test_db")
-	tk.MustExec("create block t1 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
-	tk.MustExec("insert t1 values (1, 10, 100), (2, 20, 200)")
-	tk.MustExec("alter block t1 add index k2(c2)")
-	tk.MustExec("alter block t1 drop index k2")
-	tk.MustExec("alter block t1 add index k2(c2)")
-	tk.MustExec("alter block t1 drop index k2")
+	tk.MustInterDirc("drop database if exists test_db")
+	tk.MustInterDirc("create database test_db")
+	tk.MustInterDirc("use test_db")
+	tk.MustInterDirc("create causet t1 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
+	tk.MustInterDirc("insert t1 values (1, 10, 100), (2, 20, 200)")
+	tk.MustInterDirc("alter causet t1 add index k2(c2)")
+	tk.MustInterDirc("alter causet t1 drop index k2")
+	tk.MustInterDirc("alter causet t1 add index k2(c2)")
+	tk.MustInterDirc("alter causet t1 drop index k2")
 	tk2 := testkit.NewTestKit(c, s.causetstore)
-	tk2.MustExec("use test_db")
+	tk2.MustInterDirc("use test_db")
 
-	// tkALLEGROSQLs are the allegrosql statements for the pessimistic transaction.
-	// tk2DBS are the dbs statements executed before the pessimistic transaction.
-	// idxDBS is the DBS statement executed between pessimistic transaction begin and commit.
+	// tkALLEGROSQLs are the allegrosql memexs for the pessimistic transaction.
+	// tk2DBS are the dbs memexs executed before the pessimistic transaction.
+	// idxDBS is the DBS memex executed between pessimistic transaction begin and commit.
 	// failCommit means the pessimistic transaction commit should fail not.
 	type caseUnit struct {
 		tkALLEGROSQLs     []string
@@ -5249,12 +5249,12 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 		// Test secondary index
 		{[]string{"insert into t1 values(3, 30, 300)",
 			"insert into t2 values(11, 11, 11)"},
-			[]string{"alter block t1 add index k2(c2)",
-				"alter block t1 drop index k2",
-				"alter block t1 add index kk2(c2, c1)",
-				"alter block t1 add index k2(c2)",
-				"alter block t1 drop index k2"},
-			"alter block t1 add index k2(c2)",
+			[]string{"alter causet t1 add index k2(c2)",
+				"alter causet t1 drop index k2",
+				"alter causet t1 add index kk2(c2, c1)",
+				"alter causet t1 add index k2(c2)",
+				"alter causet t1 drop index k2"},
+			"alter causet t1 add index k2(c2)",
 			[]string{"select c3, c2 from t1 use index(k2) where c2 = 20",
 				"select c3, c2 from t1 use index(k2) where c2 = 10",
 				"select * from t1",
@@ -5271,12 +5271,12 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 			"delete from t2 where c2 = 11",
 			"uFIDelate t2 set c2 = 110 where c1 = 11"},
 			//"uFIDelate t2 set c1 = 10 where c3 = 100"},
-			[]string{"alter block t1 add index k2(c2)",
-				"alter block t1 drop index k2",
-				"alter block t1 add index kk2(c2, c1)",
-				"alter block t1 add index k2(c2)",
-				"alter block t1 drop index k2"},
-			"alter block t1 add index k2(c2)",
+			[]string{"alter causet t1 add index k2(c2)",
+				"alter causet t1 drop index k2",
+				"alter causet t1 add index kk2(c2, c1)",
+				"alter causet t1 add index k2(c2)",
+				"alter causet t1 drop index k2"},
+			"alter causet t1 add index k2(c2)",
 			[]string{"select c3, c2 from t1 use index(k2) where c2 = 20",
 				"select c3, c2 from t1 use index(k2) where c2 = 10",
 				"select * from t1",
@@ -5295,14 +5295,14 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 			"insert into t1 values(4, 40, 400)",
 			"insert into t2 values(11, 11, 11)",
 			"insert into t2 values(12, 12, 11)"},
-			[]string{"alter block t1 add unique index uk3(c3)",
-				"alter block t1 drop index uk3",
-				"alter block t2 add unique index ukc1c3(c1, c3)",
-				"alter block t2 add unique index ukc3(c3)",
-				"alter block t2 drop index ukc1c3",
-				"alter block t2 drop index ukc3",
-				"alter block t2 add index kc3(c3)"},
-			"alter block t1 add unique index uk3(c3)",
+			[]string{"alter causet t1 add unique index uk3(c3)",
+				"alter causet t1 drop index uk3",
+				"alter causet t2 add unique index ukc1c3(c1, c3)",
+				"alter causet t2 add unique index ukc3(c3)",
+				"alter causet t2 drop index ukc1c3",
+				"alter causet t2 drop index ukc3",
+				"alter causet t2 add index kc3(c3)"},
+			"alter causet t1 add unique index uk3(c3)",
 			[]string{"select c3, c2 from t1 use index(uk3) where c3 = 200",
 				"select c3, c2 from t1 use index(uk3) where c3 = 300",
 				"select c3, c2 from t1 use index(uk3) where c3 = 400",
@@ -5319,9 +5319,9 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 			"insert into t1 values(4, 40, 300)",
 			"insert into t2 values(11, 11, 11)",
 			"insert into t2 values(12, 11, 12)"},
-			//[]string{"alter block t1 add unique index uk3(c3)", "alter block t1 drop index uk3"},
+			//[]string{"alter causet t1 add unique index uk3(c3)", "alter causet t1 drop index uk3"},
 			[]string{},
-			"alter block t1 add unique index uk3(c3)",
+			"alter causet t1 add unique index uk3(c3)",
 			[]string{"select c3, c2 from t1 use index(uk3) where c3 = 200",
 				"select c3, c2 from t1 use index(uk3) where c3 = 300",
 				"select c3, c2 from t1 where c1 = 4",
@@ -5353,18 +5353,18 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 				if endState < curCase.stateEnd {
 					break
 				}
-				tk2.MustExec("drop block if exists t1")
-				tk2.MustExec("drop block if exists t2")
-				tk2.MustExec("create block t1 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
-				tk2.MustExec("create block t2 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
-				tk2.MustExec("insert t1 values (1, 10, 100), (2, 20, 200)")
-				tk2.MustExec("insert t2 values (1, 10, 100), (2, 20, 200)")
+				tk2.MustInterDirc("drop causet if exists t1")
+				tk2.MustInterDirc("drop causet if exists t2")
+				tk2.MustInterDirc("create causet t1 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
+				tk2.MustInterDirc("create causet t2 (c1 int primary key, c2 int, c3 int, index ok2(c2))")
+				tk2.MustInterDirc("insert t1 values (1, 10, 100), (2, 20, 200)")
+				tk2.MustInterDirc("insert t2 values (1, 10, 100), (2, 20, 200)")
 				tk2.MustQuery("select * from t1;").Check(testkit.Rows("1 10 100", "2 20 200"))
 				tk.MustQuery("select * from t1;").Check(testkit.Rows("1 10 100", "2 20 200"))
 				tk.MustQuery("select * from t2;").Check(testkit.Rows("1 10 100", "2 20 200"))
 
 				for _, DBSALLEGROSQL := range curCase.tk2DBS {
-					tk2.MustExec(DBSALLEGROSQL)
+					tk2.MustInterDirc(DBSALLEGROSQL)
 				}
 				hook := &dbs.TestDBSCallback{}
 				prepared := false
@@ -5372,19 +5372,19 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 				hook.OnJobUFIDelatedExported = func(job *perceptron.Job) {
 					if job.SchemaState == startState {
 						if !prepared {
-							tk.MustExec("begin pessimistic")
+							tk.MustInterDirc("begin pessimistic")
 							for _, tkALLEGROSQL := range curCase.tkALLEGROSQLs {
-								tk.MustExec(tkALLEGROSQL)
+								tk.MustInterDirc(tkALLEGROSQL)
 							}
 							prepared = true
 						}
 					} else if job.SchemaState == endState {
 						if !committed {
 							if curCase.failCommit {
-								_, err := tk.Exec("commit")
+								_, err := tk.InterDirc("commit")
 								c.Assert(err, NotNil)
 							} else {
-								tk.MustExec("commit")
+								tk.MustInterDirc("commit")
 							}
 						}
 						committed = true
@@ -5392,9 +5392,9 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 				}
 				originalCallback := do.GetHook()
 				do.(dbs.DBSForTest).SetHook(hook)
-				tk2.MustExec(curCase.idxDBS)
+				tk2.MustInterDirc(curCase.idxDBS)
 				do.(dbs.DBSForTest).SetHook(originalCallback)
-				tk2.MustExec("admin check block t1")
+				tk2.MustInterDirc("admin check causet t1")
 				for i, checkALLEGROSQL := range curCase.checkALLEGROSQLs {
 					if len(curCase.rowsExps[i]) > 0 {
 						tk2.MustQuery(checkALLEGROSQL).Check(testkit.Rows(curCase.rowsExps[i]...))
@@ -5405,7 +5405,7 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 			}
 		}
 	}
-	tk.MustExec("admin check block t1")
+	tk.MustInterDirc("admin check causet t1")
 }
 
 // TestAddIndexFailOnCaseWhenCanExit is used to close #19325.
@@ -5415,14 +5415,14 @@ func (s *testSerialDBSuite) TestAddIndexFailOnCaseWhenCanExit(c *C) {
 		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/dbs/MockCaseWhenParseFailure"), IsNil)
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int, b int)")
-	tk.MustExec("insert into t values(1, 1)")
-	_, err := tk.Exec("alter block t add index idx(b)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int, b int)")
+	tk.MustInterDirc("insert into t values(1, 1)")
+	_, err := tk.InterDirc("alter causet t add index idx(b)")
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "[dbs:-1]DBS job rollback, error msg: job.ErrCount:512, mock unknown type: ast.whenClause.")
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("drop causet if exists t")
 }
 
 func init() {
@@ -5438,51 +5438,51 @@ func (s *testSerialDBSuite) TestCreateBlockWithIntegerLengthWaring(c *C) {
 		BerolinaSQLtypes.MilevaDBStrictIntegerDisplayWidth = false
 	}()
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
 
-	tk.MustExec("create block t(a tinyint(1))")
+	tk.MustInterDirc("create causet t(a tinyint(1))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a smallint(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a smallint(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a mediumint(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a mediumint(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a bigint(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a bigint(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a integer(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a integer(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int1(1))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int1(1))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int2(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int2(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int3(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int3(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int4(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int4(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a int8(2))")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a int8(2))")
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1064 You have an error in your ALLEGROALLEGROSQL syntax; check the manual that corresponds to your MilevaDB version for the right syntax to use [BerolinaSQL:1681]Integer display width is deprecated and will be removed in a future release."))
 
-	tk.MustExec("drop block if exists t")
+	tk.MustInterDirc("drop causet if exists t")
 }

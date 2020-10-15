@@ -23,7 +23,7 @@ Usage: ./run-tests.sh [options]
 
     -v <vendor-path>: Add <vendor-path> to $GOPATH.
 
-    -c <test-name>|all: Create data according to creating statements in file "t/<test-name>.test" and save stats in "s/<test-name>_blockName.json".
+    -c <test-name>|all: Create data according to creating memexs in file "t/<test-name>.test" and save stats in "s/<test-name>_blockName.json".
                     <test-name> must has a suffix of '_stats'.
                     "all" for creating stats of all tests.
 
@@ -40,7 +40,7 @@ For convenience, we can generate new `*.result` and `*.json` from execute by use
 
 ## Usage
 
-### Regression Execute Plan Modification
+### Regression InterDircute Causet Modification
 
 After modify code and before commit, please run this command under MilevaDB root folder.
 
@@ -55,7 +55,7 @@ make explaintest
 ```
 It will identify execute plan change.
 
-### Generate New Stats and Result from Execute
+### Generate New Stats and Result from InterDircute
 
 First, add new test query in `t/` folder.
 

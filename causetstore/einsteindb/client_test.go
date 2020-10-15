@@ -23,7 +23,7 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
@@ -149,7 +149,7 @@ func (c *chanClient) SendRequest(ctx context.Context, addr string, req *einstein
 
 func (s *testClientSuite) TestDefCauslapseResolveLock(c *C) {
 	buildResolveLockReq := func(regionID uint64, startTS uint64, commitTS uint64, keys [][]byte) *einsteindbrpc.Request {
-		region := &metapb.Region{Id: regionID}
+		region := &spacetimepb.Region{Id: regionID}
 		req := einsteindbrpc.NewRequest(einsteindbrpc.CmdResolveLock, &kvrpcpb.ResolveLockRequest{
 			StartVersion:  startTS,
 			CommitVersion: commitTS,
@@ -159,7 +159,7 @@ func (s *testClientSuite) TestDefCauslapseResolveLock(c *C) {
 		return req
 	}
 	buildBatchResolveLockReq := func(regionID uint64, txnInfos []*kvrpcpb.TxnInfo) *einsteindbrpc.Request {
-		region := &metapb.Region{Id: regionID}
+		region := &spacetimepb.Region{Id: regionID}
 		req := einsteindbrpc.NewRequest(einsteindbrpc.CmdResolveLock, &kvrpcpb.ResolveLockRequest{
 			TxnInfos: txnInfos,
 		})

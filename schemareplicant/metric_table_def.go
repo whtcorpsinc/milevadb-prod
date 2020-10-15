@@ -13,8 +13,8 @@
 
 package schemareplicant
 
-// MetricBlockMap records the metric block definition, export for test.
-// TODO: read from system block.
+// MetricBlockMap records the metric causet definition, export for test.
+// TODO: read from system causet.
 var MetricBlockMap = map[string]MetricBlockDef{
 	"milevadb_query_duration": {
 		PromQL:   `histogram_quantile($QUANTILE, sum(rate(milevadb_server_handle_query_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,sql_type,instance))`,
@@ -30,10 +30,10 @@ var MetricBlockMap = map[string]MetricBlockDef{
 	"milevadb_qps_ideal": {
 		PromQL: `sum(milevadb_server_connections) * sum(rate(milevadb_server_handle_query_duration_seconds_count[$RANGE_DURATION])) / sum(rate(milevadb_server_handle_query_duration_seconds_sum[$RANGE_DURATION]))`,
 	},
-	"milevadb_ops_statement": {
-		PromQL:  `sum(rate(milevadb_executor_statement_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)`,
+	"milevadb_ops_memex": {
+		PromQL:  `sum(rate(milevadb_interlock_memex_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)`,
 		Labels:  []string{"instance", "type"},
-		Comment: "MilevaDB statement statistics",
+		Comment: "MilevaDB memex statistics",
 	},
 	"milevadb_failed_query_opm": {
 		PromQL:  `sum(increase(milevadb_server_execute_error_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type, instance)`,
@@ -122,10 +122,10 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance"},
 		Comment: "MilevaDB instance monitor average keep alive times",
 	},
-	"milevadb_prepared_statement_count": {
+	"milevadb_prepared_memex_count": {
 		PromQL:  "milevadb_server_prepared_stmts{$LABEL_CONDITIONS}",
 		Labels:  []string{"instance"},
-		Comment: "MilevaDB prepare statements count",
+		Comment: "MilevaDB prepare memexs count",
 	},
 	"milevadb_time_jump_back_ops": {
 		PromQL:  "sum(increase(milevadb_monitor_time_jump_back_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
@@ -186,10 +186,10 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Comment:  "The quantile of MilevaDB transaction retry num",
 		Quantile: 0.95,
 	},
-	"milevadb_transaction_statement_num": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_stochastik_transaction_statement_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,sql_type))",
+	"milevadb_transaction_memex_num": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_stochastik_transaction_memex_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,sql_type))",
 		Labels:   []string{"instance", "sql_type"},
-		Comment:  "The quantile of MilevaDB statements numbers within one transaction. Internal means MilevaDB inner transaction",
+		Comment:  "The quantile of MilevaDB memexs numbers within one transaction. Internal means MilevaDB inner transaction",
 		Quantile: 0.95,
 	},
 	"milevadb_transaction_retry_error_ops": {
@@ -226,9 +226,9 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Quantile: 0.95,
 		Comment:  "The quantile time cost of executing the ALLEGROALLEGROSQL which does not include the time to get the results of the query(second)",
 	},
-	"milevadb_expensive_executors_ops": {
-		Comment: "MilevaDB executors using more cpu and memory resources",
-		PromQL:  "sum(rate(milevadb_executor_expensive_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
+	"milevadb_expensive_interlocks_ops": {
+		Comment: "MilevaDB interlocks using more cpu and memory resources",
+		PromQL:  "sum(rate(milevadb_interlock_expensive_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
 	},
 	"milevadb_query_using_plan_cache_ops": {
@@ -300,17 +300,17 @@ var MetricBlockMap = map[string]MetricBlockDef{
 	"milevadb_lock_resolver_ops": {
 		PromQL:  "sum(rate(milevadb_einsteindbclient_lock_resolver_actions_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
-		Comment: "lock resolve times",
+		Comment: "dagger resolve times",
 	},
 	"milevadb_lock_resolver_total_num": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_lock_resolver_actions_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
-		Comment: "The total number of lock resolve",
+		Comment: "The total number of dagger resolve",
 	},
 	"milevadb_lock_cleanup_fail_ops": {
 		PromQL:  "sum(rate(milevadb_einsteindbclient_lock_cleanup_task_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
-		Comment: "lock cleanup failed ops",
+		Comment: "dagger cleanup failed ops",
 	},
 	"milevadb_load_safepoint_fail_ops": {
 		PromQL:  "sum(rate(milevadb_einsteindbclient_load_safepoint_total{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
@@ -463,7 +463,7 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL:  "milevadb_dbs_waiting_jobs{$LABEL_CONDITIONS}",
 		Labels:  []string{"instance", "type"},
 	},
-	"milevadb_dbs_meta_opm": {
+	"milevadb_dbs_spacetime_opm": {
 		Comment: "MilevaDB different dbs worker numbers",
 		PromQL:  "increase(milevadb_dbs_worker_operation_total{$LABEL_CONDITIONS}[$RANGE_DURATION])",
 		Labels:  []string{"instance", "type"},
@@ -480,9 +480,9 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Quantile: 0.95,
 		Comment:  "The quantile of MilevaDB dbs schemaReplicant syncer statistics, including init, start, watch, clear function call time cost",
 	},
-	"milevadb_owner_handle_syncer_duration": {
-		Comment:  "The quantile of MilevaDB dbs owner time operations on etcd duration statistics ",
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_dbs_owner_handle_syncer_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type, result,instance))",
+	"milevadb_tenant_handle_syncer_duration": {
+		Comment:  "The quantile of MilevaDB dbs tenant time operations on etcd duration statistics ",
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_dbs_tenant_handle_syncer_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type, result,instance))",
 		Labels:   []string{"instance", "type", "result"},
 		Quantile: 0.95,
 	},
@@ -567,17 +567,17 @@ var MetricBlockMap = map[string]MetricBlockDef{
 	},
 	"milevadb_new_etcd_stochastik_duration": {
 		Comment:  "The quantile of MilevaDB new stochastik durations for new etcd stochastik",
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_owner_new_stochastik_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,type,result, instance))",
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_tenant_new_stochastik_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,type,result, instance))",
 		Labels:   []string{"instance", "type", "result"},
 		Quantile: 0.95,
 	},
-	"milevadb_owner_watcher_ops": {
-		Comment: "MilevaDB owner watcher counts",
-		PromQL:  "sum(rate(milevadb_owner_watch_owner_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type, result, instance)",
+	"milevadb_tenant_watcher_ops": {
+		Comment: "MilevaDB tenant watcher counts",
+		PromQL:  "sum(rate(milevadb_tenant_watch_tenant_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type, result, instance)",
 		Labels:  []string{"instance", "type", "result"},
 	},
 	"milevadb_auto_id_qps": {
-		Comment: "MilevaDB auto id requests per second including single block/global auto id processing and single block auto id rebase processing",
+		Comment: "MilevaDB auto id requests per second including single causet/global auto id processing and single causet auto id rebase processing",
 		PromQL:  "sum(rate(milevadb_autoid_operation_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION]))",
 		Labels:  []string{"instance"},
 	},
@@ -592,9 +592,9 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL:  "sum(rate(milevadb_einsteindbclient_region_cache_operations_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,result,instance)",
 		Labels:  []string{"instance", "type", "result"},
 	},
-	"milevadb_meta_operation_duration": {
-		Comment:  "The quantile of MilevaDB meta operation durations including get/set schemaReplicant and dbs jobs",
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_meta_operation_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type,result,instance))",
+	"milevadb_spacetime_operation_duration": {
+		Comment:  "The quantile of MilevaDB spacetime operation durations including get/set schemaReplicant and dbs jobs",
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_spacetime_operation_duration_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, type,result,instance))",
 		Labels:   []string{"instance", "type", "result"},
 		Quantile: 0.95,
 	},
@@ -717,8 +717,8 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL: `sum(FIDel_cluster_status{$LABEL_CONDITIONS}) by (instance, type)`,
 		Labels: []string{"instance", "type"},
 	},
-	"FIDel_cluster_metadata": {
-		PromQL: `FIDel_cluster_metadata{$LABEL_CONDITIONS}`,
+	"FIDel_cluster_spacetimedata": {
+		PromQL: `FIDel_cluster_spacetimedata{$LABEL_CONDITIONS}`,
 		Labels: []string{"instance", "type"},
 	},
 	"FIDel_region_health": {
@@ -1614,10 +1614,10 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL: `sum(rate(einsteindb_coprocessor_posetPosetDag_request_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (vec_type,instance)`,
 		Labels: []string{"instance", "vec_type"},
 	},
-	"einsteindb_cop_posetPosetDag_executors_ops": {
-		PromQL:  `sum(rate(einsteindb_coprocessor_executor_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)`,
+	"einsteindb_cop_posetPosetDag_interlocks_ops": {
+		PromQL:  `sum(rate(einsteindb_coprocessor_interlock_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)`,
 		Labels:  []string{"instance", "type"},
-		Comment: "The number of PosetDag executors per seconds",
+		Comment: "The number of PosetDag interlocks per seconds",
 	},
 	"einsteindb_cop_scan_details": {
 		PromQL: `sum(rate(einsteindb_coprocessor_scan_details{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (tag,req,cf,instance)`,
@@ -1764,32 +1764,32 @@ var MetricBlockMap = map[string]MetricBlockDef{
 	"einsteindb_block_cache_size": {
 		PromQL:  `topk(20, avg(einsteindb_engine_block_cache_size_bytes{$LABEL_CONDITIONS}) by(cf, instance, EDB))`,
 		Labels:  []string{"instance", "cf", "EDB"},
-		Comment: "The block cache size. Broken down by defCausumn family if shared block cache is disabled.",
+		Comment: "The causet cache size. Broken down by defCausumn family if shared causet cache is disabled.",
 	},
 	"einsteindb_block_all_cache_hit": {
 		PromQL:  `sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_hit"}[$RANGE_DURATION])) by (EDB,instance) / (sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_hit"}[$RANGE_DURATION])) by (EDB,instance) + sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_miss"}[$RANGE_DURATION])) by (EDB,instance))`,
 		Labels:  []string{"instance", "EDB"},
-		Comment: "The hit rate of all block cache",
+		Comment: "The hit rate of all causet cache",
 	},
 	"einsteindb_block_data_cache_hit": {
 		PromQL:  `sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_data_hit"}[$RANGE_DURATION])) by (EDB,instance) / (sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_data_hit"}[$RANGE_DURATION])) by (EDB,instance) + sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_data_miss"}[$RANGE_DURATION])) by (EDB,instance))`,
 		Labels:  []string{"instance", "EDB"},
-		Comment: "The hit rate of data block cache",
+		Comment: "The hit rate of data causet cache",
 	},
 	"einsteindb_block_filter_cache_hit": {
 		PromQL:  `sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_filter_hit"}[$RANGE_DURATION])) by (EDB,instance) / (sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_filter_hit"}[$RANGE_DURATION])) by (EDB,instance) + sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_filter_miss"}[$RANGE_DURATION])) by (EDB,instance))`,
 		Labels:  []string{"instance", "EDB"},
-		Comment: "The hit rate of data block cache",
+		Comment: "The hit rate of data causet cache",
 	},
 	"einsteindb_block_index_cache_hit": {
 		PromQL:  `sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_index_hit"}[$RANGE_DURATION])) by (EDB,instance) / (sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_index_hit"}[$RANGE_DURATION])) by (EDB,instance) + sum(rate(einsteindb_engine_cache_efficiency{type="block_cache_index_miss"}[$RANGE_DURATION])) by (EDB,instance))`,
 		Labels:  []string{"instance", "EDB"},
-		Comment: "The hit rate of data block cache",
+		Comment: "The hit rate of data causet cache",
 	},
 	"einsteindb_block_bloom_prefix_cache_hit": {
 		PromQL:  `sum(rate(einsteindb_engine_bloom_efficiency{type="bloom_prefix_useful"}[$RANGE_DURATION])) by (EDB,instance) / sum(rate(einsteindb_engine_bloom_efficiency{type="bloom_prefix_checked"}[$RANGE_DURATION])) by (EDB,instance)`,
 		Labels:  []string{"instance", "EDB"},
-		Comment: "The hit rate of data block cache",
+		Comment: "The hit rate of data causet cache",
 	},
 	"einsteindb_corrrput_keys_flow": {
 		PromQL:  `sum(rate(einsteindb_engine_compaction_num_corrupt_keys{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (EDB,cf,instance)`,
@@ -2565,35 +2565,35 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance"},
 		Comment: "The total time of MilevaDB loading schemaReplicant time durations by instance",
 	},
-	"milevadb_meta_operation_total_count": {
-		PromQL:  "sum(increase(milevadb_meta_operation_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+	"milevadb_spacetime_operation_total_count": {
+		PromQL:  "sum(increase(milevadb_spacetime_operation_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
-		Comment: "The total count of MilevaDB meta operation durations including get/set schemaReplicant and dbs jobs",
+		Comment: "The total count of MilevaDB spacetime operation durations including get/set schemaReplicant and dbs jobs",
 	},
-	"milevadb_meta_operation_total_time": {
-		PromQL:  "sum(increase(milevadb_meta_operation_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+	"milevadb_spacetime_operation_total_time": {
+		PromQL:  "sum(increase(milevadb_spacetime_operation_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
-		Comment: "The total time of MilevaDB meta operation durations including get/set schemaReplicant and dbs jobs",
+		Comment: "The total time of MilevaDB spacetime operation durations including get/set schemaReplicant and dbs jobs",
 	},
 	"milevadb_new_etcd_stochastik_total_count": {
-		PromQL:  "sum(increase(milevadb_owner_new_stochastik_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+		PromQL:  "sum(increase(milevadb_tenant_new_stochastik_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
 		Comment: "The total count of MilevaDB new stochastik durations for new etcd stochastik",
 	},
 	"milevadb_new_etcd_stochastik_total_time": {
-		PromQL:  "sum(increase(milevadb_owner_new_stochastik_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+		PromQL:  "sum(increase(milevadb_tenant_new_stochastik_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
 		Comment: "The total time of MilevaDB new stochastik durations for new etcd stochastik",
 	},
-	"milevadb_owner_handle_syncer_total_count": {
-		PromQL:  "sum(increase(milevadb_dbs_owner_handle_syncer_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+	"milevadb_tenant_handle_syncer_total_count": {
+		PromQL:  "sum(increase(milevadb_dbs_tenant_handle_syncer_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
-		Comment: "The total count of MilevaDB dbs owner operations on etcd ",
+		Comment: "The total count of MilevaDB dbs tenant operations on etcd ",
 	},
-	"milevadb_owner_handle_syncer_total_time": {
-		PromQL:  "sum(increase(milevadb_dbs_owner_handle_syncer_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
+	"milevadb_tenant_handle_syncer_total_time": {
+		PromQL:  "sum(increase(milevadb_dbs_tenant_handle_syncer_duration_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,result)",
 		Labels:  []string{"instance", "type", "result"},
-		Comment: "The total time of MilevaDB dbs owner time operations on etcd duration statistics ",
+		Comment: "The total time of MilevaDB dbs tenant time operations on etcd duration statistics ",
 	},
 	"milevadb_parse_total_count": {
 		PromQL:  "sum(increase(milevadb_stochastik_parse_duration_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
@@ -2992,15 +2992,15 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance"},
 		Comment: "The total num of MilevaDB transaction retry num",
 	},
-	"milevadb_transaction_statement_num_total_count": {
-		PromQL:  "sum(increase(milevadb_stochastik_transaction_statement_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
+	"milevadb_transaction_memex_num_total_count": {
+		PromQL:  "sum(increase(milevadb_stochastik_transaction_memex_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
 		Labels:  []string{"instance", "sql_type"},
-		Comment: "The total count of MilevaDB statements numbers within one transaction. Internal means MilevaDB inner transaction",
+		Comment: "The total count of MilevaDB memexs numbers within one transaction. Internal means MilevaDB inner transaction",
 	},
-	"milevadb_transaction_statement_total_num": {
-		PromQL:  "sum(increase(milevadb_stochastik_transaction_statement_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
+	"milevadb_transaction_memex_total_num": {
+		PromQL:  "sum(increase(milevadb_stochastik_transaction_memex_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,sql_type)",
 		Labels:  []string{"instance", "sql_type"},
-		Comment: "The total num of MilevaDB statements numbers within one transaction. Internal means MilevaDB inner transaction",
+		Comment: "The total num of MilevaDB memexs numbers within one transaction. Internal means MilevaDB inner transaction",
 	},
 	"milevadb_txn_region_num_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_regions_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",

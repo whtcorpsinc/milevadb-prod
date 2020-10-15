@@ -22,7 +22,7 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -34,7 +34,7 @@ import (
 )
 
 var _ stochastikctx.Context = (*Context)(nil)
-var _ sqlexec.ALLEGROSQLExecutor = (*Context)(nil)
+var _ sqlexec.ALLEGROSQLInterlockingDirectorate = (*Context)(nil)
 
 // Context represents mocked stochastikctx.Context.
 type Context struct {
@@ -56,23 +56,23 @@ func (txn *wrapTxn) Valid() bool {
 	return txn.Transaction != nil && txn.Transaction.Valid()
 }
 
-// Execute implements sqlexec.ALLEGROSQLExecutor Execute interface.
-func (c *Context) Execute(ctx context.Context, allegrosql string) ([]sqlexec.RecordSet, error) {
+// InterDircute implements sqlexec.ALLEGROSQLInterlockingDirectorate InterDircute interface.
+func (c *Context) InterDircute(ctx context.Context, allegrosql string) ([]sqlexec.RecordSet, error) {
 	return nil, errors.Errorf("Not Support.")
 }
 
-// ExecuteInternal implements sqlexec.ALLEGROSQLExecutor ExecuteInternal interface.
-func (c *Context) ExecuteInternal(ctx context.Context, allegrosql string) ([]sqlexec.RecordSet, error) {
+// InterDircuteInternal implements sqlexec.ALLEGROSQLInterlockingDirectorate InterDircuteInternal interface.
+func (c *Context) InterDircuteInternal(ctx context.Context, allegrosql string) ([]sqlexec.RecordSet, error) {
 	return nil, errors.Errorf("Not Support.")
 }
 
-type mockDBSOwnerChecker struct{}
+type mockDBSTenantChecker struct{}
 
-func (c *mockDBSOwnerChecker) IsOwner() bool { return true }
+func (c *mockDBSTenantChecker) IsTenant() bool { return true }
 
-// DBSOwnerChecker returns owner.DBSOwnerChecker.
-func (c *Context) DBSOwnerChecker() owner.DBSOwnerChecker {
-	return &mockDBSOwnerChecker{}
+// DBSTenantChecker returns tenant.DBSTenantChecker.
+func (c *Context) DBSTenantChecker() tenant.DBSTenantChecker {
+	return &mockDBSTenantChecker{}
 }
 
 // SetValue implements stochastikctx.Context SetValue interface.
@@ -133,8 +133,8 @@ func (c *Context) SetGlobalSysVar(ctx stochastikctx.Context, name string, value 
 	return nil
 }
 
-// PreparedPlanCache implements the stochastikctx.Context interface.
-func (c *Context) PreparedPlanCache() *kvcache.SimpleLRUCache {
+// PreparedCausetCache implements the stochastikctx.Context interface.
+func (c *Context) PreparedCausetCache() *kvcache.SimpleLRUCache {
 	return c.pcache
 }
 

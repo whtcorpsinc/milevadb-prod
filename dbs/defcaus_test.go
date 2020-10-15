@@ -29,8 +29,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 )
@@ -206,7 +206,7 @@ func (s *testDeferredCausetSuite) TestDeferredCauset(c *C) {
 	c.Assert(err, IsNil)
 
 	i := int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		c.Assert(data, HasLen, 3)
 		c.Assert(data[0].GetInt64(), Equals, i)
 		c.Assert(data[1].GetInt64(), Equals, 10*i)
@@ -217,17 +217,17 @@ func (s *testDeferredCausetSuite) TestDeferredCauset(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(i, Equals, int64(num))
 
-	c.Assert(block.FindDefCaus(t.DefCauss(), "c4"), IsNil)
+	c.Assert(causet.FindDefCaus(t.DefCauss(), "c4"), IsNil)
 
 	job := testCreateDeferredCauset(c, ctx, d, s.dbInfo, tblInfo, "c4", &ast.DeferredCausetPosition{Tp: ast.DeferredCausetPositionAfter, RelativeDeferredCauset: &ast.DeferredCausetName{Name: perceptron.NewCIStr("c3")}}, 100)
 	testCheckJobDone(c, d, job, true)
 
 	t = testGetBlock(c, d, s.dbInfo.ID, tblInfo.ID)
-	c.Assert(block.FindDefCaus(t.DefCauss(), "c4"), NotNil)
+	c.Assert(causet.FindDefCaus(t.DefCauss(), "c4"), NotNil)
 
 	i = int64(0)
 	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(),
-		func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+		func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 			c.Assert(data, HasLen, 4)
 			c.Assert(data[0].GetInt64(), Equals, i)
 			c.Assert(data[1].GetInt64(), Equals, 10*i)
@@ -336,7 +336,7 @@ func (s *testDeferredCausetSuite) TestDeferredCauset(c *C) {
 	testDropBlock(c, ctx, d, s.dbInfo, tblInfo)
 }
 
-func (s *testDeferredCausetSuite) checkDeferredCausetKVExist(ctx stochastikctx.Context, t block.Block, handle ekv.Handle, defCaus *block.DeferredCauset, defCausumnValue interface{}, isExist bool) error {
+func (s *testDeferredCausetSuite) checkDeferredCausetKVExist(ctx stochastikctx.Context, t causet.Block, handle ekv.Handle, defCaus *causet.DeferredCauset, defCausumnValue interface{}, isExist bool) error {
 	err := ctx.NewTxn(context.Background())
 	if err != nil {
 		return errors.Trace(err)
@@ -379,7 +379,7 @@ func (s *testDeferredCausetSuite) checkDeferredCausetKVExist(ctx stochastikctx.C
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkNoneDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *block.DeferredCauset, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkNoneDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *causet.DeferredCauset, defCausumnValue interface{}) error {
 	t, err := testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -395,7 +395,7 @@ func (s *testDeferredCausetSuite) checkNoneDeferredCauset(ctx stochastikctx.Cont
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *block.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *causet.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
 	t, err := testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -405,7 +405,7 @@ func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikct
 		return errors.Trace(err)
 	}
 	i := int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, event) {
 			return false, errors.Errorf("%v not equal to %v", data, event)
 		}
@@ -441,7 +441,7 @@ func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikct
 	rows := [][]types.Causet{event, newEvent}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, rows[i]) {
 			return false, errors.Errorf("%v not equal to %v", data, rows[i])
 		}
@@ -474,7 +474,7 @@ func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikct
 		return errors.Trace(err)
 	}
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		i++
 		return true, nil
 	})
@@ -496,7 +496,7 @@ func (s *testDeferredCausetSuite) checkDeleteOnlyDeferredCauset(ctx stochastikct
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *block.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, defCaus *causet.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
 	t, err := testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -507,7 +507,7 @@ func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx
 	}
 
 	i := int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, event) {
 			return false, errors.Errorf("%v not equal to %v", data, event)
 		}
@@ -545,7 +545,7 @@ func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx
 	rows := [][]types.Causet{event, newEvent}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, rows[i]) {
 			return false, errors.Errorf("%v not equal to %v", data, rows[i])
 		}
@@ -579,7 +579,7 @@ func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx
 	}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		i++
 		return true, nil
 	})
@@ -601,7 +601,7 @@ func (s *testDeferredCausetSuite) checkWriteOnlyDeferredCauset(ctx stochastikctx
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, defCaus *block.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, defCaus *causet.DeferredCauset, event []types.Causet, defCausumnValue interface{}) error {
 	t, err := testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -612,7 +612,7 @@ func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochast
 	}
 
 	i := int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, event) {
 			return false, errors.Errorf("%v not equal to %v", data, event)
 		}
@@ -645,7 +645,7 @@ func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochast
 	rows := [][]types.Causet{event, newEvent}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, rows[i]) {
 			return false, errors.Errorf("%v not equal to %v", data, rows[i])
 		}
@@ -680,7 +680,7 @@ func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochast
 	}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		i++
 		return true, nil
 	})
@@ -697,7 +697,7 @@ func (s *testDeferredCausetSuite) checkReorganizationDeferredCauset(ctx stochast
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, newDefCaus *block.DeferredCauset, oldEvent []types.Causet, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Context, d *dbs, tblInfo *perceptron.BlockInfo, newDefCaus *causet.DeferredCauset, oldEvent []types.Causet, defCausumnValue interface{}) error {
 	t, err := testGetBlockWithError(d, s.dbInfo.ID, tblInfo.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -709,7 +709,7 @@ func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Co
 
 	i := int64(0)
 	uFIDelatedEvent := append(oldEvent, types.NewCauset(defCausumnValue))
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, uFIDelatedEvent) {
 			return false, errors.Errorf("%v not equal to %v", data, uFIDelatedEvent)
 		}
@@ -742,7 +742,7 @@ func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Co
 	rows := [][]types.Causet{uFIDelatedEvent, newEvent}
 
 	i = int64(0)
-	t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, rows[i]) {
 			return false, errors.Errorf("%v not equal to %v", data, rows[i])
 		}
@@ -770,7 +770,7 @@ func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Co
 	}
 
 	i = int64(0)
-	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = t.IterRecords(ctx, t.FirstKey(), t.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if !reflect.DeepEqual(data, uFIDelatedEvent) {
 			return false, errors.Errorf("%v not equal to %v", data, uFIDelatedEvent)
 		}
@@ -791,7 +791,7 @@ func (s *testDeferredCausetSuite) checkPublicDeferredCauset(ctx stochastikctx.Co
 	return nil
 }
 
-func (s *testDeferredCausetSuite) checkAddDeferredCauset(state perceptron.SchemaState, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, newDefCaus *block.DeferredCauset, oldEvent []types.Causet, defCausumnValue interface{}) error {
+func (s *testDeferredCausetSuite) checkAddDeferredCauset(state perceptron.SchemaState, d *dbs, tblInfo *perceptron.BlockInfo, handle ekv.Handle, newDefCaus *causet.DeferredCauset, oldEvent []types.Causet, defCausumnValue interface{}) error {
 	ctx := testNewContext(d)
 	var err error
 	switch state {
@@ -809,8 +809,8 @@ func (s *testDeferredCausetSuite) checkAddDeferredCauset(state perceptron.Schema
 	return err
 }
 
-func (s *testDeferredCausetSuite) testGetDeferredCauset(t block.Block, name string, isExist bool) error {
-	defCaus := block.FindDefCaus(t.DefCauss(), name)
+func (s *testDeferredCausetSuite) testGetDeferredCauset(t causet.Block, name string, isExist bool) error {
+	defCaus := causet.FindDefCaus(t.DefCauss(), name)
 	if isExist {
 		if defCaus == nil {
 			return errors.Errorf("defCausumn should not be nil")
@@ -868,7 +868,7 @@ func (s *testDeferredCausetSuite) TestAddDeferredCauset(c *C) {
 			hookErr = errors.Trace(err1)
 			return
 		}
-		newDefCaus := block.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, newDefCausName)
+		newDefCaus := causet.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, newDefCausName)
 		if newDefCaus == nil {
 			return
 		}
@@ -960,7 +960,7 @@ func (s *testDeferredCausetSuite) TestAddDeferredCausets(c *C) {
 			return
 		}
 		for _, newDefCausName := range newDefCausNames {
-			newDefCaus := block.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, newDefCausName)
+			newDefCaus := causet.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, newDefCausName)
 			if newDefCaus == nil {
 				return
 			}
@@ -1037,7 +1037,7 @@ func (s *testDeferredCausetSuite) TestDropDeferredCauset(c *C) {
 			hookErr = errors.Trace(err1)
 			return
 		}
-		defCaus := block.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, defCausName)
+		defCaus := causet.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, defCausName)
 		if defCaus == nil {
 			checkOK = true
 			return
@@ -1113,7 +1113,7 @@ func (s *testDeferredCausetSuite) TestDropDeferredCausets(c *C) {
 			return
 		}
 		for _, defCausName := range defCausNames {
-			defCaus := block.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, defCausName)
+			defCaus := causet.FindDefCaus(t.(*blocks.BlockCommon).DeferredCausets, defCausName)
 			if defCaus == nil {
 				checkOK = true
 				return
@@ -1179,7 +1179,7 @@ func (s *testDeferredCausetSuite) TestModifyDeferredCauset(c *C) {
 }
 
 func (s *testDeferredCausetSuite) defCausDefStrToFieldType(c *C, str string) *types.FieldType {
-	sqlA := "alter block t modify defCausumn a " + str
+	sqlA := "alter causet t modify defCausumn a " + str
 	stmt, err := BerolinaSQL.New().ParseOneStmt(sqlA, "", "")
 	c.Assert(err, IsNil)
 	defCausDef := stmt.(*ast.AlterBlockStmt).Specs[0].NewDeferredCausets[0]

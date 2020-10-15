@@ -42,15 +42,15 @@ type keyBlock struct {
 	Expect []byte
 }
 
-func testCompareBlock(block []compareBlock, defCauslate string, c *C) {
-	for i, t := range block {
+func testCompareBlock(causet []compareBlock, defCauslate string, c *C) {
+	for i, t := range causet {
 		comment := Commentf("%d %v %v", i, t.Left, t.Right)
 		c.Assert(GetDefCauslator(defCauslate).Compare(t.Left, t.Right), Equals, t.Expect, comment)
 	}
 }
 
-func testKeyBlock(block []keyBlock, defCauslate string, c *C) {
-	for i, t := range block {
+func testKeyBlock(causet []keyBlock, defCauslate string, c *C) {
+	for i, t := range causet {
 		comment := Commentf("%d %s", i, t.Str)
 		c.Assert(GetDefCauslator(defCauslate).Key(t.Str), DeepEquals, t.Expect, comment)
 	}

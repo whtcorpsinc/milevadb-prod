@@ -114,9 +114,9 @@ func (s *testAsyncCommitSuite) mustGetLock(c *C, key []byte) *Lock {
 	c.Assert(resp.Resp, NotNil)
 	keyErr := resp.Resp.(*kvrpcpb.GetResponse).GetError()
 	c.Assert(keyErr, NotNil)
-	lock, err := extractLockFromKeyErr(keyErr)
+	dagger, err := extractLockFromKeyErr(keyErr)
 	c.Assert(err, IsNil)
-	return lock
+	return dagger
 }
 
 func (s *testAsyncCommitSuite) TestCheckSecondaries(c *C) {
@@ -135,17 +135,17 @@ func (s *testAsyncCommitSuite) TestCheckSecondaries(c *C) {
 
 	// No locks to check, only primary key is locked, should be successful.
 	s.lockKeys(c, [][]byte{}, [][]byte{}, []byte("z"), []byte("z"), false)
-	lock := s.mustGetLock(c, []byte("z"))
-	lock.UseAsyncCommit = true
+	dagger := s.mustGetLock(c, []byte("z"))
+	dagger.UseAsyncCommit = true
 	ts, err := s.causetstore.oracle.GetTimestamp(context.Background())
 	c.Assert(err, IsNil)
 	status := TxnStatus{primaryLock: &kvrpcpb.LockInfo{Secondaries: [][]byte{}, UseAsyncCommit: true, MinCommitTs: ts}}
 
-	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, lock, status)
+	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, dagger, status)
 	c.Assert(err, IsNil)
 	currentTS, err := s.causetstore.oracle.GetTimestamp(context.Background())
 	c.Assert(err, IsNil)
-	status, err = s.causetstore.lockResolver.getTxnStatus(s.bo, lock.TxnID, []byte("z"), currentTS, currentTS, true)
+	status, err = s.causetstore.lockResolver.getTxnStatus(s.bo, dagger.TxnID, []byte("z"), currentTS, currentTS, true)
 	c.Assert(err, IsNil)
 	c.Assert(status.IsCommitted(), IsTrue)
 	c.Assert(status.CommitTS(), Equals, ts)
@@ -209,7 +209,7 @@ func (s *testAsyncCommitSuite) TestCheckSecondaries(c *C) {
 	s.causetstore.client = &mock
 
 	status = TxnStatus{primaryLock: &kvrpcpb.LockInfo{Secondaries: [][]byte{[]byte("a"), []byte("i")}, UseAsyncCommit: true}}
-	lock = &Lock{
+	dagger = &Lock{
 		Key:            []byte("a"),
 		Primary:        []byte("z"),
 		TxnID:          ts,
@@ -221,7 +221,7 @@ func (s *testAsyncCommitSuite) TestCheckSecondaries(c *C) {
 	_, err = s.causetstore.Begin()
 	c.Assert(err, IsNil)
 
-	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, lock, status)
+	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, dagger, status)
 	c.Assert(err, IsNil)
 	c.Assert(gotCheckA, Equals, int64(1))
 	c.Assert(gotCheckB, Equals, int64(1))
@@ -255,10 +255,10 @@ func (s *testAsyncCommitSuite) TestCheckSecondaries(c *C) {
 		return &einsteindbrpc.Response{Resp: &resp}, nil
 	}
 
-	lock.TxnID = ts
-	lock.MinCommitTS = ts + 5
+	dagger.TxnID = ts
+	dagger.MinCommitTS = ts + 5
 
-	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, lock, status)
+	err = s.causetstore.lockResolver.resolveLockAsync(s.bo, dagger, status)
 	c.Assert(err, IsNil)
 	c.Assert(gotCheckA, Equals, int64(1))
 	c.Assert(gotCheckB, Equals, int64(1))
@@ -273,7 +273,7 @@ type mockResolveClient struct {
 }
 
 func (m *mockResolveClient) SendRequest(ctx context.Context, addr string, req *einsteindbrpc.Request, timeout time.Duration) (*einsteindbrpc.Response, error) {
-	// Intercept check secondary locks and resolve lock messages if the callback is non-nil.
+	// Intercept check secondary locks and resolve dagger messages if the callback is non-nil.
 	// If the callback returns (nil, nil), forward to the inner client.
 	if cr, ok := req.Req.(*kvrpcpb.CheckSecondaryLocksRequest); ok && m.onCheckSecondaries != nil {
 		result, err := m.onCheckSecondaries(cr)

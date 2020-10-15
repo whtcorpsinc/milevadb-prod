@@ -27,7 +27,7 @@ type repairInfo struct {
 	repairDBInfoMap map[int64]*perceptron.DBInfo
 }
 
-// RepairInfo indicates the repaired block info.
+// RepairInfo indicates the repaired causet info.
 var RepairInfo repairInfo
 
 // InRepairMode indicates whether MilevaDB is in repairMode.
@@ -44,14 +44,14 @@ func (r *repairInfo) SetRepairMode(mode bool) {
 	r.repairMode = mode
 }
 
-// GetRepairBlockList gets repairing block list.
+// GetRepairBlockList gets repairing causet list.
 func (r *repairInfo) GetRepairBlockList() []string {
 	r.RLock()
 	defer r.RUnlock()
 	return r.repairBlockList
 }
 
-// SetRepairBlockList sets repairing block list.
+// SetRepairBlockList sets repairing causet list.
 func (r *repairInfo) SetRepairBlockList(list []string) {
 	for i, one := range list {
 		list[i] = strings.ToLower(one)
@@ -61,7 +61,7 @@ func (r *repairInfo) SetRepairBlockList(list []string) {
 	r.repairBlockList = list
 }
 
-// CheckAndFetchRepairedBlock fetches the repairing block list from meta, true indicates fetch success.
+// CheckAndFetchRepairedBlock fetches the repairing causet list from spacetime, true indicates fetch success.
 func (r *repairInfo) CheckAndFetchRepairedBlock(di *perceptron.DBInfo, tbl *perceptron.BlockInfo) bool {
 	r.Lock()
 	defer r.Unlock()
@@ -70,20 +70,20 @@ func (r *repairInfo) CheckAndFetchRepairedBlock(di *perceptron.DBInfo, tbl *perc
 	}
 	isRepair := false
 	for _, tn := range r.repairBlockList {
-		// Use dbName and blockName to specify a block.
+		// Use dbName and blockName to specify a causet.
 		if strings.ToLower(tn) == di.Name.L+"."+tbl.Name.L {
 			isRepair = true
 			break
 		}
 	}
 	if isRepair {
-		// Record the repaired block in Map.
+		// Record the repaired causet in Map.
 		if repairedDB, ok := r.repairDBInfoMap[di.ID]; ok {
 			repairedDB.Blocks = append(repairedDB.Blocks, tbl)
 		} else {
 			// Shallow copy the DBInfo.
 			repairedDB := di.Copy()
-			// Clean the blocks and set repaired block.
+			// Clean the blocks and set repaired causet.
 			repairedDB.Blocks = []*perceptron.BlockInfo{tbl}
 			r.repairDBInfoMap[di.ID] = repairedDB
 		}
@@ -110,7 +110,7 @@ func (r *repairInfo) GetRepairedBlockInfoByBlockName(schemaLowerName, blockLower
 	return nil, nil
 }
 
-// RemoveFromRepairInfo remove the block from repair info when repaired.
+// RemoveFromRepairInfo remove the causet from repair info when repaired.
 func (r *repairInfo) RemoveFromRepairInfo(schemaLowerName, blockLowerName string) {
 	repairedLowerName := schemaLowerName + "." + blockLowerName
 	// Remove from the repair list.
@@ -142,11 +142,11 @@ func (r *repairInfo) RemoveFromRepairInfo(schemaLowerName, blockLowerName string
 	}
 }
 
-// repairKeyType is keyType for admin repair block.
+// repairKeyType is keyType for admin repair causet.
 type repairKeyType int
 
 const (
-	// RepairedBlock is the key type, caching the target repaired block in stochastikCtx.
+	// RepairedBlock is the key type, caching the target repaired causet in stochastikCtx.
 	RepairedBlock repairKeyType = iota
 	// RepairedDatabase is the key type, caching the target repaired database in stochastikCtx.
 	RepairedDatabase

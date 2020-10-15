@@ -27,9 +27,9 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
@@ -54,8 +54,8 @@ func (s *testDBSSerialSuite) SetUpSuite(c *C) {
 	s.testRunWorker(c)
 }
 
-func (s *testDBSSuite) TestCheckOwner(c *C) {
-	causetstore := testCreateStore(c, "test_owner")
+func (s *testDBSSuite) TestCheckTenant(c *C) {
+	causetstore := testCreateStore(c, "test_tenant")
 	defer causetstore.Close()
 
 	d1 := testNewDBSAndStart(
@@ -66,7 +66,7 @@ func (s *testDBSSuite) TestCheckOwner(c *C) {
 	)
 	defer d1.Stop()
 	time.Sleep(testLease)
-	testCheckOwner(c, d1, true)
+	testCheckTenant(c, d1, true)
 
 	c.Assert(d1.GetLease(), Equals, testLease)
 }
@@ -83,7 +83,7 @@ func (s *testDBSSerialSuite) testRunWorker(c *C) {
 		WithStore(causetstore),
 		WithLease(testLease),
 	)
-	testCheckOwner(c, d, false)
+	testCheckTenant(c, d, false)
 	defer d.Stop()
 
 	// Make sure the DBS worker is nil.
@@ -97,7 +97,7 @@ func (s *testDBSSerialSuite) testRunWorker(c *C) {
 		WithStore(causetstore),
 		WithLease(testLease),
 	)
-	testCheckOwner(c, d1, true)
+	testCheckTenant(c, d1, true)
 	defer d1.Stop()
 	worker = d1.generalWorker()
 	c.Assert(worker, NotNil)
@@ -132,20 +132,20 @@ func (s *testDBSSuite) TestBlockError(c *C) {
 	defer d.Stop()
 	ctx := testNewContext(d)
 
-	// Schema ID is wrong, so dropping block is failed.
+	// Schema ID is wrong, so dropping causet is failed.
 	doDBSJobErr(c, -1, 1, perceptron.CausetActionDropBlock, nil, ctx, d)
-	// Block ID is wrong, so dropping block is failed.
+	// Block ID is wrong, so dropping causet is failed.
 	dbInfo := testSchemaInfo(c, d, "test")
 	testCreateSchema(c, testNewContext(d), d, dbInfo)
 	job := doDBSJobErr(c, dbInfo.ID, -1, perceptron.CausetActionDropBlock, nil, ctx, d)
 
-	// Block ID or schemaReplicant ID is wrong, so getting block is failed.
+	// Block ID or schemaReplicant ID is wrong, so getting causet is failed.
 	tblInfo := testBlockInfo(c, d, "t", 3)
 	testCreateBlock(c, ctx, d, dbInfo, tblInfo)
 	err := ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
 		job.SchemaID = -1
 		job.BlockID = -1
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		_, err1 := getBlockInfoAndCancelFaultJob(t, job, job.SchemaID)
 		c.Assert(err1, NotNil)
 		job.SchemaID = dbInfo.ID
@@ -155,11 +155,11 @@ func (s *testDBSSuite) TestBlockError(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// Args is wrong, so creating block is failed.
+	// Args is wrong, so creating causet is failed.
 	doDBSJobErr(c, 1, 1, perceptron.CausetActionCreateBlock, []interface{}{1}, ctx, d)
-	// Schema ID is wrong, so creating block is failed.
+	// Schema ID is wrong, so creating causet is failed.
 	doDBSJobErr(c, -1, tblInfo.ID, perceptron.CausetActionCreateBlock, []interface{}{tblInfo}, ctx, d)
-	// Block exists, so creating block is failed.
+	// Block exists, so creating causet is failed.
 	tblInfo.ID = tblInfo.ID + 1
 	doDBSJobErr(c, dbInfo.ID, tblInfo.ID, perceptron.CausetActionCreateBlock, []interface{}{tblInfo}, ctx, d)
 
@@ -180,7 +180,7 @@ func (s *testDBSSuite) TestViewError(c *C) {
 	dbInfo := testSchemaInfo(c, d, "test")
 	testCreateSchema(c, testNewContext(d), d, dbInfo)
 
-	// Block ID or schemaReplicant ID is wrong, so getting block is failed.
+	// Block ID or schemaReplicant ID is wrong, so getting causet is failed.
 	tblInfo := testViewInfo(c, d, "t", 3)
 	testCreateView(c, ctx, d, dbInfo, tblInfo)
 
@@ -334,13 +334,13 @@ func (s *testDBSSuite) TestDeferredCausetError(c *C) {
 	doDBSJobErr(c, dbInfo.ID, tblInfo.ID, perceptron.CausetActionDropDeferredCausets, []interface{}{[]perceptron.CIStr{perceptron.NewCIStr("c5"), perceptron.NewCIStr("c6")}, make([]bool, 2)}, ctx, d)
 }
 
-func testCheckOwner(c *C, d *dbs, expectedVal bool) {
-	c.Assert(d.isOwner(), Equals, expectedVal)
+func testCheckTenant(c *C, d *dbs, expectedVal bool) {
+	c.Assert(d.isTenant(), Equals, expectedVal)
 }
 
 func testCheckJobDone(c *C, d *dbs, job *perceptron.Job, isAdd bool) {
 	ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		historyJob, err := t.GetHistoryDBSJob(job.ID)
 		c.Assert(err, IsNil)
 		checkHistoryJob(c, historyJob)
@@ -356,7 +356,7 @@ func testCheckJobDone(c *C, d *dbs, job *perceptron.Job, isAdd bool) {
 
 func testCheckJobCancelled(c *C, d *dbs, job *perceptron.Job, state *perceptron.SchemaState) {
 	ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		historyJob, err := t.GetHistoryDBSJob(job.ID)
 		c.Assert(err, IsNil)
 		c.Assert(historyJob.IsCancelled() || historyJob.IsRollbackDone(), IsTrue, Commentf("history job %s", historyJob))
@@ -444,7 +444,7 @@ func buildCancelJobTests(firstID int64) []testCancelJob {
 		{act: perceptron.CausetActionAddDeferredCauset, jobIDs: []int64{firstID + 7}, cancelRetErrs: noErrs, cancelState: perceptron.StateWriteReorganization},
 		{act: perceptron.CausetActionAddDeferredCauset, jobIDs: []int64{firstID + 8}, cancelRetErrs: []error{admin.ErrCancelFinishedDBSJob.GenWithStackByArgs(firstID + 8)}, cancelState: perceptron.StatePublic},
 
-		// Test create block, watch out, block id will alloc a globalID.
+		// Test create causet, watch out, causet id will alloc a globalID.
 		{act: perceptron.CausetActionCreateBlock, jobIDs: []int64{firstID + 10}, cancelRetErrs: noErrs, cancelState: perceptron.StateNone},
 		// Test create database, watch out, database id will alloc a globalID.
 		{act: perceptron.CausetActionCreateSchema, jobIDs: []int64{firstID + 12}, cancelRetErrs: noErrs, cancelState: perceptron.StateNone},
@@ -542,7 +542,7 @@ func (s *testDBSSerialSuite) checkCancelDropDeferredCausets(c *C, d *dbs, schema
 	c.Assert(notFound, Equals, success)
 }
 
-func checkDeferredCausetsNotFound(t block.Block, defCausNames []string) bool {
+func checkDeferredCausetsNotFound(t causet.Block, defCausNames []string) bool {
 	notFound := true
 	for _, defCausName := range defCausNames {
 		for _, defCausInfo := range t.Meta().DeferredCausets {
@@ -554,7 +554,7 @@ func checkDeferredCausetsNotFound(t block.Block, defCausNames []string) bool {
 	return notFound
 }
 
-func checkIdxVisibility(changedBlock block.Block, idxName string, expected bool) bool {
+func checkIdxVisibility(changedBlock causet.Block, idxName string, expected bool) bool {
 	for _, idxInfo := range changedBlock.Meta().Indices {
 		if idxInfo.Name.O == idxName && idxInfo.Invisible == expected {
 			return true
@@ -575,11 +575,11 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	defer d.Stop()
 	dbInfo := testSchemaInfo(c, d, "test_cancel_job")
 	testCreateSchema(c, testNewContext(d), d, dbInfo)
-	// create a partition block.
+	// create a partition causet.
 	partitionTblInfo := testBlockInfoWithPartition(c, d, "t_partition", 5)
 	// Skip using sessPool. Make sure adding primary key can be successful.
 	partitionTblInfo.DeferredCausets[0].Flag |= allegrosql.NotNullFlag
-	// create block t (c1 int, c2 int, c3 int, c4 int, c5 int);
+	// create causet t (c1 int, c2 int, c3 int, c4 int, c5 int);
 	tblInfo := testBlockInfo(c, d, "t", 5)
 	ctx := testNewContext(d)
 	err := ctx.NewTxn(context.Background())
@@ -718,7 +718,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Check(errors.ErrorStack(checkErr), Equals, "")
 	s.checkAddDeferredCausets(c, d, dbInfo.ID, tblInfo.ID, []string{addingDefCausName}, true)
 
-	// for create block
+	// for create causet
 	tblInfo1 := testBlockInfo(c, d, "t1", 2)
 	uFIDelateTest(&tests[8])
 	doDBSJobErrWithSchemaState(ctx, d, c, dbInfo.ID, tblInfo1.ID, perceptron.CausetActionCreateBlock, []interface{}{tblInfo1}, &cancelState)
@@ -825,7 +825,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	changedBlock = testGetBlock(c, d, dbInfo.ID, tblInfo.ID)
 	c.Assert(len(changedBlock.Meta().ForeignKeys), Equals, 0)
 
-	// test rename block failed caused by canceled.
+	// test rename causet failed caused by canceled.
 	test = &tests[21]
 	renameBlockArgs := []interface{}{dbInfo.ID, perceptron.NewCIStr("t2")}
 	doDBSJobErrWithSchemaState(ctx, d, c, dbInfo.ID, tblInfo.ID, test.act, renameBlockArgs, &test.cancelState)
@@ -833,14 +833,14 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	changedBlock = testGetBlock(c, d, dbInfo.ID, tblInfo.ID)
 	c.Assert(changedBlock.Meta().Name.L, Equals, "t")
 
-	// test rename block successful.
+	// test rename causet successful.
 	test = &tests[22]
 	doDBSJobSuccess(ctx, d, c, dbInfo.ID, tblInfo.ID, test.act, renameBlockArgs)
 	c.Check(checkErr, IsNil)
 	changedBlock = testGetBlock(c, d, dbInfo.ID, tblInfo.ID)
 	c.Assert(changedBlock.Meta().Name.L, Equals, "t2")
 
-	// test modify block charset failed caused by canceled.
+	// test modify causet charset failed caused by canceled.
 	test = &tests[23]
 	modifyBlockCharsetArgs := []interface{}{"utf8mb4", "utf8mb4_bin"}
 	doDBSJobErrWithSchemaState(ctx, d, c, dbInfo.ID, tblInfo.ID, test.act, modifyBlockCharsetArgs, &test.cancelState)
@@ -849,7 +849,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Assert(changedBlock.Meta().Charset, Equals, "utf8")
 	c.Assert(changedBlock.Meta().DefCauslate, Equals, "utf8_bin")
 
-	// test modify block charset successfully.
+	// test modify causet charset successfully.
 	test = &tests[24]
 	doDBSJobSuccess(ctx, d, c, dbInfo.ID, tblInfo.ID, test.act, modifyBlockCharsetArgs)
 	c.Check(checkErr, IsNil)
@@ -857,7 +857,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Assert(changedBlock.Meta().Charset, Equals, "utf8mb4")
 	c.Assert(changedBlock.Meta().DefCauslate, Equals, "utf8mb4_bin")
 
-	// test truncate block partition failed caused by canceled.
+	// test truncate causet partition failed caused by canceled.
 	test = &tests[25]
 	truncateTblPartitionArgs := []interface{}{[]int64{partitionTblInfo.Partition.Definitions[0].ID}}
 	doDBSJobErrWithSchemaState(ctx, d, c, dbInfo.ID, partitionTblInfo.ID, test.act, truncateTblPartitionArgs, &test.cancelState)
@@ -865,7 +865,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	changedBlock = testGetBlock(c, d, dbInfo.ID, partitionTblInfo.ID)
 	c.Assert(changedBlock.Meta().Partition.Definitions[0].ID == partitionTblInfo.Partition.Definitions[0].ID, IsTrue)
 
-	// test truncate block partition charset successfully.
+	// test truncate causet partition charset successfully.
 	test = &tests[26]
 	doDBSJobSuccess(ctx, d, c, dbInfo.ID, partitionTblInfo.ID, test.act, truncateTblPartitionArgs)
 	c.Check(checkErr, IsNil)
@@ -882,7 +882,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Assert(dbInfo.Charset, Equals, "")
 	c.Assert(dbInfo.DefCauslate, Equals, "")
 
-	// test modify block charset successfully.
+	// test modify causet charset successfully.
 	test = &tests[28]
 	doDBSJobSuccess(ctx, d, c, dbInfo.ID, tblInfo.ID, test.act, charsetAndDefCauslate)
 	c.Check(checkErr, IsNil)
@@ -933,7 +933,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	// for add defCausumns
 	uFIDelateTest(&tests[35])
 	addingDefCausNames := []string{"defCausA", "defCausB", "defCausC", "defCausD", "defCausE", "defCausF"}
-	defcaus := make([]*block.DeferredCauset, len(addingDefCausNames))
+	defcaus := make([]*causet.DeferredCauset, len(addingDefCausNames))
 	for i, addingDefCausName := range addingDefCausNames {
 		newDeferredCausetDef := &ast.DeferredCausetDef{
 			Name:    &ast.DeferredCausetName{Name: perceptron.NewCIStr(addingDefCausName)},
@@ -1042,7 +1042,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Assert(changedNtBlock.Meta().ID == nt.ID, IsFalse)
 	c.Assert(changedPtBlock.Meta().Partition.Definitions[0].ID == nt.ID, IsTrue)
 
-	// Cancel add block partition.
+	// Cancel add causet partition.
 	baseBlockInfo := testBlockInfoWithPartitionLessThan(c, d, "empty_block", 5, "1000")
 	testCreateBlock(c, ctx, d, dbInfo, baseBlockInfo)
 
@@ -1070,9 +1070,9 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	c.Assert(baseBlock.Meta().Partition.Definitions[1].LessThan[0], Equals, addedPartInfo.Definitions[0].LessThan[0])
 
 	// Cancel modify defCausumn which should reorg the data.
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/dbs/skipMockContextDoExec", `return(true)`), IsNil)
-	baseBlockInfo = testBlockInfoWith2IndexOnFirstDeferredCauset(c, d, "modify-block", 2)
-	// This will cost 2 global id, one for block id, the other for the job id.
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/dbs/skipMockContextDoInterDirc", `return(true)`), IsNil)
+	baseBlockInfo = testBlockInfoWith2IndexOnFirstDeferredCauset(c, d, "modify-causet", 2)
+	// This will cost 2 global id, one for causet id, the other for the job id.
 	testCreateBlock(c, ctx, d, dbInfo, baseBlockInfo)
 
 	cancelState = perceptron.StateNone
@@ -1121,7 +1121,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	baseBlock = testGetBlock(c, d, dbInfo.ID, baseBlockInfo.ID)
 	c.Assert(baseBlock.Meta().DeferredCausets[0].FieldType.Tp, Equals, allegrosql.TypeTiny)
 	c.Assert(baseBlock.Meta().DeferredCausets[0].FieldType.Flag&allegrosql.NotNullFlag, Equals, uint(1))
-	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/dbs/skipMockContextDoExec"), IsNil)
+	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/dbs/skipMockContextDoInterDirc"), IsNil)
 }
 
 func (s *testDBSSuite) TestIgnorableSpec(c *C) {
@@ -1164,7 +1164,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	job9 := &perceptron.Job{ID: 9, SchemaID: 111, Type: perceptron.CausetActionDropSchema}
 	job11 := &perceptron.Job{ID: 11, BlockID: 2, Type: perceptron.CausetActionRenameBlock, Args: []interface{}{int64(111), "old EDB name"}}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := t.EnQueueDBSJob(job1)
 		c.Assert(err, IsNil)
 		err = t.EnQueueDBSJob(job2)
@@ -1183,7 +1183,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	})
 	job4 := &perceptron.Job{ID: 4, BlockID: 1, Type: perceptron.CausetActionAddIndex}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := buildJobDependence(t, job4)
 		c.Assert(err, IsNil)
 		c.Assert(job4.DependencyID, Equals, int64(2))
@@ -1191,7 +1191,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	})
 	job5 := &perceptron.Job{ID: 5, BlockID: 2, Type: perceptron.CausetActionAddIndex}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := buildJobDependence(t, job5)
 		c.Assert(err, IsNil)
 		c.Assert(job5.DependencyID, Equals, int64(3))
@@ -1199,7 +1199,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	})
 	job8 := &perceptron.Job{ID: 8, BlockID: 3, Type: perceptron.CausetActionAddIndex}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := buildJobDependence(t, job8)
 		c.Assert(err, IsNil)
 		c.Assert(job8.DependencyID, Equals, int64(0))
@@ -1207,7 +1207,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	})
 	job10 := &perceptron.Job{ID: 10, SchemaID: 111, BlockID: 3, Type: perceptron.CausetActionAddIndex}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := buildJobDependence(t, job10)
 		c.Assert(err, IsNil)
 		c.Assert(job10.DependencyID, Equals, int64(9))
@@ -1215,7 +1215,7 @@ func (s *testDBSSuite) TestBuildJobDependence(c *C) {
 	})
 	job12 := &perceptron.Job{ID: 12, SchemaID: 112, BlockID: 2, Type: perceptron.CausetActionAddIndex}
 	ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		err := buildJobDependence(t, job12)
 		c.Assert(err, IsNil)
 		c.Assert(job12.DependencyID, Equals, int64(11))
@@ -1263,7 +1263,7 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 	// create database test_parallel_dbs_1;
 	dbInfo1 := testSchemaInfo(c, d, "test_parallel_dbs_1")
 	testCreateSchema(c, ctx, d, dbInfo1)
-	// create block t1 (c1 int, c2 int);
+	// create causet t1 (c1 int, c2 int);
 	tblInfo1 := testBlockInfo(c, d, "t1", 2)
 	testCreateBlock(c, ctx, d, dbInfo1, tblInfo1)
 	// insert t1 values (10, 10), (20, 20)
@@ -1272,7 +1272,7 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 	c.Assert(err, IsNil)
 	_, err = tbl1.AddRecord(ctx, types.MakeCausets(2, 2))
 	c.Assert(err, IsNil)
-	// create block t2 (c1 int primary key, c2 int, c3 int);
+	// create causet t2 (c1 int primary key, c2 int, c3 int);
 	tblInfo2 := testBlockInfo(c, d, "t2", 3)
 	tblInfo2.DeferredCausets[0].Flag = allegrosql.PriKeyFlag | allegrosql.NotNullFlag
 	tblInfo2.PKIsHandle = true
@@ -1288,7 +1288,7 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 	// create database test_parallel_dbs_2;
 	dbInfo2 := testSchemaInfo(c, d, "test_parallel_dbs_2")
 	testCreateSchema(c, ctx, d, dbInfo2)
-	// create block t3 (c1 int, c2 int, c3 int, c4 int);
+	// create causet t3 (c1 int, c2 int, c3 int, c4 int);
 	tblInfo3 := testBlockInfo(c, d, "t3", 4)
 	testCreateBlock(c, ctx, d, dbInfo2, tblInfo3)
 	// insert t3 values (11, 22, 33, 44)
@@ -1308,12 +1308,12 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 			qLen2 := int64(0)
 			for {
 				checkErr = ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-					m := meta.NewMeta(txn)
+					m := spacetime.NewMeta(txn)
 					qLen1, err = m.DBSJobQueueLen()
 					if err != nil {
 						return err
 					}
-					qLen2, err = m.DBSJobQueueLen(meta.AddIndexJobListKey)
+					qLen2, err = m.DBSJobQueueLen(spacetime.AddIndexJobListKey)
 					if err != nil {
 						return err
 					}
@@ -1337,7 +1337,7 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 
 	/*
 		prepare jobs:
-		/	job no.	/	database no.	/	block no.	/	action type	 /
+		/	job no.	/	database no.	/	causet no.	/	action type	 /
 		/     1		/	 	1			/		1		/	add index	 /
 		/     2		/	 	1			/		1		/	add defCausumn	 /
 		/     3		/	 	1			/		1		/	add index	 /
@@ -1372,13 +1372,13 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 	addDBSJob(c, d, job10)
 	job11 := buildCreateIdxJob(dbInfo2, tblInfo3, false, "db3_idx1", "c2")
 	addDBSJob(c, d, job11)
-	// TODO: add rename block job
+	// TODO: add rename causet job
 
 	// check results.
 	isChecked := false
 	for !isChecked {
 		ekv.RunInNewTxn(causetstore, false, func(txn ekv.Transaction) error {
-			m := meta.NewMeta(txn)
+			m := spacetime.NewMeta(txn)
 			lastJob, err := m.GetHistoryDBSJob(job11.ID)
 			c.Assert(err, IsNil)
 			// all jobs are finished.
@@ -1424,7 +1424,7 @@ func (s *testDBSSuite) TestParallelDBS(c *C) {
 	d.SetHook(tc)
 }
 
-func (s *testDBSSuite) TestDBSPackageExecuteALLEGROSQL(c *C) {
+func (s *testDBSSuite) TestDBSPackageInterDircuteALLEGROSQL(c *C) {
 	causetstore := testCreateStore(c, "test_run_sql")
 	defer causetstore.Close()
 
@@ -1434,16 +1434,16 @@ func (s *testDBSSuite) TestDBSPackageExecuteALLEGROSQL(c *C) {
 		WithStore(causetstore),
 		WithLease(testLease),
 	)
-	testCheckOwner(c, d, true)
+	testCheckTenant(c, d, true)
 	defer d.Stop()
 	worker := d.generalWorker()
 	c.Assert(worker, NotNil)
 
 	// In test environment, worker.ctxPool will be nil, and get will return mock.Context.
-	// We just test that can use it to call sqlexec.ALLEGROSQLExecutor.Execute.
+	// We just test that can use it to call sqlexec.ALLEGROSQLInterlockingDirectorate.InterDircute.
 	sess, err := worker.sessPool.get()
 	c.Assert(err, IsNil)
 	defer worker.sessPool.put(sess)
-	se := sess.(sqlexec.ALLEGROSQLExecutor)
-	_, _ = se.Execute(context.Background(), "create block t(a int);")
+	se := sess.(sqlexec.ALLEGROSQLInterlockingDirectorate)
+	_, _ = se.InterDircute(context.Background(), "create causet t(a int);")
 }

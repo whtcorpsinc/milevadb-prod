@@ -38,7 +38,7 @@ func (s testMockSuite) TestInterface(c *C) {
 
 	transaction, err := storage.Begin()
 	c.Check(err, IsNil)
-	err = transaction.LockKeys(context.Background(), new(LockCtx), Key("lock"))
+	err = transaction.LockKeys(context.Background(), new(LockCtx), Key("dagger"))
 	c.Check(err, IsNil)
 	transaction.SetOption(Option(23), struct{}{})
 	if mock, ok := transaction.(*mockTxn); ok {
@@ -47,13 +47,13 @@ func (s testMockSuite) TestInterface(c *C) {
 	transaction.StartTS()
 	transaction.DelOption(Option(23))
 	if transaction.IsReadOnly() {
-		_, err = transaction.Get(context.TODO(), Key("lock"))
+		_, err = transaction.Get(context.TODO(), Key("dagger"))
 		c.Check(err, IsNil)
-		err = transaction.Set(Key("lock"), []byte{})
+		err = transaction.Set(Key("dagger"), []byte{})
 		c.Check(err, IsNil)
-		_, err = transaction.Iter(Key("lock"), nil)
+		_, err = transaction.Iter(Key("dagger"), nil)
 		c.Check(err, IsNil)
-		_, err = transaction.IterReverse(Key("lock"))
+		_, err = transaction.IterReverse(Key("dagger"))
 		c.Check(err, IsNil)
 	}
 	transaction.Commit(context.Background())

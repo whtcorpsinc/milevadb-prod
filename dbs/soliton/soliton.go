@@ -51,19 +51,19 @@ func (t DelRangeTask) Range() (ekv.Key, ekv.Key) {
 	return t.StartKey, t.EndKey
 }
 
-// LoadDeleteRanges loads delete range tasks from gc_delete_range block.
+// LoadDeleteRanges loads delete range tasks from gc_delete_range causet.
 func LoadDeleteRanges(ctx stochastikctx.Context, safePoint uint64) (ranges []DelRangeTask, _ error) {
 	return loadDeleteRangesFromBlock(ctx, deleteRangesBlock, safePoint)
 }
 
-// LoadDoneDeleteRanges loads deleted ranges from gc_delete_range_done block.
+// LoadDoneDeleteRanges loads deleted ranges from gc_delete_range_done causet.
 func LoadDoneDeleteRanges(ctx stochastikctx.Context, safePoint uint64) (ranges []DelRangeTask, _ error) {
 	return loadDeleteRangesFromBlock(ctx, doneDeleteRangesBlock, safePoint)
 }
 
-func loadDeleteRangesFromBlock(ctx stochastikctx.Context, block string, safePoint uint64) (ranges []DelRangeTask, _ error) {
-	allegrosql := fmt.Sprintf(loadDeleteRangeALLEGROSQL, block, safePoint)
-	rss, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+func loadDeleteRangesFromBlock(ctx stochastikctx.Context, causet string, safePoint uint64) (ranges []DelRangeTask, _ error) {
+	allegrosql := fmt.Sprintf(loadDeleteRangeALLEGROSQL, causet, safePoint)
+	rss, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rss) > 0 {
 		defer terror.Call(rss[0].Close)
 	}
@@ -103,11 +103,11 @@ func loadDeleteRangesFromBlock(ctx stochastikctx.Context, block string, safePoin
 	return ranges, nil
 }
 
-// CompleteDeleteRange moves a record from gc_delete_range block to gc_delete_range_done block.
+// CompleteDeleteRange moves a record from gc_delete_range causet to gc_delete_range_done causet.
 // NOTE: This function WILL NOT start and run in a new transaction internally.
 func CompleteDeleteRange(ctx stochastikctx.Context, dr DelRangeTask) error {
 	allegrosql := fmt.Sprintf(recordDoneDeletedRangeALLEGROSQL, dr.JobID, dr.ElementID)
-	_, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -118,7 +118,7 @@ func CompleteDeleteRange(ctx stochastikctx.Context, dr DelRangeTask) error {
 // RemoveFromGCDeleteRange is exported for dbs pkg to use.
 func RemoveFromGCDeleteRange(ctx stochastikctx.Context, jobID, elementID int64) error {
 	allegrosql := fmt.Sprintf(completeDeleteRangeALLEGROSQL, jobID, elementID)
-	_, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	return errors.Trace(err)
 }
 
@@ -132,14 +132,14 @@ func RemoveMultiFromGCDeleteRange(ctx stochastikctx.Context, jobID int64, elemen
 		buf.WriteString(strconv.FormatInt(elementID, 10))
 	}
 	allegrosql := fmt.Sprintf(completeDeleteMultiRangesALLEGROSQL, jobID, buf.String())
-	_, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	return errors.Trace(err)
 }
 
-// DeleteDoneRecord removes a record from gc_delete_range_done block.
+// DeleteDoneRecord removes a record from gc_delete_range_done causet.
 func DeleteDoneRecord(ctx stochastikctx.Context, dr DelRangeTask) error {
 	allegrosql := fmt.Sprintf(deleteDoneRecordALLEGROSQL, dr.JobID, dr.ElementID)
-	_, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	return errors.Trace(err)
 }
 
@@ -148,7 +148,7 @@ func UFIDelateDeleteRange(ctx stochastikctx.Context, dr DelRangeTask, newStartKe
 	newStartKeyHex := hex.EncodeToString(newStartKey)
 	oldStartKeyHex := hex.EncodeToString(oldStartKey)
 	allegrosql := fmt.Sprintf(uFIDelateDeleteRangeALLEGROSQL, newStartKeyHex, dr.JobID, dr.ElementID, oldStartKeyHex)
-	_, err := ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	_, err := ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	return errors.Trace(err)
 }
 
@@ -166,7 +166,7 @@ const loadGlobalVarsALLEGROSQL = "select HIGH_PRIORITY variable_name, variable_v
 
 // LoadGlobalVars loads global variable from allegrosql.global_variables.
 func LoadGlobalVars(ctx stochastikctx.Context, varNames []string) error {
-	if sctx, ok := ctx.(sqlexec.RestrictedALLEGROSQLExecutor); ok {
+	if sctx, ok := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate); ok {
 		nameList := ""
 		for i, name := range varNames {
 			if i > 0 {
@@ -175,7 +175,7 @@ func LoadGlobalVars(ctx stochastikctx.Context, varNames []string) error {
 			nameList += fmt.Sprintf("'%s'", name)
 		}
 		allegrosql := fmt.Sprintf(loadGlobalVarsALLEGROSQL, nameList)
-		rows, _, err := sctx.ExecRestrictedALLEGROSQL(allegrosql)
+		rows, _, err := sctx.InterDircRestrictedALLEGROSQL(allegrosql)
 		if err != nil {
 			return errors.Trace(err)
 		}

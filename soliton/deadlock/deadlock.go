@@ -21,7 +21,7 @@ import (
 // Detector detects deadlock.
 type Detector struct {
 	waitForMap map[uint64]*txnList
-	lock       sync.Mutex
+	dagger       sync.Mutex
 }
 
 type txnList struct {
@@ -51,12 +51,12 @@ func (e *ErrDeadlock) Error() string {
 
 // Detect detects deadlock for the sourceTxn on a locked key.
 func (d *Detector) Detect(sourceTxn, waitForTxn, keyHash uint64) *ErrDeadlock {
-	d.lock.Lock()
+	d.dagger.Lock()
 	err := d.doDetect(sourceTxn, waitForTxn)
 	if err == nil {
 		d.register(sourceTxn, waitForTxn, keyHash)
 	}
-	d.lock.Unlock()
+	d.dagger.Unlock()
 	return err
 }
 
@@ -93,15 +93,15 @@ func (d *Detector) register(sourceTxn, waitForTxn, keyHash uint64) {
 
 // CleanUp removes the wait for entry for the transaction.
 func (d *Detector) CleanUp(txn uint64) {
-	d.lock.Lock()
+	d.dagger.Lock()
 	delete(d.waitForMap, txn)
-	d.lock.Unlock()
+	d.dagger.Unlock()
 }
 
 // CleanUpWaitFor removes a key in the wait for entry for the transaction.
 func (d *Detector) CleanUpWaitFor(txn, waitForTxn, keyHash uint64) {
 	pair := txnKeyHashPair{txn: waitForTxn, keyHash: keyHash}
-	d.lock.Lock()
+	d.dagger.Lock()
 	l := d.waitForMap[txn]
 	if l != nil {
 		for i, tar := range l.txns {
@@ -114,17 +114,17 @@ func (d *Detector) CleanUpWaitFor(txn, waitForTxn, keyHash uint64) {
 			delete(d.waitForMap, txn)
 		}
 	}
-	d.lock.Unlock()
+	d.dagger.Unlock()
 
 }
 
 // Expire removes entries with TS smaller than minTS.
 func (d *Detector) Expire(minTS uint64) {
-	d.lock.Lock()
+	d.dagger.Lock()
 	for ts := range d.waitForMap {
 		if ts < minTS {
 			delete(d.waitForMap, ts)
 		}
 	}
-	d.lock.Unlock()
+	d.dagger.Unlock()
 }

@@ -113,12 +113,12 @@ func (cli *testServerClient) runTests(c *C, overrider configOverrider, tests ...
 	c.Assert(err, IsNil, Commentf("Error connecting"))
 	defer EDB.Close()
 
-	EDB.Exec("DROP TABLE IF EXISTS test")
+	EDB.InterDirc("DROP TABLE IF EXISTS test")
 
 	dbt := &DBTest{c, EDB}
 	for _, test := range tests {
 		test(dbt)
-		dbt.EDB.Exec("DROP TABLE IF EXISTS test")
+		dbt.EDB.InterDirc("DROP TABLE IF EXISTS test")
 	}
 }
 
@@ -131,27 +131,27 @@ func (cli *testServerClient) runTestsOnNewDB(c *C, overrider configOverrider, db
 	c.Assert(err, IsNil, Commentf("Error connecting"))
 	defer EDB.Close()
 
-	_, err = EDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", dbName))
+	_, err = EDB.InterDirc(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", dbName))
 	if err != nil {
 		fmt.Println(err)
 	}
 	c.Assert(err, IsNil, Commentf("Error drop database %s: %s", dbName, err))
 
-	_, err = EDB.Exec(fmt.Sprintf("CREATE DATABASE `%s`;", dbName))
+	_, err = EDB.InterDirc(fmt.Sprintf("CREATE DATABASE `%s`;", dbName))
 	c.Assert(err, IsNil, Commentf("Error create database %s: %s", dbName, err))
 
 	defer func() {
-		_, err = EDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", dbName))
+		_, err = EDB.InterDirc(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", dbName))
 		c.Assert(err, IsNil, Commentf("Error drop database %s: %s", dbName, err))
 	}()
 
-	_, err = EDB.Exec(fmt.Sprintf("USE `%s`;", dbName))
+	_, err = EDB.InterDirc(fmt.Sprintf("USE `%s`;", dbName))
 	c.Assert(err, IsNil, Commentf("Error use database %s: %s", dbName, err))
 
 	dbt := &DBTest{c, EDB}
 	for _, test := range tests {
 		test(dbt)
-		dbt.EDB.Exec("DROP TABLE IF EXISTS test")
+		dbt.EDB.InterDirc("DROP TABLE IF EXISTS test")
 	}
 }
 
@@ -173,9 +173,9 @@ func (dbt *DBTest) mustPrepare(query string) *allegrosql.Stmt {
 	return stmt
 }
 
-func (dbt *DBTest) mustExecPrepared(stmt *allegrosql.Stmt, args ...interface{}) allegrosql.Result {
-	res, err := stmt.Exec(args...)
-	dbt.Assert(err, IsNil, Commentf("Execute prepared with args: %s", args))
+func (dbt *DBTest) mustInterDircPrepared(stmt *allegrosql.Stmt, args ...interface{}) allegrosql.Result {
+	res, err := stmt.InterDirc(args...)
+	dbt.Assert(err, IsNil, Commentf("InterDircute prepared with args: %s", args))
 	return res
 }
 
@@ -185,9 +185,9 @@ func (dbt *DBTest) mustQueryPrepared(stmt *allegrosql.Stmt, args ...interface{})
 	return rows
 }
 
-func (dbt *DBTest) mustExec(query string, args ...interface{}) (res allegrosql.Result) {
-	res, err := dbt.EDB.Exec(query, args...)
-	dbt.Assert(err, IsNil, Commentf("Exec %s", query))
+func (dbt *DBTest) mustInterDirc(query string, args ...interface{}) (res allegrosql.Result) {
+	res, err := dbt.EDB.InterDirc(query, args...)
+	dbt.Assert(err, IsNil, Commentf("InterDirc %s", query))
 	return res
 }
 
@@ -206,19 +206,19 @@ func (dbt *DBTest) mustQueryRows(query string, args ...interface{}) {
 func (cli *testServerClient) runTestRegression(c *C, overrider configOverrider, dbName string) {
 	cli.runTestsOnNewDB(c, overrider, dbName, func(dbt *DBTest) {
 		// Show the user
-		dbt.mustExec("select user()")
+		dbt.mustInterDirc("select user()")
 
 		// Create Block
-		dbt.mustExec("CREATE TABLE test (val TINYINT)")
+		dbt.mustInterDirc("CREATE TABLE test (val TINYINT)")
 
 		// Test for unexpected data
 		var out bool
 		rows := dbt.mustQuery("SELECT * FROM test")
-		dbt.Assert(rows.Next(), IsFalse, Commentf("unexpected data in empty block"))
+		dbt.Assert(rows.Next(), IsFalse, Commentf("unexpected data in empty causet"))
 
 		// Create Data
-		res := dbt.mustExec("INSERT INTO test VALUES (1)")
-		//		res := dbt.mustExec("INSERT INTO test VALUES (?)", 1)
+		res := dbt.mustInterDirc("INSERT INTO test VALUES (1)")
+		//		res := dbt.mustInterDirc("INSERT INTO test VALUES (?)", 1)
 		count, err := res.RowsAffected()
 		dbt.Assert(err, IsNil)
 		dbt.Check(count, Equals, int64(1))
@@ -238,7 +238,7 @@ func (cli *testServerClient) runTestRegression(c *C, overrider configOverrider, 
 		rows.Close()
 
 		// UFIDelate
-		res = dbt.mustExec("UFIDelATE test SET val = 0 WHERE val = ?", 1)
+		res = dbt.mustInterDirc("UFIDelATE test SET val = 0 WHERE val = ?", 1)
 		count, err = res.RowsAffected()
 		dbt.Assert(err, IsNil)
 		dbt.Check(count, Equals, int64(1))
@@ -255,14 +255,14 @@ func (cli *testServerClient) runTestRegression(c *C, overrider configOverrider, 
 		rows.Close()
 
 		// Delete
-		res = dbt.mustExec("DELETE FROM test WHERE val = 0")
-		//		res = dbt.mustExec("DELETE FROM test WHERE val = ?", 0)
+		res = dbt.mustInterDirc("DELETE FROM test WHERE val = 0")
+		//		res = dbt.mustInterDirc("DELETE FROM test WHERE val = ?", 0)
 		count, err = res.RowsAffected()
 		dbt.Assert(err, IsNil)
 		dbt.Check(count, Equals, int64(1))
 
 		// Check for unexpected rows
-		res = dbt.mustExec("DELETE FROM test")
+		res = dbt.mustInterDirc("DELETE FROM test")
 		count, err = res.RowsAffected()
 		dbt.Assert(err, IsNil)
 		dbt.Check(count, Equals, int64(0))
@@ -302,8 +302,8 @@ func (cli *testServerClient) runTestPrepareResultFieldType(t *C) {
 
 func (cli *testServerClient) runTestSpecialType(t *C) {
 	cli.runTestsOnNewDB(t, nil, "SpecialType", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a decimal(10, 5), b datetime, c time, d bit(8))")
-		dbt.mustExec("insert test values (1.4, '2012-12-21 12:12:12', '4:23:34', b'1000')")
+		dbt.mustInterDirc("create causet test (a decimal(10, 5), b datetime, c time, d bit(8))")
+		dbt.mustInterDirc("insert test values (1.4, '2012-12-21 12:12:12', '4:23:34', b'1000')")
 		rows := dbt.mustQuery("select * from test where a > ?", 0)
 		t.Assert(rows.Next(), IsTrue)
 		var outA float64
@@ -355,8 +355,8 @@ func (cli *testServerClient) runTestClientWithDefCauslation(t *C) {
 
 func (cli *testServerClient) runTestPreparedString(t *C) {
 	cli.runTestsOnNewDB(t, nil, "PreparedString", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a char(10), b char(10))")
-		dbt.mustExec("insert test values (?, ?)", "abcdeabcde", "abcde")
+		dbt.mustInterDirc("create causet test (a char(10), b char(10))")
+		dbt.mustInterDirc("insert test values (?, ?)", "abcdeabcde", "abcde")
 		rows := dbt.mustQuery("select * from test where 1 = ?", 1)
 		t.Assert(rows.Next(), IsTrue)
 		var outA, outB string
@@ -372,13 +372,13 @@ func (cli *testServerClient) runTestPreparedString(t *C) {
 // This case guarantees it could work.
 func (cli *testServerClient) runTestPreparedTimestamp(t *C) {
 	cli.runTestsOnNewDB(t, nil, "prepared_timestamp", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a timestamp, b time)")
-		dbt.mustExec("set time_zone='+00:00'")
+		dbt.mustInterDirc("create causet test (a timestamp, b time)")
+		dbt.mustInterDirc("set time_zone='+00:00'")
 		insertStmt := dbt.mustPrepare("insert test values (?, ?)")
 		defer insertStmt.Close()
 		vts := time.Unix(1, 1)
 		vt := time.Unix(-1, 1)
-		dbt.mustExecPrepared(insertStmt, vts, vt)
+		dbt.mustInterDircPrepared(insertStmt, vts, vt)
 		selectStmt := dbt.mustPrepare("select * from test where a = ? and b = ?")
 		defer selectStmt.Close()
 		rows := dbt.mustQueryPrepared(selectStmt, vts, vt)
@@ -396,27 +396,27 @@ func (cli *testServerClient) runTestLoadDataWithSelectIntoOutfile(c *C, server *
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "SelectIntoOutfile", func(dbt *DBTest) {
-		dbt.mustExec("create block t (i int, r real, d decimal(10, 5), s varchar(100), dt datetime, ts timestamp, j json)")
-		dbt.mustExec("insert into t values (1, 1.1, 0.1, 'a', '2000-01-01', '01:01:01', '[1]')")
-		dbt.mustExec("insert into t values (2, 2.2, 0.2, 'b', '2000-02-02', '02:02:02', '[1,2]')")
-		dbt.mustExec("insert into t values (null, null, null, null, '2000-03-03', '03:03:03', '[1,2,3]')")
-		dbt.mustExec("insert into t values (4, 4.4, 0.4, 'd', null, null, null)")
+		dbt.mustInterDirc("create causet t (i int, r real, d decimal(10, 5), s varchar(100), dt datetime, ts timestamp, j json)")
+		dbt.mustInterDirc("insert into t values (1, 1.1, 0.1, 'a', '2000-01-01', '01:01:01', '[1]')")
+		dbt.mustInterDirc("insert into t values (2, 2.2, 0.2, 'b', '2000-02-02', '02:02:02', '[1,2]')")
+		dbt.mustInterDirc("insert into t values (null, null, null, null, '2000-03-03', '03:03:03', '[1,2,3]')")
+		dbt.mustInterDirc("insert into t values (4, 4.4, 0.4, 'd', null, null, null)")
 		outfile := filepath.Join(os.TemFIDelir(), fmt.Sprintf("select_into_outfile_%v_%d.csv", time.Now().UnixNano(), rand.Int()))
 		// On windows use fmt.Sprintf("%q") to escape \ for ALLEGROALLEGROSQL,
 		// outfile may be 'C:\Users\genius\ApFIDelata\Local\Temp\select_into_outfile_1582732846769492000_8074605509026837941.csv'
 		// Without quote, after ALLEGROALLEGROSQL escape it would become:
 		// 'C:UsersgeniusApFIDelataLocalTempselect_into_outfile_1582732846769492000_8074605509026837941.csv'
-		dbt.mustExec(fmt.Sprintf("select * from t into outfile %q", outfile))
+		dbt.mustInterDirc(fmt.Sprintf("select * from t into outfile %q", outfile))
 		defer func() {
 			c.Assert(os.Remove(outfile), IsNil)
 		}()
 
-		dbt.mustExec("create block t1 (i int, r real, d decimal(10, 5), s varchar(100), dt datetime, ts timestamp, j json)")
-		dbt.mustExec(fmt.Sprintf("load data local infile %q into block t1", outfile))
+		dbt.mustInterDirc("create causet t1 (i int, r real, d decimal(10, 5), s varchar(100), dt datetime, ts timestamp, j json)")
+		dbt.mustInterDirc(fmt.Sprintf("load data local infile %q into causet t1", outfile))
 
-		fetchResults := func(block string) [][]interface{} {
+		fetchResults := func(causet string) [][]interface{} {
 			var res [][]interface{}
-			event := dbt.mustQuery("select * from " + block + " order by i")
+			event := dbt.mustQuery("select * from " + causet + " order by i")
 			for event.Next() {
 				r := make([]interface{}, 7)
 				c.Assert(event.Scan(&r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6]), IsNil)
@@ -468,9 +468,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		dbt.mustExec("create block test (a varchar(255), b varchar(255) default 'default value', c int not null auto_increment, primary key(c))")
-		rs, err1 := dbt.EDB.Exec("load data local infile '/tmp/load_data_test.csv' into block test")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		dbt.mustInterDirc("create causet test (a varchar(255), b varchar(255) default 'default value', c int not null auto_increment, primary key(c))")
+		rs, err1 := dbt.EDB.InterDirc("load data local infile '/tmp/load_data_test.csv' into causet test")
 		dbt.Assert(err1, IsNil)
 		lastID, err1 := rs.LastInsertId()
 		dbt.Assert(err1, IsNil)
@@ -515,9 +515,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		rows.Close()
 
 		// specify faileds and lines
-		dbt.mustExec("delete from test")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		rs, err = dbt.EDB.Exec("load data local infile '/tmp/load_data_test.csv' into block test fields terminated by '\t- ' lines starting by 'xxx ' terminated by '\n'")
+		dbt.mustInterDirc("delete from test")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		rs, err = dbt.EDB.InterDirc("load data local infile '/tmp/load_data_test.csv' into causet test fields terminated by '\t- ' lines starting by 'xxx ' terminated by '\n'")
 		dbt.Assert(err, IsNil)
 		lastID, err = rs.LastInsertId()
 		dbt.Assert(err, IsNil)
@@ -549,15 +549,15 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
 
 		// infile size more than a packet size(16K)
-		dbt.mustExec("delete from test")
+		dbt.mustInterDirc("delete from test")
 		_, err = fp.WriteString("\n")
 		dbt.Assert(err, IsNil)
 		for i := 6; i <= 800; i++ {
 			_, err = fp.WriteString(fmt.Sprintf("xxx event%d_defCaus1	- event%d_defCaus2\n", i, i))
 			dbt.Assert(err, IsNil)
 		}
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		rs, err = dbt.EDB.Exec("load data local infile '/tmp/load_data_test.csv' into block test fields terminated by '\t- ' lines starting by 'xxx ' terminated by '\n'")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		rs, err = dbt.EDB.InterDirc("load data local infile '/tmp/load_data_test.csv' into causet test fields terminated by '\t- ' lines starting by 'xxx ' terminated by '\n'")
 		dbt.Assert(err, IsNil)
 		lastID, err = rs.LastInsertId()
 		dbt.Assert(err, IsNil)
@@ -569,13 +569,13 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(rows.Next(), IsTrue, Commentf("unexpected data"))
 
 		// don't support lines terminated is ""
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err = dbt.EDB.Exec("load data local infile '/tmp/load_data_test.csv' into block test lines terminated by ''")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err = dbt.EDB.InterDirc("load data local infile '/tmp/load_data_test.csv' into causet test lines terminated by ''")
 		dbt.Assert(err, NotNil)
 
 		// infile doesn't exist
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err = dbt.EDB.Exec("load data local infile '/tmp/nonexistence.csv' into block test")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err = dbt.EDB.InterDirc("load data local infile '/tmp/nonexistence.csv' into causet test")
 		dbt.Assert(err, NotNil)
 	})
 
@@ -599,9 +599,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("create block test (str varchar(10) default null, i int default null)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block test FIELDS TERMINATED BY ',' enclosed by '"'`)
+		dbt.mustInterDirc("create causet test (str varchar(10) default null, i int default null)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet test FIELDS TERMINATED BY ',' enclosed by '"'`)
 		dbt.Assert(err1, IsNil)
 		var (
 			str string
@@ -622,7 +622,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(str, DeepEquals, "hig")
 		dbt.Check(id, DeepEquals, 789)
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
-		dbt.mustExec("delete from test")
+		dbt.mustInterDirc("delete from test")
 	})
 
 	err = fp.Close()
@@ -645,9 +645,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a date, b date, c date not null, d date)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block test FIELDS TERMINATED BY ','`)
+		dbt.mustInterDirc("create causet test (a date, b date, c date not null, d date)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet test FIELDS TERMINATED BY ','`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a allegrosql.NullString
@@ -676,7 +676,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(c.String, Equals, "2003-03-03")
 		dbt.Check(d.String, Equals, "")
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
-		dbt.mustExec("delete from test")
+		dbt.mustInterDirc("delete from test")
 	})
 
 	err = fp.Close()
@@ -699,9 +699,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a varchar(20), b varchar(20))")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block test FIELDS TERMINATED BY ',' enclosed by '"'`)
+		dbt.mustInterDirc("create causet test (a varchar(20), b varchar(20))")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet test FIELDS TERMINATED BY ',' enclosed by '"'`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a allegrosql.NullString
@@ -722,7 +722,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(a.String, Equals, `a"b`)
 		dbt.Check(b.String, Equals, `c"d"e`)
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
-		dbt.mustExec("delete from test")
+		dbt.mustInterDirc("delete from test")
 	})
 
 	err = fp.Close()
@@ -743,9 +743,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 	cli.runTestsOnNewDB(c, func(config *allegrosql.Config) {
 		config.AllowAllFiles = true
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("create block test (id INT NOT NULL PRIMARY KEY,  b INT,  c varchar(10))")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block test FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' IGNORE 1 LINES`)
+		dbt.mustInterDirc("create causet test (id INT NOT NULL PRIMARY KEY,  b INT,  c varchar(10))")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet test FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' IGNORE 1 LINES`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a int
@@ -760,7 +760,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(b, Equals, 2)
 		dbt.Check(c.String, Equals, "3")
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
-		dbt.mustExec("delete from test")
+		dbt.mustInterDirc("delete from test")
 	})
 
 	// unsupport ClientLocalFiles capability
@@ -768,9 +768,9 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 	cli.runTestsOnNewDB(c, func(config *allegrosql.Config) {
 		config.AllowAllFiles = true
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("create block test (a varchar(255), b varchar(255) default 'default value', c int not null auto_increment, primary key(c))")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 3")
-		_, err = dbt.EDB.Exec("load data local infile '/tmp/load_data_test.csv' into block test")
+		dbt.mustInterDirc("create causet test (a varchar(255), b varchar(255) default 'default value', c int not null auto_increment, primary key(c))")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 3")
+		_, err = dbt.EDB.InterDirc("load data local infile '/tmp/load_data_test.csv' into causet test")
 		dbt.Assert(err, NotNil)
 		checkErrorCode(c, err, errno.ErrNotAllowedCommand)
 	})
@@ -795,10 +795,10 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists pn")
-		dbt.mustExec("create block pn (c1 int, c2 int)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 1")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block pn FIELDS TERMINATED BY ','`)
+		dbt.mustInterDirc("drop causet if exists pn")
+		dbt.mustInterDirc("create causet pn (c1 int, c2 int)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 1")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet pn FIELDS TERMINATED BY ','`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a int
@@ -818,14 +818,14 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
 
 		// fail error processing test
-		dbt.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/executor/commitOneTaskErr", "return"), IsNil)
-		_, err1 = dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block pn FIELDS TERMINATED BY ','`)
+		dbt.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/interlock/commitOneTaskErr", "return"), IsNil)
+		_, err1 = dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet pn FIELDS TERMINATED BY ','`)
 		mysqlErr, ok := err1.(*allegrosql.MyALLEGROSQLError)
 		dbt.Assert(ok, IsTrue)
 		dbt.Assert(mysqlErr.Message, Equals, "mock commit one task error")
-		dbt.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/executor/commitOneTaskErr"), IsNil)
+		dbt.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/interlock/commitOneTaskErr"), IsNil)
 
-		dbt.mustExec("drop block if exists pn")
+		dbt.mustInterDirc("drop causet if exists pn")
 	})
 
 	err = fp.Close()
@@ -847,10 +847,10 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists pn")
-		dbt.mustExec("create block pn (c1 int, c2 int)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 1")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block pn FIELDS TERMINATED BY ',' (c1, c2)`)
+		dbt.mustInterDirc("drop causet if exists pn")
+		dbt.mustInterDirc("create causet pn (c1 int, c2 int)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 1")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet pn FIELDS TERMINATED BY ',' (c1, c2)`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a int
@@ -869,7 +869,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(b, Equals, 4)
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
 
-		dbt.mustExec("drop block if exists pn")
+		dbt.mustInterDirc("drop causet if exists pn")
 	})
 
 	err = fp.Close()
@@ -891,10 +891,10 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists pn")
-		dbt.mustExec("create block pn (c1 int, c2 int, c3 int)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 1")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block pn FIELDS TERMINATED BY ',' (c1, @dummy)`)
+		dbt.mustInterDirc("drop causet if exists pn")
+		dbt.mustInterDirc("create causet pn (c1 int, c2 int, c3 int)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 1")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet pn FIELDS TERMINATED BY ',' (c1, @dummy)`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a int
@@ -916,7 +916,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(c.String, Equals, "")
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
 
-		dbt.mustExec("drop block if exists pn")
+		dbt.mustInterDirc("drop causet if exists pn")
 	})
 
 	err = fp.Close()
@@ -938,10 +938,10 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		config.AllowAllFiles = true
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "LoadData", func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists pn")
-		dbt.mustExec("create block pn (c1 int, c2 int, c3 int)")
-		dbt.mustExec("set @@milevadb_dml_batch_size = 1")
-		_, err1 := dbt.EDB.Exec(`load data local infile '/tmp/load_data_test.csv' into block pn FIELDS TERMINATED BY ',' (c1, @val1, @val2) SET c3 = @val2 * 100, c2 = CAST(@val1 AS UNSIGNED)`)
+		dbt.mustInterDirc("drop causet if exists pn")
+		dbt.mustInterDirc("create causet pn (c1 int, c2 int, c3 int)")
+		dbt.mustInterDirc("set @@milevadb_dml_batch_size = 1")
+		_, err1 := dbt.EDB.InterDirc(`load data local infile '/tmp/load_data_test.csv' into causet pn FIELDS TERMINATED BY ',' (c1, @val1, @val2) SET c3 = @val2 * 100, c2 = CAST(@val1 AS UNSIGNED)`)
 		dbt.Assert(err1, IsNil)
 		var (
 			a int
@@ -963,7 +963,7 @@ func (cli *testServerClient) runTestLoadData(c *C, server *Server) {
 		dbt.Check(c, Equals, 600)
 		dbt.Check(rows.Next(), IsFalse, Commentf("unexpected data"))
 
-		dbt.mustExec("drop block if exists pn")
+		dbt.mustInterDirc("drop causet if exists pn")
 	})
 }
 
@@ -972,27 +972,27 @@ func (cli *testServerClient) runTestConcurrentUFIDelate(c *C) {
 	cli.runTestsOnNewDB(c, func(config *allegrosql.Config) {
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, dbName, func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists test2")
-		dbt.mustExec("create block test2 (a int, b int)")
-		dbt.mustExec("insert test2 values (1, 1)")
-		dbt.mustExec("set @@milevadb_disable_txn_auto_retry = 0")
+		dbt.mustInterDirc("drop causet if exists test2")
+		dbt.mustInterDirc("create causet test2 (a int, b int)")
+		dbt.mustInterDirc("insert test2 values (1, 1)")
+		dbt.mustInterDirc("set @@milevadb_disable_txn_auto_retry = 0")
 
 		txn1, err := dbt.EDB.Begin()
 		c.Assert(err, IsNil)
-		_, err = txn1.Exec(fmt.Sprintf("USE `%s`;", dbName))
+		_, err = txn1.InterDirc(fmt.Sprintf("USE `%s`;", dbName))
 		c.Assert(err, IsNil)
 
 		txn2, err := dbt.EDB.Begin()
 		c.Assert(err, IsNil)
-		_, err = txn2.Exec(fmt.Sprintf("USE `%s`;", dbName))
+		_, err = txn2.InterDirc(fmt.Sprintf("USE `%s`;", dbName))
 		c.Assert(err, IsNil)
 
-		_, err = txn2.Exec("uFIDelate test2 set a = a + 1 where b = 1")
+		_, err = txn2.InterDirc("uFIDelate test2 set a = a + 1 where b = 1")
 		c.Assert(err, IsNil)
 		err = txn2.Commit()
 		c.Assert(err, IsNil)
 
-		_, err = txn1.Exec("uFIDelate test2 set a = a + 1 where b = 1")
+		_, err = txn1.InterDirc("uFIDelate test2 set a = a + 1 where b = 1")
 		c.Assert(err, IsNil)
 
 		err = txn1.Commit()
@@ -1002,11 +1002,11 @@ func (cli *testServerClient) runTestConcurrentUFIDelate(c *C) {
 
 func (cli *testServerClient) runTestErrorCode(c *C) {
 	cli.runTestsOnNewDB(c, nil, "ErrorCode", func(dbt *DBTest) {
-		dbt.mustExec("create block test (c int PRIMARY KEY);")
-		dbt.mustExec("insert into test values (1);")
+		dbt.mustInterDirc("create causet test (c int PRIMARY KEY);")
+		dbt.mustInterDirc("insert into test values (1);")
 		txn1, err := dbt.EDB.Begin()
 		c.Assert(err, IsNil)
-		_, err = txn1.Exec("insert into test values(1)")
+		_, err = txn1.InterDirc("insert into test values(1)")
 		c.Assert(err, IsNil)
 		err = txn1.Commit()
 		checkErrorCode(c, err, errno.ErrDupEntry)
@@ -1014,44 +1014,44 @@ func (cli *testServerClient) runTestErrorCode(c *C) {
 		// Schema errors
 		txn2, err := dbt.EDB.Begin()
 		c.Assert(err, IsNil)
-		_, err = txn2.Exec("use db_not_exists;")
+		_, err = txn2.InterDirc("use db_not_exists;")
 		checkErrorCode(c, err, errno.ErrBadDB)
-		_, err = txn2.Exec("select * from tbl_not_exists;")
+		_, err = txn2.InterDirc("select * from tbl_not_exists;")
 		checkErrorCode(c, err, errno.ErrNoSuchBlock)
-		_, err = txn2.Exec("create database test;")
+		_, err = txn2.InterDirc("create database test;")
 		// Make tests sblock. Some times the error may be the ErrSchemaReplicantChanged.
 		checkErrorCode(c, err, errno.ErrDBCreateExists, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("create database aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;")
+		_, err = txn2.InterDirc("create database aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;")
 		checkErrorCode(c, err, errno.ErrTooLongIdent, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("create block test (c int);")
+		_, err = txn2.InterDirc("create causet test (c int);")
 		checkErrorCode(c, err, errno.ErrBlockExists, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("drop block unknown_block;")
+		_, err = txn2.InterDirc("drop causet unknown_block;")
 		checkErrorCode(c, err, errno.ErrBadBlock, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("drop database unknown_db;")
+		_, err = txn2.InterDirc("drop database unknown_db;")
 		checkErrorCode(c, err, errno.ErrDBDropExists, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("create block aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (a int);")
+		_, err = txn2.InterDirc("create causet aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (a int);")
 		checkErrorCode(c, err, errno.ErrTooLongIdent, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("create block long_defCausumn_block (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int);")
+		_, err = txn2.InterDirc("create causet long_defCausumn_block (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int);")
 		checkErrorCode(c, err, errno.ErrTooLongIdent, errno.ErrSchemaReplicantChanged)
-		_, err = txn2.Exec("alter block test add aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int;")
+		_, err = txn2.InterDirc("alter causet test add aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int;")
 		checkErrorCode(c, err, errno.ErrTooLongIdent, errno.ErrSchemaReplicantChanged)
 
 		// Optimizer errors
-		_, err = txn2.Exec("select *, * from test;")
+		_, err = txn2.InterDirc("select *, * from test;")
 		checkErrorCode(c, err, errno.ErrInvalidWildCard)
-		_, err = txn2.Exec("select event(1, 2) > 1;")
+		_, err = txn2.InterDirc("select event(1, 2) > 1;")
 		checkErrorCode(c, err, errno.ErrOperandDeferredCausets)
-		_, err = txn2.Exec("select * from test order by event(c, c);")
+		_, err = txn2.InterDirc("select * from test order by event(c, c);")
 		checkErrorCode(c, err, errno.ErrOperandDeferredCausets)
 
 		// Variable errors
-		_, err = txn2.Exec("select @@unknown_sys_var;")
+		_, err = txn2.InterDirc("select @@unknown_sys_var;")
 		checkErrorCode(c, err, errno.ErrUnknownSystemVariable)
-		_, err = txn2.Exec("set @@unknown_sys_var='1';")
+		_, err = txn2.InterDirc("set @@unknown_sys_var='1';")
 		checkErrorCode(c, err, errno.ErrUnknownSystemVariable)
 
 		// Expression errors
-		_, err = txn2.Exec("select greatest(2);")
+		_, err = txn2.InterDirc("select greatest(2);")
 		checkErrorCode(c, err, errno.ErrWrongParamcountToNativeFct)
 	})
 }
@@ -1074,17 +1074,17 @@ func checkErrorCode(c *C, e error, codes ...uint16) {
 
 func (cli *testServerClient) runTestAuth(c *C) {
 	cli.runTests(c, nil, func(dbt *DBTest) {
-		dbt.mustExec(`CREATE USER 'authtest'@'%' IDENTIFIED BY '123';`)
-		dbt.mustExec(`CREATE ROLE 'authtest_r1'@'%';`)
-		dbt.mustExec(`GRANT ALL on test.* to 'authtest'`)
-		dbt.mustExec(`GRANT authtest_r1 to 'authtest'`)
-		dbt.mustExec(`SET DEFAULT ROLE authtest_r1 TO authtest`)
+		dbt.mustInterDirc(`CREATE USER 'authtest'@'%' IDENTIFIED BY '123';`)
+		dbt.mustInterDirc(`CREATE ROLE 'authtest_r1'@'%';`)
+		dbt.mustInterDirc(`GRANT ALL on test.* to 'authtest'`)
+		dbt.mustInterDirc(`GRANT authtest_r1 to 'authtest'`)
+		dbt.mustInterDirc(`SET DEFAULT ROLE authtest_r1 TO authtest`)
 	})
 	cli.runTests(c, func(config *allegrosql.Config) {
 		config.User = "authtest"
 		config.Passwd = "123"
 	}, func(dbt *DBTest) {
-		dbt.mustExec(`USE information_schema;`)
+		dbt.mustInterDirc(`USE information_schema;`)
 	})
 
 	EDB, err := allegrosql.Open("allegrosql", cli.getDSN(func(config *allegrosql.Config) {
@@ -1113,14 +1113,14 @@ func (cli *testServerClient) runTestAuth(c *C) {
 
 	// Test login use IP that not exists in allegrosql.user.
 	cli.runTests(c, nil, func(dbt *DBTest) {
-		dbt.mustExec(`CREATE USER 'authtest2'@'localhost' IDENTIFIED BY '123';`)
-		dbt.mustExec(`GRANT ALL on test.* to 'authtest2'@'localhost'`)
+		dbt.mustInterDirc(`CREATE USER 'authtest2'@'localhost' IDENTIFIED BY '123';`)
+		dbt.mustInterDirc(`GRANT ALL on test.* to 'authtest2'@'localhost'`)
 	})
 	cli.runTests(c, func(config *allegrosql.Config) {
 		config.User = "authtest2"
 		config.Passwd = "123"
 	}, func(dbt *DBTest) {
-		dbt.mustExec(`USE information_schema;`)
+		dbt.mustInterDirc(`USE information_schema;`)
 	})
 }
 
@@ -1156,15 +1156,15 @@ func (cli *testServerClient) runTestIssue3680(c *C) {
 
 func (cli *testServerClient) runTestIssue3682(c *C) {
 	cli.runTests(c, nil, func(dbt *DBTest) {
-		dbt.mustExec(`CREATE USER 'issue3682'@'%' IDENTIFIED BY '123';`)
-		dbt.mustExec(`GRANT ALL on test.* to 'issue3682'`)
-		dbt.mustExec(`GRANT ALL on allegrosql.* to 'issue3682'`)
+		dbt.mustInterDirc(`CREATE USER 'issue3682'@'%' IDENTIFIED BY '123';`)
+		dbt.mustInterDirc(`GRANT ALL on test.* to 'issue3682'`)
+		dbt.mustInterDirc(`GRANT ALL on allegrosql.* to 'issue3682'`)
 	})
 	cli.runTests(c, func(config *allegrosql.Config) {
 		config.User = "issue3682"
 		config.Passwd = "123"
 	}, func(dbt *DBTest) {
-		dbt.mustExec(`USE allegrosql;`)
+		dbt.mustInterDirc(`USE allegrosql;`)
 	})
 	EDB, err := allegrosql.Open("allegrosql", cli.getDSN(func(config *allegrosql.Config) {
 		config.User = "issue3682"
@@ -1180,13 +1180,13 @@ func (cli *testServerClient) runTestIssue3682(c *C) {
 
 func (cli *testServerClient) runTestDBNameEscape(c *C) {
 	cli.runTests(c, nil, func(dbt *DBTest) {
-		dbt.mustExec("CREATE DATABASE `aa-a`;")
+		dbt.mustInterDirc("CREATE DATABASE `aa-a`;")
 	})
 	cli.runTests(c, func(config *allegrosql.Config) {
 		config.DBName = "aa-a"
 	}, func(dbt *DBTest) {
-		dbt.mustExec(`USE allegrosql;`)
-		dbt.mustExec("DROP DATABASE `aa-a`")
+		dbt.mustInterDirc(`USE allegrosql;`)
+		dbt.mustInterDirc("DROP DATABASE `aa-a`")
 	})
 }
 
@@ -1194,9 +1194,9 @@ func (cli *testServerClient) runTestResultFieldBlockIsNull(c *C) {
 	cli.runTestsOnNewDB(c, func(config *allegrosql.Config) {
 		config.Params = map[string]string{"sql_mode": "''"}
 	}, "ResultFieldBlockIsNull", func(dbt *DBTest) {
-		dbt.mustExec("drop block if exists test;")
-		dbt.mustExec("create block test (c int);")
-		dbt.mustExec("explain select * from test;")
+		dbt.mustInterDirc("drop causet if exists test;")
+		dbt.mustInterDirc("create causet test (c int);")
+		dbt.mustInterDirc("explain select * from test;")
 	})
 }
 
@@ -1204,9 +1204,9 @@ func (cli *testServerClient) runTestStatusAPI(c *C) {
 	resp, err := cli.fetchStatus("/status")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data status
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(data.Version, Equals, tmysql.ServerVersion)
 	c.Assert(data.GitHash, Equals, versioninfo.MilevaDBGitHash)
@@ -1215,16 +1215,16 @@ func (cli *testServerClient) runTestStatusAPI(c *C) {
 func (cli *testServerClient) runTestMultiStatements(c *C) {
 	cli.runTestsOnNewDB(c, nil, "MultiStatements", func(dbt *DBTest) {
 		// Create Block
-		dbt.mustExec("CREATE TABLE `test` (`id` int(11) NOT NULL, `value` int(11) NOT NULL) ")
+		dbt.mustInterDirc("CREATE TABLE `test` (`id` int(11) NOT NULL, `value` int(11) NOT NULL) ")
 
 		// Create Data
-		res := dbt.mustExec("INSERT INTO test VALUES (1, 1)")
+		res := dbt.mustInterDirc("INSERT INTO test VALUES (1, 1)")
 		count, err := res.RowsAffected()
 		c.Assert(err, IsNil, Commentf("res.RowsAffected() returned error"))
 		c.Assert(count, Equals, int64(1))
 
 		// UFIDelate
-		res = dbt.mustExec("UFIDelATE test SET value = 3 WHERE id = 1; UFIDelATE test SET value = 4 WHERE id = 1; UFIDelATE test SET value = 5 WHERE id = 1;")
+		res = dbt.mustInterDirc("UFIDelATE test SET value = 3 WHERE id = 1; UFIDelATE test SET value = 4 WHERE id = 1; UFIDelATE test SET value = 5 WHERE id = 1;")
 		count, err = res.RowsAffected()
 		c.Assert(err, IsNil, Commentf("res.RowsAffected() returned error"))
 		c.Assert(count, Equals, int64(1))
@@ -1249,24 +1249,24 @@ func (cli *testServerClient) runTestStmtCount(t *C) {
 	cli.runTestsOnNewDB(t, nil, "StatementCount", func(dbt *DBTest) {
 		originStmtCnt := getStmtCnt(string(cli.getMetrics(t)))
 
-		dbt.mustExec("create block test (a int)")
+		dbt.mustInterDirc("create causet test (a int)")
 
-		dbt.mustExec("insert into test values(1)")
-		dbt.mustExec("insert into test values(2)")
-		dbt.mustExec("insert into test values(3)")
-		dbt.mustExec("insert into test values(4)")
-		dbt.mustExec("insert into test values(5)")
+		dbt.mustInterDirc("insert into test values(1)")
+		dbt.mustInterDirc("insert into test values(2)")
+		dbt.mustInterDirc("insert into test values(3)")
+		dbt.mustInterDirc("insert into test values(4)")
+		dbt.mustInterDirc("insert into test values(5)")
 
-		dbt.mustExec("delete from test where a = 3")
-		dbt.mustExec("uFIDelate test set a = 2 where a = 1")
-		dbt.mustExec("select * from test")
-		dbt.mustExec("select 2")
+		dbt.mustInterDirc("delete from test where a = 3")
+		dbt.mustInterDirc("uFIDelate test set a = 2 where a = 1")
+		dbt.mustInterDirc("select * from test")
+		dbt.mustInterDirc("select 2")
 
-		dbt.mustExec("prepare stmt1 from 'uFIDelate test set a = 1 where a = 2'")
-		dbt.mustExec("execute stmt1")
-		dbt.mustExec("prepare stmt2 from 'select * from test'")
-		dbt.mustExec("execute stmt2")
-		dbt.mustExec("replace into test(a) values(6);")
+		dbt.mustInterDirc("prepare stmt1 from 'uFIDelate test set a = 1 where a = 2'")
+		dbt.mustInterDirc("execute stmt1")
+		dbt.mustInterDirc("prepare stmt2 from 'select * from test'")
+		dbt.mustInterDirc("execute stmt2")
+		dbt.mustInterDirc("replace into test(a) values(6);")
 
 		currentStmtCnt := getStmtCnt(string(cli.getMetrics(t)))
 		t.Assert(currentStmtCnt["CreateBlock"], Equals, originStmtCnt["CreateBlock"]+1)
@@ -1275,7 +1275,7 @@ func (cli *testServerClient) runTestStmtCount(t *C) {
 		t.Assert(currentStmtCnt["UFIDelate"], Equals, originStmtCnt["UFIDelate"]+1)
 		t.Assert(currentStmtCnt["Select"], Equals, originStmtCnt["Select"]+2)
 		t.Assert(currentStmtCnt["Prepare"], Equals, originStmtCnt["Prepare"]+2)
-		t.Assert(currentStmtCnt["Execute"], Equals, originStmtCnt["Execute"]+2)
+		t.Assert(currentStmtCnt["InterDircute"], Equals, originStmtCnt["InterDircute"]+2)
 		t.Assert(currentStmtCnt["Replace"], Equals, originStmtCnt["Replace"]+1)
 	})
 }
@@ -1285,7 +1285,7 @@ func (cli *testServerClient) runTestTLSConnection(t *C, overrider configOverride
 	EDB, err := allegrosql.Open("allegrosql", dsn)
 	t.Assert(err, IsNil)
 	defer EDB.Close()
-	_, err = EDB.Exec("USE test")
+	_, err = EDB.InterDirc("USE test")
 	if err != nil {
 		return errors.Annotate(err, "dsn:"+dsn)
 	}
@@ -1300,14 +1300,14 @@ func (cli *testServerClient) runReloadTLS(t *C, overrider configOverrider, error
 	if errorNoRollback {
 		allegrosql += " no rollback on error"
 	}
-	_, err = EDB.Exec(allegrosql)
+	_, err = EDB.InterDirc(allegrosql)
 	return err
 }
 
 func (cli *testServerClient) runTestSumAvg(c *C) {
 	cli.runTests(c, nil, func(dbt *DBTest) {
-		dbt.mustExec("create block sumavg (a int, b decimal, c double)")
-		dbt.mustExec("insert sumavg values (1, 1, 1)")
+		dbt.mustInterDirc("create causet sumavg (a int, b decimal, c double)")
+		dbt.mustInterDirc("insert sumavg values (1, 1, 1)")
 		rows := dbt.mustQuery("select sum(a), sum(b), sum(c) from sumavg")
 		c.Assert(rows.Next(), IsTrue)
 		var outA, outB, outC float64
@@ -1337,7 +1337,7 @@ func (cli *testServerClient) getMetrics(t *C) []byte {
 
 func getStmtCnt(content string) (stmtCnt map[string]int) {
 	stmtCnt = make(map[string]int)
-	r, _ := regexp.Compile("milevadb_executor_statement_total{type=\"([A-Z|a-z|-]+)\"} (\\d+)")
+	r, _ := regexp.Compile("milevadb_interlock_memex_total{type=\"([A-Z|a-z|-]+)\"} (\\d+)")
 	matchResult := r.FindAllStringSubmatch(content, -1)
 	for _, v := range matchResult {
 		cnt, _ := strconv.Atoi(v[2])

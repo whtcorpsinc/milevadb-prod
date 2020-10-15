@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/sysutil"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/privilege"
 	"github.com/whtcorpsinc/milevadb/privilege/privileges"
 	"github.com/whtcorpsinc/milevadb/stochastik"
@@ -67,7 +67,7 @@ func NewRPCServer(config *config.Config, dom *petri.Petri, sm soliton.Stochastik
 // rpcServer contains below 2 services:
 // 1. Diagnose service, it's used for ALLEGROALLEGROSQL diagnose.
 // 2. Coprocessor service, it reuse the EinsteinDBServer interface, but only support the Coprocessor interface now.
-// Coprocessor service will handle the cop task from other MilevaDB server. Currently, it's only use for read the cluster memory block.
+// Coprocessor service will handle the cop task from other MilevaDB server. Currently, it's only use for read the cluster memory causet.
 type rpcServer struct {
 	*sysutil.DiagnosticsServer
 	einsteindbpb.EinsteinDBServer
@@ -111,7 +111,7 @@ func (s *rpcServer) CoprocessorStream(in *interlock.Request, stream einsteindbpb
 	}
 	defer se.Close()
 
-	h := executor.NewCoprocessorPosetDagHandler(se)
+	h := interlock.NewCoprocessorPosetDagHandler(se)
 	return h.HandleStreamRequest(context.Background(), in, stream)
 }
 
@@ -185,7 +185,7 @@ func (s *rpcServer) handleCopRequest(ctx context.Context, req *interlock.Request
 	}
 	defer se.Close()
 
-	h := executor.NewCoprocessorPosetDagHandler(se)
+	h := interlock.NewCoprocessorPosetDagHandler(se)
 	return h.HandleRequest(ctx, req)
 }
 

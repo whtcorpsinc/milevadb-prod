@@ -30,13 +30,13 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/debugpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/spacetimedata"
 )
 
 // For gofail injection.
@@ -193,7 +193,7 @@ func (c *RPCClient) SendRequest(ctx context.Context, addr string, req *einsteind
 	if regErr != nil {
 		if regErr.EpochNotMatch != nil {
 			for i, newReg := range regErr.EpochNotMatch.CurrentRegions {
-				regErr.EpochNotMatch.CurrentRegions[i] = proto.Clone(newReg).(*metapb.Region)
+				regErr.EpochNotMatch.CurrentRegions[i] = proto.Clone(newReg).(*spacetimepb.Region)
 			}
 		}
 	}
@@ -294,10 +294,10 @@ func (c *RPCClient) Close() error {
 type mockClientStream struct{}
 
 // Header implements grpc.ClientStream interface
-func (mockClientStream) Header() (metadata.MD, error) { return nil, nil }
+func (mockClientStream) Header() (spacetimedata.MD, error) { return nil, nil }
 
 // Trailer implements grpc.ClientStream interface
-func (mockClientStream) Trailer() metadata.MD { return nil }
+func (mockClientStream) Trailer() spacetimedata.MD { return nil }
 
 // CloseSend implements grpc.ClientStream interface
 func (mockClientStream) CloseSend() error { return nil }

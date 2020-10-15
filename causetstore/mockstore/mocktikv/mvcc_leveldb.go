@@ -60,9 +60,9 @@ type MVCCLevelDB struct {
 
 	// EDB represents leveldb
 	EDB *leveldb.EDB
-	// mu used for lock
+	// mu used for dagger
 	// leveldb can not guarantee multiple operations to be atomic, for example, read
-	// then write, another write may happen during it, so this lock is necessory.
+	// then write, another write may happen during it, so this dagger is necessory.
 	mu               sync.RWMutex
 	deadlockDetector *deadlock.Detector
 }
@@ -79,7 +79,7 @@ func mvccEncode(key []byte, ver uint64) []byte {
 	return ret
 }
 
-// mvccDecode parses the origin key and version of an encoded key, if the encoded key is a meta key,
+// mvccDecode parses the origin key and version of an encoded key, if the encoded key is a spacetime key,
 // just returns the origin key.
 func mvccDecode(encodedKey []byte) ([]byte, uint64, error) {
 	// Skip DataPrefix
@@ -88,7 +88,7 @@ func mvccDecode(encodedKey []byte) ([]byte, uint64, error) {
 		// should never happen
 		return nil, 0, errors.Trace(err)
 	}
-	// if it's meta key
+	// if it's spacetime key
 	if len(remainBytes) == 0 {
 		return key, 0, nil
 	}
@@ -174,13 +174,13 @@ func newScanIterator(EDB *leveldb.EDB, startKey, endKey []byte) (*Iterator, []by
 	return iter, startKey, nil
 }
 
-type lockDecoder struct {
-	lock      mvccLock
+type lockCausetDecoder struct {
+	dagger      mvccLock
 	expectKey []byte
 }
 
-// Decode decodes the lock value if current iterator is at expectKey::lock.
-func (dec *lockDecoder) Decode(iter *Iterator) (bool, error) {
+// Decode decodes the dagger value if current iterator is at expectKey::dagger.
+func (dec *lockCausetDecoder) Decode(iter *Iterator) (bool, error) {
 	if iter.Error() != nil || !iter.Valid() {
 		return false, iter.Error()
 	}
@@ -197,23 +197,23 @@ func (dec *lockDecoder) Decode(iter *Iterator) (bool, error) {
 		return false, nil
 	}
 
-	var lock mvccLock
-	err = lock.UnmarshalBinary(iter.Value())
+	var dagger mvccLock
+	err = dagger.UnmarshalBinary(iter.Value())
 	if err != nil {
 		return false, errors.Trace(err)
 	}
-	dec.lock = lock
+	dec.dagger = dagger
 	iter.Next()
 	return true, nil
 }
 
-type valueDecoder struct {
+type valueCausetDecoder struct {
 	value     mvccValue
 	expectKey []byte
 }
 
 // Decode decodes a mvcc value if iter key is expectKey.
-func (dec *valueDecoder) Decode(iter *Iterator) (bool, error) {
+func (dec *valueCausetDecoder) Decode(iter *Iterator) (bool, error) {
 	if iter.Error() != nil || !iter.Valid() {
 		return false, iter.Error()
 	}
@@ -282,15 +282,15 @@ func (mvcc *MVCCLevelDB) getValue(key []byte, startTS uint64, isoLevel kvrpcpb.I
 }
 
 func getValue(iter *Iterator, key []byte, startTS uint64, isoLevel kvrpcpb.IsolationLevel, resolvedLocks []uint64) ([]byte, error) {
-	dec1 := lockDecoder{expectKey: key}
+	dec1 := lockCausetDecoder{expectKey: key}
 	ok, err := dec1.Decode(iter)
 	if ok && isoLevel == kvrpcpb.IsolationLevel_SI {
-		startTS, err = dec1.lock.check(startTS, key, resolvedLocks)
+		startTS, err = dec1.dagger.check(startTS, key, resolvedLocks)
 	}
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	dec2 := valueDecoder{expectKey: key}
+	dec2 := valueCausetDecoder{expectKey: key}
 	for iter.Valid() {
 		ok, err := dec2.Decode(iter)
 		if err != nil {
@@ -414,9 +414,9 @@ func (mvcc *MVCCLevelDB) ReverseScan(startKey, endKey []byte, limit int, startTS
 			helper.currKey = key
 		}
 		if ver == lockVer {
-			var lock mvccLock
-			err = lock.UnmarshalBinary(iter.Value())
-			helper.entry.lock = &lock
+			var dagger mvccLock
+			err = dagger.UnmarshalBinary(iter.Value())
+			helper.entry.dagger = &dagger
 		} else {
 			var value mvccValue
 			err = value.UnmarshalBinary(iter.Value())
@@ -477,7 +477,7 @@ type lockCtx struct {
 	values       [][]byte
 }
 
-// PessimisticLock writes the pessimistic lock.
+// PessimisticLock writes the pessimistic dagger.
 func (mvcc *MVCCLevelDB) PessimisticLock(req *kvrpcpb.PessimisticLockRequest) *kvrpcpb.PessimisticLockResponse {
 	resp := &kvrpcpb.PessimisticLockResponse{}
 	mvcc.mu.Lock()
@@ -535,7 +535,7 @@ func (mvcc *MVCCLevelDB) pessimisticLockMutation(batch *leveldb.Batch, mutation 
 	})
 	defer iter.Release()
 
-	dec := lockDecoder{
+	dec := lockCausetDecoder{
 		expectKey: mutation.Key,
 	}
 	ok, err := dec.Decode(iter)
@@ -543,16 +543,16 @@ func (mvcc *MVCCLevelDB) pessimisticLockMutation(batch *leveldb.Batch, mutation 
 		return errors.Trace(err)
 	}
 	if ok {
-		if dec.lock.startTS != startTS {
-			errDeadlock := mvcc.deadlockDetector.Detect(startTS, dec.lock.startTS, farm.Fingerprint64(mutation.Key))
+		if dec.dagger.startTS != startTS {
+			errDeadlock := mvcc.deadlockDetector.Detect(startTS, dec.dagger.startTS, farm.Fingerprint64(mutation.Key))
 			if errDeadlock != nil {
 				return &ErrDeadlock{
 					LockKey:        mutation.Key,
-					LockTS:         dec.lock.startTS,
+					LockTS:         dec.dagger.startTS,
 					DealockKeyHash: errDeadlock.KeyHash,
 				}
 			}
-			return dec.lock.lockErr(mutation.Key)
+			return dec.dagger.lockErr(mutation.Key)
 		}
 		return nil
 	}
@@ -567,7 +567,7 @@ func (mvcc *MVCCLevelDB) pessimisticLockMutation(batch *leveldb.Batch, mutation 
 		lctx.values = append(lctx.values, val)
 	}
 
-	lock := mvccLock{
+	dagger := mvccLock{
 		startTS:     startTS,
 		primary:     lctx.primary,
 		op:          kvrpcpb.Op_PessimisticLock,
@@ -576,7 +576,7 @@ func (mvcc *MVCCLevelDB) pessimisticLockMutation(batch *leveldb.Batch, mutation 
 		minCommitTS: lctx.minCommitTs,
 	}
 	writeKey := mvccEncode(mutation.Key, lockVer)
-	writeValue, err := lock.MarshalBinary()
+	writeValue, err := dagger.MarshalBinary()
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -616,7 +616,7 @@ func pessimisticRollbackKey(EDB *leveldb.EDB, batch *leveldb.Batch, key []byte, 
 	})
 	defer iter.Release()
 
-	dec := lockDecoder{
+	dec := lockCausetDecoder{
 		expectKey: key,
 	}
 	ok, err := dec.Decode(iter)
@@ -624,8 +624,8 @@ func pessimisticRollbackKey(EDB *leveldb.EDB, batch *leveldb.Batch, key []byte, 
 		return errors.Trace(err)
 	}
 	if ok {
-		lock := dec.lock
-		if lock.op == kvrpcpb.Op_PessimisticLock && lock.startTS == startTS && lock.forUFIDelateTS <= forUFIDelateTS {
+		dagger := dec.dagger
+		if dagger.op == kvrpcpb.Op_PessimisticLock && dagger.startTS == startTS && dagger.forUFIDelateTS <= forUFIDelateTS {
 			batch.Delete(startKey)
 		}
 	}
@@ -689,7 +689,7 @@ func (mvcc *MVCCLevelDB) Prewrite(req *kvrpcpb.PrewriteRequest) []error {
 }
 
 func checkConflictValue(iter *Iterator, m *kvrpcpb.Mutation, forUFIDelateTS uint64, startTS uint64, getVal bool) ([]byte, error) {
-	dec := &valueDecoder{
+	dec := &valueCausetDecoder{
 		expectKey: m.Key,
 	}
 	ok, err := dec.Decode(iter)
@@ -775,7 +775,7 @@ func prewriteMutation(EDB *leveldb.EDB, batch *leveldb.Batch,
 	})
 	defer iter.Release()
 
-	dec := lockDecoder{
+	dec := lockCausetDecoder{
 		expectKey: mutation.Key,
 	}
 	ok, err := dec.Decode(iter)
@@ -783,30 +783,30 @@ func prewriteMutation(EDB *leveldb.EDB, batch *leveldb.Batch,
 		return errors.Trace(err)
 	}
 	if ok {
-		if dec.lock.startTS != startTS {
+		if dec.dagger.startTS != startTS {
 			if isPessimisticLock {
 				// NOTE: A special handling.
-				// When pessimistic txn prewrite meets lock, set the TTL = 0 means
+				// When pessimistic txn prewrite meets dagger, set the TTL = 0 means
 				// telling MilevaDB to rollback the transaction **unconditionly**.
-				dec.lock.ttl = 0
+				dec.dagger.ttl = 0
 			}
-			return dec.lock.lockErr(mutation.Key)
+			return dec.dagger.lockErr(mutation.Key)
 		}
-		if dec.lock.op != kvrpcpb.Op_PessimisticLock {
+		if dec.dagger.op != kvrpcpb.Op_PessimisticLock {
 			return nil
 		}
-		// Overwrite the pessimistic lock.
-		if ttl < dec.lock.ttl {
-			// Maybe ttlManager has already set the lock TTL, don't decrease it.
-			ttl = dec.lock.ttl
+		// Overwrite the pessimistic dagger.
+		if ttl < dec.dagger.ttl {
+			// Maybe ttlManager has already set the dagger TTL, don't decrease it.
+			ttl = dec.dagger.ttl
 		}
-		if minCommitTS < dec.lock.minCommitTS {
+		if minCommitTS < dec.dagger.minCommitTS {
 			// The minCommitTS has been pushed forward.
-			minCommitTS = dec.lock.minCommitTS
+			minCommitTS = dec.dagger.minCommitTS
 		}
 	} else {
 		if isPessimisticLock {
-			return ErrAbort("pessimistic lock not found")
+			return ErrAbort("pessimistic dagger not found")
 		}
 		_, err = checkConflictValue(iter, mutation, startTS, startTS, false)
 		if err != nil {
@@ -818,7 +818,7 @@ func prewriteMutation(EDB *leveldb.EDB, batch *leveldb.Batch,
 	if op == kvrpcpb.Op_Insert {
 		op = kvrpcpb.Op_Put
 	}
-	lock := mvccLock{
+	dagger := mvccLock{
 		startTS: startTS,
 		primary: primary,
 		value:   mutation.Value,
@@ -826,13 +826,13 @@ func prewriteMutation(EDB *leveldb.EDB, batch *leveldb.Batch,
 		ttl:     ttl,
 		txnSize: txnSize,
 	}
-	// Write minCommitTS on the primary lock.
+	// Write minCommitTS on the primary dagger.
 	if bytes.Equal(primary, mutation.GetKey()) {
-		lock.minCommitTS = minCommitTS
+		dagger.minCommitTS = minCommitTS
 	}
 
 	writeKey := mvccEncode(mutation.Key, lockVer)
-	writeValue, err := lock.MarshalBinary()
+	writeValue, err := dagger.MarshalBinary()
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -866,15 +866,15 @@ func commitKey(EDB *leveldb.EDB, batch *leveldb.Batch, key []byte, startTS, comm
 	})
 	defer iter.Release()
 
-	dec := lockDecoder{
+	dec := lockCausetDecoder{
 		expectKey: key,
 	}
 	ok, err := dec.Decode(iter)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !ok || dec.lock.startTS != startTS {
-		// If the lock of this transaction is not found, or the lock is replaced by
+	if !ok || dec.dagger.startTS != startTS {
+		// If the dagger of this transaction is not found, or the dagger is replaced by
 		// another transaction, check commit information of this transaction.
 		c, ok, err1 := getTxnCommitInfo(iter, key, startTS)
 		if err1 != nil {
@@ -887,27 +887,27 @@ func commitKey(EDB *leveldb.EDB, batch *leveldb.Batch, key []byte, startTS, comm
 		return ErrRetryable("txn not found")
 	}
 	// Reject the commit request whose commitTS is less than minCommiTS.
-	if dec.lock.minCommitTS > commitTS {
+	if dec.dagger.minCommitTS > commitTS {
 		return &ErrCommitTSExpired{
 			kvrpcpb.CommitTsExpired{
 				StartTs:           startTS,
 				AttemptedCommitTs: commitTS,
 				Key:               key,
-				MinCommitTs:       dec.lock.minCommitTS,
+				MinCommitTs:       dec.dagger.minCommitTS,
 			}}
 	}
 
-	if err = commitLock(batch, dec.lock, key, startTS, commitTS); err != nil {
+	if err = commitLock(batch, dec.dagger, key, startTS, commitTS); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func commitLock(batch *leveldb.Batch, lock mvccLock, key []byte, startTS, commitTS uint64) error {
+func commitLock(batch *leveldb.Batch, dagger mvccLock, key []byte, startTS, commitTS uint64) error {
 	var valueType mvccValueType
-	if lock.op == kvrpcpb.Op_Put {
+	if dagger.op == kvrpcpb.Op_Put {
 		valueType = typePut
-	} else if lock.op == kvrpcpb.Op_Lock {
+	} else if dagger.op == kvrpcpb.Op_Lock {
 		valueType = typeLock
 	} else {
 		valueType = typeDelete
@@ -916,7 +916,7 @@ func commitLock(batch *leveldb.Batch, lock mvccLock, key []byte, startTS, commit
 		valueType: valueType,
 		startTS:   startTS,
 		commitTS:  commitTS,
-		value:     lock.value,
+		value:     dagger.value,
 	}
 	writeKey := mvccEncode(key, commitTS)
 	writeValue, err := value.MarshalBinary()
@@ -954,22 +954,22 @@ func rollbackKey(EDB *leveldb.EDB, batch *leveldb.Batch, key []byte, startTS uin
 	defer iter.Release()
 
 	if iter.Valid() {
-		dec := lockDecoder{
+		dec := lockCausetDecoder{
 			expectKey: key,
 		}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		// If current transaction's lock exist.
-		if ok && dec.lock.startTS == startTS {
+		// If current transaction's dagger exist.
+		if ok && dec.dagger.startTS == startTS {
 			if err = rollbackLock(batch, key, startTS); err != nil {
 				return errors.Trace(err)
 			}
 			return nil
 		}
 
-		// If current transaction's lock not exist.
+		// If current transaction's dagger not exist.
 		// If commit info of current transaction exist.
 		c, ok, err := getTxnCommitInfo(iter, key, startTS)
 		if err != nil {
@@ -1026,7 +1026,7 @@ func rollbackLock(batch *leveldb.Batch, key []byte, startTS uint64) error {
 
 func getTxnCommitInfo(iter *Iterator, expectKey []byte, startTS uint64) (mvccValue, bool, error) {
 	for iter.Valid() {
-		dec := valueDecoder{
+		dec := valueCausetDecoder{
 			expectKey: expectKey,
 		}
 		ok, err := dec.Decode(iter)
@@ -1058,17 +1058,17 @@ func (mvcc *MVCCLevelDB) Cleanup(key []byte, startTS, currentTS uint64) error {
 	defer iter.Release()
 
 	if iter.Valid() {
-		dec := lockDecoder{
+		dec := lockCausetDecoder{
 			expectKey: key,
 		}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return err
 		}
-		// If current transaction's lock exists.
-		if ok && dec.lock.startTS == startTS {
-			// If the lock has already outdated, clean up it.
-			if currentTS == 0 || uint64(oracle.ExtractPhysical(dec.lock.startTS))+dec.lock.ttl < uint64(oracle.ExtractPhysical(currentTS)) {
+		// If current transaction's dagger exists.
+		if ok && dec.dagger.startTS == startTS {
+			// If the dagger has already outdated, clean up it.
+			if currentTS == 0 || uint64(oracle.ExtractPhysical(dec.dagger.startTS))+dec.dagger.ttl < uint64(oracle.ExtractPhysical(currentTS)) {
 				if err = rollbackLock(batch, key, startTS); err != nil {
 					return err
 				}
@@ -1076,10 +1076,10 @@ func (mvcc *MVCCLevelDB) Cleanup(key []byte, startTS, currentTS uint64) error {
 			}
 
 			// Otherwise, return a locked error with the TTL information.
-			return dec.lock.lockErr(key)
+			return dec.dagger.lockErr(key)
 		}
 
-		// If current transaction's lock does not exist.
+		// If current transaction's dagger does not exist.
 		// If the commit information of the current transaction exist.
 		c, ok, err := getTxnCommitInfo(iter, key, startTS)
 		if err != nil {
@@ -1110,15 +1110,15 @@ func (mvcc *MVCCLevelDB) Cleanup(key []byte, startTS, currentTS uint64) error {
 	return nil
 }
 
-// CheckTxnStatus checks the primary lock of a transaction to decide its status.
+// CheckTxnStatus checks the primary dagger of a transaction to decide its status.
 // The return values are (ttl, commitTS, err):
-// If the transaction is active, this function returns the ttl of the lock;
+// If the transaction is active, this function returns the ttl of the dagger;
 // If the transaction is committed, this function returns the commitTS;
 // If the transaction is rollbacked, this function returns (0, 0, nil)
 // Note that CheckTxnStatus may also push forward the `minCommitTS` of the
 // transaction, so it's not simply a read-only operation.
 //
-// primaryKey + lockTS together could locate the primary lock.
+// primaryKey + lockTS together could locate the primary dagger.
 // callerStartTS is the start ts of reader transaction.
 // currentTS is the current ts, but it may be inaccurate. Just use it to check TTL.
 func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS, currentTS uint64,
@@ -1135,7 +1135,7 @@ func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS
 	defer iter.Release()
 
 	if iter.Valid() {
-		dec := lockDecoder{
+		dec := lockCausetDecoder{
 			expectKey: primaryKey,
 		}
 		var ok bool
@@ -1144,13 +1144,13 @@ func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS
 			err = errors.Trace(err)
 			return
 		}
-		// If current transaction's lock exists.
-		if ok && dec.lock.startTS == lockTS {
-			lock := dec.lock
+		// If current transaction's dagger exists.
+		if ok && dec.dagger.startTS == lockTS {
+			dagger := dec.dagger
 			batch := &leveldb.Batch{}
 
-			// If the lock has already outdated, clean up it.
-			if uint64(oracle.ExtractPhysical(lock.startTS))+lock.ttl < uint64(oracle.ExtractPhysical(currentTS)) {
+			// If the dagger has already outdated, clean up it.
+			if uint64(oracle.ExtractPhysical(dagger.startTS))+dagger.ttl < uint64(oracle.ExtractPhysical(currentTS)) {
 				if err = rollbackLock(batch, primaryKey, lockTS); err != nil {
 					err = errors.Trace(err)
 					return
@@ -1163,28 +1163,28 @@ func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS
 			}
 
 			// If the caller_start_ts is MaxUint64, it's a point get in the autocommit transaction.
-			// Even though the MinCommitTs is not pushed, the point get can ingore the lock
+			// Even though the MinCommitTs is not pushed, the point get can ingore the dagger
 			// next time because it's not committed. So we pretend it has been pushed.
 			if callerStartTS == math.MaxUint64 {
 				action = kvrpcpb.CausetAction_MinCommitTSPushed
 
-				// If this is a large transaction and the lock is active, push forward the minCommitTS.
-				// lock.minCommitTS == 0 may be a secondary lock, or not a large transaction (old version MilevaDB).
-			} else if lock.minCommitTS > 0 {
+				// If this is a large transaction and the dagger is active, push forward the minCommitTS.
+				// dagger.minCommitTS == 0 may be a secondary dagger, or not a large transaction (old version MilevaDB).
+			} else if dagger.minCommitTS > 0 {
 				action = kvrpcpb.CausetAction_MinCommitTSPushed
-				// We *must* guarantee the invariance lock.minCommitTS >= callerStartTS + 1
-				if lock.minCommitTS < callerStartTS+1 {
-					lock.minCommitTS = callerStartTS + 1
+				// We *must* guarantee the invariance dagger.minCommitTS >= callerStartTS + 1
+				if dagger.minCommitTS < callerStartTS+1 {
+					dagger.minCommitTS = callerStartTS + 1
 
 					// Remove this condition should not affect correctness.
 					// We do it because pushing forward minCommitTS as far as possible could avoid
-					// the lock been pushed again several times, and thus reduce write operations.
-					if lock.minCommitTS < currentTS {
-						lock.minCommitTS = currentTS
+					// the dagger been pushed again several times, and thus reduce write operations.
+					if dagger.minCommitTS < currentTS {
+						dagger.minCommitTS = currentTS
 					}
 
 					writeKey := mvccEncode(primaryKey, lockVer)
-					writeValue, err1 := lock.MarshalBinary()
+					writeValue, err1 := dagger.MarshalBinary()
 					if err1 != nil {
 						err = errors.Trace(err1)
 						return
@@ -1197,10 +1197,10 @@ func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS
 				}
 			}
 
-			return lock.ttl, 0, action, nil
+			return dagger.ttl, 0, action, nil
 		}
 
-		// If current transaction's lock does not exist.
+		// If current transaction's dagger does not exist.
 		// If the commit info of the current transaction exists.
 		c, ok, err1 := getTxnCommitInfo(iter, primaryKey, lockTS)
 		if err1 != nil {
@@ -1217,17 +1217,17 @@ func (mvcc *MVCCLevelDB) CheckTxnStatus(primaryKey []byte, lockTS, callerStartTS
 		}
 	}
 
-	// If current transaction is not prewritted before, it may be pessimistic lock.
-	// When pessimistic txn rollback statement, it may not leave a 'rollbacked' tombstone.
+	// If current transaction is not prewritted before, it may be pessimistic dagger.
+	// When pessimistic txn rollback memex, it may not leave a 'rollbacked' tombstone.
 
 	// Or maybe caused by concurrent prewrite operation.
-	// Especially in the non-block reading case, the secondary lock is likely to be
-	// written before the primary lock.
+	// Especially in the non-causet reading case, the secondary dagger is likely to be
+	// written before the primary dagger.
 
 	if rollbackIfNotExist {
-		// Write rollback record, but not delete the lock on the primary key. There may exist lock which has
-		// different lock.startTS with input lockTS, for example the primary key could be already
-		// locked by the caller transaction, deleting this key will mistakenly delete the lock on
+		// Write rollback record, but not delete the dagger on the primary key. There may exist dagger which has
+		// different dagger.startTS with input lockTS, for example the primary key could be already
+		// locked by the caller transaction, deleting this key will mistakenly delete the dagger on
 		// primary key, see case TestSingleStatementRollback in stochastik_test suite for example
 		batch := &leveldb.Batch{}
 		if err1 := writeRollback(batch, primaryKey, lockTS); err1 != nil {
@@ -1259,25 +1259,25 @@ func (mvcc *MVCCLevelDB) TxnHeartBeat(key []byte, startTS uint64, adviseTTL uint
 	defer iter.Release()
 
 	if iter.Valid() {
-		dec := lockDecoder{
+		dec := lockCausetDecoder{
 			expectKey: key,
 		}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return 0, errors.Trace(err)
 		}
-		if ok && dec.lock.startTS == startTS {
-			if !bytes.Equal(dec.lock.primary, key) {
+		if ok && dec.dagger.startTS == startTS {
+			if !bytes.Equal(dec.dagger.primary, key) {
 				return 0, errors.New("txnHeartBeat on non-primary key, the code should not run here")
 			}
 
-			lock := dec.lock
+			dagger := dec.dagger
 			batch := &leveldb.Batch{}
 			// Increase the ttl of this transaction.
-			if adviseTTL > lock.ttl {
-				lock.ttl = adviseTTL
+			if adviseTTL > dagger.ttl {
+				dagger.ttl = adviseTTL
 				writeKey := mvccEncode(key, lockVer)
-				writeValue, err := lock.MarshalBinary()
+				writeValue, err := dagger.MarshalBinary()
 				if err != nil {
 					return 0, errors.Trace(err)
 				}
@@ -1286,10 +1286,10 @@ func (mvcc *MVCCLevelDB) TxnHeartBeat(key []byte, startTS uint64, adviseTTL uint
 					return 0, errors.Trace(err)
 				}
 			}
-			return lock.ttl, nil
+			return dagger.ttl, nil
 		}
 	}
-	return 0, errors.New("lock doesn't exist")
+	return 0, errors.New("dagger doesn't exist")
 }
 
 // ScanLock implements the MVCCStore interface.
@@ -1305,15 +1305,15 @@ func (mvcc *MVCCLevelDB) ScanLock(startKey, endKey []byte, maxTS uint64) ([]*kvr
 
 	var locks []*kvrpcpb.LockInfo
 	for iter.Valid() {
-		dec := lockDecoder{expectKey: currKey}
+		dec := lockCausetDecoder{expectKey: currKey}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		if ok && dec.lock.startTS <= maxTS {
+		if ok && dec.dagger.startTS <= maxTS {
 			locks = append(locks, &kvrpcpb.LockInfo{
-				PrimaryLock: dec.lock.primary,
-				LockVersion: dec.lock.startTS,
+				PrimaryLock: dec.dagger.primary,
+				LockVersion: dec.dagger.startTS,
 				Key:         currKey,
 			})
 		}
@@ -1341,14 +1341,14 @@ func (mvcc *MVCCLevelDB) ResolveLock(startKey, endKey []byte, startTS, commitTS 
 
 	batch := &leveldb.Batch{}
 	for iter.Valid() {
-		dec := lockDecoder{expectKey: currKey}
+		dec := lockCausetDecoder{expectKey: currKey}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		if ok && dec.lock.startTS == startTS {
+		if ok && dec.dagger.startTS == startTS {
 			if commitTS > 0 {
-				err = commitLock(batch, dec.lock, currKey, startTS, commitTS)
+				err = commitLock(batch, dec.dagger, currKey, startTS, commitTS)
 			} else {
 				err = rollbackLock(batch, currKey, startTS)
 			}
@@ -1380,17 +1380,17 @@ func (mvcc *MVCCLevelDB) BatchResolveLock(startKey, endKey []byte, txnInfos map[
 
 	batch := &leveldb.Batch{}
 	for iter.Valid() {
-		dec := lockDecoder{expectKey: currKey}
+		dec := lockCausetDecoder{expectKey: currKey}
 		ok, err := dec.Decode(iter)
 		if err != nil {
 			return errors.Trace(err)
 		}
 		if ok {
-			if commitTS, ok := txnInfos[dec.lock.startTS]; ok {
+			if commitTS, ok := txnInfos[dec.dagger.startTS]; ok {
 				if commitTS > 0 {
-					err = commitLock(batch, dec.lock, currKey, dec.lock.startTS, commitTS)
+					err = commitLock(batch, dec.dagger, currKey, dec.dagger.startTS, commitTS)
 				} else {
-					err = rollbackLock(batch, currKey, dec.lock.startTS)
+					err = rollbackLock(batch, currKey, dec.dagger.startTS)
 				}
 				if err != nil {
 					return errors.Trace(err)
@@ -1423,21 +1423,21 @@ func (mvcc *MVCCLevelDB) GC(startKey, endKey []byte, safePoint uint64) error {
 	batch := &leveldb.Batch{}
 
 	for iter.Valid() {
-		lockDec := lockDecoder{expectKey: currKey}
+		lockDec := lockCausetDecoder{expectKey: currKey}
 		ok, err := lockDec.Decode(iter)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		if ok && lockDec.lock.startTS <= safePoint {
+		if ok && lockDec.dagger.startTS <= safePoint {
 			return errors.Errorf(
-				"key %+q has lock with startTs %v which is under safePoint %v",
+				"key %+q has dagger with startTs %v which is under safePoint %v",
 				currKey,
-				lockDec.lock.startTS,
+				lockDec.dagger.startTS,
 				safePoint)
 		}
 
 		keepNext := true
-		dec := valueDecoder{expectKey: currKey}
+		dec := valueCausetDecoder{expectKey: currKey}
 
 		for iter.Valid() {
 			ok, err := dec.Decode(iter)
@@ -1680,25 +1680,25 @@ func (mvcc *MVCCLevelDB) MvccGetByKey(key []byte) *kvrpcpb.MvccInfo {
 	})
 	defer iter.Release()
 
-	dec1 := lockDecoder{expectKey: key}
+	dec1 := lockCausetDecoder{expectKey: key}
 	ok, err := dec1.Decode(iter)
 	if err != nil {
 		return nil
 	}
 	if ok {
 		var shortValue []byte
-		if isShortValue(dec1.lock.value) {
-			shortValue = dec1.lock.value
+		if isShortValue(dec1.dagger.value) {
+			shortValue = dec1.dagger.value
 		}
 		info.Lock = &kvrpcpb.MvccLock{
-			Type:       dec1.lock.op,
-			StartTs:    dec1.lock.startTS,
-			Primary:    dec1.lock.primary,
+			Type:       dec1.dagger.op,
+			StartTs:    dec1.dagger.startTS,
+			Primary:    dec1.dagger.primary,
 			ShortValue: shortValue,
 		}
 	}
 
-	dec2 := valueDecoder{expectKey: key}
+	dec2 := valueCausetDecoder{expectKey: key}
 	var writes []*kvrpcpb.MvccWrite
 	var values []*kvrpcpb.MvccValue
 	for iter.Valid() {

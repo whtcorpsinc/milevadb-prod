@@ -21,11 +21,11 @@ import (
 
 func (s *testDBSuite1) TestAlterBlockAlterPartition(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t1")
-	defer tk.MustExec("drop block if exists t1")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t1")
+	defer tk.MustInterDirc("drop causet if exists t1")
 
-	tk.MustExec(`create block t1 (c int)
+	tk.MustInterDirc(`create causet t1 (c int)
 PARTITION BY RANGE (c) (
 	PARTITION p0 VALUES LESS THAN (6),
 	PARTITION p1 VALUES LESS THAN (11),
@@ -34,55 +34,55 @@ PARTITION BY RANGE (c) (
 );`)
 
 	// normal cases
-	_, err := tk.Exec(`alter block t1 alter partition p0
+	_, err := tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+zone=sh"]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+   zone   =   sh  ",     "- zone = bj    "]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh  ": 1}'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh, -zone =   bj ": 1}'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh  ": 1, "- zone = bj": 2}'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 alter memristed policy
 	constraints='{"+   zone   =   sh, -zone =   bj ": 1}'
 	role=leader
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 drop memristed policy
 	role=leader`)
 	c.Assert(err, IsNil)
 
-	// multiple statements
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	// multiple memexs
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+   zone   =   sh  "]'
 	role=leader
@@ -93,7 +93,7 @@ add memristed policy
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+   zone   =   sh  "]'
 	role=leader
@@ -104,7 +104,7 @@ add memristed policy
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh  ": 1, "- zone = bj,+zone=sh": 2}'
 	role=leader
@@ -115,7 +115,7 @@ alter memristed policy
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+zone=sh", "-zone=bj"]'
 	role=leader
@@ -134,14 +134,14 @@ alter memristed policy
 	replicas=3`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 drop memristed policy
 	role=leader,
 drop memristed policy
 	role=leader`)
 	c.Assert(err, IsNil)
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+zone=sh,+zone=bj":1,"+zone=sh,+zone=bj":1}'
 	role=voter
@@ -151,28 +151,28 @@ drop memristed policy
 	c.Assert(err, IsNil)
 
 	// list/dict detection
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints=',,,'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*array or object.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='[,,,'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*invalid character.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{,,,'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*invalid character.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh  ": 1, "- zone = bj": 2}'
 	role=leader
@@ -180,14 +180,14 @@ add memristed policy
 	c.Assert(err, ErrorMatches, ".*should be larger or equal to the number of total replicas.*")
 
 	// checkPlacementSpecConstraint
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='[",,,"]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+    "]'
 	role=leader
@@ -195,7 +195,7 @@ add memristed policy
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
 	// unknown operation
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["0000"]'
 	role=leader
@@ -203,7 +203,7 @@ add memristed policy
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
 	// without =
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+000"]'
 	role=leader
@@ -211,14 +211,14 @@ add memristed policy
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
 	// empty key
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+ =zone1"]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+  =   z"]'
 	role=leader
@@ -226,45 +226,45 @@ add memristed policy
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
 	// empty value
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+zone="]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+z  =   "]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*label constraint should be in format.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p
+	_, err = tk.InterDirc(`alter causet t1 alter partition p
 add memristed policy
 	constraints='["+zone=sh"]'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*Unknown partition.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='{"+   zone   =   sh, -zone =   bj ": -1}'
 	role=leader
 	replicas=3`)
 	c.Assert(err, ErrorMatches, ".*count should be positive.*")
 
-	_, err = tk.Exec(`alter block t1 alter partition p0
+	_, err = tk.InterDirc(`alter causet t1 alter partition p0
 add memristed policy
 	constraints='["+   zone   =   sh"]'
 	role=leader
 	replicas=0`)
 	c.Assert(err, ErrorMatches, ".*Invalid memristed option REPLICAS, it is not allowed to be 0.*")
 
-	tk.MustExec("drop block if exists t1")
-	tk.MustExec("create block t1 (c int)")
+	tk.MustInterDirc("drop causet if exists t1")
+	tk.MustInterDirc("create causet t1 (c int)")
 
-	_, err = tk.Exec(`alter block t1 alter partition p
+	_, err = tk.InterDirc(`alter causet t1 alter partition p
 add memristed policy
 	constraints='["+zone=sh"]'
 	role=leader

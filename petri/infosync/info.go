@@ -37,7 +37,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
@@ -56,8 +56,8 @@ const (
 	ServerInformationPath = "/milevadb/server/info"
 	// ServerMinStartTSPath causetstore the server min start timestamp.
 	ServerMinStartTSPath = "/milevadb/server/minstartts"
-	// TiFlashBlockSyncProgressPath causetstore the tiflash block replica sync progress.
-	TiFlashBlockSyncProgressPath = "/tiflash/block/sync"
+	// TiFlashBlockSyncProgressPath causetstore the tiflash causet replica sync progress.
+	TiFlashBlockSyncProgressPath = "/tiflash/causet/sync"
 	// keyOFIDelefaultRetryCnt is the default retry count for etcd causetstore.
 	keyOFIDelefaultRetryCnt = 5
 	// keyOFIDelefaultTimeout is the default time out for etcd causetstore.
@@ -150,14 +150,14 @@ func GlobalInfoSyncerInit(ctx context.Context, id string, etcdCli *clientv3.Clie
 
 // Init creates a new etcd stochastik and stores server info to etcd.
 func (is *InfoSyncer) init(ctx context.Context, skipRegisterToDashboard bool) error {
-	err := is.newStochastikAndStoreServerInfo(ctx, owner.NewStochastikDefaultRetryCnt)
+	err := is.newStochastikAndStoreServerInfo(ctx, tenant.NewStochastikDefaultRetryCnt)
 	if err != nil {
 		return err
 	}
 	if skipRegisterToDashboard {
 		return nil
 	}
-	return is.newTopologyStochastikAndStoreServerInfo(ctx, owner.NewStochastikDefaultRetryCnt)
+	return is.newTopologyStochastikAndStoreServerInfo(ctx, tenant.NewStochastikDefaultRetryCnt)
 }
 
 // SetStochastikManager set the stochastik manager for InfoSyncer.
@@ -208,7 +208,7 @@ func GetAllServerInfo(ctx context.Context) (map[string]*ServerInfo, error) {
 	return is.getAllServerInfo(ctx)
 }
 
-// UFIDelateTiFlashBlockSyncProgress is used to uFIDelate the tiflash block replica sync progress.
+// UFIDelateTiFlashBlockSyncProgress is used to uFIDelate the tiflash causet replica sync progress.
 func UFIDelateTiFlashBlockSyncProgress(ctx context.Context, tid int64, progress float64) error {
 	is, err := getGlobalInfoSyncer()
 	if err != nil {
@@ -221,7 +221,7 @@ func UFIDelateTiFlashBlockSyncProgress(ctx context.Context, tid int64, progress 
 	return soliton.PutKVToEtcd(ctx, is.etcdCli, keyOFIDelefaultRetryCnt, key, strconv.FormatFloat(progress, 'f', 2, 64))
 }
 
-// DeleteTiFlashBlockSyncProgress is used to delete the tiflash block replica sync progress.
+// DeleteTiFlashBlockSyncProgress is used to delete the tiflash causet replica sync progress.
 func DeleteTiFlashBlockSyncProgress(tid int64) error {
 	is, err := getGlobalInfoSyncer()
 	if err != nil {
@@ -234,7 +234,7 @@ func DeleteTiFlashBlockSyncProgress(tid int64) error {
 	return soliton.DeleteKeyFromEtcd(key, is.etcdCli, keyOFIDelefaultRetryCnt, keyOFIDelefaultTimeout)
 }
 
-// GetTiFlashBlockSyncProgress uses to get all the tiflash block replica sync progress.
+// GetTiFlashBlockSyncProgress uses to get all the tiflash causet replica sync progress.
 func GetTiFlashBlockSyncProgress(ctx context.Context) (map[int64]float64, error) {
 	is, err := getGlobalInfoSyncer()
 	if err != nil {
@@ -247,18 +247,18 @@ func GetTiFlashBlockSyncProgress(ctx context.Context) (map[int64]float64, error)
 	for i := 0; i < keyOFIDelefaultRetryCnt; i++ {
 		resp, err := is.etcdCli.Get(ctx, TiFlashBlockSyncProgressPath+"/", clientv3.WithPrefix())
 		if err != nil {
-			logutil.BgLogger().Info("get tiflash block replica sync progress failed, continue checking.", zap.Error(err))
+			logutil.BgLogger().Info("get tiflash causet replica sync progress failed, continue checking.", zap.Error(err))
 			continue
 		}
 		for _, ekv := range resp.Kvs {
 			tid, err := strconv.ParseInt(string(ekv.Key[len(TiFlashBlockSyncProgressPath)+1:]), 10, 64)
 			if err != nil {
-				logutil.BgLogger().Info("invalid tiflash block replica sync progress key.", zap.String("key", string(ekv.Key)))
+				logutil.BgLogger().Info("invalid tiflash causet replica sync progress key.", zap.String("key", string(ekv.Key)))
 				continue
 			}
 			progress, err := strconv.ParseFloat(string(ekv.Value), 64)
 			if err != nil {
-				logutil.BgLogger().Info("invalid tiflash block replica sync progress value.",
+				logutil.BgLogger().Info("invalid tiflash causet replica sync progress value.",
 					zap.String("key", string(ekv.Key)), zap.String("value", string(ekv.Value)))
 				continue
 			}
@@ -414,7 +414,7 @@ type topologyInfo struct {
 }
 
 func (is *InfoSyncer) getTopologyInfo() topologyInfo {
-	s, err := os.Execublock()
+	s, err := os.InterDircublock()
 	if err != nil {
 		s = ""
 	}
@@ -528,12 +528,12 @@ func (is *InfoSyncer) TopologyDone() <-chan struct{} {
 
 // Restart restart the info syncer with new stochastik leaseID and causetstore server info to etcd again.
 func (is *InfoSyncer) Restart(ctx context.Context) error {
-	return is.newStochastikAndStoreServerInfo(ctx, owner.NewStochastikDefaultRetryCnt)
+	return is.newStochastikAndStoreServerInfo(ctx, tenant.NewStochastikDefaultRetryCnt)
 }
 
 // RestartTopology restart the topology syncer with new stochastik leaseID and causetstore server info to etcd again.
 func (is *InfoSyncer) RestartTopology(ctx context.Context) error {
-	return is.newTopologyStochastikAndStoreServerInfo(ctx, owner.NewStochastikDefaultRetryCnt)
+	return is.newTopologyStochastikAndStoreServerInfo(ctx, tenant.NewStochastikDefaultRetryCnt)
 }
 
 // newStochastikAndStoreServerInfo creates a new etcd stochastik and stores server info to etcd.
@@ -542,7 +542,7 @@ func (is *InfoSyncer) newStochastikAndStoreServerInfo(ctx context.Context, retry
 		return nil
 	}
 	logPrefix := fmt.Sprintf("[Info-syncer] %s", is.serverInfoPath)
-	stochastik, err := owner.NewStochastik(ctx, logPrefix, is.etcdCli, retryCnt, InfoStochastikTTL)
+	stochastik, err := tenant.NewStochastik(ctx, logPrefix, is.etcdCli, retryCnt, InfoStochastikTTL)
 	if err != nil {
 		return err
 	}
@@ -561,7 +561,7 @@ func (is *InfoSyncer) newTopologyStochastikAndStoreServerInfo(ctx context.Contex
 		return nil
 	}
 	logPrefix := fmt.Sprintf("[topology-syncer] %s/%s:%d", TopologyInformationPath, is.info.IP, is.info.Port)
-	stochastik, err := owner.NewStochastik(ctx, logPrefix, is.etcdCli, retryCnt, TopologyStochastikTTL)
+	stochastik, err := tenant.NewStochastik(ctx, logPrefix, is.etcdCli, retryCnt, TopologyStochastikTTL)
 	if err != nil {
 		return err
 	}
@@ -626,7 +626,7 @@ func (is *InfoSyncer) getPrometheusAddr() (string, error) {
 		return "", err
 	}
 	var metricStorage metricStorage
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewCausetDecoder(resp.Body)
 	err = dec.Decode(&metricStorage)
 	if err != nil {
 		return "", err

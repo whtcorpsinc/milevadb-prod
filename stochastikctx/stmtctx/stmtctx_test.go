@@ -35,7 +35,7 @@ func (s *stmtctxSuit) TestCausetTasksDetails(c *C) {
 	ctx := new(stmtctx.StatementContext)
 	backoffs := []string{"einsteindbRPC", "FIDelRPC", "regionMiss"}
 	for i := 0; i < 100; i++ {
-		d := &execdetails.ExecDetails{
+		d := &execdetails.InterDircDetails{
 			CalleeAddress: fmt.Sprintf("%v", i+1),
 			ProcessTime:   time.Second * time.Duration(i+1),
 			WaitTime:      time.Millisecond * time.Duration(i+1),
@@ -46,7 +46,7 @@ func (s *stmtctxSuit) TestCausetTasksDetails(c *C) {
 			d.BackoffSleep[backoff] = time.Millisecond * 100 * time.Duration(i+1)
 			d.BackoffTimes[backoff] = i + 1
 		}
-		ctx.MergeExecDetails(d, nil)
+		ctx.MergeInterDircDetails(d, nil)
 	}
 	d := ctx.CausetTasksDetails()
 	c.Assert(d.NumCausetTasks, Equals, 100)

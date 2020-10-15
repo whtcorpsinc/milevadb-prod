@@ -150,7 +150,7 @@ func decodeUint(val []byte) uint64 {
 	}
 }
 
-type largeNotNullSorter Encoder
+type largeNotNullSorter CausetEncoder
 
 func (s *largeNotNullSorter) Less(i, j int) bool {
 	return s.defCausIDs32[i] < s.defCausIDs32[j]
@@ -165,7 +165,7 @@ func (s *largeNotNullSorter) Swap(i, j int) {
 	s.values[i], s.values[j] = s.values[j], s.values[i]
 }
 
-type smallNotNullSorter Encoder
+type smallNotNullSorter CausetEncoder
 
 func (s *smallNotNullSorter) Less(i, j int) bool {
 	return s.defCausIDs[i] < s.defCausIDs[j]
@@ -180,7 +180,7 @@ func (s *smallNotNullSorter) Swap(i, j int) {
 	s.values[i], s.values[j] = s.values[j], s.values[i]
 }
 
-type smallNullSorter Encoder
+type smallNullSorter CausetEncoder
 
 func (s *smallNullSorter) Less(i, j int) bool {
 	nullDefCauss := s.defCausIDs[s.numNotNullDefCauss:]
@@ -196,7 +196,7 @@ func (s *smallNullSorter) Swap(i, j int) {
 	nullDefCauss[i], nullDefCauss[j] = nullDefCauss[j], nullDefCauss[i]
 }
 
-type largeNullSorter Encoder
+type largeNullSorter CausetEncoder
 
 func (s *largeNullSorter) Less(i, j int) bool {
 	nullDefCauss := s.defCausIDs32[s.numNotNullDefCauss:]

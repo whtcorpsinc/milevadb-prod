@@ -24,7 +24,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/debugpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 )
@@ -524,7 +524,7 @@ type BatchCopStreamResponse struct {
 }
 
 // SetContext set the Context field for the given req to the specified ctx.
-func SetContext(req *Request, region *metapb.Region, peer *metapb.Peer) error {
+func SetContext(req *Request, region *spacetimepb.Region, peer *spacetimepb.Peer) error {
 	ctx := &req.Context
 	if region != nil {
 		ctx.RegionId = region.Id

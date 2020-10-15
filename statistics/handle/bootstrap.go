@@ -35,12 +35,12 @@ import (
 func (h *Handle) initStatsMeta4Chunk(is schemareplicant.SchemaReplicant, cache *statsCache, iter *chunk.Iterator4Chunk) {
 	for event := iter.Begin(); event != iter.End(); event = iter.Next() {
 		physicalID := event.GetInt64(1)
-		block, ok := h.getTableByPhysicalID(is, physicalID)
+		causet, ok := h.getTableByPhysicalID(is, physicalID)
 		if !ok {
-			logutil.BgLogger().Debug("unknown physical ID in stats meta block, maybe it has been dropped", zap.Int64("ID", physicalID))
+			logutil.BgLogger().Debug("unknown physical ID in stats spacetime causet, maybe it has been dropped", zap.Int64("ID", physicalID))
 			continue
 		}
-		blockInfo := block.Meta()
+		blockInfo := causet.Meta()
 		newHistDefCausl := statistics.HistDefCausl{
 			PhysicalID:     physicalID,
 			HavePhysicalID: true,
@@ -59,8 +59,8 @@ func (h *Handle) initStatsMeta4Chunk(is schemareplicant.SchemaReplicant, cache *
 }
 
 func (h *Handle) initStatsMeta(is schemareplicant.SchemaReplicant) (statsCache, error) {
-	allegrosql := "select HIGH_PRIORITY version, block_id, modify_count, count from allegrosql.stats_meta"
-	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	allegrosql := "select HIGH_PRIORITY version, block_id, modify_count, count from allegrosql.stats_spacetime"
+	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rc) > 0 {
 		defer terror.Call(rc[0].Close)
 	}
@@ -85,13 +85,13 @@ func (h *Handle) initStatsMeta(is schemareplicant.SchemaReplicant) (statsCache, 
 
 func (h *Handle) initStatsHistograms4Chunk(is schemareplicant.SchemaReplicant, cache *statsCache, iter *chunk.Iterator4Chunk) {
 	for event := iter.Begin(); event != iter.End(); event = iter.Next() {
-		block, ok := cache.blocks[event.GetInt64(0)]
+		causet, ok := cache.blocks[event.GetInt64(0)]
 		if !ok {
 			continue
 		}
 		id, ndv, nullCount, version, totDefCausSize := event.GetInt64(2), event.GetInt64(3), event.GetInt64(5), event.GetUint64(4), event.GetInt64(7)
 		lastAnalyzePos := event.GetCauset(11, types.NewFieldType(allegrosql.TypeBlob))
-		tbl, _ := h.getTableByPhysicalID(is, block.PhysicalID)
+		tbl, _ := h.getTableByPhysicalID(is, causet.PhysicalID)
 		if event.GetInt64(1) > 0 {
 			var idxInfo *perceptron.IndexInfo
 			for _, idx := range tbl.Meta().Indices {
@@ -117,7 +117,7 @@ func (h *Handle) initStatsHistograms4Chunk(is schemareplicant.SchemaReplicant, c
 				Flag:      event.GetInt64(10),
 			}
 			lastAnalyzePos.Copy(&index.LastAnalyzePos)
-			block.Indices[hist.ID] = index
+			causet.Indices[hist.ID] = index
 		} else {
 			var colInfo *perceptron.DeferredCausetInfo
 			for _, col := range tbl.Meta().DeferredCausets {
@@ -133,21 +133,21 @@ func (h *Handle) initStatsHistograms4Chunk(is schemareplicant.SchemaReplicant, c
 			hist.Correlation = event.GetFloat64(9)
 			col := &statistics.DeferredCauset{
 				Histogram:  *hist,
-				PhysicalID: block.PhysicalID,
+				PhysicalID: causet.PhysicalID,
 				Info:       colInfo,
 				Count:      nullCount,
 				IsHandle:   tbl.Meta().PKIsHandle && allegrosql.HasPriKeyFlag(colInfo.Flag),
 				Flag:       event.GetInt64(10),
 			}
 			lastAnalyzePos.Copy(&col.LastAnalyzePos)
-			block.DeferredCausets[hist.ID] = col
+			causet.DeferredCausets[hist.ID] = col
 		}
 	}
 }
 
 func (h *Handle) initStatsHistograms(is schemareplicant.SchemaReplicant, cache *statsCache) error {
 	allegrosql := "select HIGH_PRIORITY block_id, is_index, hist_id, distinct_count, version, null_count, cm_sketch, tot_col_size, stats_ver, correlation, flag, last_analyze_pos from allegrosql.stats_histograms"
-	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rc) > 0 {
 		defer terror.Call(rc[0].Close)
 	}
@@ -171,11 +171,11 @@ func (h *Handle) initStatsHistograms(is schemareplicant.SchemaReplicant, cache *
 
 func (h *Handle) initStatsTopN4Chunk(cache *statsCache, iter *chunk.Iterator4Chunk) {
 	for event := iter.Begin(); event != iter.End(); event = iter.Next() {
-		block, ok := cache.blocks[event.GetInt64(0)]
+		causet, ok := cache.blocks[event.GetInt64(0)]
 		if !ok {
 			continue
 		}
-		idx, ok := block.Indices[event.GetInt64(1)]
+		idx, ok := causet.Indices[event.GetInt64(1)]
 		if !ok || idx.CMSketch == nil {
 			continue
 		}
@@ -187,7 +187,7 @@ func (h *Handle) initStatsTopN4Chunk(cache *statsCache, iter *chunk.Iterator4Chu
 
 func (h *Handle) initStatsTopN(cache *statsCache) error {
 	allegrosql := "select HIGH_PRIORITY block_id, hist_id, value, count from allegrosql.stats_top_n where is_index = 1"
-	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rc) > 0 {
 		defer terror.Call(rc[0].Close)
 	}
@@ -212,21 +212,21 @@ func (h *Handle) initStatsTopN(cache *statsCache) error {
 func initStatsBuckets4Chunk(ctx stochastikctx.Context, cache *statsCache, iter *chunk.Iterator4Chunk) {
 	for event := iter.Begin(); event != iter.End(); event = iter.Next() {
 		blockID, isIndex, histID := event.GetInt64(0), event.GetInt64(1), event.GetInt64(2)
-		block, ok := cache.blocks[blockID]
+		causet, ok := cache.blocks[blockID]
 		if !ok {
 			continue
 		}
 		var lower, upper types.Causet
 		var hist *statistics.Histogram
 		if isIndex > 0 {
-			index, ok := block.Indices[histID]
+			index, ok := causet.Indices[histID]
 			if !ok {
 				continue
 			}
 			hist = &index.Histogram
 			lower, upper = types.NewBytesCauset(event.GetBytes(5)), types.NewBytesCauset(event.GetBytes(6))
 		} else {
-			column, ok := block.DeferredCausets[histID]
+			column, ok := causet.DeferredCausets[histID]
 			if !ok {
 				continue
 			}
@@ -240,14 +240,14 @@ func initStatsBuckets4Chunk(ctx stochastikctx.Context, cache *statsCache, iter *
 			lower, err = d.ConvertTo(ctx.GetStochastikVars().StmtCtx, &column.Info.FieldType)
 			if err != nil {
 				logutil.BgLogger().Debug("decode bucket lower bound failed", zap.Error(err))
-				delete(block.DeferredCausets, histID)
+				delete(causet.DeferredCausets, histID)
 				continue
 			}
 			d = types.NewBytesCauset(event.GetBytes(6))
 			upper, err = d.ConvertTo(ctx.GetStochastikVars().StmtCtx, &column.Info.FieldType)
 			if err != nil {
 				logutil.BgLogger().Debug("decode bucket upper bound failed", zap.Error(err))
-				delete(block.DeferredCausets, histID)
+				delete(causet.DeferredCausets, histID)
 				continue
 			}
 		}
@@ -257,7 +257,7 @@ func initStatsBuckets4Chunk(ctx stochastikctx.Context, cache *statsCache, iter *
 
 func (h *Handle) initStatsBuckets(cache *statsCache) error {
 	allegrosql := "select HIGH_PRIORITY block_id, is_index, hist_id, count, repeats, lower_bound, upper_bound from allegrosql.stats_buckets order by block_id, is_index, hist_id, bucket_id"
-	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), allegrosql)
+	rc, err := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), allegrosql)
 	if len(rc) > 0 {
 		defer terror.Call(rc[0].Close)
 	}
@@ -277,15 +277,15 @@ func (h *Handle) initStatsBuckets(cache *statsCache) error {
 		initStatsBuckets4Chunk(h.mu.ctx, cache, iter)
 	}
 	lastVersion := uint64(0)
-	for _, block := range cache.blocks {
-		lastVersion = mathutil.MaxUint64(lastVersion, block.Version)
-		for _, idx := range block.Indices {
+	for _, causet := range cache.blocks {
+		lastVersion = mathutil.MaxUint64(lastVersion, causet.Version)
+		for _, idx := range causet.Indices {
 			for i := 1; i < idx.Len(); i++ {
 				idx.Buckets[i].Count += idx.Buckets[i-1].Count
 			}
 			idx.PreCalculateScalar()
 		}
-		for _, col := range block.DeferredCausets {
+		for _, col := range causet.DeferredCausets {
 			for i := 1; i < col.Len(); i++ {
 				col.Buckets[i].Count += col.Buckets[i-1].Count
 			}
@@ -300,13 +300,13 @@ func (h *Handle) initStatsBuckets(cache *statsCache) error {
 func (h *Handle) InitStats(is schemareplicant.SchemaReplicant) (err error) {
 	h.mu.Lock()
 	defer func() {
-		_, err1 := h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), "commit")
+		_, err1 := h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), "commit")
 		if err == nil && err1 != nil {
 			err = err1
 		}
 		h.mu.Unlock()
 	}()
-	_, err = h.mu.ctx.(sqlexec.ALLEGROSQLExecutor).Execute(context.TODO(), "begin")
+	_, err = h.mu.ctx.(sqlexec.ALLEGROSQLInterlockingDirectorate).InterDircute(context.TODO(), "begin")
 	if err != nil {
 		return err
 	}

@@ -22,31 +22,31 @@ import (
 	"math/rand"
 )
 
-var errInvalidBlockSize = errors.New("invalid encrypt block size")
+var errInvalidBlockSize = errors.New("invalid encrypt causet size")
 
-// defaultEncryptBlockSize indicates the default encrypt block size in bytes
+// defaultEncryptBlockSize indicates the default encrypt causet size in bytes
 const defaultEncryptBlockSize = 1024
 
 // CtrCipher encrypting data using AES in counter mode
 type CtrCipher struct {
 	nonce uint64
-	block cipher.Block
-	// encryptBlockSize indicates the encrypt block size in bytes.
+	causet cipher.Block
+	// encryptBlockSize indicates the encrypt causet size in bytes.
 	encryptBlockSize int64
-	// aesBlockCount indicates the total aes blocks in one encrypt block
+	// aesBlockCount indicates the total aes blocks in one encrypt causet
 	aesBlockCount int64
 }
 
-// NewCtrCipher return a CtrCipher using the default encrypt block size
+// NewCtrCipher return a CtrCipher using the default encrypt causet size
 func NewCtrCipher() (ctr *CtrCipher, err error) {
 	return NewCtrCipherWithBlockSize(defaultEncryptBlockSize)
 }
 
-// NewCtrCipherWithBlockSize return a CtrCipher with the encrypt block size
+// NewCtrCipherWithBlockSize return a CtrCipher with the encrypt causet size
 func NewCtrCipherWithBlockSize(encryptBlockSize int64) (ctr *CtrCipher, err error) {
 	key := make([]byte, aes.BlockSize)
 	rand.Read(key)
-	block, err := aes.NewCipher(key)
+	causet, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func NewCtrCipherWithBlockSize(encryptBlockSize int64) (ctr *CtrCipher, err erro
 		return nil, errInvalidBlockSize
 	}
 	ctr = new(CtrCipher)
-	ctr.block = block
+	ctr.causet = causet
 	ctr.nonce = rand.Uint64()
 	ctr.encryptBlockSize = encryptBlockSize
 	ctr.aesBlockCount = encryptBlockSize / aes.BlockSize
@@ -66,7 +66,7 @@ func (ctr *CtrCipher) stream(counter uint64) cipher.Stream {
 	counterBuf := make([]byte, aes.BlockSize)
 	binary.BigEndian.PutUint64(counterBuf, ctr.nonce)
 	binary.BigEndian.PutUint64(counterBuf[8:], counter)
-	return cipher.NewCTR(ctr.block, counterBuf)
+	return cipher.NewCTR(ctr.causet, counterBuf)
 }
 
 // Writer implements an io.WriteCloser, it encrypt data using AES before writing to the underlying object.

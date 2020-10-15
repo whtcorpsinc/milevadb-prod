@@ -28,17 +28,17 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
 )
 
 const tiflashCheckMilevaDBHTTPAPIHalfInterval = 2500 * time.Millisecond
 
-func onCreateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onCreateBlock(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	failpoint.Inject("mockExceedErrorLimit", func(val failpoint.Value) {
 		if val.(bool) {
 			failpoint.Return(ver, errors.New("mock do job error"))
@@ -77,9 +77,9 @@ func onCreateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 			return ver, errors.Trace(err)
 		}
 
-		failpoint.Inject("checkOwnerCheckAllVersionsWaitTime", func(val failpoint.Value) {
+		failpoint.Inject("checkTenantCheckAllVersionsWaitTime", func(val failpoint.Value) {
 			if val.(bool) {
-				failpoint.Return(ver, errors.New("mock create block error"))
+				failpoint.Return(ver, errors.New("mock create causet error"))
 			}
 		})
 
@@ -88,11 +88,11 @@ func onCreateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 		asyncNotifyEvent(d, &soliton.Event{Tp: perceptron.CausetActionCreateBlock, BlockInfo: tbInfo})
 		return ver, nil
 	default:
-		return ver, ErrInvalidDBSState.GenWithStackByArgs("block", tbInfo.State)
+		return ver, ErrInvalidDBSState.GenWithStackByArgs("causet", tbInfo.State)
 	}
 }
 
-func createBlockOrViewWithCheck(t *meta.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
+func createBlockOrViewWithCheck(t *spacetime.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
 	err := checkBlockInfoValid(tbInfo)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -101,7 +101,7 @@ func createBlockOrViewWithCheck(t *meta.Meta, job *perceptron.Job, schemaID int6
 	return t.CreateBlockOrView(schemaID, tbInfo)
 }
 
-func repairBlockOrViewWithCheck(t *meta.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
+func repairBlockOrViewWithCheck(t *spacetime.Meta, job *perceptron.Job, schemaID int64, tbInfo *perceptron.BlockInfo) error {
 	err := checkBlockInfoValid(tbInfo)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -110,7 +110,7 @@ func repairBlockOrViewWithCheck(t *meta.Meta, job *perceptron.Job, schemaID int6
 	return t.UFIDelateBlock(schemaID, tbInfo)
 }
 
-func onCreateView(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onCreateView(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	tbInfo := &perceptron.BlockInfo{}
 	var orReplace bool
@@ -159,11 +159,11 @@ func onCreateView(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ er
 		asyncNotifyEvent(d, &soliton.Event{Tp: perceptron.CausetActionCreateView, BlockInfo: tbInfo})
 		return ver, nil
 	default:
-		return ver, ErrInvalidDBSState.GenWithStackByArgs("block", tbInfo.State)
+		return ver, ErrInvalidDBSState.GenWithStackByArgs("causet", tbInfo.State)
 	}
 }
 
-func onDropBlockOrView(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropBlockOrView(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	tblInfo, err := checkBlockExistAndCancelNonExistJob(t, job, job.SchemaID)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -201,7 +201,7 @@ func onDropBlockOrView(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
 		startKey := blockcodec.EncodeBlockPrefix(job.BlockID)
 		job.Args = append(job.Args, startKey, getPartitionIDs(tblInfo))
 	default:
-		err = ErrInvalidDBSState.GenWithStackByArgs("block", tblInfo.State)
+		err = ErrInvalidDBSState.GenWithStackByArgs("causet", tblInfo.State)
 	}
 
 	return ver, errors.Trace(err)
@@ -213,7 +213,7 @@ const (
 	recoverBlockCheckFlagDisableGC
 )
 
-func (w *worker) onRecoverBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, err error) {
+func (w *worker) onRecoverBlock(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, err error) {
 	schemaID := job.SchemaID
 	tblInfo := &perceptron.BlockInfo{}
 	var autoIncID, autoRandID, dropJobID, recoverBlockCheckFlag int64
@@ -248,21 +248,21 @@ func (w *worker) onRecoverBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (v
 		return ver, errors.Trace(err)
 	}
 
-	// Recover block divide into 2 steps:
-	// 1. Check GC enable status, to decided whether enable GC after recover block.
+	// Recover causet divide into 2 steps:
+	// 1. Check GC enable status, to decided whether enable GC after recover causet.
 	//     a. Why not disable GC before put the job to DBS job queue?
 	//        Think about concurrency problem. If a recover job-1 is doing and already disabled GC,
-	//        then, another recover block job-2 check GC enable will get disable before into the job queue.
-	//        then, after recover block job-2 finished, the GC will be disabled.
-	//     b. Why split into 2 steps? 1 step also can finish this job: check GC -> disable GC -> recover block -> finish job.
+	//        then, another recover causet job-2 check GC enable will get disable before into the job queue.
+	//        then, after recover causet job-2 finished, the GC will be disabled.
+	//     b. Why split into 2 steps? 1 step also can finish this job: check GC -> disable GC -> recover causet -> finish job.
 	//        What if the transaction commit failed? then, the job will retry, but the GC already disabled when first running.
 	//        So, after this job retry succeed, the GC will be disabled.
-	// 2. Do recover block job.
+	// 2. Do recover causet job.
 	//     a. Check whether GC enabled, if enabled, disable GC first.
-	//     b. Check GC safe point. If drop block time if after safe point time, then can do recover.
-	//        otherwise, can't recover block, because the records of the block may already delete by gc.
-	//     c. Remove GC task of the block from gc_delete_range block.
-	//     d. Create block and rebase block auto ID.
+	//     b. Check GC safe point. If drop causet time if after safe point time, then can do recover.
+	//        otherwise, can't recover causet, because the records of the causet may already delete by gc.
+	//     c. Remove GC task of the causet from gc_delete_range causet.
+	//     d. Create causet and rebase causet auto ID.
 	//     e. Finish.
 	switch tblInfo.State {
 	case perceptron.StateNone:
@@ -282,7 +282,7 @@ func (w *worker) onRecoverBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (v
 		}
 	case perceptron.StateWriteOnly:
 		// write only -> public
-		// do recover block.
+		// do recover causet.
 		if gcEnable {
 			err = disableGC(w)
 			if err != nil {
@@ -296,7 +296,7 @@ func (w *worker) onRecoverBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (v
 			job.State = perceptron.JobStateCancelled
 			return ver, errors.Trace(err)
 		}
-		// Remove dropped block DBS job from gc_delete_range block.
+		// Remove dropped causet DBS job from gc_delete_range causet.
 		var tids []int64
 		if tblInfo.GetPartitionInfo() != nil {
 			tids = getPartitionIDs(tblInfo)
@@ -329,7 +329,7 @@ func (w *worker) onRecoverBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (v
 		// Finish this job.
 		job.FinishBlockJob(perceptron.JobStateDone, perceptron.StatePublic, ver, tblInfo)
 	default:
-		return ver, ErrInvalidDBSState.GenWithStackByArgs("block", tblInfo.State)
+		return ver, ErrInvalidDBSState.GenWithStackByArgs("causet", tblInfo.State)
 	}
 	return ver, nil
 }
@@ -378,13 +378,13 @@ func checkSafePoint(w *worker, snapshotTS uint64) error {
 	return gcutil.ValidateSnapshot(ctx, snapshotTS)
 }
 
-func getBlock(causetstore ekv.CausetStorage, schemaID int64, tblInfo *perceptron.BlockInfo) (block.Block, error) {
+func getBlock(causetstore ekv.CausetStorage, schemaID int64, tblInfo *perceptron.BlockInfo) (causet.Block, error) {
 	allocs := autoid.NewSlabPredictorsFromTblInfo(causetstore, schemaID, tblInfo)
-	tbl, err := block.BlockFromMeta(allocs, tblInfo)
+	tbl, err := causet.BlockFromMeta(allocs, tblInfo)
 	return tbl, errors.Trace(err)
 }
 
-func getBlockInfoAndCancelFaultJob(t *meta.Meta, job *perceptron.Job, schemaID int64) (*perceptron.BlockInfo, error) {
+func getBlockInfoAndCancelFaultJob(t *spacetime.Meta, job *perceptron.Job, schemaID int64) (*perceptron.BlockInfo, error) {
 	tblInfo, err := checkBlockExistAndCancelNonExistJob(t, job, schemaID)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -392,13 +392,13 @@ func getBlockInfoAndCancelFaultJob(t *meta.Meta, job *perceptron.Job, schemaID i
 
 	if tblInfo.State != perceptron.StatePublic {
 		job.State = perceptron.JobStateCancelled
-		return nil, ErrInvalidDBSState.GenWithStack("block %s is not in public, but %s", tblInfo.Name, tblInfo.State)
+		return nil, ErrInvalidDBSState.GenWithStack("causet %s is not in public, but %s", tblInfo.Name, tblInfo.State)
 	}
 
 	return tblInfo, nil
 }
 
-func checkBlockExistAndCancelNonExistJob(t *meta.Meta, job *perceptron.Job, schemaID int64) (*perceptron.BlockInfo, error) {
+func checkBlockExistAndCancelNonExistJob(t *spacetime.Meta, job *perceptron.Job, schemaID int64) (*perceptron.BlockInfo, error) {
 	tblInfo, err := getBlockInfo(t, job.BlockID, schemaID)
 	if err == nil {
 		return tblInfo, nil
@@ -409,11 +409,11 @@ func checkBlockExistAndCancelNonExistJob(t *meta.Meta, job *perceptron.Job, sche
 	return nil, err
 }
 
-func getBlockInfo(t *meta.Meta, blockID, schemaID int64) (*perceptron.BlockInfo, error) {
-	// Check this block's database.
+func getBlockInfo(t *spacetime.Meta, blockID, schemaID int64) (*perceptron.BlockInfo, error) {
+	// Check this causet's database.
 	tblInfo, err := t.GetBlock(schemaID, blockID)
 	if err != nil {
-		if meta.ErrDBNotExists.Equal(err) {
+		if spacetime.ErrDBNotExists.Equal(err) {
 			return nil, errors.Trace(schemareplicant.ErrDatabaseNotExists.GenWithStackByArgs(
 				fmt.Sprintf("(Schema ID %d)", schemaID),
 			))
@@ -421,7 +421,7 @@ func getBlockInfo(t *meta.Meta, blockID, schemaID int64) (*perceptron.BlockInfo,
 		return nil, errors.Trace(err)
 	}
 
-	// Check the block.
+	// Check the causet.
 	if tblInfo == nil {
 		return nil, errors.Trace(schemareplicant.ErrBlockNotExists.GenWithStackByArgs(
 			fmt.Sprintf("(Schema ID %d)", schemaID),
@@ -431,10 +431,10 @@ func getBlockInfo(t *meta.Meta, blockID, schemaID int64) (*perceptron.BlockInfo,
 	return tblInfo, nil
 }
 
-// onTruncateBlock delete old block meta, and creates a new block identical to old block except for block ID.
-// As all the old data is encoded with old block ID, it can not be accessed any more.
+// onTruncateBlock delete old causet spacetime, and creates a new causet identical to old causet except for causet ID.
+// As all the old data is encoded with old causet ID, it can not be accessed any more.
 // A background job will be created to delete old data.
-func onTruncateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onTruncateBlock(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	blockID := job.BlockID
 	var newBlockID int64
@@ -460,7 +460,7 @@ func onTruncateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _
 	failpoint.Inject("truncateBlockErr", func(val failpoint.Value) {
 		if val.(bool) {
 			job.State = perceptron.JobStateCancelled
-			failpoint.Return(ver, errors.New("occur an error after dropping block"))
+			failpoint.Return(ver, errors.New("occur an error after dropping causet"))
 		}
 	})
 
@@ -504,15 +504,15 @@ func onTruncateBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _
 	return ver, nil
 }
 
-func onRebaseRowIDType(causetstore ekv.CausetStorage, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onRebaseRowIDType(causetstore ekv.CausetStorage, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	return onRebaseAutoID(causetstore, t, job, autoid.RowIDAllocType)
 }
 
-func onRebaseAutoRandomType(causetstore ekv.CausetStorage, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onRebaseAutoRandomType(causetstore ekv.CausetStorage, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	return onRebaseAutoID(causetstore, t, job, autoid.AutoRandomType)
 }
 
-func onRebaseAutoID(causetstore ekv.CausetStorage, t *meta.Meta, job *perceptron.Job, tp autoid.SlabPredictorType) (ver int64, _ error) {
+func onRebaseAutoID(causetstore ekv.CausetStorage, t *spacetime.Meta, job *perceptron.Job, tp autoid.SlabPredictorType) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	var newBase int64
 	err := job.DecodeArgs(&newBase)
@@ -553,7 +553,7 @@ func onRebaseAutoID(causetstore ekv.CausetStorage, t *meta.Meta, job *perceptron
 	return ver, nil
 }
 
-func onModifyBlockAutoIDCache(t *meta.Meta, job *perceptron.Job) (int64, error) {
+func onModifyBlockAutoIDCache(t *spacetime.Meta, job *perceptron.Job) (int64, error) {
 	var cache int64
 	if err := job.DecodeArgs(&cache); err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -574,7 +574,7 @@ func onModifyBlockAutoIDCache(t *meta.Meta, job *perceptron.Job) (int64, error) 
 	return ver, nil
 }
 
-func (w *worker) onShardRowID(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func (w *worker) onShardRowID(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var shardRowIDBits uint64
 	err := job.DecodeArgs(&shardRowIDBits)
 	if err != nil {
@@ -611,7 +611,7 @@ func (w *worker) onShardRowID(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver
 	return ver, nil
 }
 
-func verifyNoOverflowShardBits(s *stochastikPool, tbl block.Block, shardRowIDBits uint64) error {
+func verifyNoOverflowShardBits(s *stochastikPool, tbl causet.Block, shardRowIDBits uint64) error {
 	ctx, err := s.get()
 	if err != nil {
 		return errors.Trace(err)
@@ -629,7 +629,7 @@ func verifyNoOverflowShardBits(s *stochastikPool, tbl block.Block, shardRowIDBit
 	return nil
 }
 
-func onRenameBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onRenameBlock(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var oldSchemaID int64
 	var blockName perceptron.CIStr
 	if err := job.DecodeArgs(&oldSchemaID, &blockName); err != nil {
@@ -680,7 +680,7 @@ func onRenameBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 	failpoint.Inject("renameBlockErr", func(val failpoint.Value) {
 		if val.(bool) {
 			job.State = perceptron.JobStateCancelled
-			failpoint.Return(ver, errors.New("occur an error after renaming block"))
+			failpoint.Return(ver, errors.New("occur an error after renaming causet"))
 		}
 	})
 
@@ -690,7 +690,7 @@ func onRenameBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 		job.State = perceptron.JobStateCancelled
 		return ver, errors.Trace(err)
 	}
-	// UFIDelate the block's auto-increment ID.
+	// UFIDelate the causet's auto-increment ID.
 	if newSchemaID != oldSchemaID {
 		_, err = t.GenAutoBlockID(newSchemaID, tblInfo.ID, autoBlockID)
 		if err != nil {
@@ -712,7 +712,7 @@ func onRenameBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 	return ver, nil
 }
 
-func onModifyBlockComment(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onModifyBlockComment(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var comment string
 	if err := job.DecodeArgs(&comment); err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -733,7 +733,7 @@ func onModifyBlockComment(t *meta.Meta, job *perceptron.Job) (ver int64, _ error
 	return ver, nil
 }
 
-func onModifyBlockCharsetAndDefCauslate(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onModifyBlockCharsetAndDefCauslate(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var toCharset, toDefCauslate string
 	var needsOverwriteDefCauss bool
 	if err := job.DecodeArgs(&toCharset, &toDefCauslate, &needsOverwriteDefCauss); err != nil {
@@ -782,7 +782,7 @@ func onModifyBlockCharsetAndDefCauslate(t *meta.Meta, job *perceptron.Job) (ver 
 	return ver, nil
 }
 
-func (w *worker) onSetBlockFlashReplica(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func (w *worker) onSetBlockFlashReplica(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var replicaInfo ast.TiFlashReplicaSpec
 	if err := job.DecodeArgs(&replicaInfo); err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -827,7 +827,7 @@ func (w *worker) checkTiFlashReplicaCount(replicaCount uint64) error {
 	return checkTiFlashReplicaCount(ctx, replicaCount)
 }
 
-func onUFIDelateFlashReplicaStatus(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onUFIDelateFlashReplicaStatus(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var available bool
 	var physicalID int64
 	if err := job.DecodeArgs(&available, &physicalID); err != nil {
@@ -842,7 +842,7 @@ func onUFIDelateFlashReplicaStatus(t *meta.Meta, job *perceptron.Job) (ver int64
 	if tblInfo.TiFlashReplica == nil || (tblInfo.ID == physicalID && tblInfo.TiFlashReplica.Available == available) ||
 		(tblInfo.ID != physicalID && available == tblInfo.TiFlashReplica.IsPartitionAvailable(physicalID)) {
 		job.State = perceptron.JobStateCancelled
-		return ver, errors.Errorf("the replica available status of block %s is already uFIDelated", tblInfo.Name.String())
+		return ver, errors.Errorf("the replica available status of causet %s is already uFIDelated", tblInfo.Name.String())
 	}
 
 	if tblInfo.ID == physicalID {
@@ -872,7 +872,7 @@ func onUFIDelateFlashReplicaStatus(t *meta.Meta, job *perceptron.Job) (ver int64
 		}
 	} else {
 		job.State = perceptron.JobStateCancelled
-		return ver, errors.Errorf("unknown physical ID %v in block %v", physicalID, tblInfo.Name.O)
+		return ver, errors.Errorf("unknown physical ID %v in causet %v", physicalID, tblInfo.Name.O)
 	}
 
 	ver, err = uFIDelateVersionAndBlockInfo(t, job, tblInfo, true)
@@ -883,7 +883,7 @@ func onUFIDelateFlashReplicaStatus(t *meta.Meta, job *perceptron.Job) (ver int64
 	return ver, nil
 }
 
-func checkBlockNotExists(d *dbsCtx, t *meta.Meta, schemaID int64, blockName string) error {
+func checkBlockNotExists(d *dbsCtx, t *spacetime.Meta, schemaID int64, blockName string) error {
 	// d.infoHandle maybe nil in some test.
 	if d.infoHandle == nil || !d.infoHandle.IsValid() {
 		return checkBlockNotExistsFromStore(t, schemaID, blockName)
@@ -901,10 +901,10 @@ func checkBlockNotExists(d *dbsCtx, t *meta.Meta, schemaID int64, blockName stri
 	return checkBlockNotExistsFromStore(t, schemaID, blockName)
 }
 
-func checkBlockIDNotExists(t *meta.Meta, schemaID, blockID int64) error {
+func checkBlockIDNotExists(t *spacetime.Meta, schemaID, blockID int64) error {
 	tbl, err := t.GetBlock(schemaID, blockID)
 	if err != nil {
-		if meta.ErrDBNotExists.Equal(err) {
+		if spacetime.ErrDBNotExists.Equal(err) {
 			return schemareplicant.ErrDatabaseNotExists.GenWithStackByArgs("")
 		}
 		return errors.Trace(err)
@@ -916,7 +916,7 @@ func checkBlockIDNotExists(t *meta.Meta, schemaID, blockID int64) error {
 }
 
 func checkBlockNotExistsFromSchemaReplicant(is schemareplicant.SchemaReplicant, schemaID int64, blockName string) error {
-	// Check this block's database.
+	// Check this causet's database.
 	schemaReplicant, ok := is.SchemaByID(schemaID)
 	if !ok {
 		return schemareplicant.ErrDatabaseNotExists.GenWithStackByArgs("")
@@ -927,17 +927,17 @@ func checkBlockNotExistsFromSchemaReplicant(is schemareplicant.SchemaReplicant, 
 	return nil
 }
 
-func checkBlockNotExistsFromStore(t *meta.Meta, schemaID int64, blockName string) error {
-	// Check this block's database.
+func checkBlockNotExistsFromStore(t *spacetime.Meta, schemaID int64, blockName string) error {
+	// Check this causet's database.
 	blocks, err := t.ListBlocks(schemaID)
 	if err != nil {
-		if meta.ErrDBNotExists.Equal(err) {
+		if spacetime.ErrDBNotExists.Equal(err) {
 			return schemareplicant.ErrDatabaseNotExists.GenWithStackByArgs("")
 		}
 		return errors.Trace(err)
 	}
 
-	// Check the block.
+	// Check the causet.
 	for _, tbl := range blocks {
 		if tbl.Name.L == blockName {
 			return schemareplicant.ErrBlockExists.GenWithStackByArgs(tbl.Name)
@@ -947,8 +947,8 @@ func checkBlockNotExistsFromStore(t *meta.Meta, schemaID int64, blockName string
 	return nil
 }
 
-// uFIDelateVersionAndBlockInfoWithCheck checks block info validate and uFIDelates the schemaReplicant version and the block information
-func uFIDelateVersionAndBlockInfoWithCheck(t *meta.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, shouldUFIDelateVer bool) (
+// uFIDelateVersionAndBlockInfoWithCheck checks causet info validate and uFIDelates the schemaReplicant version and the causet information
+func uFIDelateVersionAndBlockInfoWithCheck(t *spacetime.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, shouldUFIDelateVer bool) (
 	ver int64, err error) {
 	err = checkBlockInfoValid(tblInfo)
 	if err != nil {
@@ -958,8 +958,8 @@ func uFIDelateVersionAndBlockInfoWithCheck(t *meta.Meta, job *perceptron.Job, tb
 	return uFIDelateVersionAndBlockInfo(t, job, tblInfo, shouldUFIDelateVer)
 }
 
-// uFIDelateVersionAndBlockInfo uFIDelates the schemaReplicant version and the block information.
-func uFIDelateVersionAndBlockInfo(t *meta.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, shouldUFIDelateVer bool) (
+// uFIDelateVersionAndBlockInfo uFIDelates the schemaReplicant version and the causet information.
+func uFIDelateVersionAndBlockInfo(t *spacetime.Meta, job *perceptron.Job, tblInfo *perceptron.BlockInfo, shouldUFIDelateVer bool) (
 	ver int64, err error) {
 	failpoint.Inject("mockUFIDelateVersionAndBlockInfoErr", func(val failpoint.Value) {
 		switch val.(int) {
@@ -986,7 +986,7 @@ func uFIDelateVersionAndBlockInfo(t *meta.Meta, job *perceptron.Job, tblInfo *pe
 	return ver, t.UFIDelateBlock(job.SchemaID, tblInfo)
 }
 
-func onRepairBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onRepairBlock(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	tblInfo := &perceptron.BlockInfo{}
 
@@ -998,14 +998,14 @@ func onRepairBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 
 	tblInfo.State = perceptron.StateNone
 
-	// Check the old EDB and old block exist.
+	// Check the old EDB and old causet exist.
 	_, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
 		return ver, errors.Trace(err)
 	}
 
-	// When in repair mode, the repaired block in a server is not access to user,
-	// the block after repairing will be removed from repair list. Other server left
+	// When in repair mode, the repaired causet in a server is not access to user,
+	// the causet after repairing will be removed from repair list. Other server left
 	// behind alive may need to restart to get the latest schemaReplicant version.
 	ver, err = uFIDelateSchemaVersion(t, job)
 	if err != nil {
@@ -1025,6 +1025,6 @@ func onRepairBlock(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ e
 		asyncNotifyEvent(d, &soliton.Event{Tp: perceptron.CausetActionRepairBlock, BlockInfo: tblInfo})
 		return ver, nil
 	default:
-		return ver, ErrInvalidDBSState.GenWithStackByArgs("block", tblInfo.State)
+		return ver, ErrInvalidDBSState.GenWithStackByArgs("causet", tblInfo.State)
 	}
 }

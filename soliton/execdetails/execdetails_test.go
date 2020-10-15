@@ -30,7 +30,7 @@ func TestT(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	detail := &ExecDetails{
+	detail := &InterDircDetails{
 		CopTime:       time.Second + 3*time.Millisecond,
 		ProcessTime:   2*time.Second + 5*time.Millisecond,
 		WaitTime:      time.Second,
@@ -67,20 +67,20 @@ func TestString(t *testing.T) {
 	if str := detail.String(); str != expected {
 		t.Errorf("got:\n%s\nexpected:\n%s", str, expected)
 	}
-	detail = &ExecDetails{}
+	detail = &InterDircDetails{}
 	if str := detail.String(); str != "" {
 		t.Errorf("got:\n%s\nexpected:\n", str)
 	}
 }
 
-func mockExecutorExecutionSummary(TimeProcessedNs, NumProducedRows, NumIterations uint64) *fidelpb.ExecutorExecutionSummary {
-	return &fidelpb.ExecutorExecutionSummary{TimeProcessedNs: &TimeProcessedNs, NumProducedRows: &NumProducedRows,
+func mockInterlockingDirectorateInterDircutionSummary(TimeProcessedNs, NumProducedRows, NumIterations uint64) *fidelpb.InterlockingDirectorateInterDircutionSummary {
+	return &fidelpb.InterlockingDirectorateInterDircutionSummary{TimeProcessedNs: &TimeProcessedNs, NumProducedRows: &NumProducedRows,
 		NumIterations: &NumIterations, XXX_unrecognized: nil}
 }
 
-func mockExecutorExecutionSummaryForTiFlash(TimeProcessedNs, NumProducedRows, NumIterations uint64, ExecutorID string) *fidelpb.ExecutorExecutionSummary {
-	return &fidelpb.ExecutorExecutionSummary{TimeProcessedNs: &TimeProcessedNs, NumProducedRows: &NumProducedRows,
-		NumIterations: &NumIterations, ExecutorId: &ExecutorID, XXX_unrecognized: nil}
+func mockInterlockingDirectorateInterDircutionSummaryForTiFlash(TimeProcessedNs, NumProducedRows, NumIterations uint64, InterlockingDirectorateID string) *fidelpb.InterlockingDirectorateInterDircutionSummary {
+	return &fidelpb.InterlockingDirectorateInterDircutionSummary{TimeProcessedNs: &TimeProcessedNs, NumProducedRows: &NumProducedRows,
+		NumIterations: &NumIterations, InterlockingDirectorateId: &InterlockingDirectorateID, XXX_unrecognized: nil}
 }
 
 func TestCopRuntimeStats(t *testing.T) {
@@ -88,10 +88,10 @@ func TestCopRuntimeStats(t *testing.T) {
 	blockScanID := 1
 	aggID := 2
 	blockReaderID := 3
-	stats.RecordOneCopTask(blockScanID, "8.8.8.8", mockExecutorExecutionSummary(1, 1, 1))
-	stats.RecordOneCopTask(blockScanID, "8.8.8.9", mockExecutorExecutionSummary(2, 2, 2))
-	stats.RecordOneCopTask(aggID, "8.8.8.8", mockExecutorExecutionSummary(3, 3, 3))
-	stats.RecordOneCopTask(aggID, "8.8.8.9", mockExecutorExecutionSummary(4, 4, 4))
+	stats.RecordOneCopTask(blockScanID, "8.8.8.8", mockInterlockingDirectorateInterDircutionSummary(1, 1, 1))
+	stats.RecordOneCopTask(blockScanID, "8.8.8.9", mockInterlockingDirectorateInterDircutionSummary(2, 2, 2))
+	stats.RecordOneCopTask(aggID, "8.8.8.8", mockInterlockingDirectorateInterDircutionSummary(3, 3, 3))
+	stats.RecordOneCopTask(aggID, "8.8.8.9", mockInterlockingDirectorateInterDircutionSummary(4, 4, 4))
 	if stats.ExistsCopStats(blockScanID) != true {
 		t.Fatal("exist")
 	}
@@ -126,10 +126,10 @@ func TestCopRuntimeStatsForTiFlash(t *testing.T) {
 	blockScanID := 1
 	aggID := 2
 	blockReaderID := 3
-	stats.RecordOneCopTask(aggID, "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(1, 1, 1, "blockscan_"+strconv.Itoa(blockScanID)))
-	stats.RecordOneCopTask(aggID, "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(2, 2, 2, "blockscan_"+strconv.Itoa(blockScanID)))
-	stats.RecordOneCopTask(blockScanID, "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(3, 3, 3, "aggregation_"+strconv.Itoa(aggID)))
-	stats.RecordOneCopTask(blockScanID, "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(4, 4, 4, "aggregation_"+strconv.Itoa(aggID)))
+	stats.RecordOneCopTask(aggID, "8.8.8.8", mockInterlockingDirectorateInterDircutionSummaryForTiFlash(1, 1, 1, "blockscan_"+strconv.Itoa(blockScanID)))
+	stats.RecordOneCopTask(aggID, "8.8.8.9", mockInterlockingDirectorateInterDircutionSummaryForTiFlash(2, 2, 2, "blockscan_"+strconv.Itoa(blockScanID)))
+	stats.RecordOneCopTask(blockScanID, "8.8.8.8", mockInterlockingDirectorateInterDircutionSummaryForTiFlash(3, 3, 3, "aggregation_"+strconv.Itoa(aggID)))
+	stats.RecordOneCopTask(blockScanID, "8.8.8.9", mockInterlockingDirectorateInterDircutionSummaryForTiFlash(4, 4, 4, "aggregation_"+strconv.Itoa(aggID)))
 	if stats.ExistsCopStats(blockScanID) != true {
 		t.Fatal("exist")
 	}

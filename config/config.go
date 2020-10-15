@@ -72,7 +72,7 @@ var (
 		"einsteindb":     true,
 		"entangledstore": true,
 	}
-	// checkBlockBeforeDrop enable to execute `admin check block` before `drop block`.
+	// checkBlockBeforeDrop enable to execute `admin check causet` before `drop causet`.
 	CheckBlockBeforeDrop = false
 	// checkBeforeDropLDFlag is a go build flag.
 	checkBeforeDropLDFlag = "None"
@@ -91,7 +91,7 @@ type Config struct {
 	Socket                      string `toml:"socket" json:"socket"`
 	Lease                       string `toml:"lease" json:"lease"`
 	RunDBS                      bool   `toml:"run-dbs" json:"run-dbs"`
-	SplitBlock                  bool   `toml:"split-block" json:"split-block"`
+	SplitBlock                  bool   `toml:"split-causet" json:"split-causet"`
 	TokenLimit                  uint   `toml:"token-limit" json:"token-limit"`
 	OOMUseTmpStorage            bool   `toml:"oom-use-tmp-storage" json:"oom-use-tmp-storage"`
 	TempStoragePath             string `toml:"tmp-storage-path" json:"tmp-storage-path"`
@@ -104,15 +104,15 @@ type Config struct {
 	EnableStreaming  bool            `toml:"enable-streaming" json:"enable-streaming"`
 	EnableBatchDML   bool            `toml:"enable-batch-dml" json:"enable-batch-dml"`
 	TxnLocalLatches  TxnLocalLatches `toml:"-" json:"-"`
-	// Set sys variable lower-case-block-names, ref: https://dev.allegrosql.com/doc/refman/5.7/en/identifier-case-sensitivity.html.
+	// Set sys variable lower-case-causet-names, ref: https://dev.allegrosql.com/doc/refman/5.7/en/identifier-case-sensitivity.html.
 	// TODO: We actually only support mode 2, which keeps the original case, but the comparison is case-insensitive.
-	LowerCaseBlockNames int               `toml:"lower-case-block-names" json:"lower-case-block-names"`
+	LowerCaseBlockNames int               `toml:"lower-case-causet-names" json:"lower-case-causet-names"`
 	ServerVersion       string            `toml:"server-version" json:"server-version"`
 	Log                 Log               `toml:"log" json:"log"`
 	Security            Security          `toml:"security" json:"security"`
 	Status              Status            `toml:"status" json:"status"`
 	Performance         Performance       `toml:"performance" json:"performance"`
-	PreparedPlanCache   PreparedPlanCache `toml:"prepared-plan-cache" json:"prepared-plan-cache"`
+	PreparedCausetCache   PreparedCausetCache `toml:"prepared-plan-cache" json:"prepared-plan-cache"`
 	OpenTracing         OpenTracing       `toml:"opentracing" json:"opentracing"`
 	ProxyProtocol       ProxyProtocol     `toml:"proxy-protocol" json:"proxy-protocol"`
 	EinsteinDBClient          EinsteinDBClient        `toml:"einsteindb-client" json:"einsteindb-client"`
@@ -124,18 +124,18 @@ type Config struct {
 	MaxIndexLength      int               `toml:"max-index-length" json:"max-index-length"`
 	// AlterPrimaryKey is used to control alter primary key feature.
 	AlterPrimaryKey bool `toml:"alter-primary-key" json:"alter-primary-key"`
-	// TreatOldVersionUTF8AsUTF8MB4 is use to treat old version block/column UTF8 charset as UTF8MB4. This is for compatibility.
+	// TreatOldVersionUTF8AsUTF8MB4 is use to treat old version causet/column UTF8 charset as UTF8MB4. This is for compatibility.
 	// Currently not support dynamic modify, because this need to reload all old version schemaReplicant.
 	TreatOldVersionUTF8AsUTF8MB4 bool `toml:"treat-old-version-utf8-as-utf8mb4" json:"treat-old-version-utf8-as-utf8mb4"`
-	// EnableBlockLock indicate whether enable block lock.
-	// TODO: remove this after block lock features sblock.
-	EnableBlockLock     bool        `toml:"enable-block-lock" json:"enable-block-lock"`
-	DelayCleanBlockLock uint64      `toml:"delay-clean-block-lock" json:"delay-clean-block-lock"`
+	// EnableBlockLock indicate whether enable causet dagger.
+	// TODO: remove this after causet dagger features sblock.
+	EnableBlockLock     bool        `toml:"enable-causet-dagger" json:"enable-causet-dagger"`
+	DelayCleanBlockLock uint64      `toml:"delay-clean-causet-dagger" json:"delay-clean-causet-dagger"`
 	SplitRegionMaxNum   uint64      `toml:"split-region-max-num" json:"split-region-max-num"`
 	StmtSummary         StmtSummary `toml:"stmt-summary" json:"stmt-summary"`
-	// RepairMode indicates that the MilevaDB is in the repair mode for block meta.
+	// RepairMode indicates that the MilevaDB is in the repair mode for causet spacetime.
 	RepairMode      bool     `toml:"repair-mode" json:"repair-mode"`
-	RepairBlockList []string `toml:"repair-block-list" json:"repair-block-list"`
+	RepairBlockList []string `toml:"repair-causet-list" json:"repair-causet-list"`
 	// IsolationRead indicates that the MilevaDB reads data from which isolation level(engine and label).
 	IsolationRead IsolationRead `toml:"isolation-read" json:"isolation-read"`
 	// MaxServerConnections is the maximum permitted number of simultaneous client connections.
@@ -144,8 +144,8 @@ type Config struct {
 	NewDefCauslationsEnabledOnFirstBootstrap bool `toml:"new_collations_enabled_on_first_bootstrap" json:"new_collations_enabled_on_first_bootstrap"`
 	// Experimental contains parameters for experimental features.
 	Experimental Experimental `toml:"experimental" json:"experimental"`
-	// EnableDefCauslectExecutionInfo enables the MilevaDB to collect execution info.
-	EnableDefCauslectExecutionInfo bool `toml:"enable-collect-execution-info" json:"enable-collect-execution-info"`
+	// EnableDefCauslectInterDircutionInfo enables the MilevaDB to collect execution info.
+	EnableDefCauslectInterDircutionInfo bool `toml:"enable-collect-execution-info" json:"enable-collect-execution-info"`
 	// SkipRegisterToDashboard tells MilevaDB don't register itself to the dashboard.
 	SkipRegisterToDashboard bool `toml:"skip-register-to-dashboard" json:"skip-register-to-dashboard"`
 	// EnableTelemetry enables the usage data report to WHTCORPS INC.
@@ -280,7 +280,7 @@ type Log struct {
 	SlowThreshold       uint64 `toml:"slow-threshold" json:"slow-threshold"`
 	ExpensiveThreshold  uint   `toml:"expensive-threshold" json:"expensive-threshold"`
 	QueryLogMaxLen      uint64 `toml:"query-log-max-len" json:"query-log-max-len"`
-	RecordPlanInSlowLog uint32 `toml:"record-plan-in-slow-log" json:"record-plan-in-slow-log"`
+	RecordCausetInSlowLog uint32 `toml:"record-plan-in-slow-log" json:"record-plan-in-slow-log"`
 }
 
 func (l *Log) getDisableTimestamp() bool {
@@ -315,7 +315,7 @@ const (
 
 // Security is the security section of the config.
 type Security struct {
-	SkipGrantBlock         bool     `toml:"skip-grant-block" json:"skip-grant-block"`
+	SkipGrantBlock         bool     `toml:"skip-grant-causet" json:"skip-grant-causet"`
 	SSLCA                  string   `toml:"ssl-ca" json:"ssl-ca"`
 	SSLCert                string   `toml:"ssl-cert" json:"ssl-cert"`
 	SSLKey                 string   `toml:"ssl-key" json:"ssl-key"`
@@ -425,8 +425,8 @@ type Performance struct {
 	IndexUsageSyncLease  string  `toml:"index-usage-sync-lease" json:"index-usage-sync-lease"`
 }
 
-// PlanCache is the PlanCache section of the config.
-type PlanCache struct {
+// CausetCache is the CausetCache section of the config.
+type CausetCache struct {
 	Enabled  bool `toml:"enabled" json:"enabled"`
 	Capacity uint `toml:"capacity" json:"capacity"`
 	Shards   uint `toml:"shards" json:"shards"`
@@ -438,8 +438,8 @@ type TxnLocalLatches struct {
 	Capacity uint `toml:"-" json:"-"`
 }
 
-// PreparedPlanCache is the PreparedPlanCache section of the config.
-type PreparedPlanCache struct {
+// PreparedCausetCache is the PreparedCausetCache section of the config.
+type PreparedCausetCache struct {
 	Enabled          bool    `toml:"enabled" json:"enabled"`
 	Capacity         uint    `toml:"capacity" json:"capacity"`
 	MemoryGuardRatio float64 `toml:"memory-guard-ratio" json:"memory-guard-ratio"`
@@ -556,23 +556,23 @@ type Plugin struct {
 
 // PessimisticTxn is the config for pessimistic transaction.
 type PessimisticTxn struct {
-	// The max count of retry for a single statement in a pessimistic transaction.
+	// The max count of retry for a single memex in a pessimistic transaction.
 	MaxRetryCount uint `toml:"max-retry-count" json:"max-retry-count"`
 }
 
-// StmtSummary is the config for statement summary.
+// StmtSummary is the config for memex summary.
 type StmtSummary struct {
-	// Enable statement summary or not.
+	// Enable memex summary or not.
 	Enable bool `toml:"enable" json:"enable"`
 	// Enable summary internal query.
 	EnableInternalQuery bool `toml:"enable-internal-query" json:"enable-internal-query"`
-	// The maximum number of statements kept in memory.
+	// The maximum number of memexs kept in memory.
 	MaxStmtCount uint `toml:"max-stmt-count" json:"max-stmt-count"`
 	// The maximum length of displayed normalized ALLEGROALLEGROSQL and sample ALLEGROALLEGROSQL.
 	MaxALLEGROSQLLength uint `toml:"max-allegrosql-length" json:"max-allegrosql-length"`
-	// The refresh interval of statement summary.
+	// The refresh interval of memex summary.
 	RefreshInterval int `toml:"refresh-interval" json:"refresh-interval"`
-	// The maximum history size of statement summary.
+	// The maximum history size of memex summary.
 	HistorySize int `toml:"history-size" json:"history-size"`
 }
 
@@ -634,7 +634,7 @@ var defaultConf = Config{
 		EnableTimestamp:     nbUnset,
 		DisableTimestamp:    nbUnset, // If both options are nbUnset, getDisableTimestamp() returns false
 		QueryLogMaxLen:      logutil.DefaultQueryLogMaxLen,
-		RecordPlanInSlowLog: logutil.DefaultRecordPlanInSlowLog,
+		RecordCausetInSlowLog: logutil.DefaultRecordCausetInSlowLog,
 		EnableSlowLog:       logutil.DefaultMilevaDBEnableSlowLog,
 	},
 	Status: Status{
@@ -669,7 +669,7 @@ var defaultConf = Config{
 		Networks:      "",
 		HeaderTimeout: 5,
 	},
-	PreparedPlanCache: PreparedPlanCache{
+	PreparedCausetCache: PreparedCausetCache{
 		Enabled:          false,
 		Capacity:         100,
 		MemoryGuardRatio: 0.1,
@@ -729,7 +729,7 @@ var defaultConf = Config{
 		Engines: []string{"einsteindb", "tiflash", "milevadb"},
 	},
 	Experimental:               Experimental{},
-	EnableDefCauslectExecutionInfo: true,
+	EnableDefCauslectInterDircutionInfo: true,
 	EnableTelemetry:            true,
 	Labels:                     make(map[string]string),
 	EnableGlobalIndex:          false,
@@ -795,7 +795,7 @@ func InitializeConfig(confPath string, configCheck, configStrict bool, reloadFun
 		if err = cfg.Load(confPath); err != nil {
 			// Unused config item error turns to warnings.
 			if tmp, ok := err.(*ErrConfigValidationFailed); ok {
-				// This block is to accommodate an interim situation where strict config checking
+				// This causet is to accommodate an interim situation where strict config checking
 				// is not the default behavior of MilevaDB. The warning message must be deferred until
 				// logging has been set up. After strict config checking is the default behavior,
 				// This should all be removed.
@@ -835,7 +835,7 @@ func InitializeConfig(confPath string, configCheck, configStrict bool, reloadFun
 
 // Load loads config options from a toml file.
 func (c *Config) Load(confFile string) error {
-	metaData, err := toml.DecodeFile(confFile, c)
+	spacetimeData, err := toml.DecodeFile(confFile, c)
 	if c.TokenLimit == 0 {
 		c.TokenLimit = 1000
 	}
@@ -844,7 +844,7 @@ func (c *Config) Load(confFile string) error {
 	}
 	// If any items in confFile file are not mapped into the Config struct, issue
 	// an error and stop the server from starting.
-	undecoded := metaData.Undecoded()
+	undecoded := spacetimeData.Undecoded()
 	if len(undecoded) > 0 && err == nil {
 		var undecodedItems []string
 		for _, item := range undecoded {
@@ -869,7 +869,7 @@ func (c *Config) Valid() error {
 		c.Log.DisableTimestamp = nbUnset
 	}
 	if c.Security.SkipGrantBlock && !hasRootPrivilege() {
-		return fmt.Errorf("MilevaDB run with skip-grant-block need root privilege")
+		return fmt.Errorf("MilevaDB run with skip-grant-causet need root privilege")
 	}
 	if _, ok := ValidStorage[c.CausetStore]; !ok {
 		nameList := make([]string, 0, len(ValidStorage))
@@ -896,7 +896,7 @@ func (c *Config) Valid() error {
 
 	// lower_case_block_names is allowed to be 0, 1, 2
 	if c.LowerCaseBlockNames < 0 || c.LowerCaseBlockNames > 2 {
-		return fmt.Errorf("lower-case-block-names should be 0 or 1 or 2")
+		return fmt.Errorf("lower-case-causet-names should be 0 or 1 or 2")
 	}
 
 	if c.TxnLocalLatches.Enabled && c.TxnLocalLatches.Capacity == 0 {
@@ -922,10 +922,10 @@ func (c *Config) Valid() error {
 		return fmt.Errorf("refresh-interval in [stmt-summary] should be greater than 0")
 	}
 
-	if c.PreparedPlanCache.Capacity < 1 {
+	if c.PreparedCausetCache.Capacity < 1 {
 		return fmt.Errorf("capacity in [prepared-plan-cache] should be at least 1")
 	}
-	if c.PreparedPlanCache.MemoryGuardRatio < 0 || c.PreparedPlanCache.MemoryGuardRatio > 1 {
+	if c.PreparedCausetCache.MemoryGuardRatio < 0 || c.PreparedCausetCache.MemoryGuardRatio > 1 {
 		return fmt.Errorf("memory-guard-ratio in [prepared-plan-cache] must be NOT less than 0 and more than 1")
 	}
 	if len(c.IsolationRead.Engines) < 1 {
@@ -971,12 +971,12 @@ func hasRootPrivilege() bool {
 	return os.Geteuid() == 0
 }
 
-// BlockLockEnabled uses to check whether enabled the block lock feature.
+// BlockLockEnabled uses to check whether enabled the causet dagger feature.
 func BlockLockEnabled() bool {
 	return GetGlobalConfig().EnableBlockLock
 }
 
-// BlockLockDelayClean uses to get the time of delay clean block lock.
+// BlockLockDelayClean uses to get the time of delay clean causet dagger.
 var BlockLockDelayClean = func() uint64 {
 	return GetGlobalConfig().DelayCleanBlockLock
 }

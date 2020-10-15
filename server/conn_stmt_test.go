@@ -21,7 +21,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
-func (ts *ConnTestSuite) TestParseExecArgs(c *C) {
+func (ts *ConnTestSuite) TestParseInterDircArgs(c *C) {
 	type args struct {
 		args        []types.Causet
 		boundParams [][]byte
@@ -194,7 +194,7 @@ func (ts *ConnTestSuite) TestParseExecArgs(c *C) {
 		},
 	}
 	for _, tt := range tests {
-		err := parseExecArgs(&stmtctx.StatementContext{}, tt.args.args, tt.args.boundParams, tt.args.nullBitmap, tt.args.paramTypes, tt.args.paramValues)
+		err := parseInterDircArgs(&stmtctx.StatementContext{}, tt.args.args, tt.args.boundParams, tt.args.nullBitmap, tt.args.paramTypes, tt.args.paramValues)
 		c.Assert(terror.ErrorEqual(err, tt.err), IsTrue, Commentf("err %v", err))
 		c.Assert(tt.args.args[0].GetValue(), Equals, tt.expect)
 	}

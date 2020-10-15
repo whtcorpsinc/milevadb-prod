@@ -26,16 +26,16 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	decoder "github.com/whtcorpsinc/milevadb/soliton/rowDecoder"
+	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"go.uber.org/zap"
 )
@@ -51,7 +51,7 @@ type DBSInfo struct {
 func GetDBSInfo(txn ekv.Transaction) (*DBSInfo, error) {
 	var err error
 	info := &DBSInfo{}
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	info.Jobs = make([]*perceptron.Job, 0, 2)
 	job, err := t.GetDBSJobByIdx(0)
@@ -61,7 +61,7 @@ func GetDBSInfo(txn ekv.Transaction) (*DBSInfo, error) {
 	if job != nil {
 		info.Jobs = append(info.Jobs, job)
 	}
-	addIdxJob, err := t.GetDBSJobByIdx(0, meta.AddIndexJobListKey)
+	addIdxJob, err := t.GetDBSJobByIdx(0, spacetime.AddIndexJobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -94,9 +94,9 @@ func IsJobRollbackable(job *perceptron.Job) bool {
 	switch job.Type {
 	case perceptron.CausetActionDropIndex, perceptron.CausetActionDropPrimaryKey:
 		// We can't cancel if index current state is in StateDeleteOnly or StateDeleteReorganization or StateWriteOnly, otherwise there will be an inconsistent issue between record and index.
-		// In WriteOnly state, we can rollback for normal index but can't rollback for expression index(need to drop hidden defCausumn). Since we can't
+		// In WriteOnly state, we can rollback for normal index but can't rollback for memex index(need to drop hidden defCausumn). Since we can't
 		// know the type of index here, we consider all indices except primary index as non-rollbackable.
-		// TODO: distinguish normal index and expression index so that we can rollback `DropIndex` for normal index in WriteOnly state.
+		// TODO: distinguish normal index and memex index so that we can rollback `DropIndex` for normal index in WriteOnly state.
 		// TODO: make DropPrimaryKey rollbackable in WriteOnly, it need to deal with some tests.
 		if job.SchemaState == perceptron.StateDeleteOnly ||
 			job.SchemaState == perceptron.StateDeleteReorganization ||
@@ -129,12 +129,12 @@ func CancelJobs(txn ekv.Transaction, ids []int64) ([]error, error) {
 	}
 
 	errs := make([]error, len(ids))
-	t := meta.NewMeta(txn)
-	generalJobs, err := getDBSJobsInQueue(t, meta.DefaultJobListKey)
+	t := spacetime.NewMeta(txn)
+	generalJobs, err := getDBSJobsInQueue(t, spacetime.DefaultJobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	addIdxJobs, err := getDBSJobsInQueue(t, meta.AddIndexJobListKey)
+	addIdxJobs, err := getDBSJobsInQueue(t, spacetime.AddIndexJobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -173,7 +173,7 @@ func CancelJobs(txn ekv.Transaction, ids []int64) ([]error, error) {
 			}
 			if job.Type == perceptron.CausetActionAddIndex || job.Type == perceptron.CausetActionAddPrimaryKey {
 				offset := int64(j - len(generalJobs))
-				err = t.UFIDelateDBSJob(offset, job, true, meta.AddIndexJobListKey)
+				err = t.UFIDelateDBSJob(offset, job, true, spacetime.AddIndexJobListKey)
 			} else {
 				err = t.UFIDelateDBSJob(int64(j), job, true)
 			}
@@ -188,7 +188,7 @@ func CancelJobs(txn ekv.Transaction, ids []int64) ([]error, error) {
 	return errs, nil
 }
 
-func getDBSJobsInQueue(t *meta.Meta, jobListKey meta.JobListKeyType) ([]*perceptron.Job, error) {
+func getDBSJobsInQueue(t *spacetime.Meta, jobListKey spacetime.JobListKeyType) ([]*perceptron.Job, error) {
 	cnt, err := t.DBSJobQueueLen(jobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -205,12 +205,12 @@ func getDBSJobsInQueue(t *meta.Meta, jobListKey meta.JobListKeyType) ([]*percept
 
 // GetDBSJobs get all DBS jobs and sorts jobs by job.ID.
 func GetDBSJobs(txn ekv.Transaction) ([]*perceptron.Job, error) {
-	t := meta.NewMeta(txn)
-	generalJobs, err := getDBSJobsInQueue(t, meta.DefaultJobListKey)
+	t := spacetime.NewMeta(txn)
+	generalJobs, err := getDBSJobsInQueue(t, spacetime.DefaultJobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	addIdxJobs, err := getDBSJobsInQueue(t, meta.AddIndexJobListKey)
+	addIdxJobs, err := getDBSJobsInQueue(t, spacetime.AddIndexJobListKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -242,7 +242,7 @@ const DefNumHistoryJobs = 10
 // GetHistoryDBSJobs returns the DBS history jobs and an error.
 // The maximum count of history jobs is num.
 func GetHistoryDBSJobs(txn ekv.Transaction, maxNumJobs int) ([]*perceptron.Job, error) {
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	jobs, err := t.GetLastNHistoryDBSJobs(maxNumJobs)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -252,7 +252,7 @@ func GetHistoryDBSJobs(txn ekv.Transaction, maxNumJobs int) ([]*perceptron.Job, 
 
 // IterHistoryDBSJobs iterates history DBS jobs until the `finishFn` return true or error.
 func IterHistoryDBSJobs(txn ekv.Transaction, finishFn func([]*perceptron.Job) (bool, error)) error {
-	txnMeta := meta.NewMeta(txn)
+	txnMeta := spacetime.NewMeta(txn)
 	iter, err := txnMeta.GetLastHistoryDBSJobsIterator()
 	if err != nil {
 		return err
@@ -292,7 +292,7 @@ type RecordData struct {
 }
 
 func getCount(ctx stochastikctx.Context, allegrosql string) (int64, error) {
-	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQLWithSnapshot(allegrosql)
+	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQLWithSnapshot(allegrosql)
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
@@ -304,20 +304,20 @@ func getCount(ctx stochastikctx.Context, allegrosql string) (int64, error) {
 
 // Count greater Types
 const (
-	// TblCntGreater means that the number of block rows is more than the number of index rows.
+	// TblCntGreater means that the number of causet rows is more than the number of index rows.
 	TblCntGreater byte = 1
-	// IdxCntGreater means that the number of index rows is more than the number of block rows.
+	// IdxCntGreater means that the number of index rows is more than the number of causet rows.
 	IdxCntGreater byte = 2
 )
 
-// ChecHoTTicesCount compares indices count with block count.
+// ChecHoTTicesCount compares indices count with causet count.
 // It returns the count greater type, the index offset and an error.
-// It returns nil if the count from the index is equal to the count from the block defCausumns,
+// It returns nil if the count from the index is equal to the count from the causet defCausumns,
 // otherwise it returns an error and the corresponding index's offset.
 func ChecHoTTicesCount(ctx stochastikctx.Context, dbName, blockName string, indices []string) (byte, int, error) {
 	// Here we need check all indexes, includes invisible index
 	ctx.GetStochastikVars().OptimizerUseInvisibleIndexes = true
-	// Add `` for some names like `block name`.
+	// Add `` for some names like `causet name`.
 	allegrosql := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s` USE INDEX()", dbName, blockName)
 	tblCnt, err := getCount(ctx, allegrosql)
 	if err != nil {
@@ -330,7 +330,7 @@ func ChecHoTTicesCount(ctx stochastikctx.Context, dbName, blockName string, indi
 			return 0, i, errors.Trace(err)
 		}
 		logutil.Logger(context.Background()).Info("check indices count",
-			zap.String("block", blockName), zap.Int64("cnt", tblCnt), zap.Reflect("index", idx), zap.Int64("cnt", idxCnt))
+			zap.String("causet", blockName), zap.Int64("cnt", tblCnt), zap.Reflect("index", idx), zap.Int64("cnt", idxCnt))
 		if tblCnt == idxCnt {
 			continue
 		}
@@ -341,21 +341,21 @@ func ChecHoTTicesCount(ctx stochastikctx.Context, dbName, blockName string, indi
 		} else if idxCnt > tblCnt {
 			ret = IdxCntGreater
 		}
-		return ret, i, ErrAdminCheckBlock.GenWithStack("block count %d != index(%s) count %d", tblCnt, idx, idxCnt)
+		return ret, i, ErrAdminCheckBlock.GenWithStack("causet count %d != index(%s) count %d", tblCnt, idx, idxCnt)
 	}
 	return 0, 0, nil
 }
 
 // CheckRecordAndIndex is exported for testing.
-func CheckRecordAndIndex(sessCtx stochastikctx.Context, txn ekv.Transaction, t block.Block, idx block.Index) error {
+func CheckRecordAndIndex(sessCtx stochastikctx.Context, txn ekv.Transaction, t causet.Block, idx causet.Index) error {
 	sc := sessCtx.GetStochastikVars().StmtCtx
-	defcaus := make([]*block.DeferredCauset, len(idx.Meta().DeferredCausets))
+	defcaus := make([]*causet.DeferredCauset, len(idx.Meta().DeferredCausets))
 	for i, defCaus := range idx.Meta().DeferredCausets {
 		defcaus[i] = t.DefCauss()[defCaus.Offset]
 	}
 
 	startKey := t.RecordKey(ekv.IntHandle(math.MinInt64))
-	filterFunc := func(h1 ekv.Handle, vals1 []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	filterFunc := func(h1 ekv.Handle, vals1 []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		for i, val := range vals1 {
 			defCaus := defcaus[i]
 			if val.IsNull() {
@@ -363,7 +363,7 @@ func CheckRecordAndIndex(sessCtx stochastikctx.Context, txn ekv.Transaction, t b
 					return false, errors.Errorf("DeferredCauset %v define as not null, but can't find the value where handle is %v", defCaus.Name, h1)
 				}
 				// NULL value is regarded as its default value.
-				defCausDefVal, err := block.GetDefCausOriginDefaultValue(sessCtx, defCaus.ToInfo())
+				defCausDefVal, err := causet.GetDefCausOriginDefaultValue(sessCtx, defCaus.ToInfo())
 				if err != nil {
 					return false, errors.Trace(err)
 				}
@@ -394,19 +394,19 @@ func CheckRecordAndIndex(sessCtx stochastikctx.Context, txn ekv.Transaction, t b
 	return nil
 }
 
-func makeRowDecoder(t block.Block, sctx stochastikctx.Context) (*decoder.RowDecoder, error) {
+func makeRowCausetDecoder(t causet.Block, sctx stochastikctx.Context) (*causetDecoder.RowCausetDecoder, error) {
 	dbName := perceptron.NewCIStr(sctx.GetStochastikVars().CurrentDB)
-	exprDefCauss, _, err := expression.DeferredCausetInfos2DeferredCausetsAndNames(sctx, dbName, t.Meta().Name, t.Meta().DefCauss(), t.Meta())
+	exprDefCauss, _, err := memex.DeferredCausetInfos2DeferredCausetsAndNames(sctx, dbName, t.Meta().Name, t.Meta().DefCauss(), t.Meta())
 	if err != nil {
 		return nil, err
 	}
-	mockSchema := expression.NewSchema(exprDefCauss...)
-	decodeDefCaussMap := decoder.BuildFullDecodeDefCausMap(t.DefCauss(), mockSchema)
+	mockSchema := memex.NewSchema(exprDefCauss...)
+	decodeDefCaussMap := causetDecoder.BuildFullDecodeDefCausMap(t.DefCauss(), mockSchema)
 
-	return decoder.NewRowDecoder(t, t.DefCauss(), decodeDefCaussMap), nil
+	return causetDecoder.NewRowCausetDecoder(t, t.DefCauss(), decodeDefCaussMap), nil
 }
 
-func iterRecords(sessCtx stochastikctx.Context, retriever ekv.Retriever, t block.Block, startKey ekv.Key, defcaus []*block.DeferredCauset, fn block.RecordIterFunc) error {
+func iterRecords(sessCtx stochastikctx.Context, retriever ekv.Retriever, t causet.Block, startKey ekv.Key, defcaus []*causet.DeferredCauset, fn causet.RecordIterFunc) error {
 	prefix := t.RecordPrefix()
 	keyUpperBound := prefix.PrefixNext()
 
@@ -424,20 +424,20 @@ func iterRecords(sessCtx stochastikctx.Context, retriever ekv.Retriever, t block
 		zap.Stringer("startKey", startKey),
 		zap.Stringer("key", it.Key()),
 		zap.Binary("value", it.Value()))
-	rowDecoder, err := makeRowDecoder(t, sessCtx)
+	rowCausetDecoder, err := makeRowCausetDecoder(t, sessCtx)
 	if err != nil {
 		return err
 	}
 	for it.Valid() && it.Key().HasPrefix(prefix) {
-		// first ekv pair is event lock information.
-		// TODO: check valid lock
+		// first ekv pair is event dagger information.
+		// TODO: check valid dagger
 		// get event handle
 		handle, err := blockcodec.DecodeRowKey(it.Key())
 		if err != nil {
 			return errors.Trace(err)
 		}
 
-		rowMap, err := rowDecoder.DecodeAndEvalRowWithMap(sessCtx, handle, it.Value(), sessCtx.GetStochastikVars().Location(), time.UTC, nil)
+		rowMap, err := rowCausetDecoder.DecodeAndEvalRowWithMap(sessCtx, handle, it.Value(), sessCtx.GetStochastikVars().Location(), time.UTC, nil)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -469,6 +469,6 @@ var (
 	ErrCancelFinishedDBSJob = terror.ClassAdmin.New(errno.ErrCancelFinishedDBSJob, errno.MyALLEGROSQLErrName[errno.ErrCancelFinishedDBSJob])
 	// ErrCannotCancelDBSJob returns when cancel a almost finished dbs job, because cancel in now may cause data inconsistency.
 	ErrCannotCancelDBSJob = terror.ClassAdmin.New(errno.ErrCannotCancelDBSJob, errno.MyALLEGROSQLErrName[errno.ErrCannotCancelDBSJob])
-	// ErrAdminCheckBlock returns when the block records is inconsistent with the index values.
+	// ErrAdminCheckBlock returns when the causet records is inconsistent with the index values.
 	ErrAdminCheckBlock = terror.ClassAdmin.New(errno.ErrAdminCheckBlock, errno.MyALLEGROSQLErrName[errno.ErrAdminCheckBlock])
 )

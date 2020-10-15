@@ -30,7 +30,7 @@ type testClientFailSuite struct {
 }
 
 func (s *testClientFailSuite) SetUpSuite(_ *C) {
-	// This lock make testClientFailSuite runs exclusively.
+	// This dagger make testClientFailSuite runs exclusively.
 	withEinsteinDBGlobalLock.Lock()
 }
 

@@ -30,7 +30,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
@@ -137,15 +137,15 @@ func newStoreWithBootstrap() (ekv.CausetStorage, *petri.Petri, error) {
 
 func cleanEnv(c *C, causetstore ekv.CausetStorage, do *petri.Petri) {
 	tk := testkit.NewTestKit(c, causetstore)
-	tk.MustExec("use test")
+	tk.MustInterDirc("use test")
 	r := tk.MustQuery("show blocks")
 	for _, tb := range r.Rows() {
 		blockName := tb[0]
-		tk.MustExec(fmt.Sprintf("drop block %v", blockName))
+		tk.MustInterDirc(fmt.Sprintf("drop causet %v", blockName))
 	}
-	tk.MustExec("delete from allegrosql.stats_meta")
-	tk.MustExec("delete from allegrosql.stats_histograms")
-	tk.MustExec("delete from allegrosql.stats_buckets")
+	tk.MustInterDirc("delete from allegrosql.stats_spacetime")
+	tk.MustInterDirc("delete from allegrosql.stats_histograms")
+	tk.MustInterDirc("delete from allegrosql.stats_buckets")
 	do.StatsHandle().Clear()
 }
 
@@ -203,16 +203,16 @@ func mockStatsTable(tbl *perceptron.TableInfo, rowCount int64) *statistics.Block
 }
 
 func (s *testStatsSuite) prepareSelectivity(testKit *testkit.TestKit, c *C) *statistics.Block {
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int primary key, b int, c int, d int, e int, index idx_cd(c, d), index idx_de(d, e))")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int primary key, b int, c int, d int, e int, index idx_cd(c, d), index idx_de(d, e))")
 
 	is := s.do.SchemaReplicant()
 	tb, err := is.TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
 	tbl := tb.Meta()
 
-	// mock the statistic block
+	// mock the statistic causet
 	statsTbl := mockStatsTable(tbl, 540)
 
 	// Set the value of columns' histogram.
@@ -292,13 +292,13 @@ func (s *testStatsSuite) TestSelectivity(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprs))
 		c.Assert(stmts, HasLen, 1)
 
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, comment)
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for building plan, expr %s", err, tt.exprs))
 
-		sel := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		ds := sel.Children()[0].(*plannercore.DataSource)
+		sel := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		ds := sel.Children()[0].(*causetcore.DataSource)
 
 		histDefCausl := statsTbl.GenerateHistDefCauslFromDeferredCausetInfo(ds.DeferredCausets, ds.Schema().DeferredCausets)
 
@@ -318,16 +318,16 @@ func (s *testStatsSuite) TestSelectivity(c *C) {
 func (s *testStatsSuite) TestDiscreteDistribution(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a char(10), b int, key idx(a, b))")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a char(10), b int, key idx(a, b))")
 	for i := 0; i < 499; i++ {
-		testKit.MustExec(fmt.Sprintf("insert into t values ('cn', %d)", i))
+		testKit.MustInterDirc(fmt.Sprintf("insert into t values ('cn', %d)", i))
 	}
 	for i := 0; i < 10; i++ {
-		testKit.MustExec("insert into t values ('tw', 0)")
+		testKit.MustInterDirc("insert into t values ('tw', 0)")
 	}
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	var (
 		input  []string
 		output [][]string
@@ -344,11 +344,11 @@ func (s *testStatsSuite) TestDiscreteDistribution(c *C) {
 func (s *testStatsSuite) TestSelectCombinedLowBound(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(id int auto_increment, kid int, pid int, primary key(id), key(kid, pid))")
-	testKit.MustExec("insert into t (kid, pid) values (1,2), (1,3), (1,4),(1, 11), (1, 12), (1, 13), (1, 14), (2, 2), (2, 3), (2, 4)")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(id int auto_increment, kid int, pid int, primary key(id), key(kid, pid))")
+	testKit.MustInterDirc("insert into t (kid, pid) values (1,2), (1,3), (1,4),(1, 11), (1, 12), (1, 13), (1, 14), (2, 2), (2, 3), (2, 4)")
+	testKit.MustInterDirc("analyze causet t")
 	var (
 		input  []string
 		output [][]string
@@ -373,20 +373,20 @@ func getRange(start, end int64) []*ranger.Range {
 func (s *testStatsSuite) TestOutOfRangeEQEstimation(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int)")
 	for i := 0; i < 1000; i++ {
-		testKit.MustExec(fmt.Sprintf("insert into t values (%v)", i/4)) // 0 ~ 249
+		testKit.MustInterDirc(fmt.Sprintf("insert into t values (%v)", i/4)) // 0 ~ 249
 	}
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 
 	h := s.do.StatsHandle()
-	block, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	causet, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	statsTbl := h.GetTableStats(block.Meta())
+	statsTbl := h.GetTableStats(causet.Meta())
 	sc := &stmtctx.StatementContext{}
-	col := statsTbl.DeferredCausets[block.Meta().DeferredCausets[0].ID]
+	col := statsTbl.DeferredCausets[causet.Meta().DeferredCausets[0].ID]
 	count, err := col.GetDeferredCausetRowCount(sc, getRange(250, 250), 0, false)
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, float64(0))
@@ -401,27 +401,27 @@ func (s *testStatsSuite) TestOutOfRangeEQEstimation(c *C) {
 func (s *testStatsSuite) TestEstimationForUnknownValues(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, key idx(a, b))")
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, key idx(a, b))")
+	testKit.MustInterDirc("analyze causet t")
 	for i := 0; i < 10; i++ {
-		testKit.MustExec(fmt.Sprintf("insert into t values (%d, %d)", i, i))
+		testKit.MustInterDirc(fmt.Sprintf("insert into t values (%d, %d)", i, i))
 	}
 	h := s.do.StatsHandle()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	for i := 0; i < 10; i++ {
-		testKit.MustExec(fmt.Sprintf("insert into t values (%d, %d)", i+10, i+10))
+		testKit.MustInterDirc(fmt.Sprintf("insert into t values (%d, %d)", i+10, i+10))
 	}
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
 	c.Assert(h.UFIDelate(s.do.SchemaReplicant()), IsNil)
-	block, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	causet, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	statsTbl := h.GetTableStats(block.Meta())
+	statsTbl := h.GetTableStats(causet.Meta())
 
 	sc := &stmtctx.StatementContext{}
-	colID := block.Meta().DeferredCausets[0].ID
+	colID := causet.Meta().DeferredCausets[0].ID
 	count, err := statsTbl.GetRowCountByDeferredCausetRanges(sc, colID, getRange(30, 30))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 0.2)
@@ -434,7 +434,7 @@ func (s *testStatsSuite) TestEstimationForUnknownValues(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 2.4000000000000004)
 
-	idxID := block.Meta().Indices[0].ID
+	idxID := causet.Meta().Indices[0].ID
 	count, err = statsTbl.GetRowCountByIndexRanges(sc, idxID, getRange(30, 30))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 0.2)
@@ -443,32 +443,32 @@ func (s *testStatsSuite) TestEstimationForUnknownValues(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 2.2)
 
-	testKit.MustExec("truncate block t")
-	testKit.MustExec("insert into t values (null, null)")
-	testKit.MustExec("analyze block t")
-	block, err = s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	testKit.MustInterDirc("truncate causet t")
+	testKit.MustInterDirc("insert into t values (null, null)")
+	testKit.MustInterDirc("analyze causet t")
+	causet, err = s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	statsTbl = h.GetTableStats(block.Meta())
+	statsTbl = h.GetTableStats(causet.Meta())
 
-	colID = block.Meta().DeferredCausets[0].ID
+	colID = causet.Meta().DeferredCausets[0].ID
 	count, err = statsTbl.GetRowCountByDeferredCausetRanges(sc, colID, getRange(1, 30))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 0.0)
 
-	testKit.MustExec("drop block t")
-	testKit.MustExec("create block t(a int, b int, index idx(b))")
-	testKit.MustExec("insert into t values (1,1)")
-	testKit.MustExec("analyze block t")
-	block, err = s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	testKit.MustInterDirc("drop causet t")
+	testKit.MustInterDirc("create causet t(a int, b int, index idx(b))")
+	testKit.MustInterDirc("insert into t values (1,1)")
+	testKit.MustInterDirc("analyze causet t")
+	causet, err = s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	statsTbl = h.GetTableStats(block.Meta())
+	statsTbl = h.GetTableStats(causet.Meta())
 
-	colID = block.Meta().DeferredCausets[0].ID
+	colID = causet.Meta().DeferredCausets[0].ID
 	count, err = statsTbl.GetRowCountByDeferredCausetRanges(sc, colID, getRange(2, 2))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 0.0)
 
-	idxID = block.Meta().Indices[0].ID
+	idxID = causet.Meta().Indices[0].ID
 	count, err = statsTbl.GetRowCountByIndexRanges(sc, idxID, getRange(2, 2))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 0.0)
@@ -477,17 +477,17 @@ func (s *testStatsSuite) TestEstimationForUnknownValues(c *C) {
 func (s *testStatsSuite) TestEstimationUniqueKeyEqualConds(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, unique key(b))")
-	testKit.MustExec("insert into t values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7)")
-	testKit.MustExec("analyze block t with 4 cmsketch width, 1 cmsketch depth;")
-	block, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, unique key(b))")
+	testKit.MustInterDirc("insert into t values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7)")
+	testKit.MustInterDirc("analyze causet t with 4 cmsketch width, 1 cmsketch depth;")
+	causet, err := s.do.SchemaReplicant().TableByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t"))
 	c.Assert(err, IsNil)
-	statsTbl := s.do.StatsHandle().GetTableStats(block.Meta())
+	statsTbl := s.do.StatsHandle().GetTableStats(causet.Meta())
 
 	sc := &stmtctx.StatementContext{}
-	idxID := block.Meta().Indices[0].ID
+	idxID := causet.Meta().Indices[0].ID
 	count, err := statsTbl.GetRowCountByIndexRanges(sc, idxID, getRange(7, 7))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 1.0)
@@ -496,7 +496,7 @@ func (s *testStatsSuite) TestEstimationUniqueKeyEqualConds(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 1.0)
 
-	colID := block.Meta().DeferredCausets[0].ID
+	colID := causet.Meta().DeferredCausets[0].ID
 	count, err = statsTbl.GetRowCountByIntDeferredCausetRanges(sc, colID, getRange(7, 7))
 	c.Assert(err, IsNil)
 	c.Assert(count, Equals, 1.0)
@@ -509,16 +509,16 @@ func (s *testStatsSuite) TestEstimationUniqueKeyEqualConds(c *C) {
 func (s *testStatsSuite) TestPrimaryKeySelectivity(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("set @@milevadb_enable_clustered_index=0")
-	testKit.MustExec("create block t(a char(10) primary key, b int)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("set @@milevadb_enable_clustered_index=0")
+	testKit.MustInterDirc("create causet t(a char(10) primary key, b int)")
 	var input, output [][]string
 	s.testData.GetTestCases(c, &input, &output)
 	for i, ts := range input {
 		for j, tt := range ts {
 			if j != len(ts)-1 {
-				testKit.MustExec(tt)
+				testKit.MustInterDirc(tt)
 			}
 			s.testData.OnRecord(func() {
 				if j == len(ts)-1 {
@@ -548,9 +548,9 @@ func BenchmarkSelectivity(b *testing.B) {
 	stmts, err := stochastik.Parse(sctx, allegrosql)
 	c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, exprs))
 	c.Assert(stmts, HasLen, 1)
-	err = plannercore.Preprocess(sctx, stmts[0], is)
+	err = causetcore.Preprocess(sctx, stmts[0], is)
 	c.Assert(err, IsNil, comment)
-	p, _, err := plannercore.BuildLogicalPlan(context.Background(), sctx, stmts[0], is)
+	p, _, err := causetcore.BuildLogicalCauset(context.Background(), sctx, stmts[0], is)
 	c.Assert(err, IsNil, Commentf("error %v, for building plan, expr %s", err, exprs))
 
 	file, err := os.Create("cpu.profile")
@@ -561,7 +561,7 @@ func BenchmarkSelectivity(b *testing.B) {
 	b.Run("Selectivity", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, _, err := statsTbl.Selectivity(sctx, p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection).Conditions, nil)
+			_, _, err := statsTbl.Selectivity(sctx, p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection).Conditions, nil)
 			c.Assert(err, IsNil)
 		}
 		b.ReportAllocs()
@@ -572,13 +572,13 @@ func BenchmarkSelectivity(b *testing.B) {
 func (s *testStatsSuite) TestDeferredCausetIndexNullEstimation(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, index idx_b(b), index idx_c_a(c, a))")
-	testKit.MustExec("insert into t values(1,null,1),(2,null,2),(3,3,3),(4,null,4),(null,null,null);")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, index idx_b(b), index idx_c_a(c, a))")
+	testKit.MustInterDirc("insert into t values(1,null,1),(2,null,2),(3,3,3),(4,null,4),(null,null,null);")
 	h := s.do.StatsHandle()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	var (
 		input  []string
 		output [][]string
@@ -591,7 +591,7 @@ func (s *testStatsSuite) TestDeferredCausetIndexNullEstimation(c *C) {
 		testKit.MustQuery(input[i]).Check(testkit.Rows(output[i]...))
 	}
 	// Make sure column stats has been loaded.
-	testKit.MustExec(`explain select * from t where a is null`)
+	testKit.MustInterDirc(`explain select * from t where a is null`)
 	c.Assert(h.LoadNeededHistograms(), IsNil)
 	for i := 5; i < len(input); i++ {
 		s.testData.OnRecord(func() {
@@ -604,13 +604,13 @@ func (s *testStatsSuite) TestDeferredCausetIndexNullEstimation(c *C) {
 func (s *testStatsSuite) TestUniqCompEqualEst(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, primary key(a, b))")
-	testKit.MustExec("insert into t values(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10)")
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, primary key(a, b))")
+	testKit.MustInterDirc("insert into t values(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10)")
 	h := s.do.StatsHandle()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
-	testKit.MustExec("analyze block t")
+	testKit.MustInterDirc("analyze causet t")
 	var (
 		input  []string
 		output [][]string
@@ -647,14 +647,14 @@ func (s *testStatsSuite) TestDefCauslationDeferredCausetEstimate(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	collate.SetNewDefCauslationEnabledForTest(true)
 	defer collate.SetNewDefCauslationEnabledForTest(false)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t(a varchar(20) collate utf8mb4_general_ci)")
-	tk.MustExec("insert into t values('aaa'), ('bbb'), ('AAA'), ('BBB')")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t(a varchar(20) collate utf8mb4_general_ci)")
+	tk.MustInterDirc("insert into t values('aaa'), ('bbb'), ('AAA'), ('BBB')")
 	h := s.do.StatsHandle()
 	c.Assert(h.DumpStatsDeltaToKV(handle.DumpAll), IsNil)
-	tk.MustExec("analyze block t")
-	tk.MustExec("explain select * from t where a = 'aaa'")
+	tk.MustInterDirc("analyze causet t")
+	tk.MustInterDirc("explain select * from t where a = 'aaa'")
 	c.Assert(h.LoadNeededHistograms(), IsNil)
 	var (
 		input  []string
@@ -674,13 +674,13 @@ func (s *testStatsSuite) TestDNFCondSelectivity(c *C) {
 	defer cleanEnv(c, s.causetstore, s.do)
 	testKit := testkit.NewTestKit(c, s.causetstore)
 
-	testKit.MustExec("use test")
-	testKit.MustExec("drop block if exists t")
-	testKit.MustExec("create block t(a int, b int, c int, d int)")
-	testKit.MustExec("insert into t value(1,5,4,4),(3,4,1,8),(4,2,6,10),(6,7,2,5),(7,1,4,9),(8,9,8,3),(9,1,9,1),(10,6,6,2)")
-	testKit.MustExec("alter block t add index (b)")
-	testKit.MustExec("alter block t add index (d)")
-	testKit.MustExec(`analyze block t`)
+	testKit.MustInterDirc("use test")
+	testKit.MustInterDirc("drop causet if exists t")
+	testKit.MustInterDirc("create causet t(a int, b int, c int, d int)")
+	testKit.MustInterDirc("insert into t value(1,5,4,4),(3,4,1,8),(4,2,6,10),(6,7,2,5),(7,1,4,9),(8,9,8,3),(9,1,9,1),(10,6,6,2)")
+	testKit.MustInterDirc("alter causet t add index (b)")
+	testKit.MustInterDirc("alter causet t add index (d)")
+	testKit.MustInterDirc(`analyze causet t`)
 
 	ctx := context.Background()
 	is := s.do.SchemaReplicant()
@@ -704,13 +704,13 @@ func (s *testStatsSuite) TestDNFCondSelectivity(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for allegrosql %s", err, tt))
 		c.Assert(stmts, HasLen, 1)
 
-		err = plannercore.Preprocess(sctx, stmts[0], is)
+		err = causetcore.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for allegrosql %s", err, tt))
-		p, _, err := plannercore.BuildLogicalPlan(ctx, sctx, stmts[0], is)
+		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for building plan, allegrosql %s", err, tt))
 
-		sel := p.(plannercore.LogicalPlan).Children()[0].(*plannercore.LogicalSelection)
-		ds := sel.Children()[0].(*plannercore.DataSource)
+		sel := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		ds := sel.Children()[0].(*causetcore.DataSource)
 
 		histDefCausl := statsTbl.GenerateHistDefCauslFromDeferredCausetInfo(ds.DeferredCausets, ds.Schema().DeferredCausets)
 
@@ -725,5 +725,5 @@ func (s *testStatsSuite) TestDNFCondSelectivity(c *C) {
 	}
 
 	// Test issue 19981
-	testKit.MustExec("select * from t where _milevadb_rowid is null or _milevadb_rowid > 7")
+	testKit.MustInterDirc("select * from t where _milevadb_rowid is null or _milevadb_rowid > 7")
 }

@@ -15,7 +15,7 @@ package ekv
 
 import "github.com/whtcorpsinc/fidelpb/go-fidelpb"
 
-// RequestTypeSupportedChecker is used to check expression can be pushed down.
+// RequestTypeSupportedChecker is used to check memex can be pushed down.
 type RequestTypeSupportedChecker struct{}
 
 // IsRequestTypeSupported checks whether reqType is supported.

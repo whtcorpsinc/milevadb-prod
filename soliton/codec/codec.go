@@ -1001,8 +1001,8 @@ func peekUvarint(b []byte) (int, error) {
 	return n, nil
 }
 
-// Decoder is used to decode value to chunk.
-type Decoder struct {
+// CausetDecoder is used to decode value to chunk.
+type CausetDecoder struct {
 	chk      *chunk.Chunk
 	timezone *time.Location
 
@@ -1010,20 +1010,20 @@ type Decoder struct {
 	buf []byte
 }
 
-// NewDecoder creates a Decoder.
-func NewDecoder(chk *chunk.Chunk, timezone *time.Location) *Decoder {
-	return &Decoder{
+// NewCausetDecoder creates a CausetDecoder.
+func NewCausetDecoder(chk *chunk.Chunk, timezone *time.Location) *CausetDecoder {
+	return &CausetDecoder{
 		chk:      chk,
 		timezone: timezone,
 	}
 }
 
 // DecodeOne decodes one value to chunk and returns the remained bytes.
-func (decoder *Decoder) DecodeOne(b []byte, defCausIdx int, ft *types.FieldType) (remain []byte, err error) {
+func (causetDecoder *CausetDecoder) DecodeOne(b []byte, defCausIdx int, ft *types.FieldType) (remain []byte, err error) {
 	if len(b) < 1 {
 		return nil, errors.New("invalid encoded key")
 	}
-	chk := decoder.chk
+	chk := causetDecoder.chk
 	flag := b[0]
 	b = b[1:]
 	switch flag {
@@ -1040,7 +1040,7 @@ func (decoder *Decoder) DecodeOne(b []byte, defCausIdx int, ft *types.FieldType)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		err = appendUintToChunk(v, chk, defCausIdx, ft, decoder.timezone)
+		err = appendUintToChunk(v, chk, defCausIdx, ft, causetDecoder.timezone)
 	case varintFlag:
 		var v int64
 		b, v, err = DecodeVarint(b)
@@ -1054,7 +1054,7 @@ func (decoder *Decoder) DecodeOne(b []byte, defCausIdx int, ft *types.FieldType)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		err = appendUintToChunk(v, chk, defCausIdx, ft, decoder.timezone)
+		err = appendUintToChunk(v, chk, defCausIdx, ft, causetDecoder.timezone)
 	case floatFlag:
 		var v float64
 		b, v, err = DecodeFloat(b)
@@ -1063,11 +1063,11 @@ func (decoder *Decoder) DecodeOne(b []byte, defCausIdx int, ft *types.FieldType)
 		}
 		appendFloatToChunk(v, chk, defCausIdx, ft)
 	case bytesFlag:
-		b, decoder.buf, err = DecodeBytes(b, decoder.buf)
+		b, causetDecoder.buf, err = DecodeBytes(b, causetDecoder.buf)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		chk.AppendBytes(defCausIdx, decoder.buf)
+		chk.AppendBytes(defCausIdx, causetDecoder.buf)
 	case compactBytesFlag:
 		var v []byte
 		b, v, err = DecodeCompactBytes(b)
@@ -1175,7 +1175,7 @@ func appendFloatToChunk(val float64, chk *chunk.Chunk, defCausIdx int, ft *types
 }
 
 // HashGroupKey encodes each event of this defCausumn and append encoded data into buf.
-// Only use in the aggregate executor.
+// Only use in the aggregate interlock.
 func HashGroupKey(sc *stmtctx.StatementContext, n int, defCaus *chunk.DeferredCauset, buf [][]byte, ft *types.FieldType) ([][]byte, error) {
 	var err error
 	switch ft.EvalType() {

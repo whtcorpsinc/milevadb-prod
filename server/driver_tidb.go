@@ -23,7 +23,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/planner/core"
+	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -66,9 +66,9 @@ func (ts *MilevaDBStatement) ID() int {
 	return int(ts.id)
 }
 
-// Execute implements PreparedStatement Execute method.
-func (ts *MilevaDBStatement) Execute(ctx context.Context, args []types.Causet) (rs ResultSet, err error) {
-	milevadbRecordset, err := ts.ctx.ExecutePreparedStmt(ctx, ts.id, args)
+// InterDircute implements PreparedStatement InterDircute method.
+func (ts *MilevaDBStatement) InterDircute(ctx context.Context, args []types.Causet) (rs ResultSet, err error) {
+	milevadbRecordset, err := ts.ctx.InterDircutePreparedStmt(ctx, ts.id, args)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +119,8 @@ func (ts *MilevaDBStatement) GetParamsType() []byte {
 // StoreResultSet stores ResultSet for stmt fetching
 func (ts *MilevaDBStatement) StoreResultSet(rs ResultSet) {
 	// refer to https://dev.allegrosql.com/doc/refman/5.7/en/cursor-restrictions.html
-	// You can have open only a single cursor per prepared statement.
-	// closing previous ResultSet before associating a new ResultSet with this statement
+	// You can have open only a single cursor per prepared memex.
+	// closing previous ResultSet before associating a new ResultSet with this memex
 	// if it exists
 	if ts.rs != nil {
 		terror.Call(ts.rs.Close)
@@ -128,7 +128,7 @@ func (ts *MilevaDBStatement) StoreResultSet(rs ResultSet) {
 	ts.rs = rs
 }
 
-// GetResultSet gets ResultSet associated this statement
+// GetResultSet gets ResultSet associated this memex
 func (ts *MilevaDBStatement) GetResultSet() ResultSet {
 	return ts.rs
 }
@@ -155,7 +155,7 @@ func (ts *MilevaDBStatement) Close() error {
 	}
 	delete(ts.ctx.stmts, int(ts.id))
 
-	// close ResultSet associated with this statement
+	// close ResultSet associated with this memex
 	if ts.rs != nil {
 		terror.Call(ts.rs.Close)
 	}
@@ -193,9 +193,9 @@ func (tc *MilevaDBContext) WarningCount() uint16 {
 	return tc.GetStochastikVars().StmtCtx.WarningCount()
 }
 
-// ExecuteStmt implements QueryCtx interface.
-func (tc *MilevaDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (ResultSet, error) {
-	rs, err := tc.Stochastik.ExecuteStmt(ctx, stmt)
+// InterDircuteStmt implements QueryCtx interface.
+func (tc *MilevaDBContext) InterDircuteStmt(ctx context.Context, stmt ast.StmtNode) (ResultSet, error) {
+	rs, err := tc.Stochastik.InterDircuteStmt(ctx, stmt)
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +219,8 @@ func (tc *MilevaDBContext) Close() error {
 }
 
 // FieldList implements QueryCtx FieldList method.
-func (tc *MilevaDBContext) FieldList(block string) (defCausumns []*DeferredCausetInfo, err error) {
-	fields, err := tc.Stochastik.FieldList(block)
+func (tc *MilevaDBContext) FieldList(causet string) (defCausumns []*DeferredCausetInfo, err error) {
+	fields, err := tc.Stochastik.FieldList(causet)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (tc *MilevaDBContext) GetStatement(stmtID int) PreparedStatement {
 }
 
 // Prepare implements QueryCtx Prepare method.
-func (tc *MilevaDBContext) Prepare(allegrosql string) (statement PreparedStatement, defCausumns, params []*DeferredCausetInfo, err error) {
+func (tc *MilevaDBContext) Prepare(allegrosql string) (memex PreparedStatement, defCausumns, params []*DeferredCausetInfo, err error) {
 	stmtID, paramCount, fields, err := tc.Stochastik.PrepareStmt(allegrosql)
 	if err != nil {
 		return
@@ -253,7 +253,7 @@ func (tc *MilevaDBContext) Prepare(allegrosql string) (statement PreparedStateme
 		boundParams: make([][]byte, paramCount),
 		ctx:         tc,
 	}
-	statement = stmt
+	memex = stmt
 	defCausumns = make([]*DeferredCausetInfo, len(fields))
 	for i := range fields {
 		defCausumns[i] = convertDeferredCausetInfo(fields[i])
@@ -315,7 +315,7 @@ func (trs *milevadbResultSet) DeferredCausets() []*DeferredCausetInfo {
 	if trs.defCausumns != nil {
 		return trs.defCausumns
 	}
-	// for prepare statement, try to get cached defCausumnInfo array
+	// for prepare memex, try to get cached defCausumnInfo array
 	if trs.preparedStmt != nil {
 		ps := trs.preparedStmt
 		if defCausInfos, ok := ps.DeferredCausetInfos.([]*DeferredCausetInfo); ok {
@@ -367,7 +367,7 @@ func convertDeferredCausetInfo(fld *ast.ResultField) (ci *DeferredCausetInfo) {
 		// Fix issue #4540.
 		// The flen is a hint, not a precise value, so most client will not use the value.
 		// But we found in rare MyALLEGROSQL client, like Navicat for MyALLEGROSQL(version before 12) will truncate
-		// the `show create block` result. To fix this case, we must use a large enough flen to prevent
+		// the `show create causet` result. To fix this case, we must use a large enough flen to prevent
 		// the truncation, in MyALLEGROSQL, it will multiply bytes length by a multiple based on character set.
 		// For examples:
 		// * latin, the multiple is 1
@@ -395,7 +395,7 @@ func convertDeferredCausetInfo(fld *ast.ResultField) (ci *DeferredCausetInfo) {
 	}
 
 	// Keep things compatible for old clients.
-	// Refer to allegrosql-server/allegrosql/protodefCaus.cc send_result_set_metadata()
+	// Refer to allegrosql-server/allegrosql/protodefCaus.cc send_result_set_spacetimedata()
 	if ci.Type == allegrosql.TypeVarchar {
 		ci.Type = allegrosql.TypeVarString
 	}

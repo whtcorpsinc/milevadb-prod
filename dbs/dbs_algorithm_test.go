@@ -53,7 +53,7 @@ func (s *testDBSAlgorithmSuite) TestFindAlterAlgorithm(c *C) {
 		{ast.AlterBlockSpec{Tp: ast.AlterBlockRenameBlock}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 		{ast.AlterBlockSpec{Tp: ast.AlterBlockRenameIndex}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 
-		// Alter block options.
+		// Alter causet options.
 		{ast.AlterBlockSpec{Tp: ast.AlterBlockOption, Options: []*ast.BlockOption{{Tp: ast.BlockOptionShardRowID}}}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 		{ast.AlterBlockSpec{Tp: ast.AlterBlockOption, Options: []*ast.BlockOption{{Tp: ast.BlockOptionAutoIncrement}}}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 		{ast.AlterBlockSpec{Tp: ast.AlterBlockOption, Options: []*ast.BlockOption{{Tp: ast.BlockOptionComment}}}, supportedInstantAlgorithms, expectedInstantAlgorithms},
@@ -67,7 +67,7 @@ func (s *testDBSAlgorithmSuite) TestFindAlterAlgorithm(c *C) {
 		{ast.AlterTableSpec{Tp: ast.AlterTableTruncatePartition}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 		{ast.AlterTableSpec{Tp: ast.AlterTableExchangePartition}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 
-		// TODO: after we support lock a block, change the below case.
+		// TODO: after we support dagger a causet, change the below case.
 		{ast.AlterTableSpec{Tp: ast.AlterTableLock}, supportedInstantAlgorithms, expectedInstantAlgorithms},
 		// TODO: after we support changing the defCausumn type, below cases need to change.
 		{ast.AlterTableSpec{Tp: ast.AlterTableModifyDeferredCauset}, supportedInstantAlgorithms, expectedInstantAlgorithms},

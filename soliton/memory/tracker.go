@@ -40,7 +40,7 @@ import (
 type Tracker struct {
 	mu struct {
 		sync.Mutex
-		// The children memory trackers. If the Tracker is the Global Tracker, like executor.GlobalDiskUsageTracker,
+		// The children memory trackers. If the Tracker is the Global Tracker, like interlock.GlobalDiskUsageTracker,
 		// we wouldn't maintain its children in order to avoiding mutex contention.
 		children []*Tracker
 	}
@@ -263,7 +263,7 @@ func (t *Tracker) SearchTracker(label int) *Tracker {
 	return nil
 }
 
-// SearchTrackerWithoutLock searches the specific tracker under this tracker without lock.
+// SearchTrackerWithoutLock searches the specific tracker under this tracker without dagger.
 func (t *Tracker) SearchTrackerWithoutLock(label int) *Tracker {
 	if t.label == label {
 		return t
@@ -321,7 +321,7 @@ func (t *Tracker) BytesToString(numBytes int64) string {
 }
 
 // AttachToGlobalTracker attach the tracker to the global tracker
-// AttachToGlobalTracker should be called at the initialization for the stochastik executor's tracker
+// AttachToGlobalTracker should be called at the initialization for the stochastik interlock's tracker
 func (t *Tracker) AttachToGlobalTracker(globalTracker *Tracker) {
 	if globalTracker == nil {
 		return
@@ -381,9 +381,9 @@ const (
 	LabelForIndexWorker int = -2
 	// LabelForInnerList represents the label of the inner list
 	LabelForInnerList int = -3
-	// LabelForInnerBlock represents the label of the inner block
+	// LabelForInnerBlock represents the label of the inner causet
 	LabelForInnerBlock int = -4
-	// LabelForOuterBlock represents the label of the outer block
+	// LabelForOuterBlock represents the label of the outer causet
 	LabelForOuterBlock int = -5
 	// LabelForCoprocessor represents the label of the interlock
 	LabelForCoprocessor int = -6

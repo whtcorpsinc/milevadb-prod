@@ -45,7 +45,7 @@ func (s *testSuite) TestRetLabel(c *C) {
 	c.Assert(RetLabel(errors.New("test error")), Equals, opFailed)
 }
 
-func (s *testSuite) TestExecuteErrorToLabel(c *C) {
-	c.Assert(ExecuteErrorToLabel(errors.New("test")), Equals, `unknown`)
-	c.Assert(ExecuteErrorToLabel(terror.ErrResultUndetermined), Equals, `global:2`)
+func (s *testSuite) TestInterDircuteErrorToLabel(c *C) {
+	c.Assert(InterDircuteErrorToLabel(errors.New("test")), Equals, `unknown`)
+	c.Assert(InterDircuteErrorToLabel(terror.ErrResultUndetermined), Equals, `global:2`)
 }

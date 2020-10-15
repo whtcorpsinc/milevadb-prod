@@ -410,10 +410,10 @@ func ParseBinaryFromString(s string) (bj BinaryJSON, err error) {
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (bj *BinaryJSON) UnmarshalJSON(data []byte) error {
-	var decoder = json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
+	var causetDecoder = json.NewCausetDecoder(bytes.NewReader(data))
+	causetDecoder.UseNumber()
 	var in interface{}
-	err := decoder.Decode(&in)
+	err := causetDecoder.Decode(&in)
 	if err != nil {
 		return errors.Trace(err)
 	}

@@ -179,9 +179,9 @@ unrecognized-option-test = true
 
 	_, err = f.WriteString(`
 token-limit = 0
-enable-block-lock = true
+enable-causet-dagger = true
 alter-primary-key = true
-delay-clean-block-lock = 5
+delay-clean-causet-dagger = 5
 split-region-max-num=10000
 enable-batch-dml = true
 server-version = "test_version"
@@ -282,7 +282,7 @@ log-rotate = true`)
 	c.Assert(conf.EnableTelemetry, Equals, true)
 
 	_, err = f.WriteString(`
-enable-block-lock = true
+enable-causet-dagger = true
 `)
 	c.Assert(err, IsNil)
 	c.Assert(f.Sync(), IsNil)
@@ -438,9 +438,9 @@ func (s *testConfigSuite) TestTxnTotalSizeLimitValid(c *C) {
 	}
 }
 
-func (s *testConfigSuite) TestPreparePlanCacheValid(c *C) {
+func (s *testConfigSuite) TestPrepareCausetCacheValid(c *C) {
 	conf := NewConfig()
-	tests := map[PreparedPlanCache]bool{
+	tests := map[PreparedCausetCache]bool{
 		{Enabled: true, Capacity: 0}:                        false,
 		{Enabled: true, Capacity: 2}:                        true,
 		{Enabled: true, MemoryGuardRatio: -0.1}:             false,
@@ -448,7 +448,7 @@ func (s *testConfigSuite) TestPreparePlanCacheValid(c *C) {
 		{Enabled: true, Capacity: 2, MemoryGuardRatio: 0.5}: true,
 	}
 	for testCase, res := range tests {
-		conf.PreparedPlanCache = testCase
+		conf.PreparedCausetCache = testCase
 		c.Assert(conf.Valid() == nil, Equals, res)
 	}
 }

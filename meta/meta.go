@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package meta
+package spacetime
 
 import (
 	"encoding/binary"
@@ -43,12 +43,12 @@ var (
 //	NextGlobalID -> int64
 //	SchemaVersion -> int64
 //	DBs -> {
-//		EDB:1 -> EDB meta data []byte
-//		EDB:2 -> EDB meta data []byte
+//		EDB:1 -> EDB spacetime data []byte
+//		EDB:2 -> EDB spacetime data []byte
 //	}
 //	EDB:1 -> {
-//		Block:1 -> block meta data []byte
-//		Block:2 -> block meta data []byte
+//		Block:1 -> causet spacetime data []byte
+//		Block:2 -> causet spacetime data []byte
 //		TID:1 -> int64
 //		TID:2 -> int64
 //	}
@@ -74,13 +74,13 @@ var (
 	ErrDBExists = terror.ClassMeta.New(allegrosql.ErrDBCreateExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDBCreateExists])
 	// ErrDBNotExists is the error for EDB not exists.
 	ErrDBNotExists = terror.ClassMeta.New(allegrosql.ErrBadDB, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBadDB])
-	// ErrBlockExists is the error for block exists.
+	// ErrBlockExists is the error for causet exists.
 	ErrBlockExists = terror.ClassMeta.New(allegrosql.ErrBlockExists, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockExists])
-	// ErrBlockNotExists is the error for block not exists.
+	// ErrBlockNotExists is the error for causet not exists.
 	ErrBlockNotExists = terror.ClassMeta.New(allegrosql.ErrNoSuchBlock, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNoSuchBlock])
 )
 
-// Meta is for handling meta information in a transaction.
+// Meta is for handling spacetime information in a transaction.
 type Meta struct {
 	txn        *structure.TxStructure
 	StartTS    uint64 // StartTS is the txn's start TS.
@@ -168,21 +168,21 @@ func DBSJobHistoryKey(m *Meta, jobID int64) []byte {
 	return m.txn.EncodeHashDataKey(mDBSJobHistoryKey, m.jobIDKey(jobID))
 }
 
-// GenAutoBlockIDKeyValue generates meta key by dbID, blockID and corresponding value by autoID.
+// GenAutoBlockIDKeyValue generates spacetime key by dbID, blockID and corresponding value by autoID.
 func (m *Meta) GenAutoBlockIDKeyValue(dbID, blockID, autoID int64) (key, value []byte) {
 	dbKey := m.dbKey(dbID)
 	autoBlockIDKey := m.autoBlockIDKey(blockID)
 	return m.txn.EncodeHashAutoIDKeyValue(dbKey, autoBlockIDKey, autoID)
 }
 
-// GenAutoBlockID adds step to the auto ID of the block and returns the sum.
+// GenAutoBlockID adds step to the auto ID of the causet and returns the sum.
 func (m *Meta) GenAutoBlockID(dbID, blockID, step int64) (int64, error) {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
 	if err := m.checkDBExists(dbKey); err != nil {
 		return 0, errors.Trace(err)
 	}
-	// Check if block exists.
+	// Check if causet exists.
 	blockKey := m.blockKey(blockID)
 	if err := m.checkBlockExists(dbKey, blockKey); err != nil {
 		return 0, errors.Trace(err)
@@ -191,14 +191,14 @@ func (m *Meta) GenAutoBlockID(dbID, blockID, step int64) (int64, error) {
 	return m.txn.HInc(dbKey, m.autoBlockIDKey(blockID), step)
 }
 
-// GenAutoRandomID adds step to the auto shard ID of the block and returns the sum.
+// GenAutoRandomID adds step to the auto shard ID of the causet and returns the sum.
 func (m *Meta) GenAutoRandomID(dbID, blockID, step int64) (int64, error) {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
 	if err := m.checkDBExists(dbKey); err != nil {
 		return 0, errors.Trace(err)
 	}
-	// Check if block exists.
+	// Check if causet exists.
 	blockKey := m.blockKey(blockID)
 	if err := m.checkBlockExists(dbKey, blockKey); err != nil {
 		return 0, errors.Trace(err)
@@ -207,12 +207,12 @@ func (m *Meta) GenAutoRandomID(dbID, blockID, step int64) (int64, error) {
 	return m.txn.HInc(dbKey, m.autoRandomBlockIDKey(blockID), step)
 }
 
-// GetAutoBlockID gets current auto id with block id.
+// GetAutoBlockID gets current auto id with causet id.
 func (m *Meta) GetAutoBlockID(dbID int64, blockID int64) (int64, error) {
 	return m.txn.HGetInt64(m.dbKey(dbID), m.autoBlockIDKey(blockID))
 }
 
-// GetAutoRandomID gets current auto random id with block id.
+// GetAutoRandomID gets current auto random id with causet id.
 func (m *Meta) GetAutoRandomID(dbID int64, blockID int64) (int64, error) {
 	return m.txn.HGetInt64(m.dbKey(dbID), m.autoRandomBlockIDKey(blockID))
 }
@@ -281,7 +281,7 @@ func (m *Meta) checkDBNotExists(dbKey []byte) error {
 func (m *Meta) checkBlockExists(dbKey []byte, blockKey []byte) error {
 	v, err := m.txn.HGet(dbKey, blockKey)
 	if err == nil && v == nil {
-		err = ErrBlockNotExists.GenWithStack("block doesn't exist")
+		err = ErrBlockNotExists.GenWithStack("causet doesn't exist")
 	}
 	return errors.Trace(err)
 }
@@ -289,7 +289,7 @@ func (m *Meta) checkBlockExists(dbKey []byte, blockKey []byte) error {
 func (m *Meta) checkBlockNotExists(dbKey []byte, blockKey []byte) error {
 	v, err := m.txn.HGet(dbKey, blockKey)
 	if err == nil && v != nil {
-		err = ErrBlockExists.GenWithStack("block already exists")
+		err = ErrBlockExists.GenWithStack("causet already exists")
 	}
 	return errors.Trace(err)
 }
@@ -326,7 +326,7 @@ func (m *Meta) UFIDelateDatabase(dbInfo *perceptron.DBInfo) error {
 	return m.txn.HSet(mDBs, dbKey, data)
 }
 
-// CreateBlockOrView creates a block with blockInfo in database.
+// CreateBlockOrView creates a causet with blockInfo in database.
 func (m *Meta) CreateBlockOrView(dbID int64, blockInfo *perceptron.BlockInfo) error {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
@@ -334,7 +334,7 @@ func (m *Meta) CreateBlockOrView(dbID int64, blockInfo *perceptron.BlockInfo) er
 		return errors.Trace(err)
 	}
 
-	// Check if block exists.
+	// Check if causet exists.
 	blockKey := m.blockKey(blockInfo.ID)
 	if err := m.checkBlockNotExists(dbKey, blockKey); err != nil {
 		return errors.Trace(err)
@@ -348,8 +348,8 @@ func (m *Meta) CreateBlockOrView(dbID int64, blockInfo *perceptron.BlockInfo) er
 	return m.txn.HSet(dbKey, blockKey, data)
 }
 
-// CreateBlockAndSetAutoID creates a block with blockInfo in database,
-// and rebases the block autoID.
+// CreateBlockAndSetAutoID creates a causet with blockInfo in database,
+// and rebases the causet autoID.
 func (m *Meta) CreateBlockAndSetAutoID(dbID int64, blockInfo *perceptron.BlockInfo, autoIncID, autoRandID int64) error {
 	err := m.CreateBlockOrView(dbID, blockInfo)
 	if err != nil {
@@ -394,7 +394,7 @@ func (m *Meta) DroFIDelatabase(dbID int64) error {
 }
 
 // DropSequence drops sequence in database.
-// Sequence is made of block struct and ekv value pair.
+// Sequence is made of causet struct and ekv value pair.
 func (m *Meta) DropSequence(dbID int64, tblID int64, delAutoID bool) error {
 	err := m.DropBlockOrView(dbID, tblID, delAutoID)
 	if err != nil {
@@ -404,9 +404,9 @@ func (m *Meta) DropSequence(dbID int64, tblID int64, delAutoID bool) error {
 	return errors.Trace(err)
 }
 
-// DropBlockOrView drops block in database.
-// If delAutoID is true, it will delete the auto_increment id key-value of the block.
-// For rename block, we do not need to rename auto_increment id key-value.
+// DropBlockOrView drops causet in database.
+// If delAutoID is true, it will delete the auto_increment id key-value of the causet.
+// For rename causet, we do not need to rename auto_increment id key-value.
 func (m *Meta) DropBlockOrView(dbID int64, tblID int64, delAutoID bool) error {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
@@ -414,7 +414,7 @@ func (m *Meta) DropBlockOrView(dbID int64, tblID int64, delAutoID bool) error {
 		return errors.Trace(err)
 	}
 
-	// Check if block exists.
+	// Check if causet exists.
 	blockKey := m.blockKey(tblID)
 	if err := m.checkBlockExists(dbKey, blockKey); err != nil {
 		return errors.Trace(err)
@@ -434,7 +434,7 @@ func (m *Meta) DropBlockOrView(dbID int64, tblID int64, delAutoID bool) error {
 	return nil
 }
 
-// UFIDelateBlock uFIDelates the block with block info.
+// UFIDelateBlock uFIDelates the causet with causet info.
 func (m *Meta) UFIDelateBlock(dbID int64, blockInfo *perceptron.BlockInfo) error {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
@@ -442,7 +442,7 @@ func (m *Meta) UFIDelateBlock(dbID int64, blockInfo *perceptron.BlockInfo) error
 		return errors.Trace(err)
 	}
 
-	// Check if block exists.
+	// Check if causet exists.
 	blockKey := m.blockKey(blockInfo.ID)
 	if err := m.checkBlockExists(dbKey, blockKey); err != nil {
 		return errors.Trace(err)
@@ -471,7 +471,7 @@ func (m *Meta) ListBlocks(dbID int64) ([]*perceptron.BlockInfo, error) {
 
 	blocks := make([]*perceptron.BlockInfo, 0, len(res)/2)
 	for _, r := range res {
-		// only handle block meta
+		// only handle causet spacetime
 		blockKey := string(r.Field)
 		if !strings.HasPrefix(blockKey, mBlockPrefix) {
 			continue
@@ -521,7 +521,7 @@ func (m *Meta) GetDatabase(dbID int64) (*perceptron.DBInfo, error) {
 	return dbInfo, errors.Trace(err)
 }
 
-// GetBlock gets the block value in database with blockID.
+// GetBlock gets the causet value in database with blockID.
 func (m *Meta) GetBlock(dbID int64, blockID int64) (*perceptron.BlockInfo, error) {
 	// Check if EDB exists.
 	dbKey := m.dbKey(dbID)
@@ -545,7 +545,7 @@ func (m *Meta) GetBlock(dbID int64, blockID int64) (*perceptron.BlockInfo, error
 //	DBSJobHistory: hash
 //	DBSJobReorg: hash
 //
-// for multi DBS workers, only one can become the owner
+// for multi DBS workers, only one can become the tenant
 // to operate DBS jobs, and dispatch them to MR Jobs.
 
 var (
@@ -927,8 +927,8 @@ func (m *Meta) GetDBSReorgHandle(job *perceptron.Job, isCommonHandle bool) (star
 		err = errors.Trace(err)
 		return
 	}
-	// physicalBlockID may be 0, because older version MilevaDB (without block partition) doesn't causetstore them.
-	// uFIDelate them to block's in this case.
+	// physicalBlockID may be 0, because older version MilevaDB (without causet partition) doesn't causetstore them.
+	// uFIDelate them to causet's in this case.
 	if physicalBlockID == 0 {
 		if job.ReorgMeta != nil {
 			endHandle = ekv.IntHandle(job.ReorgMeta.EndHandle)

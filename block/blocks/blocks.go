@@ -29,13 +29,13 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
@@ -52,17 +52,17 @@ import (
 // BlockCommon is shared by both Block and partition.
 type BlockCommon struct {
 	blockID int64
-	// physicalBlockID is a unique int64 to identify a physical block.
+	// physicalBlockID is a unique int64 to identify a physical causet.
 	physicalBlockID                 int64
-	DeferredCausets                         []*block.DeferredCauset
-	PublicDeferredCausets                   []*block.DeferredCauset
-	VisibleDeferredCausets                  []*block.DeferredCauset
-	HiddenDeferredCausets                   []*block.DeferredCauset
-	WriblockDeferredCausets                 []*block.DeferredCauset
-	FullHiddenDefCaussAndVisibleDeferredCausets []*block.DeferredCauset
-	wriblockIndices                 []block.Index
-	indices                         []block.Index
-	meta                            *perceptron.BlockInfo
+	DeferredCausets                         []*causet.DeferredCauset
+	PublicDeferredCausets                   []*causet.DeferredCauset
+	VisibleDeferredCausets                  []*causet.DeferredCauset
+	HiddenDeferredCausets                   []*causet.DeferredCauset
+	WriblockDeferredCausets                 []*causet.DeferredCauset
+	FullHiddenDefCaussAndVisibleDeferredCausets []*causet.DeferredCauset
+	wriblockIndices                 []causet.Index
+	indices                         []causet.Index
+	spacetime                            *perceptron.BlockInfo
 	allocs                          autoid.SlabPredictors
 	sequence                        *sequenceCommon
 
@@ -72,10 +72,10 @@ type BlockCommon struct {
 }
 
 // MockBlockFromMeta only serves for test.
-func MockBlockFromMeta(tblInfo *perceptron.BlockInfo) block.Block {
-	defCausumns := make([]*block.DeferredCauset, 0, len(tblInfo.DeferredCausets))
+func MockBlockFromMeta(tblInfo *perceptron.BlockInfo) causet.Block {
+	defCausumns := make([]*causet.DeferredCauset, 0, len(tblInfo.DeferredCausets))
 	for _, defCausInfo := range tblInfo.DeferredCausets {
-		defCaus := block.ToDeferredCauset(defCausInfo)
+		defCaus := causet.ToDeferredCauset(defCausInfo)
 		defCausumns = append(defCausumns, defCaus)
 	}
 
@@ -96,24 +96,24 @@ func MockBlockFromMeta(tblInfo *perceptron.BlockInfo) block.Block {
 }
 
 // BlockFromMeta creates a Block instance from perceptron.BlockInfo.
-func BlockFromMeta(allocs autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (block.Block, error) {
+func BlockFromMeta(allocs autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (causet.Block, error) {
 	if tblInfo.State == perceptron.StateNone {
-		return nil, block.ErrBlockStateCantNone.GenWithStackByArgs(tblInfo.Name)
+		return nil, causet.ErrBlockStateCantNone.GenWithStackByArgs(tblInfo.Name)
 	}
 
 	defcausLen := len(tblInfo.DeferredCausets)
-	defCausumns := make([]*block.DeferredCauset, 0, defcausLen)
+	defCausumns := make([]*causet.DeferredCauset, 0, defcausLen)
 	for i, defCausInfo := range tblInfo.DeferredCausets {
 		if defCausInfo.State == perceptron.StateNone {
-			return nil, block.ErrDeferredCausetStateCantNone.GenWithStackByArgs(defCausInfo.Name)
+			return nil, causet.ErrDeferredCausetStateCantNone.GenWithStackByArgs(defCausInfo.Name)
 		}
 
 		// Print some information when the defCausumn's offset isn't equal to i.
 		if defCausInfo.Offset != i {
-			logutil.BgLogger().Error("wrong block schemaReplicant", zap.Any("block", tblInfo), zap.Any("defCausumn", defCausInfo), zap.Int("index", i), zap.Int("offset", defCausInfo.Offset), zap.Int("defCausumnNumber", defcausLen))
+			logutil.BgLogger().Error("wrong causet schemaReplicant", zap.Any("causet", tblInfo), zap.Any("defCausumn", defCausInfo), zap.Int("index", i), zap.Int("offset", defCausInfo.Offset), zap.Int("defCausumnNumber", defcausLen))
 		}
 
-		defCaus := block.ToDeferredCauset(defCausInfo)
+		defCaus := causet.ToDeferredCauset(defCausInfo)
 		if defCaus.IsGenerated() {
 			expr, err := generatedexpr.ParseExpression(defCausInfo.GeneratedExprString)
 			if err != nil {
@@ -149,11 +149,11 @@ func BlockFromMeta(allocs autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) 
 }
 
 // initBlockCommon initializes a BlockCommon struct.
-func initBlockCommon(t *BlockCommon, tblInfo *perceptron.BlockInfo, physicalBlockID int64, defcaus []*block.DeferredCauset, allocs autoid.SlabPredictors) {
+func initBlockCommon(t *BlockCommon, tblInfo *perceptron.BlockInfo, physicalBlockID int64, defcaus []*causet.DeferredCauset, allocs autoid.SlabPredictors) {
 	t.blockID = tblInfo.ID
 	t.physicalBlockID = physicalBlockID
 	t.allocs = allocs
-	t.meta = tblInfo
+	t.spacetime = tblInfo
 	t.DeferredCausets = defcaus
 	t.PublicDeferredCausets = t.DefCauss()
 	t.VisibleDeferredCausets = t.VisibleDefCauss()
@@ -164,19 +164,19 @@ func initBlockCommon(t *BlockCommon, tblInfo *perceptron.BlockInfo, physicalBloc
 	t.recordPrefix = blockcodec.GenBlockRecordPrefix(physicalBlockID)
 	t.indexPrefix = blockcodec.GenBlockIndexPrefix(physicalBlockID)
 	if tblInfo.IsSequence() {
-		t.sequence = &sequenceCommon{meta: tblInfo.Sequence}
+		t.sequence = &sequenceCommon{spacetime: tblInfo.Sequence}
 	}
 }
 
 // initBlockIndices initializes the indices of the BlockCommon.
 func initBlockIndices(t *BlockCommon) error {
-	tblInfo := t.meta
+	tblInfo := t.spacetime
 	for _, idxInfo := range tblInfo.Indices {
 		if idxInfo.State == perceptron.StateNone {
-			return block.ErrIndexStateCantNone.GenWithStackByArgs(idxInfo.Name)
+			return causet.ErrIndexStateCantNone.GenWithStackByArgs(idxInfo.Name)
 		}
 
-		// Use partition ID for index, because BlockCommon may be block or partition.
+		// Use partition ID for index, because BlockCommon may be causet or partition.
 		idx := NewIndex(t.physicalBlockID, tblInfo, idxInfo)
 		t.indices = append(t.indices, idx)
 	}
@@ -184,22 +184,22 @@ func initBlockIndices(t *BlockCommon) error {
 	return nil
 }
 
-func initBlockCommonWithIndices(t *BlockCommon, tblInfo *perceptron.BlockInfo, physicalBlockID int64, defcaus []*block.DeferredCauset, allocs autoid.SlabPredictors) error {
+func initBlockCommonWithIndices(t *BlockCommon, tblInfo *perceptron.BlockInfo, physicalBlockID int64, defcaus []*causet.DeferredCauset, allocs autoid.SlabPredictors) error {
 	initBlockCommon(t, tblInfo, physicalBlockID, defcaus, allocs)
 	return initBlockIndices(t)
 }
 
-// Indices implements block.Block Indices interface.
-func (t *BlockCommon) Indices() []block.Index {
+// Indices implements causet.Block Indices interface.
+func (t *BlockCommon) Indices() []causet.Index {
 	return t.indices
 }
 
-// WriblockIndices implements block.Block WriblockIndices interface.
-func (t *BlockCommon) WriblockIndices() []block.Index {
+// WriblockIndices implements causet.Block WriblockIndices interface.
+func (t *BlockCommon) WriblockIndices() []causet.Index {
 	if len(t.wriblockIndices) > 0 {
 		return t.wriblockIndices
 	}
-	wriblock := make([]block.Index, 0, len(t.indices))
+	wriblock := make([]causet.Index, 0, len(t.indices))
 	for _, index := range t.indices {
 		s := index.Meta().State
 		if s != perceptron.StateDeleteOnly && s != perceptron.StateDeleteReorganization {
@@ -209,8 +209,8 @@ func (t *BlockCommon) WriblockIndices() []block.Index {
 	return wriblock
 }
 
-// GetWriblockIndexByName gets the index meta from the block by the index name.
-func GetWriblockIndexByName(idxName string, t block.Block) block.Index {
+// GetWriblockIndexByName gets the index spacetime from the causet by the index name.
+func GetWriblockIndexByName(idxName string, t causet.Block) causet.Index {
 	indices := t.WriblockIndices()
 	for _, idx := range indices {
 		if idxName == idx.Meta().Name.L {
@@ -220,18 +220,18 @@ func GetWriblockIndexByName(idxName string, t block.Block) block.Index {
 	return nil
 }
 
-// DeleblockIndices implements block.Block DeleblockIndices interface.
-func (t *BlockCommon) DeleblockIndices() []block.Index {
+// DeleblockIndices implements causet.Block DeleblockIndices interface.
+func (t *BlockCommon) DeleblockIndices() []causet.Index {
 	// All indices are deleblock because we don't need to check StateNone.
 	return t.indices
 }
 
-// Meta implements block.Block Meta interface.
+// Meta implements causet.Block Meta interface.
 func (t *BlockCommon) Meta() *perceptron.BlockInfo {
-	return t.meta
+	return t.spacetime
 }
 
-// GetPhysicalID implements block.Block GetPhysicalID interface.
+// GetPhysicalID implements causet.Block GetPhysicalID interface.
 func (t *BlockCommon) GetPhysicalID() int64 {
 	return t.physicalBlockID
 }
@@ -245,8 +245,8 @@ const (
 	full
 )
 
-func (t *BlockCommon) getDefCauss(mode getDefCaussMode) []*block.DeferredCauset {
-	defCausumns := make([]*block.DeferredCauset, 0, len(t.DeferredCausets))
+func (t *BlockCommon) getDefCauss(mode getDefCaussMode) []*causet.DeferredCauset {
+	defCausumns := make([]*causet.DeferredCauset, 0, len(t.DeferredCausets))
 	for _, defCaus := range t.DeferredCausets {
 		if defCaus.State != perceptron.StatePublic {
 			continue
@@ -259,36 +259,36 @@ func (t *BlockCommon) getDefCauss(mode getDefCaussMode) []*block.DeferredCauset 
 	return defCausumns
 }
 
-// DefCauss implements block.Block DefCauss interface.
-func (t *BlockCommon) DefCauss() []*block.DeferredCauset {
+// DefCauss implements causet.Block DefCauss interface.
+func (t *BlockCommon) DefCauss() []*causet.DeferredCauset {
 	if len(t.PublicDeferredCausets) > 0 {
 		return t.PublicDeferredCausets
 	}
 	return t.getDefCauss(full)
 }
 
-// VisibleDefCauss implements block.Block VisibleDefCauss interface.
-func (t *BlockCommon) VisibleDefCauss() []*block.DeferredCauset {
+// VisibleDefCauss implements causet.Block VisibleDefCauss interface.
+func (t *BlockCommon) VisibleDefCauss() []*causet.DeferredCauset {
 	if len(t.VisibleDeferredCausets) > 0 {
 		return t.VisibleDeferredCausets
 	}
 	return t.getDefCauss(visible)
 }
 
-// HiddenDefCauss implements block.Block HiddenDefCauss interface.
-func (t *BlockCommon) HiddenDefCauss() []*block.DeferredCauset {
+// HiddenDefCauss implements causet.Block HiddenDefCauss interface.
+func (t *BlockCommon) HiddenDefCauss() []*causet.DeferredCauset {
 	if len(t.HiddenDeferredCausets) > 0 {
 		return t.HiddenDeferredCausets
 	}
 	return t.getDefCauss(hidden)
 }
 
-// WriblockDefCauss implements block WriblockDefCauss interface.
-func (t *BlockCommon) WriblockDefCauss() []*block.DeferredCauset {
+// WriblockDefCauss implements causet WriblockDefCauss interface.
+func (t *BlockCommon) WriblockDefCauss() []*causet.DeferredCauset {
 	if len(t.WriblockDeferredCausets) > 0 {
 		return t.WriblockDeferredCausets
 	}
-	wriblockDeferredCausets := make([]*block.DeferredCauset, 0, len(t.DeferredCausets))
+	wriblockDeferredCausets := make([]*causet.DeferredCauset, 0, len(t.DeferredCausets))
 	for _, defCaus := range t.DeferredCausets {
 		if defCaus.State == perceptron.StateDeleteOnly || defCaus.State == perceptron.StateDeleteReorganization {
 			continue
@@ -298,13 +298,13 @@ func (t *BlockCommon) WriblockDefCauss() []*block.DeferredCauset {
 	return wriblockDeferredCausets
 }
 
-// FullHiddenDefCaussAndVisibleDefCauss implements block FullHiddenDefCaussAndVisibleDefCauss interface.
-func (t *BlockCommon) FullHiddenDefCaussAndVisibleDefCauss() []*block.DeferredCauset {
+// FullHiddenDefCaussAndVisibleDefCauss implements causet FullHiddenDefCaussAndVisibleDefCauss interface.
+func (t *BlockCommon) FullHiddenDefCaussAndVisibleDefCauss() []*causet.DeferredCauset {
 	if len(t.FullHiddenDefCaussAndVisibleDeferredCausets) > 0 {
 		return t.FullHiddenDefCaussAndVisibleDeferredCausets
 	}
 
-	defcaus := make([]*block.DeferredCauset, 0, len(t.DeferredCausets))
+	defcaus := make([]*causet.DeferredCauset, 0, len(t.DeferredCausets))
 	for _, defCaus := range t.DeferredCausets {
 		if defCaus.Hidden || defCaus.State == perceptron.StatePublic {
 			defcaus = append(defcaus, defCaus)
@@ -313,27 +313,27 @@ func (t *BlockCommon) FullHiddenDefCaussAndVisibleDefCauss() []*block.DeferredCa
 	return defcaus
 }
 
-// RecordPrefix implements block.Block interface.
+// RecordPrefix implements causet.Block interface.
 func (t *BlockCommon) RecordPrefix() ekv.Key {
 	return t.recordPrefix
 }
 
-// IndexPrefix implements block.Block interface.
+// IndexPrefix implements causet.Block interface.
 func (t *BlockCommon) IndexPrefix() ekv.Key {
 	return t.indexPrefix
 }
 
-// RecordKey implements block.Block interface.
+// RecordKey implements causet.Block interface.
 func (t *BlockCommon) RecordKey(h ekv.Handle) ekv.Key {
 	return blockcodec.EncodeRecordKey(t.recordPrefix, h)
 }
 
-// FirstKey implements block.Block interface.
+// FirstKey implements causet.Block interface.
 func (t *BlockCommon) FirstKey() ekv.Key {
 	return t.RecordKey(ekv.IntHandle(math.MinInt64))
 }
 
-// UFIDelateRecord implements block.Block UFIDelateRecord interface.
+// UFIDelateRecord implements causet.Block UFIDelateRecord interface.
 // `touched` means which defCausumns are really modified, used for secondary indices.
 // Length of `oldData` and `newData` equals to length of `t.WriblockDefCauss()`.
 func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Context, h ekv.Handle, oldData, newData []types.Causet, touched []bool) error {
@@ -362,7 +362,7 @@ func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Co
 		if defCaus.State == perceptron.StateDeleteOnly || defCaus.State == perceptron.StateDeleteReorganization {
 			if defCaus.ChangeStateInfo != nil {
 				// TODO: Check overflow or ignoreTruncate.
-				value, err = block.CastValue(sctx, oldData[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
+				value, err = causet.CastValue(sctx, oldData[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
 				if err != nil {
 					logutil.BgLogger().Info("uFIDelate record cast value failed", zap.Any("defCaus", defCaus), zap.Uint64("txnStartTS", txn.StartTS()),
 						zap.String("handle", h.String()), zap.Any("val", oldData[defCaus.DependencyDeferredCausetOffset]), zap.Error(err))
@@ -379,7 +379,7 @@ func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Co
 			value = oldData[defCaus.Offset]
 			if defCaus.ChangeStateInfo != nil {
 				// TODO: Check overflow or ignoreTruncate.
-				value, err = block.CastValue(sctx, newData[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
+				value, err = causet.CastValue(sctx, newData[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
 				if err != nil {
 					return err
 				}
@@ -401,14 +401,14 @@ func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Co
 	}
 
 	// rebuild index
-	err = t.rebuildIndices(sctx, txn, h, touched, oldData, newData, block.WithCtx(ctx))
+	err = t.rebuildIndices(sctx, txn, h, touched, oldData, newData, causet.WithCtx(ctx))
 	if err != nil {
 		return err
 	}
 
 	key := t.RecordKey(h)
 	sessVars := sctx.GetStochastikVars()
-	sc, rd := sessVars.StmtCtx, &sessVars.RowEncoder
+	sc, rd := sessVars.StmtCtx, &sessVars.RowCausetEncoder
 	value, err := blockcodec.EncodeRow(sc, event, defCausIDs, nil, nil, rd)
 	if err != nil {
 		return err
@@ -418,7 +418,7 @@ func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Co
 	}
 	memBuffer.Release(sh)
 	if shouldWriteBinlog(sctx) {
-		if !t.meta.PKIsHandle {
+		if !t.spacetime.PKIsHandle {
 			binlogDefCausIDs = append(binlogDefCausIDs, perceptron.ExtraHandleID)
 			binlogOldRow = append(binlogOldRow, types.NewIntCauset(h.IntValue()))
 			binlogNewRow = append(binlogNewRow, types.NewIntCauset(h.IntValue()))
@@ -446,9 +446,9 @@ func (t *BlockCommon) UFIDelateRecord(ctx context.Context, sctx stochastikctx.Co
 	return nil
 }
 
-func (t *BlockCommon) rebuildIndices(ctx stochastikctx.Context, txn ekv.Transaction, h ekv.Handle, touched []bool, oldData []types.Causet, newData []types.Causet, opts ...block.CreateIdxOptFunc) error {
+func (t *BlockCommon) rebuildIndices(ctx stochastikctx.Context, txn ekv.Transaction, h ekv.Handle, touched []bool, oldData []types.Causet, newData []types.Causet, opts ...causet.CreateIdxOptFunc) error {
 	for _, idx := range t.DeleblockIndices() {
-		if t.meta.IsCommonHandle && idx.Meta().Primary {
+		if t.spacetime.IsCommonHandle && idx.Meta().Primary {
 			continue
 		}
 		for _, ic := range idx.Meta().DeferredCausets {
@@ -466,7 +466,7 @@ func (t *BlockCommon) rebuildIndices(ctx stochastikctx.Context, txn ekv.Transact
 		}
 	}
 	for _, idx := range t.WriblockIndices() {
-		if t.meta.IsCommonHandle && idx.Meta().Primary {
+		if t.spacetime.IsCommonHandle && idx.Meta().Primary {
 			continue
 		}
 		untouched := true
@@ -552,7 +552,7 @@ func NewCommonAddRecordCtx(size int) *CommonAddRecordCtx {
 	}
 }
 
-// TryGetCommonPkDeferredCausetIds get the IDs of primary key defCausumn if the block has common handle.
+// TryGetCommonPkDeferredCausetIds get the IDs of primary key defCausumn if the causet has common handle.
 func TryGetCommonPkDeferredCausetIds(tbl *perceptron.BlockInfo) []int64 {
 	var pkDefCausIds []int64
 	if !tbl.IsCommonHandle {
@@ -565,9 +565,9 @@ func TryGetCommonPkDeferredCausetIds(tbl *perceptron.BlockInfo) []int64 {
 	return pkDefCausIds
 }
 
-// TryGetCommonPkDeferredCausets get the primary key defCausumns if the block has common handle.
-func TryGetCommonPkDeferredCausets(tbl block.Block) []*block.DeferredCauset {
-	var pkDefCauss []*block.DeferredCauset
+// TryGetCommonPkDeferredCausets get the primary key defCausumns if the causet has common handle.
+func TryGetCommonPkDeferredCausets(tbl causet.Block) []*causet.DeferredCauset {
+	var pkDefCauss []*causet.DeferredCauset
 	if !tbl.Meta().IsCommonHandle {
 		return nil
 	}
@@ -579,9 +579,9 @@ func TryGetCommonPkDeferredCausets(tbl block.Block) []*block.DeferredCauset {
 	return pkDefCauss
 }
 
-// AddRecord implements block.Block AddRecord interface.
-func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, opts ...block.AddRecordOption) (recordID ekv.Handle, err error) {
-	var opt block.AddRecordOpt
+// AddRecord implements causet.Block AddRecord interface.
+func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, opts ...causet.AddRecordOption) (recordID ekv.Handle, err error) {
+	var opt causet.AddRecordOpt
 	for _, fn := range opts {
 		fn.ApplyOn(&opt)
 	}
@@ -620,8 +620,8 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 	}
 	if !hasRecordID {
 		if opt.ReserveAutoID > 0 {
-			// Reserve a batch of auto ID in the statement context.
-			// The reserved ID could be used in the future within this statement, by the
+			// Reserve a batch of auto ID in the memex context.
+			// The reserved ID could be used in the future within this memex, by the
 			// following AddRecord() operation.
 			// Make the IDs continuous benefit for the performance of EinsteinDB.
 			stmtCtx := sctx.GetStochastikVars().StmtCtx
@@ -660,7 +660,7 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 		var value types.Causet
 		if defCaus.ChangeStateInfo != nil && defCaus.State != perceptron.StatePublic {
 			// TODO: Check overflow or ignoreTruncate.
-			value, err = block.CastValue(sctx, r[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
+			value, err = causet.CastValue(sctx, r[defCaus.DependencyDeferredCausetOffset], defCaus.DeferredCausetInfo, false, false)
 			if err != nil {
 				return nil, err
 			}
@@ -678,7 +678,7 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 			// Only insert should add default value for write only defCausumn.
 			!opt.IsUFIDelate {
 			// If defCaus is in write only or write reorganization state, we must add it with its default value.
-			value, err = block.GetDefCausOriginDefaultValue(sctx, defCaus.ToInfo())
+			value, err = causet.GetDefCausOriginDefaultValue(sctx, defCaus.ToInfo())
 			if err != nil {
 				return nil, err
 			}
@@ -701,7 +701,7 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 	writeBufs := sessVars.GetWriteStmtBufs()
 	adjustRowValuesBuf(writeBufs, len(event))
 	key := t.RecordKey(recordID)
-	sc, rd := sessVars.StmtCtx, &sessVars.RowEncoder
+	sc, rd := sessVars.StmtCtx, &sessVars.RowCausetEncoder
 	writeBufs.RowValBuf, err = blockcodec.EncodeRow(sc, event, defCausIDs, writeBufs.RowValBuf, writeBufs.AddRowValues, rd)
 	if err != nil {
 		return nil, err
@@ -716,7 +716,7 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 		ctx = context.Background()
 	}
 	skipCheck := sctx.GetStochastikVars().StmtCtx.BatchCheck
-	if (t.meta.IsCommonHandle || t.meta.PKIsHandle) && !skipCheck && !opt.SkipHandleCheck {
+	if (t.spacetime.IsCommonHandle || t.spacetime.PKIsHandle) && !skipCheck && !opt.SkipHandleCheck {
 		if sctx.GetStochastikVars().LazyCheckKeyNotExists() {
 			var v []byte
 			v, err = txn.GetMemBuffer().Get(ctx, key)
@@ -746,11 +746,11 @@ func (t *BlockCommon) AddRecord(sctx stochastikctx.Context, r []types.Causet, op
 		return nil, err
 	}
 
-	var createIdxOpts []block.CreateIdxOptFunc
+	var createIdxOpts []causet.CreateIdxOptFunc
 	if len(opts) > 0 {
-		createIdxOpts = make([]block.CreateIdxOptFunc, 0, len(opts))
+		createIdxOpts = make([]causet.CreateIdxOptFunc, 0, len(opts))
 		for _, fn := range opts {
-			if raw, ok := fn.(block.CreateIdxOptFunc); ok {
+			if raw, ok := fn.(causet.CreateIdxOptFunc); ok {
 				createIdxOpts = append(createIdxOpts, raw)
 			}
 		}
@@ -807,12 +807,12 @@ func (t *BlockCommon) genIndexKeyStr(defCausVals []types.Causet) (string, error)
 }
 
 // addIndices adds data into indices. If any key is duplicated, returns the original handle.
-func (t *BlockCommon) addIndices(sctx stochastikctx.Context, recordID ekv.Handle, r []types.Causet, txn ekv.Transaction, opts []block.CreateIdxOptFunc) (ekv.Handle, error) {
+func (t *BlockCommon) addIndices(sctx stochastikctx.Context, recordID ekv.Handle, r []types.Causet, txn ekv.Transaction, opts []causet.CreateIdxOptFunc) (ekv.Handle, error) {
 	writeBufs := sctx.GetStochastikVars().GetWriteStmtBufs()
 	indexVals := writeBufs.IndexValsBuf
 	skipCheck := sctx.GetStochastikVars().StmtCtx.BatchCheck
 	for _, v := range t.WriblockIndices() {
-		if t.meta.IsCommonHandle && v.Meta().Primary {
+		if t.spacetime.IsCommonHandle && v.Meta().Primary {
 			continue
 		}
 		indexVals, err := v.FetchValues(r, indexVals)
@@ -840,8 +840,8 @@ func (t *BlockCommon) addIndices(sctx stochastikctx.Context, recordID ekv.Handle
 	return nil, nil
 }
 
-// RowWithDefCauss implements block.Block RowWithDefCauss interface.
-func (t *BlockCommon) RowWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*block.DeferredCauset) ([]types.Causet, error) {
+// RowWithDefCauss implements causet.Block RowWithDefCauss interface.
+func (t *BlockCommon) RowWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, defcaus []*causet.DeferredCauset) ([]types.Causet, error) {
 	// Get raw event data from ekv.
 	key := t.RecordKey(h)
 	txn, err := ctx.Txn(true)
@@ -860,7 +860,7 @@ func (t *BlockCommon) RowWithDefCauss(ctx stochastikctx.Context, h ekv.Handle, d
 }
 
 // DecodeRawRowData decodes raw event data into a causet slice and a (defCausumnID:defCausumnValue) map.
-func DecodeRawRowData(ctx stochastikctx.Context, meta *perceptron.BlockInfo, h ekv.Handle, defcaus []*block.DeferredCauset,
+func DecodeRawRowData(ctx stochastikctx.Context, spacetime *perceptron.BlockInfo, h ekv.Handle, defcaus []*causet.DeferredCauset,
 	value []byte) ([]types.Causet, map[int64]types.Causet, error) {
 	v := make([]types.Causet, len(defcaus))
 	defCausTps := make(map[int64]*types.FieldType, len(defcaus))
@@ -868,7 +868,7 @@ func DecodeRawRowData(ctx stochastikctx.Context, meta *perceptron.BlockInfo, h e
 		if defCaus == nil {
 			continue
 		}
-		if defCaus.IsPKHandleDeferredCauset(meta) {
+		if defCaus.IsPKHandleDeferredCauset(spacetime) {
 			if allegrosql.HasUnsignedFlag(defCaus.Flag) {
 				v[i].SetUint64(uint64(h.IntValue()))
 			} else {
@@ -876,11 +876,11 @@ func DecodeRawRowData(ctx stochastikctx.Context, meta *perceptron.BlockInfo, h e
 			}
 			continue
 		}
-		if defCaus.IsCommonHandleDeferredCauset(meta) {
-			pkIdx := FindPrimaryIndex(meta)
+		if defCaus.IsCommonHandleDeferredCauset(spacetime) {
+			pkIdx := FindPrimaryIndex(spacetime)
 			var idxOfIdx int
 			for i, idxDefCaus := range pkIdx.DeferredCausets {
-				if meta.DeferredCausets[idxDefCaus.Offset].ID == defCaus.ID {
+				if spacetime.DeferredCausets[idxDefCaus.Offset].ID == defCaus.ID {
 					idxOfIdx = i
 					break
 				}
@@ -908,7 +908,7 @@ func DecodeRawRowData(ctx stochastikctx.Context, meta *perceptron.BlockInfo, h e
 		if defCaus == nil {
 			continue
 		}
-		if defCaus.IsPKHandleDeferredCauset(meta) || defCaus.IsCommonHandleDeferredCauset(meta) {
+		if defCaus.IsPKHandleDeferredCauset(spacetime) || defCaus.IsCommonHandleDeferredCauset(spacetime) {
 			continue
 		}
 		ri, ok := rowMap[defCaus.ID]
@@ -931,16 +931,16 @@ func DecodeRawRowData(ctx stochastikctx.Context, meta *perceptron.BlockInfo, h e
 	return v, rowMap, nil
 }
 
-// GetChangingDefCausVal gets the changing defCausumn value when executing "modify/change defCausumn" statement.
-func GetChangingDefCausVal(ctx stochastikctx.Context, defcaus []*block.DeferredCauset, defCaus *block.DeferredCauset, rowMap map[int64]types.Causet, defaultVals []types.Causet) (_ types.Causet, isDefaultVal bool, err error) {
+// GetChangingDefCausVal gets the changing defCausumn value when executing "modify/change defCausumn" memex.
+func GetChangingDefCausVal(ctx stochastikctx.Context, defcaus []*causet.DeferredCauset, defCaus *causet.DeferredCauset, rowMap map[int64]types.Causet, defaultVals []types.Causet) (_ types.Causet, isDefaultVal bool, err error) {
 	relativeDefCaus := defcaus[defCaus.ChangeStateInfo.DependencyDeferredCausetOffset]
 	idxDeferredCausetVal, ok := rowMap[relativeDefCaus.ID]
 	if ok {
-		// It needs cast values here when filling back defCausumn or index values in "modify/change defCausumn" statement.
+		// It needs cast values here when filling back defCausumn or index values in "modify/change defCausumn" memex.
 		if ctx.GetStochastikVars().StmtCtx.IsDBSJobInQueue {
 			return idxDeferredCausetVal, false, nil
 		}
-		idxDeferredCausetVal, err := block.CastValue(ctx, rowMap[relativeDefCaus.ID], defCaus.DeferredCausetInfo, false, false)
+		idxDeferredCausetVal, err := causet.CastValue(ctx, rowMap[relativeDefCaus.ID], defCaus.DeferredCausetInfo, false, false)
 		// TODO: Consider sql_mode and the error msg(encounter this error check whether to rollback).
 		if err != nil {
 			return idxDeferredCausetVal, false, errors.Trace(err)
@@ -956,18 +956,18 @@ func GetChangingDefCausVal(ctx stochastikctx.Context, defcaus []*block.DeferredC
 	return idxDeferredCausetVal, true, nil
 }
 
-// Row implements block.Block Row interface.
+// Row implements causet.Block Row interface.
 func (t *BlockCommon) Row(ctx stochastikctx.Context, h ekv.Handle) ([]types.Causet, error) {
 	return t.RowWithDefCauss(ctx, h, t.DefCauss())
 }
 
-// RemoveRecord implements block.Block RemoveRecord interface.
+// RemoveRecord implements causet.Block RemoveRecord interface.
 func (t *BlockCommon) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []types.Causet) error {
 	err := t.removeRowData(ctx, h)
 	if err != nil {
 		return err
 	}
-	// The block has non-public defCausumn and this defCausumn is doing the operation of "modify/change defCausumn".
+	// The causet has non-public defCausumn and this defCausumn is doing the operation of "modify/change defCausumn".
 	if len(t.DeferredCausets) > len(r) && t.DeferredCausets[len(r)].ChangeStateInfo != nil {
 		r = append(r, r[t.DeferredCausets[len(r)].ChangeStateInfo.DependencyDeferredCausetOffset])
 	}
@@ -983,7 +983,7 @@ func (t *BlockCommon) RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []
 			defCausIDs = append(defCausIDs, defCaus.ID)
 		}
 		var binlogRow []types.Causet
-		if !t.meta.PKIsHandle {
+		if !t.spacetime.PKIsHandle {
 			defCausIDs = append(defCausIDs, perceptron.ExtraHandleID)
 			binlogRow = make([]types.Causet, 0, len(r)+1)
 			binlogRow = append(binlogRow, r...)
@@ -1063,7 +1063,7 @@ func (t *BlockCommon) addDeleteBinlog(ctx stochastikctx.Context, r []types.Cause
 func writeSequenceUFIDelateValueBinlog(ctx stochastikctx.Context, EDB, sequence string, end int64) error {
 	// 1: when sequenceCommon uFIDelate the local cache passively.
 	// 2: When sequenceCommon setval to the allocator actively.
-	// Both of this two case means the upper bound the sequence has changed in meta, which need to write the binlog
+	// Both of this two case means the upper bound the sequence has changed in spacetime, which need to write the binlog
 	// to the downstream.
 	// Sequence sends `select setval(seq, num)` allegrosql string to downstream via `setDBSBinlog`, which is mocked as a DBS binlog.
 	binlogCli := ctx.GetStochastikVars().BinlogClient
@@ -1072,7 +1072,7 @@ func writeSequenceUFIDelateValueBinlog(ctx stochastikctx.Context, EDB, sequence 
 	allegrosql := "select setval(" + sequenceFullName + ", " + strconv.FormatInt(end, 10) + ")"
 
 	err := ekv.RunInNewTxn(ctx.GetStore(), true, func(txn ekv.Transaction) error {
-		m := meta.NewMeta(txn)
+		m := spacetime.NewMeta(txn)
 		mockJobID, err := m.GenGlobalID()
 		if err != nil {
 			return err
@@ -1123,17 +1123,17 @@ func (t *BlockCommon) removeRowIndices(ctx stochastikctx.Context, h ekv.Handle, 
 	return nil
 }
 
-// removeRowIndex implements block.Block RemoveRowIndex interface.
-func (t *BlockCommon) removeRowIndex(sc *stmtctx.StatementContext, h ekv.Handle, vals []types.Causet, idx block.Index, txn ekv.Transaction) error {
+// removeRowIndex implements causet.Block RemoveRowIndex interface.
+func (t *BlockCommon) removeRowIndex(sc *stmtctx.StatementContext, h ekv.Handle, vals []types.Causet, idx causet.Index, txn ekv.Transaction) error {
 	return idx.Delete(sc, txn, vals, h)
 }
 
-// buildIndexForRow implements block.Block BuildIndexForRow interface.
-func (t *BlockCommon) buildIndexForRow(ctx stochastikctx.Context, h ekv.Handle, vals []types.Causet, idx block.Index, txn ekv.Transaction, untouched bool, popts ...block.CreateIdxOptFunc) error {
-	var opts []block.CreateIdxOptFunc
+// buildIndexForRow implements causet.Block BuildIndexForRow interface.
+func (t *BlockCommon) buildIndexForRow(ctx stochastikctx.Context, h ekv.Handle, vals []types.Causet, idx causet.Index, txn ekv.Transaction, untouched bool, popts ...causet.CreateIdxOptFunc) error {
+	var opts []causet.CreateIdxOptFunc
 	opts = append(opts, popts...)
 	if untouched {
-		opts = append(opts, block.IndexIsUntouched)
+		opts = append(opts, causet.IndexIsUntouched)
 	}
 	if _, err := idx.Create(ctx, txn.GetUnionStore(), vals, h, opts...); err != nil {
 		if ekv.ErrKeyExists.Equal(err) {
@@ -1151,9 +1151,9 @@ func (t *BlockCommon) buildIndexForRow(ctx stochastikctx.Context, h ekv.Handle, 
 	return nil
 }
 
-// IterRecords implements block.Block IterRecords interface.
-func (t *BlockCommon) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*block.DeferredCauset,
-	fn block.RecordIterFunc) error {
+// IterRecords implements causet.Block IterRecords interface.
+func (t *BlockCommon) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*causet.DeferredCauset,
+	fn causet.RecordIterFunc) error {
 	prefix := t.RecordPrefix()
 	txn, err := ctx.Txn(true)
 	if err != nil {
@@ -1178,8 +1178,8 @@ func (t *BlockCommon) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, d
 	}
 	defaultVals := make([]types.Causet, len(defcaus))
 	for it.Valid() && it.Key().HasPrefix(prefix) {
-		// first ekv pair is event lock information.
-		// TODO: check valid lock
+		// first ekv pair is event dagger information.
+		// TODO: check valid dagger
 		// get event handle
 		handle, err := blockcodec.DecodeRowKey(it.Key())
 		if err != nil {
@@ -1189,10 +1189,10 @@ func (t *BlockCommon) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, d
 		if err != nil {
 			return err
 		}
-		pkIds, decodeLoc := TryGetCommonPkDeferredCausetIds(t.meta), ctx.GetStochastikVars().Location()
+		pkIds, decodeLoc := TryGetCommonPkDeferredCausetIds(t.spacetime), ctx.GetStochastikVars().Location()
 		data := make([]types.Causet, len(defcaus))
 		for _, defCaus := range defcaus {
-			if defCaus.IsPKHandleDeferredCauset(t.meta) {
+			if defCaus.IsPKHandleDeferredCauset(t.spacetime) {
 				if allegrosql.HasUnsignedFlag(defCaus.Flag) {
 					data[defCaus.Offset].SetUint64(uint64(handle.IntValue()))
 				} else {
@@ -1230,7 +1230,7 @@ func (t *BlockCommon) IterRecords(ctx stochastikctx.Context, startKey ekv.Key, d
 	return nil
 }
 
-func tryDecodeDeferredCausetFromCommonHandle(defCaus *block.DeferredCauset, handle ekv.Handle, pkIds []int64, decodeLoc *time.Location) (types.Causet, error) {
+func tryDecodeDeferredCausetFromCommonHandle(defCaus *causet.DeferredCauset, handle ekv.Handle, pkIds []int64, decodeLoc *time.Location) (types.Causet, error) {
 	for i, hid := range pkIds {
 		if hid != defCaus.ID {
 			continue
@@ -1249,7 +1249,7 @@ func tryDecodeDeferredCausetFromCommonHandle(defCaus *block.DeferredCauset, hand
 
 // GetDefCausDefaultValue gets a defCausumn default value.
 // The defaultVals is used to avoid calculating the default value multiple times.
-func GetDefCausDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, defaultVals []types.Causet) (
+func GetDefCausDefaultValue(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, defaultVals []types.Causet) (
 	defCausVal types.Causet, err error) {
 	if defCaus.OriginDefaultValue == nil && allegrosql.HasNotNullFlag(defCaus.Flag) {
 		return defCausVal, errors.New("Miss defCausumn")
@@ -1258,7 +1258,7 @@ func GetDefCausDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCa
 		return defCausVal, nil
 	}
 	if defaultVals[defCaus.Offset].IsNull() {
-		defCausVal, err = block.GetDefCausOriginDefaultValue(ctx, defCaus.ToInfo())
+		defCausVal, err = causet.GetDefCausOriginDefaultValue(ctx, defCaus.ToInfo())
 		if err != nil {
 			return defCausVal, err
 		}
@@ -1271,11 +1271,11 @@ func GetDefCausDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCa
 }
 
 // AllocHandle allocate a new handle.
-// A statement could reserve some ID in the statement context, try those ones first.
-func AllocHandle(ctx stochastikctx.Context, t block.Block) (ekv.Handle, error) {
+// A memex could reserve some ID in the memex context, try those ones first.
+func AllocHandle(ctx stochastikctx.Context, t causet.Block) (ekv.Handle, error) {
 	if ctx != nil {
 		if stmtCtx := ctx.GetStochastikVars().StmtCtx; stmtCtx != nil {
-			// First try to alloc if the statement has reserved auto ID.
+			// First try to alloc if the memex has reserved auto ID.
 			if stmtCtx.BaseRowID < stmtCtx.MaxRowID {
 				stmtCtx.BaseRowID += 1
 				return ekv.IntHandle(stmtCtx.BaseRowID), nil
@@ -1287,17 +1287,17 @@ func AllocHandle(ctx stochastikctx.Context, t block.Block) (ekv.Handle, error) {
 	return ekv.IntHandle(rowID), err
 }
 
-func allocHandleIDs(ctx stochastikctx.Context, t block.Block, n uint64) (int64, int64, error) {
-	meta := t.Meta()
-	base, maxID, err := t.SlabPredictors(ctx).Get(autoid.RowIDAllocType).Alloc(meta.ID, n, 1, 1)
+func allocHandleIDs(ctx stochastikctx.Context, t causet.Block, n uint64) (int64, int64, error) {
+	spacetime := t.Meta()
+	base, maxID, err := t.SlabPredictors(ctx).Get(autoid.RowIDAllocType).Alloc(spacetime.ID, n, 1, 1)
 	if err != nil {
 		return 0, 0, err
 	}
-	if meta.ShardRowIDBits > 0 {
+	if spacetime.ShardRowIDBits > 0 {
 		// Use max record ShardRowIDBits to check overflow.
-		if OverflowShardBits(maxID, meta.MaxShardRowIDBits, autoid.RowIDBitLength, true) {
+		if OverflowShardBits(maxID, spacetime.MaxShardRowIDBits, autoid.RowIDBitLength, true) {
 			// If overflow, the rowID may be duplicated. For examples,
-			// t.meta.ShardRowIDBits = 4
+			// t.spacetime.ShardRowIDBits = 4
 			// rowID = 0010111111111111111111111111111111111111111111111111111111111111
 			// shard = 0100000000000000000000000000000000000000000000000000000000000000
 			// will be duplicated with:
@@ -1306,7 +1306,7 @@ func allocHandleIDs(ctx stochastikctx.Context, t block.Block, n uint64) (int64, 
 			return 0, 0, autoid.ErrAutoincReadFailed
 		}
 		txnCtx := ctx.GetStochastikVars().TxnCtx
-		shard := txnCtx.GetShard(meta.ShardRowIDBits, autoid.RowIDBitLength, true, int(n))
+		shard := txnCtx.GetShard(spacetime.ShardRowIDBits, autoid.RowIDBitLength, true, int(n))
 		base |= shard
 		maxID |= shard
 	}
@@ -1323,7 +1323,7 @@ func OverflowShardBits(recordID int64, shardRowIDBits uint64, typeBitsLength uin
 	return recordID&int64(mask) > 0
 }
 
-// SlabPredictors implements block.Block SlabPredictors interface.
+// SlabPredictors implements causet.Block SlabPredictors interface.
 func (t *BlockCommon) SlabPredictors(ctx stochastikctx.Context) autoid.SlabPredictors {
 	if ctx == nil || ctx.GetStochastikVars().IDSlabPredictor == nil {
 		return t.allocs
@@ -1348,13 +1348,13 @@ func (t *BlockCommon) SlabPredictors(ctx stochastikctx.Context) autoid.SlabPredi
 	return retAllocs
 }
 
-// RebaseAutoID implements block.Block RebaseAutoID interface.
+// RebaseAutoID implements causet.Block RebaseAutoID interface.
 // Both auto-increment and auto-random can use this function to do rebase on explicit newBase value (without shadow bits).
 func (t *BlockCommon) RebaseAutoID(ctx stochastikctx.Context, newBase int64, isSetStep bool, tp autoid.SlabPredictorType) error {
 	return t.SlabPredictors(ctx).Get(tp).Rebase(t.blockID, newBase, isSetStep)
 }
 
-// Seek implements block.Block Seek interface.
+// Seek implements causet.Block Seek interface.
 func (t *BlockCommon) Seek(ctx stochastikctx.Context, h ekv.Handle) (ekv.Handle, bool, error) {
 	txn, err := ctx.Txn(true)
 	if err != nil {
@@ -1366,7 +1366,7 @@ func (t *BlockCommon) Seek(ctx stochastikctx.Context, h ekv.Handle) (ekv.Handle,
 		return nil, false, err
 	}
 	if !iter.Valid() || !iter.Key().HasPrefix(t.RecordPrefix()) {
-		// No more records in the block, skip to the end.
+		// No more records in the causet, skip to the end.
 		return nil, false, nil
 	}
 	handle, err := blockcodec.DecodeRowKey(iter.Key())
@@ -1376,9 +1376,9 @@ func (t *BlockCommon) Seek(ctx stochastikctx.Context, h ekv.Handle) (ekv.Handle,
 	return handle, true, nil
 }
 
-// Type implements block.Block Type interface.
-func (t *BlockCommon) Type() block.Type {
-	return block.NormalBlock
+// Type implements causet.Block Type interface.
+func (t *BlockCommon) Type() causet.Type {
+	return causet.NormalBlock
 }
 
 func shouldWriteBinlog(ctx stochastikctx.Context) bool {
@@ -1392,7 +1392,7 @@ func (t *BlockCommon) getMutation(ctx stochastikctx.Context) *binlog.BlockMutati
 	return ctx.StmtGetMutation(t.blockID)
 }
 
-func (t *BlockCommon) canSkip(defCaus *block.DeferredCauset, value *types.Causet) bool {
+func (t *BlockCommon) canSkip(defCaus *causet.DeferredCauset, value *types.Causet) bool {
 	return CanSkip(t.Meta(), defCaus, value)
 }
 
@@ -1400,7 +1400,7 @@ func (t *BlockCommon) canSkip(defCaus *block.DeferredCauset, value *types.Causet
 // 1. the defCausumn is included in primary key;
 // 2. the defCausumn's default value is null, and the value equals to that;
 // 3. the defCausumn is virtual generated.
-func CanSkip(info *perceptron.BlockInfo, defCaus *block.DeferredCauset, value *types.Causet) bool {
+func CanSkip(info *perceptron.BlockInfo, defCaus *causet.DeferredCauset, value *types.Causet) bool {
 	if defCaus.IsPKHandleDeferredCauset(info) {
 		return true
 	}
@@ -1428,15 +1428,15 @@ func CanSkip(info *perceptron.BlockInfo, defCaus *block.DeferredCauset, value *t
 }
 
 // canSkipUFIDelateBinlog checks whether the defCausumn can be skipped or not.
-func (t *BlockCommon) canSkipUFIDelateBinlog(defCaus *block.DeferredCauset, value types.Causet) bool {
+func (t *BlockCommon) canSkipUFIDelateBinlog(defCaus *causet.DeferredCauset, value types.Causet) bool {
 	if defCaus.IsGenerated() && !defCaus.GeneratedStored {
 		return true
 	}
 	return false
 }
 
-// FindIndexByDefCausName returns a public block index containing only one defCausumn named `name`.
-func FindIndexByDefCausName(t block.Block, name string) block.Index {
+// FindIndexByDefCausName returns a public causet index containing only one defCausumn named `name`.
+func FindIndexByDefCausName(t causet.Block, name string) causet.Index {
 	for _, idx := range t.Indices() {
 		// only public index can be read.
 		if idx.Meta().State != perceptron.StatePublic {
@@ -1452,7 +1452,7 @@ func FindIndexByDefCausName(t block.Block, name string) block.Index {
 
 // CheckHandleExists check whether recordID key exists. if not exists, return nil,
 // otherwise return ekv.ErrKeyExists error.
-func CheckHandleExists(ctx context.Context, sctx stochastikctx.Context, t block.Block, recordID ekv.Handle, data []types.Causet) error {
+func CheckHandleExists(ctx context.Context, sctx stochastikctx.Context, t causet.Block, recordID ekv.Handle, data []types.Causet) error {
 	if pt, ok := t.(*partitionedBlock); ok {
 		info := t.Meta().GetPartitionInfo()
 		pid, err := pt.locatePartition(sctx, info, data)
@@ -1478,15 +1478,15 @@ func CheckHandleExists(ctx context.Context, sctx stochastikctx.Context, t block.
 }
 
 func init() {
-	block.BlockFromMeta = BlockFromMeta
-	block.MockBlockFromMeta = MockBlockFromMeta
+	causet.BlockFromMeta = BlockFromMeta
+	causet.MockBlockFromMeta = MockBlockFromMeta
 }
 
 // sequenceCommon cache the sequence value.
 // `alter sequence` will invalidate the cached range.
 // `setval` will recompute the start position of cached value.
 type sequenceCommon struct {
-	meta *perceptron.SequenceInfo
+	spacetime *perceptron.SequenceInfo
 	// base < end when increment > 0.
 	// base > end when increment < 0.
 	end  int64
@@ -1504,8 +1504,8 @@ func (s *sequenceCommon) GetSequenceBaseEndRound() (int64, int64, int64) {
 }
 
 // GetSequenceNextVal implements soliton.SequenceBlock GetSequenceNextVal interface.
-// Caching the sequence value in block, we can easily be notified with the cache empty,
-// and write the binlogInfo in block level rather than in allocator.
+// Caching the sequence value in causet, we can easily be notified with the cache empty,
+// and write the binlogInfo in causet level rather than in allocator.
 func (t *BlockCommon) GetSequenceNextVal(ctx interface{}, dbName, seqName string) (nextVal int64, err error) {
 	seq := t.sequence
 	if seq == nil {
@@ -1530,10 +1530,10 @@ func (t *BlockCommon) GetSequenceNextVal(ctx interface{}, dbName, seqName string
 		} else {
 			// Seek the first valid value in cache.
 			offset = seq.getOffset()
-			if seq.meta.Increment > 0 {
-				nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.meta.Increment, offset, seq.base, seq.end)
+			if seq.spacetime.Increment > 0 {
+				nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.spacetime.Increment, offset, seq.base, seq.end)
 			} else {
-				nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.meta.Increment, offset, seq.end, seq.base)
+				nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.spacetime.Increment, offset, seq.end, seq.base)
 			}
 			if !ok {
 				uFIDelateCache = true
@@ -1566,10 +1566,10 @@ func (t *BlockCommon) GetSequenceNextVal(ctx interface{}, dbName, seqName string
 		// Seek the first valid value in new cache.
 		// Offset may have changed cause the round is uFIDelated.
 		offset = seq.getOffset()
-		if seq.meta.Increment > 0 {
-			nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.meta.Increment, offset, seq.base, seq.end)
+		if seq.spacetime.Increment > 0 {
+			nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.spacetime.Increment, offset, seq.base, seq.end)
 		} else {
-			nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.meta.Increment, offset, seq.end, seq.base)
+			nextVal, ok = autoid.SeekToFirstSequenceValue(seq.base, seq.spacetime.Increment, offset, seq.end, seq.base)
 		}
 		if !ok {
 			return errors.New("can't find the first value in sequence cache")
@@ -1579,7 +1579,7 @@ func (t *BlockCommon) GetSequenceNextVal(ctx interface{}, dbName, seqName string
 	// Sequence alloc in ekv causetstore error.
 	if err != nil {
 		if err == autoid.ErrAutoincReadFailed {
-			return 0, block.ErrSequenceHasRunOut.GenWithStackByArgs(dbName, seqName)
+			return 0, causet.ErrSequenceHasRunOut.GenWithStackByArgs(dbName, seqName)
 		}
 		return 0, err
 	}
@@ -1598,7 +1598,7 @@ func (t *BlockCommon) SetSequenceVal(ctx interface{}, newVal int64, dbName, seqN
 	seq.mu.Lock()
 	defer seq.mu.Unlock()
 
-	if seq.meta.Increment > 0 {
+	if seq.spacetime.Increment > 0 {
 		if newVal <= t.sequence.base {
 			return 0, true, nil
 		}
@@ -1648,12 +1648,12 @@ func (t *BlockCommon) SetSequenceVal(ctx interface{}, newVal int64, dbName, seqN
 
 // getOffset is used in under GetSequenceNextVal & SetSequenceVal, which mu is locked.
 func (s *sequenceCommon) getOffset() int64 {
-	offset := s.meta.Start
-	if s.meta.Cycle && s.round > 0 {
-		if s.meta.Increment > 0 {
-			offset = s.meta.MinValue
+	offset := s.spacetime.Start
+	if s.spacetime.Cycle && s.round > 0 {
+		if s.spacetime.Increment > 0 {
+			offset = s.spacetime.MinValue
 		} else {
-			offset = s.meta.MaxValue
+			offset = s.spacetime.MaxValue
 		}
 	}
 	return offset
@@ -1682,10 +1682,10 @@ func getSequenceSlabPredictor(allocs autoid.SlabPredictors) (autoid.SlabPredicto
 // BuildBlockScanFromInfos build fidelpb.BlockScan with *perceptron.BlockInfo and *perceptron.DeferredCausetInfo.
 func BuildBlockScanFromInfos(blockInfo *perceptron.BlockInfo, defCausumnInfos []*perceptron.DeferredCausetInfo) *fidelpb.BlockScan {
 	pkDefCausIds := TryGetCommonPkDeferredCausetIds(blockInfo)
-	tsExec := &fidelpb.BlockScan{
+	tsInterDirc := &fidelpb.BlockScan{
 		BlockId:          blockInfo.ID,
 		DeferredCausets:          soliton.DeferredCausetsToProto(defCausumnInfos, blockInfo.PKIsHandle),
 		PrimaryDeferredCausetIds: pkDefCausIds,
 	}
-	return tsExec
+	return tsInterDirc
 }

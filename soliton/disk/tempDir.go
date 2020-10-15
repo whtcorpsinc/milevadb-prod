@@ -64,7 +64,7 @@ func InitializeTemFIDelir() error {
 			return err
 		}
 	}
-	lockFile := "_dir.lock"
+	lockFile := "_dir.dagger"
 	temFIDelirLock, err = fslock.Lock(filepath.Join(temFIDelir, lockFile))
 	if err != nil {
 		switch err {
@@ -72,7 +72,7 @@ func InitializeTemFIDelir() error {
 			log.Error("The current temporary storage dir has been occupied by another instance, "+
 				"check tmp-storage-path config and make sure they are different.", zap.String("TempStoragePath", temFIDelir), zap.Error(err))
 		default:
-			log.Error("Failed to acquire exclusive lock on the temporary storage dir.", zap.String("TempStoragePath", temFIDelir), zap.Error(err))
+			log.Error("Failed to acquire exclusive dagger on the temporary storage dir.", zap.String("TempStoragePath", temFIDelir), zap.Error(err))
 		}
 		return err
 	}
@@ -82,11 +82,11 @@ func InitializeTemFIDelir() error {
 		return err
 	}
 
-	// If it exists others files except lock file, creates another goroutine to clean them.
+	// If it exists others files except dagger file, creates another goroutine to clean them.
 	if len(subDirs) > 1 {
 		go func() {
 			for _, subDir := range subDirs {
-				// Do not remove the lock file.
+				// Do not remove the dagger file.
 				if subDir.Name() == lockFile {
 					continue
 				}
@@ -101,7 +101,7 @@ func InitializeTemFIDelir() error {
 	return nil
 }
 
-// CleanUp releases the directory lock when exiting MilevaDB.
+// CleanUp releases the directory dagger when exiting MilevaDB.
 func CleanUp() {
 	if temFIDelirLock != nil {
 		err := temFIDelirLock.Unlock()

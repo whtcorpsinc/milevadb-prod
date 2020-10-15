@@ -68,7 +68,7 @@ func (eqh *Handle) Run() {
 					info.ExceedExpensiveTimeThresh = true
 				}
 
-				if info.MaxExecutionTime > 0 && costTime > time.Duration(info.MaxExecutionTime)*time.Millisecond {
+				if info.MaxInterDircutionTime > 0 && costTime > time.Duration(info.MaxInterDircutionTime)*time.Millisecond {
 					sm.Kill(info.ID, true)
 				}
 			}
@@ -104,12 +104,12 @@ func (eqh *Handle) LogOnQueryExceedMemQuota(connID uint64) {
 func genLogFields(costTime time.Duration, info *soliton.ProcessInfo) []zap.Field {
 	logFields := make([]zap.Field, 0, 20)
 	logFields = append(logFields, zap.String("cost_time", strconv.FormatFloat(costTime.Seconds(), 'f', -1, 64)+"s"))
-	execDetail := info.StmtCtx.GetExecDetails()
+	execDetail := info.StmtCtx.GetInterDircDetails()
 	logFields = append(logFields, execDetail.ToZapFields()...)
 	if copTaskInfo := info.StmtCtx.CausetTasksDetails(); copTaskInfo != nil {
 		logFields = append(logFields, copTaskInfo.ToZapFields()...)
 	}
-	if statsInfo := info.StatsInfo(info.Plan); len(statsInfo) > 0 {
+	if statsInfo := info.StatsInfo(info.Causet); len(statsInfo) > 0 {
 		var buf strings.Builder
 		firstComma := false
 		vStr := ""

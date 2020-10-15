@@ -40,9 +40,9 @@ var (
 	MetaHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
-			Subsystem: "meta",
+			Subsystem: "spacetime",
 			Name:      "operation_duration_seconds",
-			Help:      "Bucketed histogram of processing time (s) of milevadb meta data operations.",
+			Help:      "Bucketed histogram of processing time (s) of milevadb spacetime data operations.",
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2, 29), // 0.5ms ~ 1.5days
 		}, []string{LblType, LblResult})
 )

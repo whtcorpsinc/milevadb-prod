@@ -25,7 +25,7 @@ import (
 	"github.com/google/btree"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/ekvproto/pkg/errorpb"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/mockeinsteindb"
 )
@@ -128,8 +128,8 @@ func (s *testRegionCacheSuite) TestSimple(c *C) {
 	c.Assert(s.getAddr(c, []byte("a"), ekv.ReplicaReadLeader, 0), Equals, s.storeAddr(s.store1))
 	c.Assert(s.getAddr(c, []byte("a"), ekv.ReplicaReadFollower, seed), Equals, s.storeAddr(s.store2))
 	s.checkCache(c, 1)
-	c.Assert(r.GetMeta(), DeepEquals, r.meta)
-	c.Assert(r.GetLeaderPeerID(), Equals, r.meta.Peers[r.getStore().workEinsteinDBIdx].Id)
+	c.Assert(r.GetMeta(), DeepEquals, r.spacetime)
+	c.Assert(r.GetLeaderPeerID(), Equals, r.spacetime.Peers[r.getStore().workEinsteinDBIdx].Id)
 	s.cache.mu.regions[r.VerID()].lastAccess = 0
 	r = s.cache.searchCachedRegion([]byte("a"), true)
 	c.Assert(r, IsNil)
@@ -667,18 +667,18 @@ func (s *testRegionCacheSuite) TestRegionEpochAheadOfEinsteinDB(c *C) {
 	defer cache.Close()
 
 	region := createSampleRegion([]byte("k1"), []byte("k2"))
-	region.meta.Id = 1
-	region.meta.RegionEpoch = &metapb.RegionEpoch{Version: 10, ConfVer: 10}
+	region.spacetime.Id = 1
+	region.spacetime.RegionEpoch = &spacetimepb.RegionEpoch{Version: 10, ConfVer: 10}
 	cache.insertRegionToCache(region)
 
-	r1 := metapb.Region{Id: 1, RegionEpoch: &metapb.RegionEpoch{Version: 9, ConfVer: 10}}
-	r2 := metapb.Region{Id: 1, RegionEpoch: &metapb.RegionEpoch{Version: 10, ConfVer: 9}}
+	r1 := spacetimepb.Region{Id: 1, RegionEpoch: &spacetimepb.RegionEpoch{Version: 9, ConfVer: 10}}
+	r2 := spacetimepb.Region{Id: 1, RegionEpoch: &spacetimepb.RegionEpoch{Version: 10, ConfVer: 9}}
 
 	bo := NewBackofferWithVars(context.Background(), 2000000, nil)
 
-	err := cache.OnRegionEpochNotMatch(bo, &RPCContext{Region: region.VerID()}, []*metapb.Region{&r1})
+	err := cache.OnRegionEpochNotMatch(bo, &RPCContext{Region: region.VerID()}, []*spacetimepb.Region{&r1})
 	c.Assert(err, IsNil)
-	err = cache.OnRegionEpochNotMatch(bo, &RPCContext{Region: region.VerID()}, []*metapb.Region{&r2})
+	err = cache.OnRegionEpochNotMatch(bo, &RPCContext{Region: region.VerID()}, []*spacetimepb.Region{&r2})
 	c.Assert(err, IsNil)
 	c.Assert(len(bo.errors), Equals, 2)
 }
@@ -687,7 +687,7 @@ func (s *testRegionCacheSuite) TestRegionEpochOnTiFlash(c *C) {
 	// add store3 as tiflash
 	store3 := s.cluster.AllocID()
 	peer3 := s.cluster.AllocID()
-	s.cluster.UFIDelateStoreAddr(s.store1, s.storeAddr(s.store1), &metapb.StoreLabel{Key: "engine", Value: "tiflash"})
+	s.cluster.UFIDelateStoreAddr(s.store1, s.storeAddr(s.store1), &spacetimepb.StoreLabel{Key: "engine", Value: "tiflash"})
 	s.cluster.AddStore(store3, s.storeAddr(store3))
 	s.cluster.AddPeer(s.region1, store3, peer3)
 	s.cluster.ChangeLeader(s.region1, peer3)
@@ -704,10 +704,10 @@ func (s *testRegionCacheSuite) TestRegionEpochOnTiFlash(c *C) {
 	ctxTiFlash, err := s.cache.GetTiFlashRPCContext(s.bo, loc1.Region)
 	c.Assert(err, IsNil)
 	c.Assert(ctxTiFlash.Peer.Id, Equals, s.peer1)
-	ctxTiFlash.Peer.Role = metapb.PeerRole_Learner
+	ctxTiFlash.Peer.Role = spacetimepb.PeerRole_Learner
 	r := ctxTiFlash.Meta
 	reqSend := NewRegionRequestSender(s.cache, nil)
-	regionErr := &errorpb.Error{EpochNotMatch: &errorpb.EpochNotMatch{CurrentRegions: []*metapb.Region{r}}}
+	regionErr := &errorpb.Error{EpochNotMatch: &errorpb.EpochNotMatch{CurrentRegions: []*spacetimepb.Region{r}}}
 	reqSend.onRegionError(s.bo, ctxTiFlash, nil, regionErr)
 
 	// check leader read should not go to tiflash
@@ -870,7 +870,7 @@ func (s *testRegionCacheSuite) TestScanRegions(c *C) {
 		r := scannedRegions[i]
 		_, p, _, _ := r.WorkStorePeer(r.getStore())
 
-		c.Assert(r.meta.Id, Equals, regions[i])
+		c.Assert(r.spacetime.Id, Equals, regions[i])
 		c.Assert(p.Id, Equals, peers[i][0])
 	}
 
@@ -881,7 +881,7 @@ func (s *testRegionCacheSuite) TestScanRegions(c *C) {
 		r := scannedRegions[i-1]
 		_, p, _, _ := r.WorkStorePeer(r.getStore())
 
-		c.Assert(r.meta.Id, Equals, regions[i])
+		c.Assert(r.spacetime.Id, Equals, regions[i])
 		c.Assert(p.Id, Equals, peers[i][0])
 	}
 
@@ -891,7 +891,7 @@ func (s *testRegionCacheSuite) TestScanRegions(c *C) {
 
 	r0 := scannedRegions[0]
 	_, p0, _, _ := r0.WorkStorePeer(r0.getStore())
-	c.Assert(r0.meta.Id, Equals, regions[1])
+	c.Assert(r0.spacetime.Id, Equals, regions[1])
 	c.Assert(p0.Id, Equals, peers[1][0])
 
 	// Test region with no leader
@@ -903,7 +903,7 @@ func (s *testRegionCacheSuite) TestScanRegions(c *C) {
 		r := scannedRegions[i]
 		_, p, _, _ := r.WorkStorePeer(r.getStore())
 
-		c.Assert(r.meta.Id, Equals, regions[i*2])
+		c.Assert(r.spacetime.Id, Equals, regions[i*2])
 		c.Assert(p.Id, Equals, peers[i*2][0])
 	}
 }
@@ -1085,7 +1085,7 @@ func (s *testRegionRequestSuite) TestGetRegionByIDFromCache(c *C) {
 	c.Assert(region, NotNil)
 
 	// test ekv epochNotMatch return empty regions
-	s.cache.OnRegionEpochNotMatch(s.bo, &RPCContext{Region: region.Region, CausetStore: &CausetStore{storeID: s.causetstore}}, []*metapb.Region{})
+	s.cache.OnRegionEpochNotMatch(s.bo, &RPCContext{Region: region.Region, CausetStore: &CausetStore{storeID: s.causetstore}}, []*spacetimepb.Region{})
 	c.Assert(err, IsNil)
 	r := s.cache.getRegionByIDFromCache(s.region)
 	c.Assert(r, IsNil)
@@ -1097,9 +1097,9 @@ func (s *testRegionRequestSuite) TestGetRegionByIDFromCache(c *C) {
 
 	// test ekv load new region with new start-key and new epoch
 	v2 := region.Region.confVer + 1
-	r2 := metapb.Region{Id: region.Region.id, RegionEpoch: &metapb.RegionEpoch{Version: region.Region.ver, ConfVer: v2}, StartKey: []byte{1}}
+	r2 := spacetimepb.Region{Id: region.Region.id, RegionEpoch: &spacetimepb.RegionEpoch{Version: region.Region.ver, ConfVer: v2}, StartKey: []byte{1}}
 	st := &CausetStore{storeID: s.causetstore}
-	s.cache.insertRegionToCache(&Region{meta: &r2, causetstore: unsafe.Pointer(st), lastAccess: time.Now().Unix()})
+	s.cache.insertRegionToCache(&Region{spacetime: &r2, causetstore: unsafe.Pointer(st), lastAccess: time.Now().Unix()})
 	region, err = s.cache.LocateRegionByID(s.bo, s.region)
 	c.Assert(err, IsNil)
 	c.Assert(region, NotNil)
@@ -1107,9 +1107,9 @@ func (s *testRegionRequestSuite) TestGetRegionByIDFromCache(c *C) {
 	c.Assert(region.Region.ver, Equals, region.Region.ver)
 
 	v3 := region.Region.confVer + 1
-	r3 := metapb.Region{Id: region.Region.id, RegionEpoch: &metapb.RegionEpoch{Version: v3, ConfVer: region.Region.confVer}, StartKey: []byte{2}}
+	r3 := spacetimepb.Region{Id: region.Region.id, RegionEpoch: &spacetimepb.RegionEpoch{Version: v3, ConfVer: region.Region.confVer}, StartKey: []byte{2}}
 	st = &CausetStore{storeID: s.causetstore}
-	s.cache.insertRegionToCache(&Region{meta: &r3, causetstore: unsafe.Pointer(st), lastAccess: time.Now().Unix()})
+	s.cache.insertRegionToCache(&Region{spacetime: &r3, causetstore: unsafe.Pointer(st), lastAccess: time.Now().Unix()})
 	region, err = s.cache.LocateRegionByID(s.bo, s.region)
 	c.Assert(err, IsNil)
 	c.Assert(region, NotNil)
@@ -1119,7 +1119,7 @@ func (s *testRegionRequestSuite) TestGetRegionByIDFromCache(c *C) {
 
 func createSampleRegion(startKey, endKey []byte) *Region {
 	return &Region{
-		meta: &metapb.Region{
+		spacetime: &spacetimepb.Region{
 			StartKey: startKey,
 			EndKey:   endKey,
 		},
@@ -1158,7 +1158,7 @@ func BenchmarkOnRequestFail(b *testing.B) {
 	/*
 			This benchmark simulate many concurrent requests call OnSendRequestFail method
 			after failed on a causetstore, validate that on this scene, requests don't get blocked on the
-		    RegionCache lock.
+		    RegionCache dagger.
 	*/
 	regionCnt, storeCount := 998, 3
 	cluster := createClusterWithStoresAndRegions(regionCnt, storeCount)
@@ -1178,7 +1178,7 @@ func BenchmarkOnRequestFail(b *testing.B) {
 		for pb.Next() {
 			rpcCtx := &RPCContext{
 				Region:     loc.Region,
-				Meta:       region.meta,
+				Meta:       region.spacetime,
 				AccessIdx:  accessIdx,
 				Peer:       peer,
 				CausetStore:      causetstore,

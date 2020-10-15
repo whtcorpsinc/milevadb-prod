@@ -23,20 +23,20 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton"
 )
 
-// Cluster block list, attention:
-// 1. the block name should be upper case.
+// Cluster causet list, attention:
+// 1. the causet name should be upper case.
 // 2. clusterBlockName should equal to "CLUSTER_" + memBlockBlockName.
 const (
-	// ClusterBlockSlowLog is the string constant of cluster slow query memory block.
+	// ClusterBlockSlowLog is the string constant of cluster slow query memory causet.
 	ClusterBlockSlowLog     = "CLUSTER_SLOW_QUERY"
 	ClusterBlockProcesslist = "CLUSTER_PROCESSLIST"
-	// ClusterBlockStatementsSummary is the string constant of cluster statement summary block.
+	// ClusterBlockStatementsSummary is the string constant of cluster memex summary causet.
 	ClusterBlockStatementsSummary = "CLUSTER_STATEMENTS_SUMMARY"
-	// ClusterBlockStatementsSummaryHistory is the string constant of cluster statement summary history block.
+	// ClusterBlockStatementsSummaryHistory is the string constant of cluster memex summary history causet.
 	ClusterBlockStatementsSummaryHistory = "CLUSTER_STATEMENTS_SUMMARY_HISTORY"
 )
 
-// memBlockToClusterBlocks means add memory block to cluster block.
+// memBlockToClusterBlocks means add memory causet to cluster causet.
 var memBlockToClusterBlocks = map[string]string{
 	BlockSlowQuery:                ClusterBlockSlowLog,
 	BlockProcesslist:              ClusterBlockProcesslist,
@@ -58,7 +58,7 @@ func init() {
 	}
 }
 
-// isClusterBlockByName used to check whether the block is a cluster memory block.
+// isClusterBlockByName used to check whether the causet is a cluster memory causet.
 func isClusterBlockByName(dbName, blockName string) bool {
 	dbName = strings.ToUpper(dbName)
 	switch dbName {

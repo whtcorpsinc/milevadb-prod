@@ -28,8 +28,8 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/expression"
-	"github.com/whtcorpsinc/milevadb/expression/aggregation"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/memex/aggregation"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
@@ -42,7 +42,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
 	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/spacetimedata"
 )
 
 var dummySlice = make([]byte, 0)
@@ -56,7 +56,7 @@ type posetPosetDagContext struct {
 
 func (h *rpcHandler) handleCoFIDelAGRequest(req *interlock.Request) *interlock.Response {
 	resp := &interlock.Response{}
-	posetPosetDagCtx, e, posetPosetDagReq, err := h.buildPosetDagExecutor(req)
+	posetPosetDagCtx, e, posetPosetDagReq, err := h.buildPosetDagInterlockingDirectorate(req)
 	if err != nil {
 		resp.OtherError = err.Error()
 		return resp
@@ -77,8 +77,8 @@ func (h *rpcHandler) handleCoFIDelAGRequest(req *interlock.Request) *interlock.R
 	}
 
 	var execDetails []*execDetail
-	if posetPosetDagReq.DefCauslectExecutionSummaries != nil && *posetPosetDagReq.DefCauslectExecutionSummaries {
-		execDetails = e.ExecDetails()
+	if posetPosetDagReq.DefCauslectInterDircutionSummaries != nil && *posetPosetDagReq.DefCauslectInterDircutionSummaries {
+		execDetails = e.InterDircDetails()
 	}
 
 	selResp := h.initSelectResponse(err, posetPosetDagCtx.evalCtx.sc.GetWarnings(), e.Counts())
@@ -88,7 +88,7 @@ func (h *rpcHandler) handleCoFIDelAGRequest(req *interlock.Request) *interlock.R
 	return buildResp(selResp, execDetails, err)
 }
 
-func (h *rpcHandler) buildPosetDagExecutor(req *interlock.Request) (*posetPosetDagContext, executor, *fidelpb.PosetDagRequest, error) {
+func (h *rpcHandler) buildPosetDagInterlockingDirectorate(req *interlock.Request) (*posetPosetDagContext, interlock, *fidelpb.PosetDagRequest, error) {
 	if len(req.Ranges) == 0 {
 		return nil, nil, nil, errors.New("request range is null")
 	}
@@ -114,11 +114,11 @@ func (h *rpcHandler) buildPosetDagExecutor(req *interlock.Request) (*posetPosetD
 		startTS:   req.StartTs,
 		evalCtx:   &evalContext{sc: sc},
 	}
-	var e executor
-	if len(posetPosetDagReq.Executors) == 0 {
-		e, err = h.buildPosetDagForTiFlash(ctx, posetPosetDagReq.RootExecutor)
+	var e interlock
+	if len(posetPosetDagReq.InterlockingDirectorates) == 0 {
+		e, err = h.buildPosetDagForTiFlash(ctx, posetPosetDagReq.RootInterlockingDirectorate)
 	} else {
-		e, err = h.buildPosetDag(ctx, posetPosetDagReq.Executors)
+		e, err = h.buildPosetDag(ctx, posetPosetDagReq.InterlockingDirectorates)
 	}
 	if err != nil {
 		return nil, nil, nil, errors.Trace(err)
@@ -134,7 +134,7 @@ func constructTimeZone(name string, offset int) (*time.Location, error) {
 }
 
 func (h *rpcHandler) handleCopStream(ctx context.Context, req *interlock.Request) (einsteindbpb.EinsteinDB_CoprocessorStreamClient, error) {
-	posetPosetDagCtx, e, posetPosetDagReq, err := h.buildPosetDagExecutor(req)
+	posetPosetDagCtx, e, posetPosetDagReq, err := h.buildPosetDagInterlockingDirectorate(req)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -147,70 +147,70 @@ func (h *rpcHandler) handleCopStream(ctx context.Context, req *interlock.Request
 	}, nil
 }
 
-func (h *rpcHandler) buildExec(ctx *posetPosetDagContext, curr *fidelpb.Executor) (executor, *fidelpb.Executor, error) {
-	var currExec executor
+func (h *rpcHandler) buildInterDirc(ctx *posetPosetDagContext, curr *fidelpb.InterlockingDirectorate) (interlock, *fidelpb.InterlockingDirectorate, error) {
+	var currInterDirc interlock
 	var err error
-	var childExec *fidelpb.Executor
+	var childInterDirc *fidelpb.InterlockingDirectorate
 	switch curr.GetTp() {
-	case fidelpb.ExecType_TypeTableScan:
-		currExec, err = h.buildTableScan(ctx, curr)
-	case fidelpb.ExecType_TypeIndexScan:
-		currExec, err = h.buildIndexScan(ctx, curr)
-	case fidelpb.ExecType_TypeSelection:
-		currExec, err = h.buildSelection(ctx, curr)
-		childExec = curr.Selection.Child
-	case fidelpb.ExecType_TypeAggregation:
-		currExec, err = h.buildHashAgg(ctx, curr)
-		childExec = curr.Aggregation.Child
-	case fidelpb.ExecType_TypeStreamAgg:
-		currExec, err = h.buildStreamAgg(ctx, curr)
-		childExec = curr.Aggregation.Child
-	case fidelpb.ExecType_TypeTopN:
-		currExec, err = h.buildTopN(ctx, curr)
-		childExec = curr.TopN.Child
-	case fidelpb.ExecType_TypeLimit:
-		currExec = &limitExec{limit: curr.Limit.GetLimit(), execDetail: new(execDetail)}
-		childExec = curr.Limit.Child
+	case fidelpb.InterDircType_TypeTableScan:
+		currInterDirc, err = h.buildTableScan(ctx, curr)
+	case fidelpb.InterDircType_TypeIndexScan:
+		currInterDirc, err = h.buildIndexScan(ctx, curr)
+	case fidelpb.InterDircType_TypeSelection:
+		currInterDirc, err = h.buildSelection(ctx, curr)
+		childInterDirc = curr.Selection.Child
+	case fidelpb.InterDircType_TypeAggregation:
+		currInterDirc, err = h.buildHashAgg(ctx, curr)
+		childInterDirc = curr.Aggregation.Child
+	case fidelpb.InterDircType_TypeStreamAgg:
+		currInterDirc, err = h.buildStreamAgg(ctx, curr)
+		childInterDirc = curr.Aggregation.Child
+	case fidelpb.InterDircType_TypeTopN:
+		currInterDirc, err = h.buildTopN(ctx, curr)
+		childInterDirc = curr.TopN.Child
+	case fidelpb.InterDircType_TypeLimit:
+		currInterDirc = &limitInterDirc{limit: curr.Limit.GetLimit(), execDetail: new(execDetail)}
+		childInterDirc = curr.Limit.Child
 	default:
 		// TODO: Support other types.
 		err = errors.Errorf("this exec type %v doesn't support yet.", curr.GetTp())
 	}
 
-	return currExec, childExec, errors.Trace(err)
+	return currInterDirc, childInterDirc, errors.Trace(err)
 }
 
-func (h *rpcHandler) buildPosetDagForTiFlash(ctx *posetPosetDagContext, farther *fidelpb.Executor) (executor, error) {
-	curr, child, err := h.buildExec(ctx, farther)
+func (h *rpcHandler) buildPosetDagForTiFlash(ctx *posetPosetDagContext, farther *fidelpb.InterlockingDirectorate) (interlock, error) {
+	curr, child, err := h.buildInterDirc(ctx, farther)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	if child != nil {
-		childExec, err := h.buildPosetDagForTiFlash(ctx, child)
+		childInterDirc, err := h.buildPosetDagForTiFlash(ctx, child)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		curr.SetSrcExec(childExec)
+		curr.SetSrcInterDirc(childInterDirc)
 	}
 	return curr, nil
 }
 
-func (h *rpcHandler) buildPosetDag(ctx *posetPosetDagContext, executors []*fidelpb.Executor) (executor, error) {
-	var src executor
-	for i := 0; i < len(executors); i++ {
-		curr, _, err := h.buildExec(ctx, executors[i])
+func (h *rpcHandler) buildPosetDag(ctx *posetPosetDagContext, interlocks []*fidelpb.InterlockingDirectorate) (interlock, error) {
+	var src interlock
+	for i := 0; i < len(interlocks); i++ {
+		curr, _, err := h.buildInterDirc(ctx, interlocks[i])
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		curr.SetSrcExec(src)
+		curr.SetSrcInterDirc(src)
 		src = curr
 	}
 	return src, nil
 }
 
-func (h *rpcHandler) buildTableScan(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*blockScanExec, error) {
-	columns := executor.TblScan.DeferredCausets
+func (h *rpcHandler) buildTableScan(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*blockScanInterDirc, error) {
+	columns := interlock.TblScan.DeferredCausets
 	ctx.evalCtx.setDeferredCausetInfo(columns)
-	ranges, err := h.extractKVRanges(ctx.keyRanges, executor.TblScan.Desc)
+	ranges, err := h.extractKVRanges(ctx.keyRanges, interlock.TblScan.Desc)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -239,9 +239,9 @@ func (h *rpcHandler) buildTableScan(ctx *posetPosetDagContext, executor *fidelpb
 		}
 		return col.DefaultVal, nil
 	}
-	rd := rowcodec.NewByteDecoder(colInfos, []int64{-1}, defVal, nil)
-	e := &blockScanExec{
-		TableScan:      executor.TblScan,
+	rd := rowcodec.NewByteCausetDecoder(colInfos, []int64{-1}, defVal, nil)
+	e := &blockScanInterDirc{
+		TableScan:      interlock.TblScan,
 		kvRanges:       ranges,
 		colIDs:         ctx.evalCtx.colIDs,
 		startTS:        startTS,
@@ -258,9 +258,9 @@ func (h *rpcHandler) buildTableScan(ctx *posetPosetDagContext, executor *fidelpb
 	return e, nil
 }
 
-func (h *rpcHandler) buildIndexScan(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*indexScanExec, error) {
+func (h *rpcHandler) buildIndexScan(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*indexScanInterDirc, error) {
 	var err error
-	columns := executor.IdxScan.DeferredCausets
+	columns := interlock.IdxScan.DeferredCausets
 	ctx.evalCtx.setDeferredCausetInfo(columns)
 	length := len(columns)
 	hdStatus := blockcodec.HandleNotNeeded
@@ -275,7 +275,7 @@ func (h *rpcHandler) buildIndexScan(ctx *posetPosetDagContext, executor *fidelpb
 	} else if columns[length-1].DeferredCausetId == perceptron.ExtraHandleID {
 		columns = columns[:length-1]
 	}
-	ranges, err := h.extractKVRanges(ctx.keyRanges, executor.IdxScan.Desc)
+	ranges, err := h.extractKVRanges(ctx.keyRanges, interlock.IdxScan.Desc)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -293,8 +293,8 @@ func (h *rpcHandler) buildIndexScan(ctx *posetPosetDagContext, executor *fidelpb
 			IsPKHandle: col.GetPkHandle(),
 		})
 	}
-	e := &indexScanExec{
-		IndexScan:      executor.IdxScan,
+	e := &indexScanInterDirc{
+		IndexScan:      interlock.IdxScan,
 		kvRanges:       ranges,
 		defcausLen:        len(columns),
 		startTS:        startTS,
@@ -311,10 +311,10 @@ func (h *rpcHandler) buildIndexScan(ctx *posetPosetDagContext, executor *fidelpb
 	return e, nil
 }
 
-func (h *rpcHandler) buildSelection(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*selectionExec, error) {
+func (h *rpcHandler) buildSelection(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*selectionInterDirc, error) {
 	var err error
 	var relatedDefCausOffsets []int
-	pbConds := executor.Selection.Conditions
+	pbConds := interlock.Selection.Conditions
 	for _, cond := range pbConds {
 		relatedDefCausOffsets, err = extractOffsetsInExpr(cond, ctx.evalCtx.columnInfos, relatedDefCausOffsets)
 		if err != nil {
@@ -326,7 +326,7 @@ func (h *rpcHandler) buildSelection(ctx *posetPosetDagContext, executor *fidelpb
 		return nil, errors.Trace(err)
 	}
 
-	return &selectionExec{
+	return &selectionInterDirc{
 		evalCtx:           ctx.evalCtx,
 		relatedDefCausOffsets: relatedDefCausOffsets,
 		conditions:        conds,
@@ -335,12 +335,12 @@ func (h *rpcHandler) buildSelection(ctx *posetPosetDagContext, executor *fidelpb
 	}, nil
 }
 
-func (h *rpcHandler) getAggInfo(ctx *posetPosetDagContext, executor *fidelpb.Executor) ([]aggregation.Aggregation, []expression.Expression, []int, error) {
-	length := len(executor.Aggregation.AggFunc)
+func (h *rpcHandler) getAggInfo(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) ([]aggregation.Aggregation, []memex.Expression, []int, error) {
+	length := len(interlock.Aggregation.AggFunc)
 	aggs := make([]aggregation.Aggregation, 0, length)
 	var err error
 	var relatedDefCausOffsets []int
-	for _, expr := range executor.Aggregation.AggFunc {
+	for _, expr := range interlock.Aggregation.AggFunc {
 		var aggExpr aggregation.Aggregation
 		aggExpr, err = aggregation.NewDistAggFunc(expr, ctx.evalCtx.fieldTps, ctx.evalCtx.sc)
 		if err != nil {
@@ -352,13 +352,13 @@ func (h *rpcHandler) getAggInfo(ctx *posetPosetDagContext, executor *fidelpb.Exe
 			return nil, nil, nil, errors.Trace(err)
 		}
 	}
-	for _, item := range executor.Aggregation.GroupBy {
+	for _, item := range interlock.Aggregation.GroupBy {
 		relatedDefCausOffsets, err = extractOffsetsInExpr(item, ctx.evalCtx.columnInfos, relatedDefCausOffsets)
 		if err != nil {
 			return nil, nil, nil, errors.Trace(err)
 		}
 	}
-	groupBys, err := convertToExprs(ctx.evalCtx.sc, ctx.evalCtx.fieldTps, executor.Aggregation.GetGroupBy())
+	groupBys, err := convertToExprs(ctx.evalCtx.sc, ctx.evalCtx.fieldTps, interlock.Aggregation.GetGroupBy())
 	if err != nil {
 		return nil, nil, nil, errors.Trace(err)
 	}
@@ -366,13 +366,13 @@ func (h *rpcHandler) getAggInfo(ctx *posetPosetDagContext, executor *fidelpb.Exe
 	return aggs, groupBys, relatedDefCausOffsets, nil
 }
 
-func (h *rpcHandler) buildHashAgg(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*hashAggExec, error) {
-	aggs, groupBys, relatedDefCausOffsets, err := h.getAggInfo(ctx, executor)
+func (h *rpcHandler) buildHashAgg(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*hashAggInterDirc, error) {
+	aggs, groupBys, relatedDefCausOffsets, err := h.getAggInfo(ctx, interlock)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	return &hashAggExec{
+	return &hashAggInterDirc{
 		evalCtx:           ctx.evalCtx,
 		aggExprs:          aggs,
 		groupByExprs:      groupBys,
@@ -384,8 +384,8 @@ func (h *rpcHandler) buildHashAgg(ctx *posetPosetDagContext, executor *fidelpb.E
 	}, nil
 }
 
-func (h *rpcHandler) buildStreamAgg(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*streamAggExec, error) {
-	aggs, groupBys, relatedDefCausOffsets, err := h.getAggInfo(ctx, executor)
+func (h *rpcHandler) buildStreamAgg(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*streamAggInterDirc, error) {
+	aggs, groupBys, relatedDefCausOffsets, err := h.getAggInfo(ctx, interlock)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -394,7 +394,7 @@ func (h *rpcHandler) buildStreamAgg(ctx *posetPosetDagContext, executor *fidelpb
 		aggCtxs = append(aggCtxs, agg.CreateContext(ctx.evalCtx.sc))
 	}
 
-	return &streamAggExec{
+	return &streamAggInterDirc{
 		evalCtx:           ctx.evalCtx,
 		aggExprs:          aggs,
 		aggCtxs:           aggCtxs,
@@ -406,8 +406,8 @@ func (h *rpcHandler) buildStreamAgg(ctx *posetPosetDagContext, executor *fidelpb
 	}, nil
 }
 
-func (h *rpcHandler) buildTopN(ctx *posetPosetDagContext, executor *fidelpb.Executor) (*topNExec, error) {
-	topN := executor.TopN
+func (h *rpcHandler) buildTopN(ctx *posetPosetDagContext, interlock *fidelpb.InterlockingDirectorate) (*topNInterDirc, error) {
+	topN := interlock.TopN
 	var err error
 	var relatedDefCausOffsets []int
 	pbConds := make([]*fidelpb.Expr, len(topN.OrderBy))
@@ -431,7 +431,7 @@ func (h *rpcHandler) buildTopN(ctx *posetPosetDagContext, executor *fidelpb.Exec
 		return nil, errors.Trace(err)
 	}
 
-	return &topNExec{
+	return &topNInterDirc{
 		heap:              heap,
 		evalCtx:           ctx.evalCtx,
 		relatedDefCausOffsets: relatedDefCausOffsets,
@@ -497,10 +497,10 @@ func MockGRPCClientStream() grpc.ClientStream {
 type mockClientStream struct{}
 
 // Header implements grpc.ClientStream interface
-func (mockClientStream) Header() (metadata.MD, error) { return nil, nil }
+func (mockClientStream) Header() (spacetimedata.MD, error) { return nil, nil }
 
 // Trailer implements grpc.ClientStream interface
-func (mockClientStream) Trailer() metadata.MD { return nil }
+func (mockClientStream) Trailer() spacetimedata.MD { return nil }
 
 // CloseSend implements grpc.ClientStream interface
 func (mockClientStream) CloseSend() error { return nil }
@@ -518,7 +518,7 @@ type mockCopStreamClient struct {
 	mockClientStream
 
 	req      *fidelpb.PosetDagRequest
-	exec     executor
+	exec     interlock
 	ctx      context.Context
 	posetPosetDagCtx   *posetPosetDagContext
 	finished bool
@@ -588,7 +588,7 @@ func (mock *mockCopStreamClient) Recv() (*interlock.Response, error) {
 	}
 
 	var resp interlock.Response
-	chunk, finish, ran, counts, warnings, err := mock.readBlockFromExecutor()
+	chunk, finish, ran, counts, warnings, err := mock.readBlockFromInterlockingDirectorate()
 	resp.Range = ran
 	if err != nil {
 		if locked, ok := errors.Cause(err).(*ErrLocked); ok {
@@ -633,7 +633,7 @@ func (mock *mockCopStreamClient) Recv() (*interlock.Response, error) {
 	return &resp, nil
 }
 
-func (mock *mockCopStreamClient) readBlockFromExecutor() (fidelpb.Chunk, bool, *interlock.KeyRange, []int64, []stmtctx.ALLEGROSQLWarn, error) {
+func (mock *mockCopStreamClient) readBlockFromInterlockingDirectorate() (fidelpb.Chunk, bool, *interlock.KeyRange, []int64, []stmtctx.ALLEGROSQLWarn, error) {
 	var chunk fidelpb.Chunk
 	var ran interlock.KeyRange
 	var finish bool
@@ -691,11 +691,11 @@ func (h *rpcHandler) fillUFIDelata4SelectResponse(selResp *fidelpb.SelectRespons
 }
 
 func (h *rpcHandler) constructRespSchema(posetPosetDagCtx *posetPosetDagContext) []*types.FieldType {
-	var root *fidelpb.Executor
-	if len(posetPosetDagCtx.posetPosetDagReq.Executors) == 0 {
-		root = posetPosetDagCtx.posetPosetDagReq.RootExecutor
+	var root *fidelpb.InterlockingDirectorate
+	if len(posetPosetDagCtx.posetPosetDagReq.InterlockingDirectorates) == 0 {
+		root = posetPosetDagCtx.posetPosetDagReq.RootInterlockingDirectorate
 	} else {
-		root = posetPosetDagCtx.posetPosetDagReq.Executors[len(posetPosetDagCtx.posetPosetDagReq.Executors)-1]
+		root = posetPosetDagCtx.posetPosetDagReq.InterlockingDirectorates[len(posetPosetDagCtx.posetPosetDagReq.InterlockingDirectorates)-1]
 	}
 	agg := root.Aggregation
 	if agg == nil {
@@ -709,10 +709,10 @@ func (h *rpcHandler) constructRespSchema(posetPosetDagCtx *posetPosetDagContext)
 			// This line addend the Count(TypeLonglong) to the schemaReplicant.
 			schemaReplicant = append(schemaReplicant, types.NewFieldType(allegrosql.TypeLonglong))
 		}
-		schemaReplicant = append(schemaReplicant, expression.PbTypeToFieldType(agg.AggFunc[i].FieldType))
+		schemaReplicant = append(schemaReplicant, memex.PbTypeToFieldType(agg.AggFunc[i].FieldType))
 	}
 	for i := range agg.GroupBy {
-		schemaReplicant = append(schemaReplicant, expression.PbTypeToFieldType(agg.GroupBy[i].FieldType))
+		schemaReplicant = append(schemaReplicant, memex.PbTypeToFieldType(agg.GroupBy[i].FieldType))
 	}
 	return schemaReplicant
 }
@@ -737,11 +737,11 @@ func (h *rpcHandler) encodeChunk(selResp *fidelpb.SelectResponse, rows [][][]byt
 		respDefCausTypes = append(respDefCausTypes, colTypes[ordinal])
 	}
 	chk := chunk.NewChunkWithCapacity(respDefCausTypes, rowsPerChunk)
-	encoder := chunk.NewCodec(respDefCausTypes)
-	decoder := codec.NewDecoder(chk, loc)
+	causetCausetEncoder := chunk.NewCodec(respDefCausTypes)
+	causetDecoder := codec.NewCausetDecoder(chk, loc)
 	for i := range rows {
 		for j, ordinal := range colOrdinal {
-			_, err := decoder.DecodeOne(rows[i][ordinal], j, colTypes[ordinal])
+			_, err := causetDecoder.DecodeOne(rows[i][ordinal], j, colTypes[ordinal])
 			if err != nil {
 				return err
 			}
@@ -749,14 +749,14 @@ func (h *rpcHandler) encodeChunk(selResp *fidelpb.SelectResponse, rows [][][]byt
 		if i%rowsPerChunk == rowsPerChunk-1 {
 			chunks = append(chunks, fidelpb.Chunk{})
 			cur := &chunks[len(chunks)-1]
-			cur.RowsData = append(cur.RowsData, encoder.Encode(chk)...)
+			cur.RowsData = append(cur.RowsData, causetCausetEncoder.Encode(chk)...)
 			chk.Reset()
 		}
 	}
 	if chk.NumRows() > 0 {
 		chunks = append(chunks, fidelpb.Chunk{})
 		cur := &chunks[len(chunks)-1]
-		cur.RowsData = append(cur.RowsData, encoder.Encode(chk)...)
+		cur.RowsData = append(cur.RowsData, causetCausetEncoder.Encode(chk)...)
 		chk.Reset()
 	}
 	selResp.Chunks = chunks
@@ -768,18 +768,18 @@ func buildResp(selResp *fidelpb.SelectResponse, execDetails []*execDetail, err e
 	resp := &interlock.Response{}
 
 	if len(execDetails) > 0 {
-		execSummary := make([]*fidelpb.ExecutorExecutionSummary, 0, len(execDetails))
+		execSummary := make([]*fidelpb.InterlockingDirectorateInterDircutionSummary, 0, len(execDetails))
 		for _, d := range execDetails {
 			costNs := uint64(d.timeProcessed / time.Nanosecond)
 			rows := uint64(d.numProducedRows)
 			numIter := uint64(d.numIterations)
-			execSummary = append(execSummary, &fidelpb.ExecutorExecutionSummary{
+			execSummary = append(execSummary, &fidelpb.InterlockingDirectorateInterDircutionSummary{
 				TimeProcessedNs: &costNs,
 				NumProducedRows: &rows,
 				NumIterations:   &numIter,
 			})
 		}
-		selResp.ExecutionSummaries = execSummary
+		selResp.InterDircutionSummaries = execSummary
 	}
 
 	// Select errors have been contained in `SelectResponse.Error`

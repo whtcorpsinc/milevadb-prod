@@ -31,7 +31,7 @@ import (
 	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
 	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
@@ -123,11 +123,11 @@ func prepareTestTableData(c *C, keyNumber int, blockID int64) *data {
 	}
 	rows := map[int64][]types.Causet{}
 	encodedTestKVDatas := make([]*encodedTestKVData, keyNumber)
-	encoder := &rowcodec.Encoder{Enable: true}
+	causetCausetEncoder := &rowcodec.CausetEncoder{Enable: true}
 	for i := 0; i < keyNumber; i++ {
 		causet := types.MakeCausets(i, "abc", 10.0)
 		rows[int64(i)] = causet
-		rowEncodedData, err := blockcodec.EncodeRow(stmtCtx, causet, colIds, nil, nil, encoder)
+		rowEncodedData, err := blockcodec.EncodeRow(stmtCtx, causet, colIds, nil, nil, causetCausetEncoder)
 		c.Assert(err, IsNil)
 		rowKeyEncodedData := blockcodec.EncodeRowKeyWithHandle(blockID, ekv.IntHandle(i))
 		encodedTestKVDatas[i] = &encodedTestKVData{encodedRowKey: rowKeyEncodedData, encodedRowValue: rowEncodedData}
@@ -196,10 +196,10 @@ func newPosetPosetDagContext(causetstore *testStore, keyRanges []ekv.KeyRange, p
 		posetPosetDagReq:      posetPosetDagReq,
 		startTS:     startTs,
 	}
-	if posetPosetDagReq.Executors[0].Tp == fidelpb.ExecType_TypeTableScan {
-		posetPosetDagCtx.setDeferredCausetInfo(posetPosetDagReq.Executors[0].TblScan.DeferredCausets)
+	if posetPosetDagReq.InterlockingDirectorates[0].Tp == fidelpb.InterDircType_TypeTableScan {
+		posetPosetDagCtx.setDeferredCausetInfo(posetPosetDagReq.InterlockingDirectorates[0].TblScan.DeferredCausets)
 	} else {
-		posetPosetDagCtx.setDeferredCausetInfo(posetPosetDagReq.Executors[0].IdxScan.DeferredCausets)
+		posetPosetDagCtx.setDeferredCausetInfo(posetPosetDagReq.InterlockingDirectorates[0].IdxScan.DeferredCausets)
 	}
 	posetPosetDagCtx.keyRanges = make([]*interlock.KeyRange, len(keyRanges))
 	for i, keyRange := range keyRanges {
@@ -211,34 +211,34 @@ func newPosetPosetDagContext(causetstore *testStore, keyRanges []ekv.KeyRange, p
 	return posetPosetDagCtx
 }
 
-// build and execute the executors according to the posetPosetDagRequest and posetPosetDagContext,
+// build and execute the interlocks according to the posetPosetDagRequest and posetPosetDagContext,
 // return the result chunk data, rows count and err if occurs.
-func buildExecutorsAndExecute(posetPosetDagRequest *fidelpb.PosetDagRequest,
+func buildInterlockingDirectoratesAndInterDircute(posetPosetDagRequest *fidelpb.PosetDagRequest,
 	posetPosetDagCtx *posetPosetDagContext) ([]fidelpb.Chunk, int, error) {
-	closureExec, err := buildClosureExecutor(posetPosetDagCtx, posetPosetDagRequest)
+	closureInterDirc, err := buildClosureInterlockingDirectorate(posetPosetDagCtx, posetPosetDagRequest)
 	if err != nil {
 		return nil, 0, err
 	}
-	if closureExec != nil {
-		chunks, err := closureExec.execute()
+	if closureInterDirc != nil {
+		chunks, err := closureInterDirc.execute()
 		if err != nil {
 			return nil, 0, err
 		}
-		return chunks, closureExec.rowCount, nil
+		return chunks, closureInterDirc.rowCount, nil
 	}
-	return nil, 0, errors.New("closureExec creation failed")
+	return nil, 0, errors.New("closureInterDirc creation failed")
 }
 
 // posetPosetDagBuilder is used to build posetPosetDag request
 type posetPosetDagBuilder struct {
 	startTs       uint64
-	executors     []*fidelpb.Executor
+	interlocks     []*fidelpb.InterlockingDirectorate
 	outputOffsets []uint32
 }
 
 // return a default posetPosetDagBuilder
 func newPosetPosetDagBuilder() *posetPosetDagBuilder {
-	return &posetPosetDagBuilder{executors: make([]*fidelpb.Executor, 0)}
+	return &posetPosetDagBuilder{interlocks: make([]*fidelpb.InterlockingDirectorate, 0)}
 }
 
 func (posetPosetDagBuilder *posetPosetDagBuilder) setStartTs(startTs uint64) *posetPosetDagBuilder {
@@ -252,8 +252,8 @@ func (posetPosetDagBuilder *posetPosetDagBuilder) setOutputOffsets(outputOffsets
 }
 
 func (posetPosetDagBuilder *posetPosetDagBuilder) addTableScan(colInfos []*fidelpb.DeferredCausetInfo, blockID int64) *posetPosetDagBuilder {
-	posetPosetDagBuilder.executors = append(posetPosetDagBuilder.executors, &fidelpb.Executor{
-		Tp: fidelpb.ExecType_TypeTableScan,
+	posetPosetDagBuilder.interlocks = append(posetPosetDagBuilder.interlocks, &fidelpb.InterlockingDirectorate{
+		Tp: fidelpb.InterDircType_TypeTableScan,
 		TblScan: &fidelpb.TableScan{
 			DeferredCausets: colInfos,
 			TableId: blockID,
@@ -263,8 +263,8 @@ func (posetPosetDagBuilder *posetPosetDagBuilder) addTableScan(colInfos []*fidel
 }
 
 func (posetPosetDagBuilder *posetPosetDagBuilder) addSelection(expr *fidelpb.Expr) *posetPosetDagBuilder {
-	posetPosetDagBuilder.executors = append(posetPosetDagBuilder.executors, &fidelpb.Executor{
-		Tp: fidelpb.ExecType_TypeSelection,
+	posetPosetDagBuilder.interlocks = append(posetPosetDagBuilder.interlocks, &fidelpb.InterlockingDirectorate{
+		Tp: fidelpb.InterDircType_TypeSelection,
 		Selection: &fidelpb.Selection{
 			Conditions:       []*fidelpb.Expr{expr},
 			XXX_unrecognized: nil,
@@ -274,8 +274,8 @@ func (posetPosetDagBuilder *posetPosetDagBuilder) addSelection(expr *fidelpb.Exp
 }
 
 func (posetPosetDagBuilder *posetPosetDagBuilder) addLimit(limit uint64) *posetPosetDagBuilder {
-	posetPosetDagBuilder.executors = append(posetPosetDagBuilder.executors, &fidelpb.Executor{
-		Tp:    fidelpb.ExecType_TypeLimit,
+	posetPosetDagBuilder.interlocks = append(posetPosetDagBuilder.interlocks, &fidelpb.InterlockingDirectorate{
+		Tp:    fidelpb.InterDircType_TypeLimit,
 		Limit: &fidelpb.Limit{Limit: limit},
 	})
 	return posetPosetDagBuilder
@@ -283,7 +283,7 @@ func (posetPosetDagBuilder *posetPosetDagBuilder) addLimit(limit uint64) *posetP
 
 func (posetPosetDagBuilder *posetPosetDagBuilder) build() *fidelpb.PosetDagRequest {
 	return &fidelpb.PosetDagRequest{
-		Executors:     posetPosetDagBuilder.executors,
+		InterlockingDirectorates:     posetPosetDagBuilder.interlocks,
 		OutputOffsets: posetPosetDagBuilder.outputOffsets,
 	}
 }
@@ -323,7 +323,7 @@ func (ts testSuite) TestPointGet(c *C) {
 		build()
 	posetPosetDagCtx := newPosetPosetDagContext(causetstore, []ekv.KeyRange{getTestPointRange(blockID, handle)},
 		posetPosetDagRequest, posetPosetDagRequestStartTs)
-	chunks, rowCount, err := buildExecutorsAndExecute(posetPosetDagRequest, posetPosetDagCtx)
+	chunks, rowCount, err := buildInterlockingDirectoratesAndInterDircute(posetPosetDagRequest, posetPosetDagCtx)
 	c.Assert(len(chunks), Equals, 0)
 	c.Assert(err, IsNil)
 	c.Assert(rowCount, Equals, 0)
@@ -337,7 +337,7 @@ func (ts testSuite) TestPointGet(c *C) {
 		build()
 	posetPosetDagCtx = newPosetPosetDagContext(causetstore, []ekv.KeyRange{getTestPointRange(blockID, handle)},
 		posetPosetDagRequest, posetPosetDagRequestStartTs)
-	chunks, rowCount, err = buildExecutorsAndExecute(posetPosetDagRequest, posetPosetDagCtx)
+	chunks, rowCount, err = buildInterlockingDirectoratesAndInterDircute(posetPosetDagRequest, posetPosetDagCtx)
 	c.Assert(err, IsNil)
 	c.Assert(rowCount, Equals, 1)
 	returnedRow, err := codec.Decode(chunks[0].RowsData, 2)
@@ -355,7 +355,7 @@ func (ts testSuite) TestPointGet(c *C) {
 	c.Assert(eq, Equals, 0)
 }
 
-func (ts testSuite) TestClosureExecutor(c *C) {
+func (ts testSuite) TestClosureInterlockingDirectorate(c *C) {
 	data := prepareTestTableData(c, keyNumber, blockID)
 	causetstore, err := newTestStore("cop_handler_test_db", "cop_handler_test_log")
 	defer cleanTestStore(causetstore)
@@ -373,7 +373,7 @@ func (ts testSuite) TestClosureExecutor(c *C) {
 
 	posetPosetDagCtx := newPosetPosetDagContext(causetstore, []ekv.KeyRange{getTestPointRange(blockID, 1)},
 		posetPosetDagRequest, posetPosetDagRequestStartTs)
-	_, rowCount, err := buildExecutorsAndExecute(posetPosetDagRequest, posetPosetDagCtx)
+	_, rowCount, err := buildInterlockingDirectoratesAndInterDircute(posetPosetDagRequest, posetPosetDagCtx)
 	c.Assert(err, IsNil)
 	c.Assert(rowCount, Equals, 0)
 }
@@ -382,17 +382,17 @@ func buildEQIntExpr(colID, val int64) *fidelpb.Expr {
 	return &fidelpb.Expr{
 		Tp:        fidelpb.ExprType_ScalarFunc,
 		Sig:       fidelpb.ScalarFuncSig_EQInt,
-		FieldType: expression.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
+		FieldType: memex.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
 		Children: []*fidelpb.Expr{
 			{
 				Tp:        fidelpb.ExprType_DeferredCausetRef,
 				Val:       codec.EncodeInt(nil, colID),
-				FieldType: expression.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
+				FieldType: memex.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
 			},
 			{
 				Tp:        fidelpb.ExprType_Int64,
 				Val:       codec.EncodeInt(nil, val),
-				FieldType: expression.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
+				FieldType: memex.ToPBFieldType(types.NewFieldType(allegrosql.TypeLonglong)),
 			},
 		},
 	}
@@ -407,7 +407,7 @@ type testStore struct {
 
 func (ts *testStore) prewrite(req *kvrpcpb.PrewriteRequest) {
 	for _, m := range req.Mutations {
-		lock := &mvcc.MvccLock{
+		dagger := &mvcc.MvccLock{
 			MvccLockHdr: mvcc.MvccLockHdr{
 				StartTS:     req.StartVersion,
 				ForUFIDelateTS: req.ForUFIDelateTs,
@@ -419,18 +419,18 @@ func (ts *testStore) prewrite(req *kvrpcpb.PrewriteRequest) {
 			Primary: req.PrimaryLock,
 			Value:   m.Value,
 		}
-		ts.locks.Put(m.Key, lock.MarshalBinary())
+		ts.locks.Put(m.Key, dagger.MarshalBinary())
 	}
 }
 
 func (ts *testStore) commit(keys [][]byte, startTS, commitTS uint64) error {
 	return ts.EDB.UFIDelate(func(txn *badger.Txn) error {
 		for _, key := range keys {
-			lock := mvcc.DecodeLock(ts.locks.Get(key, nil))
+			dagger := mvcc.DecodeLock(ts.locks.Get(key, nil))
 			userMeta := mvcc.NewDBUserMeta(startTS, commitTS)
 			err := txn.SetEntry(&badger.Entry{
 				Key:      y.KeyWithTs(key, commitTS),
-				Value:    lock.Value,
+				Value:    dagger.Value,
 				UserMeta: userMeta,
 			})
 			if err != nil {

@@ -31,7 +31,7 @@ func TestBasicCtxTypeToString(t *testing.T) {
 	}{
 		{QueryString, "query_string"},
 		{Initing, "initing"},
-		{LastExecuteDBS, "last_execute_dbs"},
+		{LastInterDircuteDBS, "last_execute_dbs"},
 		{basicCtxType(9), "unknown"},
 	}
 	for _, tt := range tests {

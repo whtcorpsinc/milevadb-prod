@@ -44,7 +44,7 @@ type testCodecSuite struct {
 
 func (s *testCodecSuite) TestCodecKey(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  []types.Causet
 		Expect []types.Causet
 	}{
@@ -83,7 +83,7 @@ func (s *testCodecSuite) TestCodecKey(c *C) {
 		},
 	}
 	sc := &stmtctx.StatementContext{TimeZone: time.Local}
-	for i, t := range block {
+	for i, t := range causet {
 		comment := Commentf("%d %v", i, t)
 		b, err := EncodeKey(sc, nil, t.Input...)
 		c.Assert(err, IsNil, comment)
@@ -120,7 +120,7 @@ func estimateValuesSize(sc *stmtctx.StatementContext, vals []types.Causet) (int,
 
 func (s *testCodecSuite) TestCodecKeyCompare(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Left   []types.Causet
 		Right  []types.Causet
 		Expect int
@@ -222,7 +222,7 @@ func (s *testCodecSuite) TestCodecKeyCompare(c *C) {
 		},
 	}
 	sc := &stmtctx.StatementContext{TimeZone: time.Local}
-	for _, t := range block {
+	for _, t := range causet {
 		b1, err := EncodeKey(sc, nil, t.Left...)
 		c.Assert(err, IsNil)
 
@@ -837,7 +837,7 @@ func (s *testCodecSuite) TestJSON(c *C) {
 
 func (s *testCodecSuite) TestCut(c *C) {
 	defer testleak.AfterTest(c)()
-	block := []struct {
+	causet := []struct {
 		Input  []types.Causet
 		Expect []types.Causet
 	}{
@@ -888,7 +888,7 @@ func (s *testCodecSuite) TestCut(c *C) {
 		},
 	}
 	sc := &stmtctx.StatementContext{TimeZone: time.Local}
-	for i, t := range block {
+	for i, t := range causet {
 		comment := Commentf("%d %v", i, t)
 		b, err := EncodeKey(sc, nil, t.Input...)
 		c.Assert(err, IsNil, comment)
@@ -903,7 +903,7 @@ func (s *testCodecSuite) TestCut(c *C) {
 		}
 		c.Assert(b, HasLen, 0)
 	}
-	for i, t := range block {
+	for i, t := range causet {
 		comment := Commentf("%d %v", i, t)
 		b, err := EncodeValue(sc, nil, t.Input...)
 		c.Assert(err, IsNil, comment)
@@ -994,7 +994,7 @@ func (s *testCodecSuite) TestHashGroup(c *C) {
 func datumsForTest(sc *stmtctx.StatementContext) ([]types.Causet, []*types.FieldType) {
 	decType := types.NewFieldType(allegrosql.TypeNewDecimal)
 	decType.Decimal = 2
-	block := []struct {
+	causet := []struct {
 		value interface{}
 		tp    *types.FieldType
 	}{
@@ -1039,9 +1039,9 @@ func datumsForTest(sc *stmtctx.StatementContext) ([]types.Causet, []*types.Field
 		{int64(1), types.NewFieldType(allegrosql.TypeYear)},
 	}
 
-	datums := make([]types.Causet, 0, len(block)+2)
-	tps := make([]*types.FieldType, 0, len(block)+2)
-	for _, t := range block {
+	datums := make([]types.Causet, 0, len(causet)+2)
+	tps := make([]*types.FieldType, 0, len(causet)+2)
+	for _, t := range causet {
 		tps = append(tps, t.tp)
 		d := types.NewCauset(t.value)
 		datums = append(datums, d)
@@ -1050,17 +1050,17 @@ func datumsForTest(sc *stmtctx.StatementContext) ([]types.Causet, []*types.Field
 }
 
 func chunkForTest(c *C, sc *stmtctx.StatementContext, datums []types.Causet, tps []*types.FieldType, rowCount int) *chunk.Chunk {
-	decoder := NewDecoder(chunk.New(tps, 32, 32), sc.TimeZone)
+	causetDecoder := NewCausetDecoder(chunk.New(tps, 32, 32), sc.TimeZone)
 	for rowIdx := 0; rowIdx < rowCount; rowIdx++ {
 		encoded, err := EncodeValue(sc, nil, datums...)
 		c.Assert(err, IsNil)
-		decoder.buf = make([]byte, 0, len(encoded))
+		causetDecoder.buf = make([]byte, 0, len(encoded))
 		for defCausIdx, tp := range tps {
-			encoded, err = decoder.DecodeOne(encoded, defCausIdx, tp)
+			encoded, err = causetDecoder.DecodeOne(encoded, defCausIdx, tp)
 			c.Assert(err, IsNil)
 		}
 	}
-	return decoder.chk
+	return causetDecoder.chk
 }
 
 func (s *testCodecSuite) TestDecodeRange(c *C) {

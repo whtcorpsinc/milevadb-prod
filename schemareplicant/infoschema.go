@@ -21,10 +21,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.uber.org/zap"
@@ -37,25 +37,25 @@ import (
 type SchemaReplicant interface {
 	SchemaByName(schemaReplicant perceptron.CIStr) (*perceptron.DBInfo, bool)
 	SchemaExists(schemaReplicant perceptron.CIStr) bool
-	BlockByName(schemaReplicant, block perceptron.CIStr) (block.Block, error)
-	BlockExists(schemaReplicant, block perceptron.CIStr) bool
+	BlockByName(schemaReplicant, causet perceptron.CIStr) (causet.Block, error)
+	BlockExists(schemaReplicant, causet perceptron.CIStr) bool
 	SchemaByID(id int64) (*perceptron.DBInfo, bool)
 	SchemaByBlock(blockInfo *perceptron.BlockInfo) (*perceptron.DBInfo, bool)
-	BlockByID(id int64) (block.Block, bool)
+	BlockByID(id int64) (causet.Block, bool)
 	AllocByID(id int64) (autoid.SlabPredictors, bool)
 	AllSchemaNames() []string
 	AllSchemas() []*perceptron.DBInfo
 	Clone() (result []*perceptron.DBInfo)
-	SchemaBlocks(schemaReplicant perceptron.CIStr) []block.Block
+	SchemaBlocks(schemaReplicant perceptron.CIStr) []causet.Block
 	SchemaMetaVersion() int64
-	// BlockIsView indicates whether the schemaReplicant.block is a view.
-	BlockIsView(schemaReplicant, block perceptron.CIStr) bool
-	// BlockIsSequence indicates whether the schemaReplicant.block is a sequence.
-	BlockIsSequence(schemaReplicant, block perceptron.CIStr) bool
-	FindBlockByPartitionID(partitionID int64) (block.Block, *perceptron.DBInfo)
+	// BlockIsView indicates whether the schemaReplicant.causet is a view.
+	BlockIsView(schemaReplicant, causet perceptron.CIStr) bool
+	// BlockIsSequence indicates whether the schemaReplicant.causet is a sequence.
+	BlockIsSequence(schemaReplicant, causet perceptron.CIStr) bool
+	FindBlockByPartitionID(partitionID int64) (causet.Block, *perceptron.DBInfo)
 }
 
-type sortedBlocks []block.Block
+type sortedBlocks []causet.Block
 
 func (s sortedBlocks) Len() int {
 	return len(s)
@@ -81,7 +81,7 @@ func (s sortedBlocks) searchBlock(id int64) int {
 
 type schemaBlocks struct {
 	dbInfo *perceptron.DBInfo
-	blocks map[string]block.Block
+	blocks map[string]causet.Block
 }
 
 const bucketCount = 512
@@ -89,7 +89,7 @@ const bucketCount = 512
 type schemaReplicant struct {
 	schemaMap map[string]*schemaBlocks
 
-	// sortedBlocksBuckets is a slice of sortedBlocks, a block's bucket index is (blockID % bucketCount).
+	// sortedBlocksBuckets is a slice of sortedBlocks, a causet's bucket index is (blockID % bucketCount).
 	sortedBlocksBuckets []sortedBlocks
 
 	// schemaMetaVersion is the version of schemaReplicant, and we should check version when change schemaReplicant.
@@ -104,11 +104,11 @@ func MockSchemaReplicant(tbList []*perceptron.BlockInfo) SchemaReplicant {
 	dbInfo := &perceptron.DBInfo{ID: 0, Name: perceptron.NewCIStr("test"), Blocks: tbList}
 	blockNames := &schemaBlocks{
 		dbInfo: dbInfo,
-		blocks: make(map[string]block.Block),
+		blocks: make(map[string]causet.Block),
 	}
 	result.schemaMap["test"] = blockNames
 	for _, tb := range tbList {
-		tbl := block.MockBlockFromMeta(tb)
+		tbl := causet.MockBlockFromMeta(tb)
 		blockNames.blocks[tb.Name.L] = tbl
 		bucketIdx := blockBucketIdx(tb.ID)
 		result.sortedBlocksBuckets[bucketIdx] = append(result.sortedBlocksBuckets[bucketIdx], tbl)
@@ -127,11 +127,11 @@ func MockSchemaReplicantWithSchemaVer(tbList []*perceptron.BlockInfo, schemaVer 
 	dbInfo := &perceptron.DBInfo{ID: 0, Name: perceptron.NewCIStr("test"), Blocks: tbList}
 	blockNames := &schemaBlocks{
 		dbInfo: dbInfo,
-		blocks: make(map[string]block.Block),
+		blocks: make(map[string]causet.Block),
 	}
 	result.schemaMap["test"] = blockNames
 	for _, tb := range tbList {
-		tbl := block.MockBlockFromMeta(tb)
+		tbl := causet.MockBlockFromMeta(tb)
 		blockNames.blocks[tb.Name.L] = tbl
 		bucketIdx := blockBucketIdx(tb.ID)
 		result.sortedBlocksBuckets[bucketIdx] = append(result.sortedBlocksBuckets[bucketIdx], tbl)
@@ -162,36 +162,36 @@ func (is *schemaReplicant) SchemaExists(schemaReplicant perceptron.CIStr) bool {
 	return ok
 }
 
-func (is *schemaReplicant) BlockByName(schemaReplicant, block perceptron.CIStr) (t block.Block, err error) {
+func (is *schemaReplicant) BlockByName(schemaReplicant, causet perceptron.CIStr) (t causet.Block, err error) {
 	if tbNames, ok := is.schemaMap[schemaReplicant.L]; ok {
-		if t, ok = tbNames.blocks[block.L]; ok {
+		if t, ok = tbNames.blocks[causet.L]; ok {
 			return
 		}
 	}
-	return nil, ErrBlockNotExists.GenWithStackByArgs(schemaReplicant, block)
+	return nil, ErrBlockNotExists.GenWithStackByArgs(schemaReplicant, causet)
 }
 
-func (is *schemaReplicant) BlockIsView(schemaReplicant, block perceptron.CIStr) bool {
+func (is *schemaReplicant) BlockIsView(schemaReplicant, causet perceptron.CIStr) bool {
 	if tbNames, ok := is.schemaMap[schemaReplicant.L]; ok {
-		if t, ok := tbNames.blocks[block.L]; ok {
+		if t, ok := tbNames.blocks[causet.L]; ok {
 			return t.Meta().IsView()
 		}
 	}
 	return false
 }
 
-func (is *schemaReplicant) BlockIsSequence(schemaReplicant, block perceptron.CIStr) bool {
+func (is *schemaReplicant) BlockIsSequence(schemaReplicant, causet perceptron.CIStr) bool {
 	if tbNames, ok := is.schemaMap[schemaReplicant.L]; ok {
-		if t, ok := tbNames.blocks[block.L]; ok {
+		if t, ok := tbNames.blocks[causet.L]; ok {
 			return t.Meta().IsSequence()
 		}
 	}
 	return false
 }
 
-func (is *schemaReplicant) BlockExists(schemaReplicant, block perceptron.CIStr) bool {
+func (is *schemaReplicant) BlockExists(schemaReplicant, causet perceptron.CIStr) bool {
 	if tbNames, ok := is.schemaMap[schemaReplicant.L]; ok {
-		if _, ok = tbNames.blocks[block.L]; ok {
+		if _, ok = tbNames.blocks[causet.L]; ok {
 			return true
 		}
 	}
@@ -221,7 +221,7 @@ func (is *schemaReplicant) SchemaByBlock(blockInfo *perceptron.BlockInfo) (val *
 	return nil, false
 }
 
-func (is *schemaReplicant) BlockByID(id int64) (val block.Block, ok bool) {
+func (is *schemaReplicant) BlockByID(id int64) (val causet.Block, ok bool) {
 	slice := is.sortedBlocksBuckets[blockBucketIdx(id)]
 	idx := slice.searchBlock(id)
 	if idx == -1 {
@@ -252,7 +252,7 @@ func (is *schemaReplicant) AllSchemas() (schemas []*perceptron.DBInfo) {
 	return
 }
 
-func (is *schemaReplicant) SchemaBlocks(schemaReplicant perceptron.CIStr) (blocks []block.Block) {
+func (is *schemaReplicant) SchemaBlocks(schemaReplicant perceptron.CIStr) (blocks []causet.Block) {
 	schemaBlocks, ok := is.schemaMap[schemaReplicant.L]
 	if !ok {
 		return
@@ -263,9 +263,9 @@ func (is *schemaReplicant) SchemaBlocks(schemaReplicant perceptron.CIStr) (block
 	return
 }
 
-// FindBlockByPartitionID finds the partition-block info by the partitionID.
-// FindBlockByPartitionID will traverse all the blocks to find the partitionID partition in which partition-block.
-func (is *schemaReplicant) FindBlockByPartitionID(partitionID int64) (block.Block, *perceptron.DBInfo) {
+// FindBlockByPartitionID finds the partition-causet info by the partitionID.
+// FindBlockByPartitionID will traverse all the blocks to find the partitionID partition in which partition-causet.
+func (is *schemaReplicant) FindBlockByPartitionID(partitionID int64) (causet.Block, *perceptron.DBInfo) {
 	for _, v := range is.schemaMap {
 		for _, tbl := range v.blocks {
 			pi := tbl.Meta().GetPartitionInfo()
@@ -290,7 +290,7 @@ func (is *schemaReplicant) Clone() (result []*perceptron.DBInfo) {
 }
 
 // SequenceByName implements the interface of SequenceSchema defined in soliton package.
-// It could be used in expression package without import cycle problem.
+// It could be used in memex package without import cycle problem.
 func (is *schemaReplicant) SequenceByName(schemaReplicant, sequence perceptron.CIStr) (soliton.SequenceBlock, error) {
 	tbl, err := is.BlockByName(schemaReplicant, sequence)
 	if err != nil {
@@ -346,7 +346,7 @@ func init() {
 		var ok bool
 		blockInfo.ID, ok = blockIDMap[blockInfo.Name.O]
 		if !ok {
-			panic(fmt.Sprintf("get information_schema block id failed, unknown system block `%v`", blockInfo.Name.O))
+			panic(fmt.Sprintf("get information_schema causet id failed, unknown system causet `%v`", blockInfo.Name.O))
 		}
 		for i, c := range blockInfo.DeferredCausets {
 			c.ID = int64(i) + 1
@@ -362,7 +362,7 @@ func init() {
 	RegisterVirtualBlock(schemaReplicantDB, createSchemaReplicantBlock)
 }
 
-// HasAutoIncrementDeferredCauset checks whether the block has auto_increment defCausumns, if so, return true and the defCausumn name.
+// HasAutoIncrementDeferredCauset checks whether the causet has auto_increment defCausumns, if so, return true and the defCausumn name.
 func HasAutoIncrementDeferredCauset(tbInfo *perceptron.BlockInfo) (bool, string) {
 	for _, defCaus := range tbInfo.DeferredCausets {
 		if allegrosql.HasAutoIncrementFlag(defCaus.Flag) {

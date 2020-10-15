@@ -434,14 +434,14 @@ func init() {
 	}
 }
 
-// SequenceSchema is implemented by schemaReplicant and used by sequence function in expression package.
+// SequenceSchema is implemented by schemaReplicant and used by sequence function in memex package.
 // Otherwise calling information schemaReplicant will cause import cycle problem.
 type SequenceSchema interface {
 	SequenceByName(schemaReplicant, sequence perceptron.CIStr) (SequenceBlock, error)
 }
 
 // SequenceBlock is implemented by blockCommon, and it is specialised in handling sequence operation.
-// Otherwise calling block will cause import cycle problem.
+// Otherwise calling causet will cause import cycle problem.
 type SequenceBlock interface {
 	GetSequenceID() int64
 	GetSequenceNextVal(ctx interface{}, dbName, seqName string) (int64, error)

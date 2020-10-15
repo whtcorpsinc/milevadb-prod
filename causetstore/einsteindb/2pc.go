@@ -258,7 +258,7 @@ func (c *twoPhaseCommitter) initKeysAndMutations() error {
 			} else {
 				if !txn.IsPessimistic() && flags.HasPresumeKeyNotExists() {
 					// delete-your-writes keys in optimistic txn need check not exists in prewrite-phase
-					// due to `Op_CheckNotExists` doesn't prewrite lock, so mark those keys should not be used in commit-phase.
+					// due to `Op_CheckNotExists` doesn't prewrite dagger, so mark those keys should not be used in commit-phase.
 					op = pb.Op_CheckNotExists
 					checkCnt++
 					memBuf.UFIDelateFlags(key, ekv.SetNoNeedCommit)
@@ -297,7 +297,7 @@ func (c *twoPhaseCommitter) initKeysAndMutations() error {
 		blockID := blockcodec.DecodeTableID(mutations.keys[0])
 		logutil.BgLogger().Info("[BIG_TXN]",
 			zap.Uint64("con", c.connID),
-			zap.Int64("block ID", blockID),
+			zap.Int64("causet ID", blockID),
 			zap.Int("size", size),
 			zap.Int("keys", mutations.len()),
 			zap.Int("puts", putCnt),
@@ -367,7 +367,7 @@ func txnLockTTL(startTime time.Time, txnSize int) uint64 {
 	}
 
 	// Increase lockTTL by the transaction's read time.
-	// When resolving a lock, we compare current ts and startTS+lockTTL to decide whether to clean up. If a txn
+	// When resolving a dagger, we compare current ts and startTS+lockTTL to decide whether to clean up. If a txn
 	// takes a long time to read, increasing its TTL will help to prevent it from been aborted soon after prewrite.
 	elapsed := time.Since(startTime) / time.Millisecond
 	return lockTTL + uint64(elapsed)
@@ -548,8 +548,8 @@ func (c *twoPhaseCommitter) doCausetActionOnBatches(bo *Backoffer, action twoPha
 	if rateLim > config.GetGlobalConfig().Performance.CommitterConcurrency {
 		rateLim = config.GetGlobalConfig().Performance.CommitterConcurrency
 	}
-	batchExecutor := newBatchExecutor(rateLim, c, action, bo)
-	err := batchExecutor.process(batches)
+	batchInterlockingDirectorate := newBatchInterlockingDirectorate(rateLim, c, action, bo)
+	err := batchInterlockingDirectorate.process(batches)
 	return errors.Trace(err)
 }
 
@@ -626,7 +626,7 @@ func (tm *ttlManager) keepAlive(c *twoPhaseCommitter) {
 					zap.Uint64("maxTxnTTL", config.GetGlobalConfig().Performance.MaxTxnTTL))
 				metrics.EinsteinDBTTLLifeTimeReachCounter.Inc()
 				// the pessimistic locks may expire if the ttl manager has timed out, set `LockExpired` flag
-				// so that this transaction could only commit or rollback with no more statement executions
+				// so that this transaction could only commit or rollback with no more memex executions
 				if c.isPessimistic && tm.lockCtx != nil && tm.lockCtx.LockExpired != nil {
 					atomic.StoreUint32(tm.lockCtx.LockExpired, 1)
 				}
@@ -944,7 +944,7 @@ func (c *twoPhaseCommitter) stripNoNeedCommitKeys() {
 
 // SchemaVer is the schemaReplicant which will return the schemaReplicant version.
 type SchemaVer interface {
-	// SchemaMetaVersion returns the meta schemaReplicant version.
+	// SchemaMetaVersion returns the spacetime schemaReplicant version.
 	SchemaMetaVersion() int64
 }
 
@@ -1031,7 +1031,7 @@ func (c *twoPhaseCommitter) checkSchemaValid(ctx context.Context, checkTS uint64
 			logutil.Logger(ctx).Info("amend txn successfully for pessimistic commit",
 				zap.Uint64("connID", c.connID), zap.Uint64("txn startTS", c.startTS), zap.Bool("memAmended", memAmended),
 				zap.Uint64("checkTS", checkTS), zap.Int64("startSchemaReplicantVer", startSchemaReplicant.SchemaMetaVersion()),
-				zap.Int64s("block ids", relatedChanges.PhyTblIDS), zap.Uint64s("action types", relatedChanges.CausetActionTypes))
+				zap.Int64s("causet ids", relatedChanges.PhyTblIDS), zap.Uint64s("action types", relatedChanges.CausetActionTypes))
 			return relatedChanges, memAmended, nil
 		}
 		return nil, false, errors.Trace(err)
@@ -1179,8 +1179,8 @@ func (b *batched) forgetPrimary() {
 	b.batches = b.batches[1:]
 }
 
-// batchExecutor is txn controller providing rate control like utils
-type batchExecutor struct {
+// batchInterlockingDirectorate is txn controller providing rate control like utils
+type batchInterlockingDirectorate struct {
 	rateLim           int                  // concurrent worker numbers
 	rateLimiter       *rateLimit           // rate limiter for concurrency control, maybe more strategies
 	committer         *twoPhaseCommitter   // here maybe more different type committer in the future
@@ -1189,31 +1189,31 @@ type batchExecutor struct {
 	tokenWaitDuration time.Duration        // get token wait time
 }
 
-// newBatchExecutor create processor to handle concurrent batch works(prewrite/commit etc)
-func newBatchExecutor(rateLimit int, committer *twoPhaseCommitter,
-	action twoPhaseCommitCausetAction, backoffer *Backoffer) *batchExecutor {
-	return &batchExecutor{rateLimit, nil, committer,
+// newBatchInterlockingDirectorate create processor to handle concurrent batch works(prewrite/commit etc)
+func newBatchInterlockingDirectorate(rateLimit int, committer *twoPhaseCommitter,
+	action twoPhaseCommitCausetAction, backoffer *Backoffer) *batchInterlockingDirectorate {
+	return &batchInterlockingDirectorate{rateLimit, nil, committer,
 		action, backoffer, 1 * time.Millisecond}
 }
 
-// initUtils do initialize batchExecutor related policies like rateLimit soliton
-func (batchExe *batchExecutor) initUtils() error {
+// initUtils do initialize batchInterlockingDirectorate related policies like rateLimit soliton
+func (batchInterDir *batchInterlockingDirectorate) initUtils() error {
 	// init rateLimiter by injected rate limit number
-	batchExe.rateLimiter = newRateLimit(batchExe.rateLim)
+	batchInterDir.rateLimiter = newRateLimit(batchInterDir.rateLim)
 	return nil
 }
 
 // startWork concurrently do the work for each batch considering rate limit
-func (batchExe *batchExecutor) startWorker(exitCh chan struct{}, ch chan error, batches []batchMutations) {
+func (batchInterDir *batchInterlockingDirectorate) startWorker(exitCh chan struct{}, ch chan error, batches []batchMutations) {
 	for idx, batch1 := range batches {
 		waitStart := time.Now()
-		if exit := batchExe.rateLimiter.getToken(exitCh); !exit {
-			batchExe.tokenWaitDuration += time.Since(waitStart)
+		if exit := batchInterDir.rateLimiter.getToken(exitCh); !exit {
+			batchInterDir.tokenWaitDuration += time.Since(waitStart)
 			batch := batch1
 			go func() {
-				defer batchExe.rateLimiter.putToken()
+				defer batchInterDir.rateLimiter.putToken()
 				var singleBatchBackoffer *Backoffer
-				if _, ok := batchExe.action.(actionCommit); ok {
+				if _, ok := batchInterDir.action.(actionCommit); ok {
 					// Because the secondary batches of the commit actions are implemented to be
 					// committed asynchronously in background goroutines, we should not
 					// fork a child context and call cancel() while the foreground goroutine exits.
@@ -1221,16 +1221,16 @@ func (batchExe *batchExecutor) startWorker(exitCh chan struct{}, ch chan error, 
 					// Here we makes a new clone of the original backoffer for this goroutine
 					// exclusively to avoid the data race when using the same backoffer
 					// in concurrent goroutines.
-					singleBatchBackoffer = batchExe.backoffer.Clone()
+					singleBatchBackoffer = batchInterDir.backoffer.Clone()
 				} else {
 					var singleBatchCancel context.CancelFunc
-					singleBatchBackoffer, singleBatchCancel = batchExe.backoffer.Fork()
+					singleBatchBackoffer, singleBatchCancel = batchInterDir.backoffer.Fork()
 					defer singleBatchCancel()
 				}
 				beforeSleep := singleBatchBackoffer.totalSleep
-				ch <- batchExe.action.handleSingleBatch(batchExe.committer, singleBatchBackoffer, batch)
-				commitDetail := batchExe.committer.getDetail()
-				if commitDetail != nil { // lock operations of pessimistic-txn will let commitDetail be nil
+				ch <- batchInterDir.action.handleSingleBatch(batchInterDir.committer, singleBatchBackoffer, batch)
+				commitDetail := batchInterDir.committer.getDetail()
+				if commitDetail != nil { // dagger operations of pessimistic-txn will let commitDetail be nil
 					if delta := singleBatchBackoffer.totalSleep - beforeSleep; delta > 0 {
 						atomic.AddInt64(&commitDetail.CommitBackoffTime, int64(singleBatchBackoffer.totalSleep-beforeSleep)*int64(time.Millisecond))
 						commitDetail.Mu.Lock()
@@ -1240,8 +1240,8 @@ func (batchExe *batchExecutor) startWorker(exitCh chan struct{}, ch chan error, 
 				}
 			}()
 		} else {
-			logutil.Logger(batchExe.backoffer.ctx).Info("break startWorker",
-				zap.Stringer("action", batchExe.action), zap.Int("batch size", len(batches)),
+			logutil.Logger(batchInterDir.backoffer.ctx).Info("break startWorker",
+				zap.Stringer("action", batchInterDir.action), zap.Int("batch size", len(batches)),
 				zap.Int("index", idx))
 			break
 		}
@@ -1249,39 +1249,39 @@ func (batchExe *batchExecutor) startWorker(exitCh chan struct{}, ch chan error, 
 }
 
 // process will start worker routine and collect results
-func (batchExe *batchExecutor) process(batches []batchMutations) error {
+func (batchInterDir *batchInterlockingDirectorate) process(batches []batchMutations) error {
 	var err error
-	err = batchExe.initUtils()
+	err = batchInterDir.initUtils()
 	if err != nil {
-		logutil.Logger(batchExe.backoffer.ctx).Error("batchExecutor initUtils failed", zap.Error(err))
+		logutil.Logger(batchInterDir.backoffer.ctx).Error("batchInterlockingDirectorate initUtils failed", zap.Error(err))
 		return err
 	}
 
 	// For prewrite, stop sending other requests after receiving first error.
-	backoffer := batchExe.backoffer
+	backoffer := batchInterDir.backoffer
 	var cancel context.CancelFunc
-	if _, ok := batchExe.action.(actionPrewrite); ok {
-		backoffer, cancel = batchExe.backoffer.Fork()
+	if _, ok := batchInterDir.action.(actionPrewrite); ok {
+		backoffer, cancel = batchInterDir.backoffer.Fork()
 		defer cancel()
 	}
 	// concurrently do the work for each batch.
 	ch := make(chan error, len(batches))
 	exitCh := make(chan struct{})
-	go batchExe.startWorker(exitCh, ch, batches)
+	go batchInterDir.startWorker(exitCh, ch, batches)
 	// check results
 	for i := 0; i < len(batches); i++ {
 		if e := <-ch; e != nil {
 			logutil.Logger(backoffer.ctx).Debug("2PC doCausetActionOnBatch failed",
-				zap.Uint64("conn", batchExe.committer.connID),
-				zap.Stringer("action type", batchExe.action),
+				zap.Uint64("conn", batchInterDir.committer.connID),
+				zap.Stringer("action type", batchInterDir.action),
 				zap.Error(e),
-				zap.Uint64("txnStartTS", batchExe.committer.startTS))
+				zap.Uint64("txnStartTS", batchInterDir.committer.startTS))
 			// Cancel other requests and return the first error.
 			if cancel != nil {
 				logutil.Logger(backoffer.ctx).Debug("2PC doCausetActionOnBatch to cancel other actions",
-					zap.Uint64("conn", batchExe.committer.connID),
-					zap.Stringer("action type", batchExe.action),
-					zap.Uint64("txnStartTS", batchExe.committer.startTS))
+					zap.Uint64("conn", batchInterDir.committer.connID),
+					zap.Stringer("action type", batchInterDir.action),
+					zap.Uint64("txnStartTS", batchInterDir.committer.startTS))
 				cancel()
 			}
 			if err == nil {
@@ -1290,7 +1290,7 @@ func (batchExe *batchExecutor) process(batches []batchMutations) error {
 		}
 	}
 	close(exitCh)
-	metrics.EinsteinDBTokenWaitDuration.Observe(batchExe.tokenWaitDuration.Seconds())
+	metrics.EinsteinDBTokenWaitDuration.Observe(batchInterDir.tokenWaitDuration.Seconds())
 	return err
 }
 

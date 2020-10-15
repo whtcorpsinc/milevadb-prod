@@ -27,15 +27,15 @@ type IDriver interface {
 	OpenCtx(connID uint64, capability uint32, defCauslation uint8, dbname string, tlsState *tls.ConnectionState) (*MilevaDBContext, error)
 }
 
-// PreparedStatement is the interface to use a prepared statement.
+// PreparedStatement is the interface to use a prepared memex.
 type PreparedStatement interface {
-	// ID returns statement ID
+	// ID returns memex ID
 	ID() int
 
-	// Execute executes the statement.
-	Execute(context.Context, []types.Causet) (ResultSet, error)
+	// InterDircute executes the memex.
+	InterDircute(context.Context, []types.Causet) (ResultSet, error)
 
-	// AppendParam appends parameter to the statement.
+	// AppendParam appends parameter to the memex.
 	AppendParam(paramID int, data []byte) error
 
 	// NumParams returns number of parameters.
@@ -53,13 +53,13 @@ type PreparedStatement interface {
 	// StoreResultSet stores ResultSet for subsequent stmt fetching
 	StoreResultSet(rs ResultSet)
 
-	// GetResultSet gets ResultSet associated this statement
+	// GetResultSet gets ResultSet associated this memex
 	GetResultSet() ResultSet
 
 	// Reset removes all bound parameters.
 	Reset()
 
-	// Close closes the statement.
+	// Close closes the memex.
 	Close() error
 }
 

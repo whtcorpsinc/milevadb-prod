@@ -300,7 +300,7 @@ func SetDBSBinlog(client *pumpcli.PumpsClient, txn ekv.Transaction, jobID int64,
 
 const specialPrefix = `/*T! `
 
-// AddSpecialComment uses to add comment for block option in DBS query.
+// AddSpecialComment uses to add comment for causet option in DBS query.
 // Export for testing.
 func AddSpecialComment(dbsQuery string) string {
 	if strings.Contains(dbsQuery, specialPrefix) || strings.Contains(dbsQuery, driver.SpecialCommentVersionPrefix) {

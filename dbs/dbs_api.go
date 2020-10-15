@@ -38,14 +38,14 @@ import (
 	field_types "github.com/whtcorpsinc/BerolinaSQL/types"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs/memristed"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
@@ -61,7 +61,7 @@ import (
 )
 
 const (
-	expressionIndexPrefix = "_V$"
+	memexIndexPrefix = "_V$"
 	changingDeferredCausetPrefix  = "_DefCaus$_"
 	changingIndexPrefix   = "_Idx$_"
 )
@@ -204,7 +204,7 @@ func (d *dbs) DropSchema(ctx stochastikctx.Context, schemaReplicant perceptron.C
 	if !config.TableLockEnabled() {
 		return nil
 	}
-	// Clear block locks hold by the stochastik.
+	// Clear causet locks hold by the stochastik.
 	tbs := is.SchemaTables(schemaReplicant)
 	lockTableIDs := make([]int64, 0)
 	for _, tb := range tbs {
@@ -223,9 +223,9 @@ func checkTooLongSchema(schemaReplicant perceptron.CIStr) error {
 	return nil
 }
 
-func checkTooLongTable(block perceptron.CIStr) error {
-	if len(block.L) > allegrosql.MaxTableNameLength {
-		return ErrTooLongIdent.GenWithStackByArgs(block)
+func checkTooLongTable(causet perceptron.CIStr) error {
+	if len(causet.L) > allegrosql.MaxTableNameLength {
+		return ErrTooLongIdent.GenWithStackByArgs(causet)
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func checkTooLongIndex(index perceptron.CIStr) error {
 	return nil
 }
 
-func setDeferredCausetFlagWithConstraint(defCausMap map[string]*block.DeferredCauset, v *ast.Constraint) {
+func setDeferredCausetFlagWithConstraint(defCausMap map[string]*causet.DeferredCauset, v *ast.Constraint) {
 	switch v.Tp {
 	case ast.ConstraintPrimaryKey:
 		for _, key := range v.Keys {
@@ -296,9 +296,9 @@ func buildDeferredCausetsAndConstraints(
 	constraints []*ast.Constraint,
 	tblCharset string,
 	tblDefCauslate string,
-) ([]*block.DeferredCauset, []*ast.Constraint, error) {
-	defCausMap := map[string]*block.DeferredCauset{}
-	// outPriKeyConstraint is the primary key constraint out of defCausumn definition. such as: create block t1 (id int , age int, primary key(id));
+) ([]*causet.DeferredCauset, []*ast.Constraint, error) {
+	defCausMap := map[string]*causet.DeferredCauset{}
+	// outPriKeyConstraint is the primary key constraint out of defCausumn definition. such as: create causet t1 (id int , age int, primary key(id));
 	var outPriKeyConstraint *ast.Constraint
 	for _, v := range constraints {
 		if v.Tp == ast.ConstraintPrimaryKey {
@@ -306,7 +306,7 @@ func buildDeferredCausetsAndConstraints(
 			break
 		}
 	}
-	defcaus := make([]*block.DeferredCauset, 0, len(defCausDefs))
+	defcaus := make([]*causet.DeferredCauset, 0, len(defCausDefs))
 	for i, defCausDef := range defCausDefs {
 		defCaus, cts, err := buildDeferredCausetAndConstraint(ctx, i, defCausDef, outPriKeyConstraint, tblCharset, tblDefCauslate)
 		if err != nil {
@@ -317,7 +317,7 @@ func buildDeferredCausetsAndConstraints(
 		defcaus = append(defcaus, defCaus)
 		defCausMap[defCausDef.Name.Name.L] = defCaus
 	}
-	// Traverse block Constraints and set defCaus.flag.
+	// Traverse causet Constraints and set defCaus.flag.
 	for _, v := range constraints {
 		setDeferredCausetFlagWithConstraint(defCausMap, v)
 	}
@@ -386,9 +386,9 @@ func setCharsetDefCauslationFlenDecimal(tp *types.FieldType, defCausCharset, def
 	return nil
 }
 
-// buildDeferredCausetAndConstraint builds block.DeferredCauset and ast.Constraint from the parameters.
+// buildDeferredCausetAndConstraint builds causet.DeferredCauset and ast.Constraint from the parameters.
 // outPriKeyConstraint is the primary key constraint out of defCausumn definition. For example:
-// `create block t1 (id int , age int, primary key(id));`
+// `create causet t1 (id int , age int, primary key(id));`
 func buildDeferredCausetAndConstraint(
 	ctx stochastikctx.Context,
 	offset int,
@@ -396,7 +396,7 @@ func buildDeferredCausetAndConstraint(
 	outPriKeyConstraint *ast.Constraint,
 	tblCharset string,
 	tblDefCauslate string,
-) (*block.DeferredCauset, []*ast.Constraint, error) {
+) (*causet.DeferredCauset, []*ast.Constraint, error) {
 	if defCausName := defCausDef.Name.Name.L; defCausName == perceptron.ExtraHandleName.L {
 		return nil, nil, ErrWrongDeferredCausetName.GenWithStackByArgs(defCausName)
 	}
@@ -428,7 +428,7 @@ func buildDeferredCausetAndConstraint(
 // In non-strict ALLEGROALLEGROSQL mode, if the default value of the defCausumn is an empty string, the default value can be ignored.
 // In strict ALLEGROALLEGROSQL mode, TEXT/BLOB/JSON can't have not null default values.
 // In NO_ZERO_DATE ALLEGROALLEGROSQL mode, TIMESTAMP/DATE/DATETIME type can't have zero date like '0000-00-00' or '0000-00-00 00:00:00'.
-func checkDeferredCausetDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, value interface{}) (bool, interface{}, error) {
+func checkDeferredCausetDefaultValue(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, value interface{}) (bool, interface{}, error) {
 	hasDefaultValue := true
 	if value != nil && (defCaus.Tp == allegrosql.TypeJSON ||
 		defCaus.Tp == allegrosql.TypeTinyBlob || defCaus.Tp == allegrosql.TypeMediumBlob ||
@@ -453,7 +453,7 @@ func checkDeferredCausetDefaultValue(ctx stochastikctx.Context, defCaus *block.D
 	if value != nil && ctx.GetStochastikVars().ALLEGROSQLMode.HasNoZeroDateMode() &&
 		ctx.GetStochastikVars().ALLEGROSQLMode.HasStrictMode() && types.IsTypeTime(defCaus.Tp) {
 		if vv, ok := value.(string); ok {
-			timeValue, err := expression.GetTimeValue(ctx, vv, defCaus.Tp, int8(defCaus.Decimal))
+			timeValue, err := memex.GetTimeValue(ctx, vv, defCaus.Tp, int8(defCaus.Decimal))
 			if err != nil {
 				return hasDefaultValue, value, errors.Trace(err)
 			}
@@ -465,14 +465,14 @@ func checkDeferredCausetDefaultValue(ctx stochastikctx.Context, defCaus *block.D
 	return hasDefaultValue, value, nil
 }
 
-func checkSequenceDefaultValue(defCaus *block.DeferredCauset) error {
+func checkSequenceDefaultValue(defCaus *causet.DeferredCauset) error {
 	if allegrosql.IsIntegerType(defCaus.Tp) {
 		return nil
 	}
 	return ErrDeferredCausetTypeUnsupportedNextValue.GenWithStackByArgs(defCaus.DeferredCausetInfo.Name.O)
 }
 
-func convertTimestamFIDelefaultValToUTC(ctx stochastikctx.Context, defaultVal interface{}, defCaus *block.DeferredCauset) (interface{}, error) {
+func convertTimestamFIDelefaultValToUTC(ctx stochastikctx.Context, defaultVal interface{}, defCaus *causet.DeferredCauset) (interface{}, error) {
 	if defaultVal == nil || defCaus.Tp != allegrosql.TypeTimestamp {
 		return defaultVal, nil
 	}
@@ -500,8 +500,8 @@ func isExplicitTimeStamp() bool {
 	return true
 }
 
-// processDeferredCausetFlags is used by defCausumnDefToDefCaus and processDeferredCausetOptions. It is intended to unify behaviors on `create/add` and `modify/change` statements. Check milevadb#issue#19342.
-func processDeferredCausetFlags(defCaus *block.DeferredCauset) {
+// processDeferredCausetFlags is used by defCausumnDefToDefCaus and processDeferredCausetOptions. It is intended to unify behaviors on `create/add` and `modify/change` memexs. Check milevadb#issue#19342.
+func processDeferredCausetFlags(defCaus *causet.DeferredCauset) {
 	if defCaus.FieldType.EvalType().IsStringHoTT() && defCaus.Charset == charset.CharsetBin {
 		defCaus.Flag |= allegrosql.BinaryFlag
 	}
@@ -518,17 +518,17 @@ func processDeferredCausetFlags(defCaus *block.DeferredCauset) {
 
 	// If you specify ZEROFILL for a numeric defCausumn, MyALLEGROSQL automatically adds the UNSIGNED attribute to the defCausumn.
 	// See https://dev.allegrosql.com/doc/refman/5.7/en/numeric-type-overview.html for more details.
-	// But some types like bit and year, won't show its unsigned flag in `show create block`.
+	// But some types like bit and year, won't show its unsigned flag in `show create causet`.
 	if allegrosql.HasZerofillFlag(defCaus.Flag) {
 		defCaus.Flag |= allegrosql.UnsignedFlag
 	}
 }
 
 // defCausumnDefToDefCaus converts DeferredCausetDef to DefCaus and TableConstraints.
-// outPriKeyConstraint is the primary key constraint out of defCausumn definition. such as: create block t1 (id int , age int, primary key(id));
-func defCausumnDefToDefCaus(ctx stochastikctx.Context, offset int, defCausDef *ast.DeferredCausetDef, outPriKeyConstraint *ast.Constraint) (*block.DeferredCauset, []*ast.Constraint, error) {
+// outPriKeyConstraint is the primary key constraint out of defCausumn definition. such as: create causet t1 (id int , age int, primary key(id));
+func defCausumnDefToDefCaus(ctx stochastikctx.Context, offset int, defCausDef *ast.DeferredCausetDef, outPriKeyConstraint *ast.Constraint) (*causet.DeferredCauset, []*ast.Constraint, error) {
 	var constraints = make([]*ast.Constraint, 0)
-	defCaus := block.ToDeferredCauset(&perceptron.DeferredCausetInfo{
+	defCaus := causet.ToDeferredCauset(&perceptron.DeferredCausetInfo{
 		Offset:    offset,
 		Name:      defCausDef.Name.Name,
 		FieldType: *defCausDef.Tp,
@@ -596,7 +596,7 @@ func defCausumnDefToDefCaus(ctx stochastikctx.Context, offset int, defCausDef *a
 			case ast.DeferredCausetOptionOnUFIDelate:
 				// TODO: Support other time functions.
 				if defCaus.Tp == allegrosql.TypeTimestamp || defCaus.Tp == allegrosql.TypeDatetime {
-					if !expression.IsValidCurrentTimestampExpr(v.Expr, defCausDef.Tp) {
+					if !memex.IsValidCurrentTimestampExpr(v.Expr, defCausDef.Tp) {
 						return nil, nil, ErrInvalidOnUFIDelate.GenWithStackByArgs(defCaus.Name)
 					}
 				} else {
@@ -657,7 +657,7 @@ func defCausumnDefToDefCaus(ctx stochastikctx.Context, offset int, defCausDef *a
 // getDefaultValue will get the default value for defCausumn.
 // 1: get the expr restored string for the defCausumn which uses sequence next value as default value.
 // 2: get specific default value for the other defCausumn.
-func getDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, c *ast.DeferredCausetOption) (interface{}, bool, error) {
+func getDefaultValue(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, c *ast.DeferredCausetOption) (interface{}, bool, error) {
 	tp, fsp := defCaus.FieldType.Tp, defCaus.FieldType.Decimal
 	if tp == allegrosql.TypeTimestamp || tp == allegrosql.TypeDatetime {
 		switch x := c.Expr.(type) {
@@ -674,7 +674,7 @@ func getDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, c
 				}
 			}
 		}
-		vd, err := expression.GetTimeValue(ctx, c.Expr, tp, int8(fsp))
+		vd, err := memex.GetTimeValue(ctx, c.Expr, tp, int8(fsp))
 		value := vd.GetValue()
 		if err != nil {
 			return nil, false, ErrInvalidDefaultValue.GenWithStackByArgs(defCaus.Name.O)
@@ -702,7 +702,7 @@ func getDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, c
 	}
 
 	// evaluate the non-sequence expr to a certain value.
-	v, err := expression.EvalAstExpr(ctx, c.Expr)
+	v, err := memex.EvalAstExpr(ctx, c.Expr)
 	if err != nil {
 		return nil, false, errors.Trace(err)
 	}
@@ -762,7 +762,7 @@ func tryToGetSequenceDefaultValue(c *ast.DeferredCausetOption) (expr string, isE
 }
 
 // setSetDefaultValue sets the default value for the set type. See https://dev.allegrosql.com/doc/refman/5.7/en/set.html.
-func setSetDefaultValue(v types.Causet, defCaus *block.DeferredCauset) (string, error) {
+func setSetDefaultValue(v types.Causet, defCaus *causet.DeferredCauset) (string, error) {
 	if v.HoTT() == types.HoTTInt64 {
 		setCnt := len(defCaus.Elems)
 		maxLimit := int64(1<<uint(setCnt) - 1)
@@ -814,7 +814,7 @@ func setSetDefaultValue(v types.Causet, defCaus *block.DeferredCauset) (string, 
 	return v.ToString()
 }
 
-func removeOnUFIDelateNowFlag(c *block.DeferredCauset) {
+func removeOnUFIDelateNowFlag(c *causet.DeferredCauset) {
 	// For timestamp DefCaus, if it is set null or default value,
 	// OnUFIDelateNowFlag should be removed.
 	if allegrosql.HasTimestampFlag(c.Flag) {
@@ -822,7 +822,7 @@ func removeOnUFIDelateNowFlag(c *block.DeferredCauset) {
 	}
 }
 
-func processDefaultValue(c *block.DeferredCauset, hasDefaultValue bool, setOnUFIDelateNow bool) {
+func processDefaultValue(c *causet.DeferredCauset, hasDefaultValue bool, setOnUFIDelateNow bool) {
 	setTimestamFIDelefaultValue(c, hasDefaultValue, setOnUFIDelateNow)
 
 	setYearDefaultValue(c, hasDefaultValue)
@@ -832,7 +832,7 @@ func processDefaultValue(c *block.DeferredCauset, hasDefaultValue bool, setOnUFI
 	setNoDefaultValueFlag(c, hasDefaultValue)
 }
 
-func setYearDefaultValue(c *block.DeferredCauset, hasDefaultValue bool) {
+func setYearDefaultValue(c *causet.DeferredCauset, hasDefaultValue bool) {
 	if hasDefaultValue {
 		return
 	}
@@ -844,7 +844,7 @@ func setYearDefaultValue(c *block.DeferredCauset, hasDefaultValue bool) {
 	}
 }
 
-func setTimestamFIDelefaultValue(c *block.DeferredCauset, hasDefaultValue bool, setOnUFIDelateNow bool) {
+func setTimestamFIDelefaultValue(c *causet.DeferredCauset, hasDefaultValue bool, setOnUFIDelateNow bool) {
 	if hasDefaultValue {
 		return
 	}
@@ -863,7 +863,7 @@ func setTimestamFIDelefaultValue(c *block.DeferredCauset, hasDefaultValue bool, 
 	}
 }
 
-func setNoDefaultValueFlag(c *block.DeferredCauset, hasDefaultValue bool) {
+func setNoDefaultValueFlag(c *causet.DeferredCauset, hasDefaultValue bool) {
 	if hasDefaultValue {
 		return
 	}
@@ -878,7 +878,7 @@ func setNoDefaultValueFlag(c *block.DeferredCauset, hasDefaultValue bool) {
 	}
 }
 
-func checkDefaultValue(ctx stochastikctx.Context, c *block.DeferredCauset, hasDefaultValue bool) error {
+func checkDefaultValue(ctx stochastikctx.Context, c *causet.DeferredCauset, hasDefaultValue bool) error {
 	if !hasDefaultValue {
 		return nil
 	}
@@ -887,7 +887,7 @@ func checkDefaultValue(ctx stochastikctx.Context, c *block.DeferredCauset, hasDe
 		if c.DefaultIsExpr {
 			return nil
 		}
-		if _, err := block.GetDefCausDefaultValue(ctx, c.ToInfo()); err != nil {
+		if _, err := causet.GetDefCausDefaultValue(ctx, c.ToInfo()); err != nil {
 			return types.ErrInvalidDefault.GenWithStackByArgs(c.Name)
 		}
 		return nil
@@ -906,13 +906,13 @@ func checkDefaultValue(ctx stochastikctx.Context, c *block.DeferredCauset, hasDe
 }
 
 // checkPriKeyConstraint check all parts of a PRIMARY KEY must be NOT NULL
-func checkPriKeyConstraint(defCaus *block.DeferredCauset, hasDefaultValue, hasNullFlag bool, outPriKeyConstraint *ast.Constraint) error {
+func checkPriKeyConstraint(defCaus *causet.DeferredCauset, hasDefaultValue, hasNullFlag bool, outPriKeyConstraint *ast.Constraint) error {
 	// Primary key should not be null.
 	if allegrosql.HasPriKeyFlag(defCaus.Flag) && hasDefaultValue && defCaus.GetDefaultValue() == nil {
 		return types.ErrInvalidDefault.GenWithStackByArgs(defCaus.Name)
 	}
 	// Set primary key flag for outer primary key constraint.
-	// Such as: create block t1 (id int , age int, primary key(id))
+	// Such as: create causet t1 (id int , age int, primary key(id))
 	if !allegrosql.HasPriKeyFlag(defCaus.Flag) && outPriKeyConstraint != nil {
 		for _, key := range outPriKeyConstraint.Keys {
 			if key.Expr == nil && key.DeferredCauset.Name.L != defCaus.Name.L {
@@ -929,7 +929,7 @@ func checkPriKeyConstraint(defCaus *block.DeferredCauset, hasDefaultValue, hasNu
 	return nil
 }
 
-func checkDeferredCausetValueConstraint(defCaus *block.DeferredCauset, defCauslation string) error {
+func checkDeferredCausetValueConstraint(defCaus *causet.DeferredCauset, defCauslation string) error {
 	if defCaus.Tp != allegrosql.TypeEnum && defCaus.Tp != allegrosql.TypeSet {
 		return nil
 	}
@@ -1050,7 +1050,7 @@ func checkDeferredCausetsAttributes(defCausDefs []*perceptron.DeferredCausetInfo
 	return nil
 }
 
-func checkDeferredCausetFieldLength(defCaus *block.DeferredCauset) error {
+func checkDeferredCausetFieldLength(defCaus *causet.DeferredCauset) error {
 	if defCaus.Tp == allegrosql.TypeVarchar {
 		if err := IsTooBigFieldLength(defCaus.Flen, defCaus.Name.O, defCaus.Charset); err != nil {
 			return errors.Trace(err)
@@ -1109,7 +1109,7 @@ func setEmptyConstraintName(namesMap map[string]bool, constr *ast.Constraint, fo
 		var defCausName string
 		for _, keyPart := range constr.Keys {
 			if keyPart.Expr != nil {
-				defCausName = "expression_index"
+				defCausName = "memex_index"
 			}
 		}
 		if defCausName == "" {
@@ -1167,9 +1167,9 @@ func checkConstraintNames(constraints []*ast.Constraint) error {
 }
 
 // checkInvisibleIndexOnPK check if primary key is invisible index.
-// Note: PKIsHandle == true means the block already has a visible primary key,
+// Note: PKIsHandle == true means the causet already has a visible primary key,
 // we do not need do a check for this case and return directly,
-// because whether primary key is invisible has been check when creating block.
+// because whether primary key is invisible has been check when creating causet.
 func checkInvisibleIndexOnPK(tblInfo *perceptron.TableInfo) error {
 	if tblInfo.PKIsHandle {
 		return nil
@@ -1181,9 +1181,9 @@ func checkInvisibleIndexOnPK(tblInfo *perceptron.TableInfo) error {
 	return nil
 }
 
-// getPrimaryKey extract the primary key in a block and return `IndexInfo`
+// getPrimaryKey extract the primary key in a causet and return `IndexInfo`
 // The returned primary key could be explicit or implicit.
-// If there is no explicit primary key in block,
+// If there is no explicit primary key in causet,
 // the first UNIQUE INDEX on NOT NULL defCausumns will be the implicit primary key.
 // For more information about implicit primary key, see
 // https://dev.allegrosql.com/doc/refman/8.0/en/invisible-indexes.html
@@ -1192,7 +1192,7 @@ func getPrimaryKey(tblInfo *perceptron.TableInfo) *perceptron.IndexInfo {
 
 	for _, key := range tblInfo.Indices {
 		if key.Primary {
-			// block has explicit primary key
+			// causet has explicit primary key
 			return key
 		}
 		// The case index without any defCausumns should never happen, but still do a check here
@@ -1207,7 +1207,7 @@ func getPrimaryKey(tblInfo *perceptron.TableInfo) *perceptron.IndexInfo {
 			for _, idxDefCaus := range key.DeferredCausets {
 				defCaus := perceptron.FindDeferredCausetInfo(tblInfo.DefCauss(), idxDefCaus.Name.L)
 				// This index has a defCausumn in DeleteOnly state,
-				// or it is expression index (it defined on a hidden defCausumn),
+				// or it is memex index (it defined on a hidden defCausumn),
 				// it can not be implicit PK, go to next index iterator
 				if defCaus == nil || defCaus.Hidden {
 					skip = true
@@ -1291,7 +1291,7 @@ func convertAutoRandomBitsToUnsigned(autoRandomBits int) (uint64, error) {
 func buildTableInfo(
 	ctx stochastikctx.Context,
 	blockName perceptron.CIStr,
-	defcaus []*block.DeferredCauset,
+	defcaus []*causet.DeferredCauset,
 	constraints []*ast.Constraint,
 	charset string,
 	defCauslate string) (tbInfo *perceptron.TableInfo, err error) {
@@ -1301,11 +1301,11 @@ func buildTableInfo(
 		Charset: charset,
 		DefCauslate: defCauslate,
 	}
-	tblDeferredCausets := make([]*block.DeferredCauset, 0, len(defcaus))
+	tblDeferredCausets := make([]*causet.DeferredCauset, 0, len(defcaus))
 	for _, v := range defcaus {
 		v.ID = allocateDeferredCausetID(tbInfo)
 		tbInfo.DeferredCausets = append(tbInfo.DeferredCausets, v.ToInfo())
-		tblDeferredCausets = append(tblDeferredCausets, block.ToDeferredCauset(v.ToInfo()))
+		tblDeferredCausets = append(tblDeferredCausets, causet.ToDeferredCauset(v.ToInfo()))
 	}
 	for _, constr := range constraints {
 		// Build hidden defCausumns if necessary.
@@ -1318,7 +1318,7 @@ func buildTableInfo(
 			hiddenDefCaus.ID = allocateDeferredCausetID(tbInfo)
 			hiddenDefCaus.Offset = len(tbInfo.DeferredCausets)
 			tbInfo.DeferredCausets = append(tbInfo.DeferredCausets, hiddenDefCaus)
-			tblDeferredCausets = append(tblDeferredCausets, block.ToDeferredCauset(hiddenDefCaus))
+			tblDeferredCausets = append(tblDeferredCausets, causet.ToDeferredCauset(hiddenDefCaus))
 		}
 		if constr.Tp == ast.ConstraintForeignKey {
 			for _, fk := range tbInfo.ForeignKeys {
@@ -1420,7 +1420,7 @@ func isSingleIntPK(constr *ast.Constraint, lastDefCaus *perceptron.DeferredCause
 }
 
 // checkTableInfoValidExtra is like checkTableInfoValid, but also assumes the
-// block info comes from untrusted source and performs further checks such as
+// causet info comes from untrusted source and performs further checks such as
 // name length and defCausumn count.
 // (checkTableInfoValid is also used in repairing objects which don't perform
 // these checks. Perhaps the two functions should be merged together regardless?)
@@ -1455,7 +1455,7 @@ func checkTableInfoValidExtra(tbInfo *perceptron.TableInfo) error {
 }
 
 func checkTableInfoValidWithStmt(ctx stochastikctx.Context, tbInfo *perceptron.TableInfo, s *ast.CreateTableStmt) error {
-	// All of these rely on the AST structure of expressions, which were
+	// All of these rely on the AST structure of memexs, which were
 	// lost in the perceptron (got serialized into strings).
 	if err := checkGeneratedDeferredCauset(s.DefCauss); err != nil {
 		return errors.Trace(err)
@@ -1486,7 +1486,7 @@ func checkTableInfoValidWithStmt(ctx stochastikctx.Context, tbInfo *perceptron.T
 	return nil
 }
 
-// checkTableInfoValid uses to check block info valid. This is used to validate block info.
+// checkTableInfoValid uses to check causet info valid. This is used to validate causet info.
 func checkTableInfoValid(tblInfo *perceptron.TableInfo) error {
 	_, err := blocks.TableFromMeta(nil, tblInfo)
 	if err != nil {
@@ -1496,7 +1496,7 @@ func checkTableInfoValid(tblInfo *perceptron.TableInfo) error {
 }
 
 func buildTableInfoWithLike(ident ast.Ident, referTblInfo *perceptron.TableInfo) (*perceptron.TableInfo, error) {
-	// Check the referred block is a real block object.
+	// Check the referred causet is a real causet object.
 	if referTblInfo.IsSequence() || referTblInfo.IsView() {
 		return nil, ErrWrongObject.GenWithStackByArgs(ident.Schema, referTblInfo.Name, "BASE TABLE")
 	}
@@ -1530,13 +1530,13 @@ func buildTableInfoWithLike(ident ast.Ident, referTblInfo *perceptron.TableInfo)
 	return &tblInfo, nil
 }
 
-// BuildTableInfoFromAST builds perceptron.TableInfo from a ALLEGROALLEGROSQL statement.
+// BuildTableInfoFromAST builds perceptron.TableInfo from a ALLEGROALLEGROSQL memex.
 // Note: TableID and PartitionID are left as uninitialized value.
 func BuildTableInfoFromAST(s *ast.CreateTableStmt) (*perceptron.TableInfo, error) {
 	return buildTableInfoWithCheck(mock.NewContext(), s, allegrosql.DefaultCharset, "")
 }
 
-// buildTableInfoWithCheck builds perceptron.TableInfo from a ALLEGROALLEGROSQL statement.
+// buildTableInfoWithCheck builds perceptron.TableInfo from a ALLEGROALLEGROSQL memex.
 // Note: TableID and PartitionIDs are left as uninitialized value.
 func buildTableInfoWithCheck(ctx stochastikctx.Context, s *ast.CreateTableStmt, dbCharset, dbDefCauslate string) (*perceptron.TableInfo, error) {
 	tbInfo, err := buildTableInfoWithStmt(ctx, s, dbCharset, dbDefCauslate)
@@ -1544,7 +1544,7 @@ func buildTableInfoWithCheck(ctx stochastikctx.Context, s *ast.CreateTableStmt, 
 		return nil, err
 	}
 	// Fix issue 17952 which will cause partition range expr can't be parsed as Int.
-	// checkTableInfoValidWithStmt will do the constant fold the partition expression first,
+	// checkTableInfoValidWithStmt will do the constant fold the partition memex first,
 	// then checkTableInfoValidExtra will pass the blockInfo check successfully.
 	if err = checkTableInfoValidWithStmt(ctx, tbInfo, s); err != nil {
 		return nil, err
@@ -1555,7 +1555,7 @@ func buildTableInfoWithCheck(ctx stochastikctx.Context, s *ast.CreateTableStmt, 
 	return tbInfo, nil
 }
 
-// buildTableInfoWithStmt builds perceptron.TableInfo from a ALLEGROALLEGROSQL statement without validity check
+// buildTableInfoWithStmt builds perceptron.TableInfo from a ALLEGROALLEGROSQL memex without validity check
 func buildTableInfoWithStmt(ctx stochastikctx.Context, s *ast.CreateTableStmt, dbCharset, dbDefCauslate string) (*perceptron.TableInfo, error) {
 	defCausDefs := s.DefCauss
 	blockCharset, blockDefCauslate, err := getCharsetAndDefCauslateInTableOption(0, s.Options)
@@ -1633,7 +1633,7 @@ func (d *dbs) CreateTable(ctx stochastikctx.Context, s *ast.CreateTableStmt) (er
 		return schemareplicant.ErrDatabaseNotExists.GenWithStackByArgs(ident.Schema)
 	}
 
-	var referTbl block.Block
+	var referTbl causet.Block
 	if s.ReferTable != nil {
 		referIdent := ast.Ident{Schema: s.ReferTable.Schema, Name: s.ReferTable.Name}
 		_, ok := is.SchemaByName(referIdent.Schema)
@@ -1740,7 +1740,7 @@ func (d *dbs) CreateTableWithInfo(
 
 	err = d.doDBSJob(ctx, job)
 	if err != nil {
-		// block exists, but if_not_exists flags is true, so we ignore this error.
+		// causet exists, but if_not_exists flags is true, so we ignore this error.
 		if onExist == OnExistIgnore && schemareplicant.ErrTableExists.Equal(err) {
 			ctx.GetStochastikVars().StmtCtx.AppendNote(err)
 			err = nil
@@ -1767,7 +1767,7 @@ func (d *dbs) CreateTableWithInfo(
 	return errors.Trace(err)
 }
 
-// preSplitAndScatter performs pre-split and scatter of the block's regions.
+// preSplitAndScatter performs pre-split and scatter of the causet's regions.
 // If `pi` is not nil, will only split region for `pi`, this is used when add partition.
 func (d *dbs) preSplitAndScatter(ctx stochastikctx.Context, tbInfo *perceptron.TableInfo, pi *perceptron.PartitionInfo) {
 	sp, ok := d.causetstore.(ekv.SplitblockStore)
@@ -1806,7 +1806,7 @@ func (d *dbs) RecoverTable(ctx stochastikctx.Context, recoverInfo *RecoverInfo) 
 			fmt.Sprintf("(Schema ID %d)", schemaID),
 		))
 	}
-	// Check not exist block with same name.
+	// Check not exist causet with same name.
 	if ok := is.TableExists(schemaReplicant.Name, tbInfo.Name); ok {
 		return schemareplicant.ErrTableExists.GenWithStackByArgs(tbInfo.Name)
 	}
@@ -1832,9 +1832,9 @@ func (d *dbs) CreateView(ctx stochastikctx.Context, s *ast.CreateViewStmt) (err 
 		return err
 	}
 
-	defcaus := make([]*block.DeferredCauset, len(s.DefCauss))
+	defcaus := make([]*causet.DeferredCauset, len(s.DefCauss))
 	for i, v := range s.DefCauss {
-		defcaus[i] = block.ToDeferredCauset(&perceptron.DeferredCausetInfo{
+		defcaus[i] = causet.ToDeferredCauset(&perceptron.DeferredCausetInfo{
 			Name:   v,
 			ID:     int64(i),
 			Offset: i,
@@ -1866,7 +1866,7 @@ func (d *dbs) CreateView(ctx stochastikctx.Context, s *ast.CreateViewStmt) (err 
 }
 
 func buildViewInfo(ctx stochastikctx.Context, s *ast.CreateViewStmt) (*perceptron.ViewInfo, error) {
-	// Always Use `format.RestoreNameBackQuotes` to restore `SELECT` statement despite the `ANSI_QUOTES` ALLEGROALLEGROSQL Mode is enabled or not.
+	// Always Use `format.RestoreNameBackQuotes` to restore `SELECT` memex despite the `ANSI_QUOTES` ALLEGROALLEGROSQL Mode is enabled or not.
 	restoreFlag := format.RestoreStringSingleQuotes | format.RestoreKeyWordUppercase | format.RestoreNameBackQuotes
 	var sb strings.Builder
 	if err := s.Select.Restore(format.NewRestoreCtx(restoreFlag, &sb)); err != nil {
@@ -2024,7 +2024,7 @@ func checkTwoRangeDeferredCausets(ctx stochastikctx.Context, curr, prev *percept
 }
 
 func parseAndEvalBoolExpr(ctx stochastikctx.Context, expr string, tbInfo *perceptron.TableInfo) (bool, error) {
-	e, err := expression.ParseSimpleExprWithTableInfo(ctx, expr, tbInfo)
+	e, err := memex.ParseSimpleExprWithTableInfo(ctx, expr, tbInfo)
 	if err != nil {
 		return false, err
 	}
@@ -2047,7 +2047,7 @@ func checkCharsetAndDefCauslation(cs string, co string) error {
 	return nil
 }
 
-// handleAutoIncID handles auto_increment option in DBS. It creates a ID counter for the block and initiates the counter to a proper value.
+// handleAutoIncID handles auto_increment option in DBS. It creates a ID counter for the causet and initiates the counter to a proper value.
 // For example if the option sets auto_increment to 10. The counter will be set to 9. So the next allocated ID will be 10.
 func (d *dbs) handleAutoIncID(tbInfo *perceptron.TableInfo, schemaID int64, newEnd int64, tp autoid.SlabPredictorType) error {
 	allocs := autoid.NewSlabPredictorsFromTblInfo(d.causetstore, schemaID, tbInfo)
@@ -2060,7 +2060,7 @@ func (d *dbs) handleAutoIncID(tbInfo *perceptron.TableInfo, schemaID int64, newE
 	return nil
 }
 
-// handleTableOptions uFIDelates blockInfo according to block options.
+// handleTableOptions uFIDelates blockInfo according to causet options.
 func handleTableOptions(options []*ast.TableOption, tbInfo *perceptron.TableInfo) error {
 	for _, op := range options {
 		switch op.Tp {
@@ -2069,7 +2069,7 @@ func handleTableOptions(options []*ast.TableOption, tbInfo *perceptron.TableInfo
 		case ast.TableOptionAutoIdCache:
 			if op.UintValue > uint64(math.MaxInt64) {
 				// TODO: Refine this error.
-				return errors.New("block option auto_id_cache overflows int64")
+				return errors.New("causet option auto_id_cache overflows int64")
 			}
 			tbInfo.AutoIdCache = int64(op.UintValue)
 		case ast.TableOptionAutoRandomBase:
@@ -2139,7 +2139,7 @@ func getCharsetAndDefCauslateInDeferredCausetDef(def *ast.DeferredCausetDef) (ch
 func getCharsetAndDefCauslateInTableOption(startIdx int, options []*ast.TableOption) (chs, defCausl string, err error) {
 	for i := startIdx; i < len(options); i++ {
 		opt := options[i]
-		// we set the charset to the last option. example: alter block t charset latin1 charset utf8 defCauslate utf8_bin;
+		// we set the charset to the last option. example: alter causet t charset latin1 charset utf8 defCauslate utf8_bin;
 		// the charset will be utf8, defCauslate will be utf8_bin
 		switch opt.Tp {
 		case ast.TableOptionCharset:
@@ -2183,7 +2183,7 @@ func needToOverwriteDefCausCharset(options []*ast.TableOption) bool {
 	return false
 }
 
-// resolveAlterTableSpec resolves alter block algorithm and removes ignore block spec in specs.
+// resolveAlterTableSpec resolves alter causet algorithm and removes ignore causet spec in specs.
 // returns valied specs, and the occurred error.
 func resolveAlterTableSpec(ctx stochastikctx.Context, specs []*ast.AlterTableSpec) ([]*ast.AlterTableSpec, error) {
 	validSpecs := make([]*ast.AlterTableSpec, 0, len(specs))
@@ -2337,7 +2337,7 @@ func (d *dbs) AlterTable(ctx stochastikctx.Context, ident ast.Ident, specs []*as
 			err = d.AlterTablePartition(ctx, ident, spec)
 		case ast.AlterTablePartition:
 			// Prevent silent succeed if user executes ALTER TABLE x PARTITION BY ...
-			err = errors.New("alter block partition is unsupported")
+			err = errors.New("alter causet partition is unsupported")
 		case ast.AlterTableOption:
 			for i, opt := range spec.Options {
 				switch opt.Tp {
@@ -2351,7 +2351,7 @@ func (d *dbs) AlterTable(ctx stochastikctx.Context, ident ast.Ident, specs []*as
 				case ast.TableOptionAutoIdCache:
 					if opt.UintValue > uint64(math.MaxInt64) {
 						// TODO: Refine this error.
-						return errors.New("block option auto_id_cache overflows int64")
+						return errors.New("causet option auto_id_cache overflows int64")
 					}
 					err = d.AlterTableAutoIDCache(ctx, ident, int64(opt.UintValue))
 				case ast.TableOptionAutoRandomBase:
@@ -2441,7 +2441,7 @@ func (d *dbs) RebaseAutoID(ctx stochastikctx.Context, ident ast.Ident, newBase i
 		}
 		// If newBase < autoID, we need to do a rebase before returning.
 		// Assume there are 2 MilevaDB servers: MilevaDB-A with allocator range of 0 ~ 30000; MilevaDB-B with allocator range of 30001 ~ 60000.
-		// If the user sends ALLEGROALLEGROSQL `alter block t1 auto_increment = 100` to MilevaDB-B,
+		// If the user sends ALLEGROALLEGROSQL `alter causet t1 auto_increment = 100` to MilevaDB-B,
 		// and MilevaDB-B finds 100 < 30001 but returns without any handling,
 		// then MilevaDB-A may still allocate 99 for auto_increment defCausumn. This doesn't make sense for the user.
 		newBase = int64(mathutil.MaxUint64(uint64(newBase), uint64(autoID)))
@@ -2489,7 +2489,7 @@ func (d *dbs) ShardRowID(ctx stochastikctx.Context, blockIdent ast.Ident, uVal u
 	return errors.Trace(err)
 }
 
-func (d *dbs) getSchemaAndTableByIdent(ctx stochastikctx.Context, blockIdent ast.Ident) (dbInfo *perceptron.DBInfo, t block.Block, err error) {
+func (d *dbs) getSchemaAndTableByIdent(ctx stochastikctx.Context, blockIdent ast.Ident) (dbInfo *perceptron.DBInfo, t causet.Block, err error) {
 	is := d.GetSchemaReplicantWithInterceptor(ctx)
 	schemaReplicant, ok := is.SchemaByName(blockIdent.Schema)
 	if !ok {
@@ -2520,7 +2520,7 @@ func checkUnsupportedDeferredCausetConstraint(defCaus *ast.DeferredCausetDef, ti
 	return nil
 }
 
-func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, schemaReplicant *perceptron.DBInfo, spec *ast.AlterTableSpec, t block.Block, specNewDeferredCauset *ast.DeferredCausetDef) (*block.DeferredCauset, error) {
+func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, schemaReplicant *perceptron.DBInfo, spec *ast.AlterTableSpec, t causet.Block, specNewDeferredCauset *ast.DeferredCausetDef) (*causet.DeferredCauset, error) {
 	err := checkUnsupportedDeferredCausetConstraint(specNewDeferredCauset, ti)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -2528,7 +2528,7 @@ func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, sc
 
 	defCausName := specNewDeferredCauset.Name.Name.O
 	// Check whether added defCausumn has existed.
-	defCaus := block.FindDefCaus(t.DefCauss(), defCausName)
+	defCaus := causet.FindDefCaus(t.DefCauss(), defCausName)
 	if defCaus != nil {
 		err = schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs(defCausName)
 		if spec.IfNotExists {
@@ -2546,7 +2546,7 @@ func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, sc
 
 	// If new defCausumn is a generated defCausumn, do validation.
 	// NOTE: we do check whether the defCausumn refers other generated
-	// defCausumns occurring later in a block, but we don't handle the defCaus offset.
+	// defCausumns occurring later in a causet, but we don't handle the defCaus offset.
 	for _, option := range specNewDeferredCauset.Options {
 		if option.Tp == ast.DeferredCausetOptionGenerated {
 			if err := checkIllegalFn4GeneratedDeferredCauset(specNewDeferredCauset.Name.Name.L, option.Expr); err != nil {
@@ -2597,7 +2597,7 @@ func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, sc
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	// Ignore block constraints now, they will be checked later.
+	// Ignore causet constraints now, they will be checked later.
 	// We use length(t.DefCauss()) as the default offset firstly, we will change the defCausumn's offset later.
 	defCaus, _, err = buildDeferredCausetAndConstraint(
 		ctx,
@@ -2618,7 +2618,7 @@ func checkAndCreateNewDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, sc
 	return defCaus, nil
 }
 
-// AddDeferredCauset will add a new defCausumn to the block.
+// AddDeferredCauset will add a new defCausumn to the causet.
 func (d *dbs) AddDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, spec *ast.AlterTableSpec) error {
 	specNewDeferredCauset := spec.NewDeferredCausets[0]
 	schemaReplicant, t, err := d.getSchemaAndTableByIdent(ctx, ti)
@@ -2656,7 +2656,7 @@ func (d *dbs) AddDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, spec *a
 	return errors.Trace(err)
 }
 
-// AddDeferredCausets will add multi new defCausumns to the block.
+// AddDeferredCausets will add multi new defCausumns to the causet.
 func (d *dbs) AddDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs []*ast.AlterTableSpec) error {
 	schemaReplicant, t, err := d.getSchemaAndTableByIdent(ctx, ti)
 	if err != nil {
@@ -2678,7 +2678,7 @@ func (d *dbs) AddDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs 
 			dupDeferredCausetNames[specNewDeferredCauset.Name.Name.L] = true
 		}
 	}
-	defCausumns := make([]*block.DeferredCauset, 0, len(addingDeferredCausetNames))
+	defCausumns := make([]*causet.DeferredCauset, 0, len(addingDeferredCausetNames))
 	positions := make([]*ast.DeferredCausetPosition, 0, len(addingDeferredCausetNames))
 	offsets := make([]int, 0, len(addingDeferredCausetNames))
 	ifNotExists := make([]bool, 0, len(addingDeferredCausetNames))
@@ -2730,7 +2730,7 @@ func (d *dbs) AddDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs 
 	return errors.Trace(err)
 }
 
-// AddTablePartitions will add a new partition to the block.
+// AddTablePartitions will add a new partition to the causet.
 func (d *dbs) AddTablePartitions(ctx stochastikctx.Context, ident ast.Ident, spec *ast.AlterTableSpec) error {
 	is := d.infoHandle.Get()
 	schemaReplicant, ok := is.SchemaByName(ident.Schema)
@@ -2742,13 +2742,13 @@ func (d *dbs) AddTablePartitions(ctx stochastikctx.Context, ident ast.Ident, spe
 		return errors.Trace(schemareplicant.ErrTableNotExists.GenWithStackByArgs(ident.Schema, ident.Name))
 	}
 
-	meta := t.Meta()
-	pi := meta.GetPartitionInfo()
+	spacetime := t.Meta()
+	pi := spacetime.GetPartitionInfo()
 	if pi == nil {
 		return errors.Trace(ErrPartitionMgmtOnNonpartitioned)
 	}
 
-	partInfo, err := buildPartitionInfo(ctx, meta, d, spec)
+	partInfo, err := buildPartitionInfo(ctx, spacetime, d, spec)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -2757,9 +2757,9 @@ func (d *dbs) AddTablePartitions(ctx stochastikctx.Context, ident ast.Ident, spe
 	// old partitions to check all partitions is strictly increasing.
 	tmp := *partInfo
 	tmp.Definitions = append(pi.Definitions, tmp.Definitions...)
-	meta.Partition = &tmp
-	err = checkPartitionByRange(ctx, meta, nil)
-	meta.Partition = pi
+	spacetime.Partition = &tmp
+	err = checkPartitionByRange(ctx, spacetime, nil)
+	spacetime.Partition = pi
 	if err != nil {
 		if ErrSameNamePartition.Equal(err) && spec.IfNotExists {
 			ctx.GetStochastikVars().StmtCtx.AppendNote(err)
@@ -2770,7 +2770,7 @@ func (d *dbs) AddTablePartitions(ctx stochastikctx.Context, ident ast.Ident, spe
 
 	job := &perceptron.Job{
 		SchemaID:   schemaReplicant.ID,
-		TableID:    meta.ID,
+		TableID:    spacetime.ID,
 		SchemaName: schemaReplicant.Name.L,
 		Type:       perceptron.CausetActionAddTablePartition,
 		BinlogInfo: &perceptron.HistoryInfo{},
@@ -2783,13 +2783,13 @@ func (d *dbs) AddTablePartitions(ctx stochastikctx.Context, ident ast.Ident, spe
 		return nil
 	}
 	if err == nil {
-		d.preSplitAndScatter(ctx, meta, partInfo)
+		d.preSplitAndScatter(ctx, spacetime, partInfo)
 	}
 	err = d.callHookOnChanged(err)
 	return errors.Trace(err)
 }
 
-// CoalescePartitions coalesce partitions can be used with a block that is partitioned by hash or key to reduce the number of partitions by number.
+// CoalescePartitions coalesce partitions can be used with a causet that is partitioned by hash or key to reduce the number of partitions by number.
 func (d *dbs) CoalescePartitions(ctx stochastikctx.Context, ident ast.Ident, spec *ast.AlterTableSpec) error {
 	is := d.infoHandle.Get()
 	schemaReplicant, ok := is.SchemaByName(ident.Schema)
@@ -2801,12 +2801,12 @@ func (d *dbs) CoalescePartitions(ctx stochastikctx.Context, ident ast.Ident, spe
 		return errors.Trace(schemareplicant.ErrTableNotExists.GenWithStackByArgs(ident.Schema, ident.Name))
 	}
 
-	meta := t.Meta()
-	if meta.GetPartitionInfo() == nil {
+	spacetime := t.Meta()
+	if spacetime.GetPartitionInfo() == nil {
 		return errors.Trace(ErrPartitionMgmtOnNonpartitioned)
 	}
 
-	switch meta.Partition.Type {
+	switch spacetime.Partition.Type {
 	// We don't support coalesce partitions hash type partition now.
 	case perceptron.PartitionTypeHash:
 		return errors.Trace(ErrUnsupportedCoalescePartition)
@@ -2832,14 +2832,14 @@ func (d *dbs) TruncateTablePartition(ctx stochastikctx.Context, ident ast.Ident,
 	if err != nil {
 		return errors.Trace(schemareplicant.ErrTableNotExists.GenWithStackByArgs(ident.Schema, ident.Name))
 	}
-	meta := t.Meta()
-	if meta.GetPartitionInfo() == nil {
+	spacetime := t.Meta()
+	if spacetime.GetPartitionInfo() == nil {
 		return errors.Trace(ErrPartitionMgmtOnNonpartitioned)
 	}
 
 	pids := make([]int64, len(spec.PartitionNames))
 	for i, name := range spec.PartitionNames {
-		pid, err := blocks.FindPartitionByName(meta, name.L)
+		pid, err := blocks.FindPartitionByName(spacetime, name.L)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -2848,7 +2848,7 @@ func (d *dbs) TruncateTablePartition(ctx stochastikctx.Context, ident ast.Ident,
 
 	job := &perceptron.Job{
 		SchemaID:   schemaReplicant.ID,
-		TableID:    meta.ID,
+		TableID:    spacetime.ID,
 		SchemaName: schemaReplicant.Name.L,
 		Type:       perceptron.CausetActionTruncateTablePartition,
 		BinlogInfo: &perceptron.HistoryInfo{},
@@ -2873,8 +2873,8 @@ func (d *dbs) DropTablePartition(ctx stochastikctx.Context, ident ast.Ident, spe
 	if err != nil {
 		return errors.Trace(schemareplicant.ErrTableNotExists.GenWithStackByArgs(ident.Schema, ident.Name))
 	}
-	meta := t.Meta()
-	if meta.GetPartitionInfo() == nil {
+	spacetime := t.Meta()
+	if spacetime.GetPartitionInfo() == nil {
 		return errors.Trace(ErrPartitionMgmtOnNonpartitioned)
 	}
 
@@ -2882,7 +2882,7 @@ func (d *dbs) DropTablePartition(ctx stochastikctx.Context, ident ast.Ident, spe
 	for i, partCIName := range spec.PartitionNames {
 		partNames[i] = partCIName.L
 	}
-	err = checkDropTablePartition(meta, partNames)
+	err = checkDropTablePartition(spacetime, partNames)
 	if err != nil {
 		if ErrDropPartitionNonExistent.Equal(err) && spec.IfExists {
 			ctx.GetStochastikVars().StmtCtx.AppendNote(err)
@@ -2893,7 +2893,7 @@ func (d *dbs) DropTablePartition(ctx stochastikctx.Context, ident ast.Ident, spe
 
 	job := &perceptron.Job{
 		SchemaID:   schemaReplicant.ID,
-		TableID:    meta.ID,
+		TableID:    spacetime.ID,
 		SchemaName: schemaReplicant.Name.L,
 		Type:       perceptron.CausetActionDropTablePartition,
 		BinlogInfo: &perceptron.HistoryInfo{},
@@ -2974,7 +2974,7 @@ func checkTableDefCompatible(source *perceptron.TableInfo, target *perceptron.Ta
 		if isVirtualGeneratedDeferredCauset(sourceDefCaus) != isVirtualGeneratedDeferredCauset(targetDefCaus) {
 			return ErrUnsupportedOnGeneratedDeferredCauset.GenWithStackByArgs("Exchanging partitions for non-generated defCausumns")
 		}
-		// It should strictyle compare expressions for generated defCausumns
+		// It should strictyle compare memexs for generated defCausumns
 		if sourceDefCaus.Name.L != targetDefCaus.Name.L ||
 			sourceDefCaus.Hidden != targetDefCaus.Hidden ||
 			!checkFieldTypeCompatible(&sourceDefCaus.FieldType, &targetDefCaus.FieldType) ||
@@ -3043,7 +3043,7 @@ func checkExchangePartition(pt *perceptron.TableInfo, nt *perceptron.TableInfo) 
 		return errors.Trace(ErrPartitionExchangeForeignKey.GenWithStackByArgs(nt.Name))
 	}
 
-	// NOTE: if nt is temporary block, it should be checked
+	// NOTE: if nt is temporary causet, it should be checked
 	return nil
 }
 
@@ -3099,7 +3099,7 @@ func (d *dbs) ExchangeTablePartition(ctx stochastikctx.Context, ident ast.Ident,
 	return errors.Trace(err)
 }
 
-// DropDeferredCauset will drop a defCausumn from the block, now we don't support drop the defCausumn with index covered.
+// DropDeferredCauset will drop a defCausumn from the causet, now we don't support drop the defCausumn with index covered.
 func (d *dbs) DropDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, spec *ast.AlterTableSpec) error {
 	schemaReplicant, t, err := d.getSchemaAndTableByIdent(ctx, ti)
 	if err != nil {
@@ -3134,7 +3134,7 @@ func (d *dbs) DropDeferredCauset(ctx stochastikctx.Context, ti ast.Ident, spec *
 	return errors.Trace(err)
 }
 
-// DropDeferredCausets will drop multi-defCausumns from the block, now we don't support drop the defCausumn with index covered.
+// DropDeferredCausets will drop multi-defCausumns from the causet, now we don't support drop the defCausumn with index covered.
 func (d *dbs) DropDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs []*ast.AlterTableSpec) error {
 	schemaReplicant, t, err := d.getSchemaAndTableByIdent(ctx, ti)
 	if err != nil {
@@ -3179,7 +3179,7 @@ func (d *dbs) DropDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs
 		return nil
 	}
 	if len(tblInfo.DeferredCausets) == len(defCausNames) {
-		return ErrCantRemoveAllFields.GenWithStack("can't drop all defCausumns in block %s",
+		return ErrCantRemoveAllFields.GenWithStack("can't drop all defCausumns in causet %s",
 			tblInfo.Name)
 	}
 
@@ -3200,11 +3200,11 @@ func (d *dbs) DropDeferredCausets(ctx stochastikctx.Context, ti ast.Ident, specs
 	return errors.Trace(err)
 }
 
-func checkIsDroppableDeferredCauset(ctx stochastikctx.Context, t block.Block, spec *ast.AlterTableSpec) (isDrapable bool, err error) {
+func checkIsDroppableDeferredCauset(ctx stochastikctx.Context, t causet.Block, spec *ast.AlterTableSpec) (isDrapable bool, err error) {
 	tblInfo := t.Meta()
 	// Check whether dropped defCausumn has existed.
 	defCausName := spec.OldDeferredCausetName.Name
-	defCaus := block.FindDefCaus(t.VisibleDefCauss(), defCausName.L)
+	defCaus := causet.FindDefCaus(t.VisibleDefCauss(), defCausName.L)
 	if defCaus == nil {
 		err = ErrCantDropFieldOrKey.GenWithStack("defCausumn %s doesn't exist", defCausName)
 		if spec.IfExists {
@@ -3336,7 +3336,7 @@ func CheckModifyTypeCompatible(origin *types.FieldType, to *types.FieldType) (al
 }
 
 // checkModifyTypes checks if the 'origin' type can be modified to 'to' type with out the need to
-// change or check existing data in the block.
+// change or check existing data in the causet.
 // It returns error if the two types has incompatible Charset and DefCauslation, different sign, different
 // digital/string types, or length of new Flen and Decimal is less than origin.
 func checkModifyTypes(ctx stochastikctx.Context, origin *types.FieldType, to *types.FieldType, needRewriteDefCauslationData bool) error {
@@ -3360,7 +3360,7 @@ func checkModifyTypes(ctx stochastikctx.Context, origin *types.FieldType, to *ty
 	return errors.Trace(err)
 }
 
-func setDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, option *ast.DeferredCausetOption) (bool, error) {
+func setDefaultValue(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, option *ast.DeferredCausetOption) (bool, error) {
 	hasDefaultValue := false
 	value, isSeqExpr, err := getDefaultValue(ctx, defCaus, option)
 	if err != nil {
@@ -3387,8 +3387,8 @@ func setDefaultValue(ctx stochastikctx.Context, defCaus *block.DeferredCauset, o
 	return hasDefaultValue, nil
 }
 
-func setDeferredCausetComment(ctx stochastikctx.Context, defCaus *block.DeferredCauset, option *ast.DeferredCausetOption) error {
-	value, err := expression.EvalAstExpr(ctx, option.Expr)
+func setDeferredCausetComment(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, option *ast.DeferredCausetOption) error {
+	value, err := memex.EvalAstExpr(ctx, option.Expr)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -3397,7 +3397,7 @@ func setDeferredCausetComment(ctx stochastikctx.Context, defCaus *block.Deferred
 }
 
 // processDeferredCausetOptions is only used in getModifiableDeferredCausetJob.
-func processDeferredCausetOptions(ctx stochastikctx.Context, defCaus *block.DeferredCauset, options []*ast.DeferredCausetOption) error {
+func processDeferredCausetOptions(ctx stochastikctx.Context, defCaus *causet.DeferredCauset, options []*ast.DeferredCausetOption) error {
 	var sb strings.Builder
 	restoreFlags := format.RestoreStringSingleQuotes | format.RestoreKeyWordLowercase | format.RestoreNameBackQuotes |
 		format.RestoreSpacesAroundBinaryOperation
@@ -3428,7 +3428,7 @@ func processDeferredCausetOptions(ctx stochastikctx.Context, defCaus *block.Defe
 		case ast.DeferredCausetOptionOnUFIDelate:
 			// TODO: Support other time functions.
 			if defCaus.Tp == allegrosql.TypeTimestamp || defCaus.Tp == allegrosql.TypeDatetime {
-				if !expression.IsValidCurrentTimestampExpr(opt.Expr, &defCaus.FieldType) {
+				if !memex.IsValidCurrentTimestampExpr(opt.Expr, &defCaus.FieldType) {
 					return ErrInvalidOnUFIDelate.GenWithStackByArgs(defCaus.Name)
 				}
 			} else {
@@ -3488,7 +3488,7 @@ func (d *dbs) getModifiableDeferredCausetJob(ctx stochastikctx.Context, ident as
 		return nil, errors.Trace(schemareplicant.ErrTableNotExists.GenWithStackByArgs(ident.Schema, ident.Name))
 	}
 
-	defCaus := block.FindDefCaus(t.DefCauss(), originalDefCausName.L)
+	defCaus := causet.FindDefCaus(t.DefCauss(), originalDefCausName.L)
 	if defCaus == nil {
 		return nil, schemareplicant.ErrDeferredCausetNotExists.GenWithStackByArgs(originalDefCausName, ident.Name)
 	}
@@ -3498,7 +3498,7 @@ func (d *dbs) getModifiableDeferredCausetJob(ctx stochastikctx.Context, ident as
 	}
 	// If we want to rename the defCausumn name, we need to check whether it already exists.
 	if newDefCausName.L != originalDefCausName.L {
-		c := block.FindDefCaus(t.DefCauss(), newDefCausName.L)
+		c := causet.FindDefCaus(t.DefCauss(), newDefCausName.L)
 		if c != nil {
 			return nil, schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs(newDefCausName)
 		}
@@ -3519,14 +3519,14 @@ func (d *dbs) getModifiableDeferredCausetJob(ctx stochastikctx.Context, ident as
 		return nil, errors.Trace(err)
 	}
 
-	newDefCaus := block.ToDeferredCauset(&perceptron.DeferredCausetInfo{
+	newDefCaus := causet.ToDeferredCauset(&perceptron.DeferredCausetInfo{
 		ID: defCaus.ID,
 		// We use this PR(https://github.com/whtcorpsinc/milevadb/pull/6274) as the dividing line to define whether it is a new version or an old version MilevaDB.
 		// The old version MilevaDB initializes the defCausumn's offset and state here.
 		// The new version MilevaDB doesn't initialize the defCausumn's offset and state, and it will do the initialization in run DBS function.
 		// When we do the rolling upgrade the following may happen:
 		// a new version MilevaDB builds the DBS job that doesn't be set the defCausumn's offset and state,
-		// and the old version MilevaDB is the DBS owner, it doesn't get offset and state from the causetstore. Then it will encounter errors.
+		// and the old version MilevaDB is the DBS tenant, it doesn't get offset and state from the causetstore. Then it will encounter errors.
 		// So here we set offset and state to support the rolling upgrade.
 		Offset:             defCaus.Offset,
 		State:              defCaus.State,
@@ -3537,8 +3537,8 @@ func (d *dbs) getModifiableDeferredCausetJob(ctx stochastikctx.Context, ident as
 	})
 
 	var chs, defCausl string
-	// TODO: Remove it when all block versions are greater than or equal to TableInfoVersion1.
-	// If newDefCaus's charset is empty and the block's version less than TableInfoVersion1,
+	// TODO: Remove it when all causet versions are greater than or equal to TableInfoVersion1.
+	// If newDefCaus's charset is empty and the causet's version less than TableInfoVersion1,
 	// we will not modify the charset of the defCausumn. This behavior is not compatible with MyALLEGROSQL.
 	if len(newDefCaus.FieldType.Charset) == 0 && t.Meta().Version < perceptron.TableInfoVersion1 {
 		chs = defCaus.FieldType.Charset
@@ -3583,7 +3583,7 @@ func (d *dbs) getModifiableDeferredCausetJob(ctx stochastikctx.Context, ident as
 			msg := fmt.Sprintf("milevadb_enable_change_defCausumn_type is true, newDefCaus IsGenerated %v, oldDefCaus IsGenerated %v", newDefCaus.IsGenerated(), defCaus.IsGenerated())
 			return nil, errUnsupportedModifyDeferredCauset.GenWithStackByArgs(msg)
 		} else if t.Meta().Partition != nil {
-			return nil, errUnsupportedModifyDeferredCauset.GenWithStackByArgs("milevadb_enable_change_defCausumn_type is true, block is partition block")
+			return nil, errUnsupportedModifyDeferredCauset.GenWithStackByArgs("milevadb_enable_change_defCausumn_type is true, causet is partition causet")
 		}
 	}
 
@@ -3680,7 +3680,7 @@ func checkDeferredCausetWithIndexConstraint(tbInfo *perceptron.TableInfo, origin
 	return nil
 }
 
-func checkAutoRandom(blockInfo *perceptron.TableInfo, originDefCaus *block.DeferredCauset, specNewDeferredCauset *ast.DeferredCausetDef) (uint64, error) {
+func checkAutoRandom(blockInfo *perceptron.TableInfo, originDefCaus *causet.DeferredCauset, specNewDeferredCauset *ast.DeferredCausetDef) (uint64, error) {
 	// Disallow add/drop actions on auto_random.
 	var oldRandBits uint64
 	if blockInfo.PKIsHandle && (blockInfo.GetPkName().L == originDefCaus.Name.L) {
@@ -3724,7 +3724,7 @@ func checkAutoRandom(blockInfo *perceptron.TableInfo, originDefCaus *block.Defer
 
 // ChangeDeferredCauset renames an existing defCausumn and modifies the defCausumn's definition,
 // currently we only support limited HoTT of changes
-// that do not need to change or check data on the block.
+// that do not need to change or check data on the causet.
 func (d *dbs) ChangeDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, spec *ast.AlterTableSpec) error {
 	specNewDeferredCauset := spec.NewDeferredCausets[0]
 	if len(specNewDeferredCauset.Name.Schema.O) != 0 && ident.Schema.L != specNewDeferredCauset.Name.Schema.L {
@@ -3775,13 +3775,13 @@ func (d *dbs) RenameDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, s
 		return errors.Trace(err)
 	}
 
-	oldDefCaus := block.FindDefCaus(tbl.VisibleDefCauss(), oldDefCausName.L)
+	oldDefCaus := causet.FindDefCaus(tbl.VisibleDefCauss(), oldDefCausName.L)
 	if oldDefCaus == nil {
 		return schemareplicant.ErrDeferredCausetNotExists.GenWithStackByArgs(oldDefCausName, ident.Name)
 	}
 
 	allDefCauss := tbl.DefCauss()
-	defCausWithNewNameAlreadyExist := block.FindDefCaus(allDefCauss, newDefCausName.L) != nil
+	defCausWithNewNameAlreadyExist := causet.FindDefCaus(allDefCauss, newDefCausName.L) != nil
 	if defCausWithNewNameAlreadyExist {
 		return schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs(newDefCausName)
 	}
@@ -3790,7 +3790,7 @@ func (d *dbs) RenameDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, s
 		return errFKIncompatibleDeferredCausets.GenWithStackByArgs(oldDefCausName, fkInfo.Name)
 	}
 
-	// Check generated expression.
+	// Check generated memex.
 	for _, defCaus := range allDefCauss {
 		if defCaus.GeneratedExpr == nil {
 			continue
@@ -3819,7 +3819,7 @@ func (d *dbs) RenameDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, s
 }
 
 // ModifyDeferredCauset does modification on an existing defCausumn, currently we only support limited HoTT of changes
-// that do not need to change or check data on the block.
+// that do not need to change or check data on the causet.
 func (d *dbs) ModifyDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, spec *ast.AlterTableSpec) error {
 	specNewDeferredCauset := spec.NewDeferredCausets[0]
 	if len(specNewDeferredCauset.Name.Schema.O) != 0 && ident.Schema.L != specNewDeferredCauset.Name.Schema.L {
@@ -3863,7 +3863,7 @@ func (d *dbs) AlterDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, sp
 
 	defCausName := specNewDeferredCauset.Name.Name
 	// Check whether alter defCausumn has existed.
-	defCaus := block.FindDefCaus(t.DefCauss(), defCausName.L)
+	defCaus := causet.FindDefCaus(t.DefCauss(), defCausName.L)
 	if defCaus == nil {
 		return ErrBadField.GenWithStackByArgs(defCausName, ident.Name)
 	}
@@ -3903,7 +3903,7 @@ func (d *dbs) AlterDeferredCauset(ctx stochastikctx.Context, ident ast.Ident, sp
 	return errors.Trace(err)
 }
 
-// AlterTableComment uFIDelates the block comment information.
+// AlterTableComment uFIDelates the causet comment information.
 func (d *dbs) AlterTableComment(ctx stochastikctx.Context, ident ast.Ident, spec *ast.AlterTableSpec) error {
 	is := d.infoHandle.Get()
 	schemaReplicant, ok := is.SchemaByName(ident.Schema)
@@ -3930,7 +3930,7 @@ func (d *dbs) AlterTableComment(ctx stochastikctx.Context, ident ast.Ident, spec
 	return errors.Trace(err)
 }
 
-// AlterTableAutoIDCache uFIDelates the block comment information.
+// AlterTableAutoIDCache uFIDelates the causet comment information.
 func (d *dbs) AlterTableAutoIDCache(ctx stochastikctx.Context, ident ast.Ident, newCache int64) error {
 	schemaReplicant, tb, err := d.getSchemaAndTableByIdent(ctx, ident)
 	if err != nil {
@@ -3951,7 +3951,7 @@ func (d *dbs) AlterTableAutoIDCache(ctx stochastikctx.Context, ident ast.Ident, 
 	return errors.Trace(err)
 }
 
-// AlterTableCharsetAndDefCauslate changes the block charset and defCauslate.
+// AlterTableCharsetAndDefCauslate changes the causet charset and defCauslate.
 func (d *dbs) AlterTableCharsetAndDefCauslate(ctx stochastikctx.Context, ident ast.Ident, toCharset, toDefCauslate string, needsOverwriteDefCauss bool) error {
 	// use the last one.
 	if toCharset == "" && toDefCauslate == "" {
@@ -4054,7 +4054,7 @@ func checkTiFlashReplicaCount(ctx stochastikctx.Context, replicaCount uint64) er
 	return nil
 }
 
-// UFIDelateTableReplicaInfo uFIDelates the block flash replica infos.
+// UFIDelateTableReplicaInfo uFIDelates the causet flash replica infos.
 func (d *dbs) UFIDelateTableReplicaInfo(ctx stochastikctx.Context, physicalID int64, available bool) error {
 	is := d.infoHandle.Get()
 	tb, ok := is.TableByID(physicalID)
@@ -4072,7 +4072,7 @@ func (d *dbs) UFIDelateTableReplicaInfo(ctx stochastikctx.Context, physicalID in
 
 	EDB, ok := is.SchemaByTable(tbInfo)
 	if !ok {
-		return schemareplicant.ErrDatabaseNotExists.GenWithStack("Database of block `%s` does not exist.", tb.Meta().Name)
+		return schemareplicant.ErrDatabaseNotExists.GenWithStack("Database of causet `%s` does not exist.", tb.Meta().Name)
 	}
 
 	job := &perceptron.Job{
@@ -4088,10 +4088,10 @@ func (d *dbs) UFIDelateTableReplicaInfo(ctx stochastikctx.Context, physicalID in
 	return errors.Trace(err)
 }
 
-// checkAlterTableCharset uses to check is it possible to change the charset of block.
+// checkAlterTableCharset uses to check is it possible to change the charset of causet.
 // This function returns 2 variable:
-// doNothing: if doNothing is true, means no need to change any more, because the target charset is same with the charset of block.
-// err: if err is not nil, means it is not possible to change block charset to target charset.
+// doNothing: if doNothing is true, means no need to change any more, because the target charset is same with the charset of causet.
+// err: if err is not nil, means it is not possible to change causet charset to target charset.
 func checkAlterTableCharset(tblInfo *perceptron.TableInfo, dbInfo *perceptron.DBInfo, toCharset, toDefCauslate string, needsOverwriteDefCauss bool) (doNothing bool, err error) {
 	origCharset := tblInfo.Charset
 	origDefCauslate := tblInfo.DefCauslate
@@ -4114,8 +4114,8 @@ func checkAlterTableCharset(tblInfo *perceptron.TableInfo, dbInfo *perceptron.DB
 		}
 	}
 
-	// The block charset may be "", if the block is create in old MilevaDB version, such as v2.0.8.
-	// This DBS will uFIDelate the block charset to default charset.
+	// The causet charset may be "", if the causet is create in old MilevaDB version, such as v2.0.8.
+	// This DBS will uFIDelate the causet charset to default charset.
 	origCharset, origDefCauslate, err = ResolveCharsetDefCauslation(
 		ast.CharsetOpt{Chs: origCharset, DefCaus: origDefCauslate},
 		ast.CharsetOpt{Chs: dbInfo.Charset, DefCaus: dbInfo.DefCauslate},
@@ -4191,7 +4191,7 @@ func (d *dbs) RenameIndex(ctx stochastikctx.Context, ident ast.Ident, spec *ast.
 	return errors.Trace(err)
 }
 
-// DropTable will proceed even if some block in the list does not exists.
+// DropTable will proceed even if some causet in the list does not exists.
 func (d *dbs) DropTable(ctx stochastikctx.Context, ti ast.Ident) (err error) {
 	schemaReplicant, tb, err := d.getSchemaAndTableByIdent(ctx, ti)
 	if err != nil {
@@ -4274,8 +4274,8 @@ func (d *dbs) TruncateTable(ctx stochastikctx.Context, ti ast.Ident) error {
 	}
 	if ok, _ := ctx.CheckTableLocked(tb.Meta().ID); ok && config.TableLockEnabled() {
 		// AddTableLock here to avoid this dbs job was executed successfully but the stochastik was been kill before return.
-		// The stochastik will release all block locks it holds, if we don't add the new locking block id here,
-		// the stochastik may forget to release the new locked block id when this dbs job was executed successfully
+		// The stochastik will release all causet locks it holds, if we don't add the new locking causet id here,
+		// the stochastik may forget to release the new locked causet id when this dbs job was executed successfully
 		// but the stochastik was killed before return.
 		ctx.AddTableLock([]perceptron.TableLockTpInfo{{SchemaID: schemaReplicant.ID, TableID: newTableID, Tp: tb.Meta().Lock.Tp}})
 	}
@@ -4358,7 +4358,7 @@ func (d *dbs) RenameTable(ctx stochastikctx.Context, oldIdent, newIdent ast.Iden
 	return errors.Trace(err)
 }
 
-func getAnonymousIndex(t block.Block, defCausName perceptron.CIStr) perceptron.CIStr {
+func getAnonymousIndex(t causet.Block, defCausName perceptron.CIStr) perceptron.CIStr {
 	id := 2
 	l := len(t.Indices())
 	indexName := defCausName
@@ -4393,13 +4393,13 @@ func (d *dbs) CreatePrimaryKey(ctx stochastikctx.Context, ti ast.Ident, indexNam
 
 	indexName = perceptron.NewCIStr(allegrosql.PrimaryKeyName)
 	if indexInfo := t.Meta().FindIndexByName(indexName.L); indexInfo != nil ||
-		// If the block's PKIsHandle is true, it also means that this block has a primary key.
+		// If the causet's PKIsHandle is true, it also means that this causet has a primary key.
 		t.Meta().PKIsHandle {
 		return schemareplicant.ErrMultiplePriKey
 	}
 
-	// Primary keys cannot include expression index parts. A primary key requires the generated defCausumn to be stored,
-	// but expression index parts are implemented as virtual generated defCausumns, not stored generated defCausumns.
+	// Primary keys cannot include memex index parts. A primary key requires the generated defCausumn to be stored,
+	// but memex index parts are implemented as virtual generated defCausumns, not stored generated defCausumns.
 	for _, idxPart := range indexPartSpecifications {
 		if idxPart.Expr != nil {
 			return ErrFunctionalIndexPrimaryKey
@@ -4458,27 +4458,27 @@ func (d *dbs) CreatePrimaryKey(ctx stochastikctx.Context, ti ast.Ident, indexNam
 	return errors.Trace(err)
 }
 
-func buildHiddenDeferredCausetInfo(ctx stochastikctx.Context, indexPartSpecifications []*ast.IndexPartSpecification, indexName perceptron.CIStr, tblInfo *perceptron.TableInfo, existDefCauss []*block.DeferredCauset) ([]*perceptron.DeferredCausetInfo, error) {
+func buildHiddenDeferredCausetInfo(ctx stochastikctx.Context, indexPartSpecifications []*ast.IndexPartSpecification, indexName perceptron.CIStr, tblInfo *perceptron.TableInfo, existDefCauss []*causet.DeferredCauset) ([]*perceptron.DeferredCausetInfo, error) {
 	hiddenDefCauss := make([]*perceptron.DeferredCausetInfo, 0, len(indexPartSpecifications))
 	for i, idxPart := range indexPartSpecifications {
 		if idxPart.Expr == nil {
 			continue
 		}
-		idxPart.DeferredCauset = &ast.DeferredCausetName{Name: perceptron.NewCIStr(fmt.Sprintf("%s_%s_%d", expressionIndexPrefix, indexName, i))}
+		idxPart.DeferredCauset = &ast.DeferredCausetName{Name: perceptron.NewCIStr(fmt.Sprintf("%s_%s_%d", memexIndexPrefix, indexName, i))}
 		// Check whether the hidden defCausumns have existed.
-		defCaus := block.FindDefCaus(existDefCauss, idxPart.DeferredCauset.Name.L)
+		defCaus := causet.FindDefCaus(existDefCauss, idxPart.DeferredCauset.Name.L)
 		if defCaus != nil {
-			// TODO: Use expression index related error.
+			// TODO: Use memex index related error.
 			return nil, schemareplicant.ErrDeferredCausetExists.GenWithStackByArgs(defCaus.Name.String())
 		}
 		idxPart.Length = types.UnspecifiedLength
-		// The index part is an expression, prepare a hidden defCausumn for it.
+		// The index part is an memex, prepare a hidden defCausumn for it.
 		if len(idxPart.DeferredCauset.Name.L) > allegrosql.MaxDeferredCausetNameLength {
 			// TODO: Refine the error message.
 			return nil, ErrTooLongIdent.GenWithStackByArgs("hidden defCausumn")
 		}
 		// TODO: refine the error message.
-		if err := checkIllegalFn4GeneratedDeferredCauset("expression index", idxPart.Expr); err != nil {
+		if err := checkIllegalFn4GeneratedDeferredCauset("memex index", idxPart.Expr); err != nil {
 			return nil, errors.Trace(err)
 		}
 
@@ -4491,12 +4491,12 @@ func buildHiddenDeferredCausetInfo(ctx stochastikctx.Context, indexPartSpecifica
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		expr, err := expression.RewriteSimpleExprWithTableInfo(ctx, tblInfo, idxPart.Expr)
+		expr, err := memex.RewriteSimpleExprWithTableInfo(ctx, tblInfo, idxPart.Expr)
 		if err != nil {
 			// TODO: refine the error message.
 			return nil, err
 		}
-		if _, ok := expr.(*expression.DeferredCauset); ok {
+		if _, ok := expr.(*memex.DeferredCauset); ok {
 			return nil, ErrFunctionalIndexOnField
 		}
 
@@ -4540,7 +4540,7 @@ func (d *dbs) CreateIndex(ctx stochastikctx.Context, ti ast.Ident, keyType ast.I
 
 	// Deal with anonymous index.
 	if len(indexName.L) == 0 {
-		defCausName := perceptron.NewCIStr("expression_index")
+		defCausName := perceptron.NewCIStr("memex_index")
 		if indexPartSpecifications[0].DeferredCauset != nil {
 			defCausName = indexPartSpecifications[0].DeferredCauset.Name
 		}
@@ -4627,7 +4627,7 @@ func (d *dbs) CreateIndex(ctx stochastikctx.Context, ti ast.Ident, keyType ast.I
 	return errors.Trace(err)
 }
 
-func buildFKInfo(fkName perceptron.CIStr, keys []*ast.IndexPartSpecification, refer *ast.ReferenceDef, defcaus []*block.DeferredCauset, tbInfo *perceptron.TableInfo) (*perceptron.FKInfo, error) {
+func buildFKInfo(fkName perceptron.CIStr, keys []*ast.IndexPartSpecification, refer *ast.ReferenceDef, defcaus []*causet.DeferredCauset, tbInfo *perceptron.TableInfo) (*perceptron.FKInfo, error) {
 	if len(keys) != len(refer.IndexPartSpecifications) {
 		return nil, schemareplicant.ErrForeignKeyNotMatch.GenWithStackByArgs("foreign key without name")
 	}
@@ -4684,7 +4684,7 @@ func buildFKInfo(fkName perceptron.CIStr, keys []*ast.IndexPartSpecification, re
 				}
 			}
 		}
-		if block.FindDefCaus(defcaus, key.DeferredCauset.Name.O) == nil {
+		if causet.FindDefCaus(defcaus, key.DeferredCauset.Name.O) == nil {
 			return nil, errKeyDeferredCausetDoesNotExits.GenWithStackByArgs(key.DeferredCauset.Name)
 		}
 		fkInfo.DefCauss[i] = key.DeferredCauset.Name
@@ -4782,15 +4782,15 @@ func (d *dbs) DropIndex(ctx stochastikctx.Context, ti ast.Ident, indexName perce
 			return ErrUnsupportedModifyPrimaryKey.GenWithStack("Unsupported drop primary key when alter-primary-key is false")
 
 		}
-		// If the block's PKIsHandle is true, we can't find the index from the block. So we check the value of PKIsHandle.
+		// If the causet's PKIsHandle is true, we can't find the index from the causet. So we check the value of PKIsHandle.
 		if indexInfo == nil && !t.Meta().PKIsHandle {
 			return ErrCantDropFieldOrKey.GenWithStack("Can't DROP 'PRIMARY'; check that defCausumn/key exists")
 		}
 		if t.Meta().PKIsHandle {
-			return ErrUnsupportedModifyPrimaryKey.GenWithStack("Unsupported drop primary key when the block's pkIsHandle is true")
+			return ErrUnsupportedModifyPrimaryKey.GenWithStack("Unsupported drop primary key when the causet's pkIsHandle is true")
 		}
 		if t.Meta().IsCommonHandle {
-			return ErrUnsupportedModifyPrimaryKey.GenWithStack("Unsupported drop primary key when the block is using clustered index")
+			return ErrUnsupportedModifyPrimaryKey.GenWithStack("Unsupported drop primary key when the causet is using clustered index")
 		}
 	}
 	if indexInfo == nil {
@@ -4842,7 +4842,7 @@ func isDroppableDeferredCauset(tblInfo *perceptron.TableInfo, defCausName percep
 		}
 	}
 	if len(tblInfo.DeferredCausets) == 1 {
-		return ErrCantRemoveAllFields.GenWithStack("can't drop only defCausumn %s in block %s",
+		return ErrCantRemoveAllFields.GenWithStack("can't drop only defCausumn %s in causet %s",
 			defCausName, tblInfo.Name)
 	}
 	// We only support dropping defCausumn with single-value none Primary Key index covered now.
@@ -4856,7 +4856,7 @@ func isDroppableDeferredCauset(tblInfo *perceptron.TableInfo, defCausName percep
 	return nil
 }
 
-// validateCommentLength checks comment length of block, defCausumn, index and partition.
+// validateCommentLength checks comment length of causet, defCausumn, index and partition.
 // If comment length is more than the standard length truncate it
 // and causetstore the comment length upto the standard comment length size.
 func validateCommentLength(vars *variable.StochastikVars, indexName string, indexOption *ast.IndexOption) (string, error) {
@@ -4876,10 +4876,10 @@ func validateCommentLength(vars *variable.StochastikVars, indexName string, inde
 	return indexOption.Comment, nil
 }
 
-func buildPartitionInfo(ctx stochastikctx.Context, meta *perceptron.TableInfo, d *dbs, spec *ast.AlterTableSpec) (*perceptron.PartitionInfo, error) {
-	if meta.Partition.Type == perceptron.PartitionTypeRange {
+func buildPartitionInfo(ctx stochastikctx.Context, spacetime *perceptron.TableInfo, d *dbs, spec *ast.AlterTableSpec) (*perceptron.PartitionInfo, error) {
+	if spacetime.Partition.Type == perceptron.PartitionTypeRange {
 		if len(spec.PartDefinitions) == 0 {
-			return nil, ast.ErrPartitionsMustBeDefined.GenWithStackByArgs(meta.Partition.Type)
+			return nil, ast.ErrPartitionsMustBeDefined.GenWithStackByArgs(spacetime.Partition.Type)
 		}
 	} else {
 		// we don't support ADD PARTITION for all other partition types yet.
@@ -4887,10 +4887,10 @@ func buildPartitionInfo(ctx stochastikctx.Context, meta *perceptron.TableInfo, d
 	}
 
 	part := &perceptron.PartitionInfo{
-		Type:    meta.Partition.Type,
-		Expr:    meta.Partition.Expr,
-		DeferredCausets: meta.Partition.DeferredCausets,
-		Enable:  meta.Partition.Enable,
+		Type:    spacetime.Partition.Type,
+		Expr:    spacetime.Partition.Expr,
+		DeferredCausets: spacetime.Partition.DeferredCausets,
+		Enable:  spacetime.Partition.Enable,
 	}
 
 	genIDs, err := d.genGlobalIDs(len(spec.PartDefinitions))
@@ -4907,7 +4907,7 @@ func buildPartitionInfo(ctx stochastikctx.Context, meta *perceptron.TableInfo, d
 		// For RANGE partition only VALUES LESS THAN should be possible.
 		clause := def.Clause.(*ast.PartitionDefinitionClauseLessThan)
 		if len(part.DeferredCausets) > 0 {
-			if err := checkRangeDeferredCausetsTypeAndValuesMatch(ctx, meta, clause.Exprs); err != nil {
+			if err := checkRangeDeferredCausetsTypeAndValuesMatch(ctx, spacetime, clause.Exprs); err != nil {
 				return nil, err
 			}
 		}
@@ -4930,25 +4930,25 @@ func buildPartitionInfo(ctx stochastikctx.Context, meta *perceptron.TableInfo, d
 	return part, nil
 }
 
-func checkRangeDeferredCausetsTypeAndValuesMatch(ctx stochastikctx.Context, meta *perceptron.TableInfo, exprs []ast.ExprNode) error {
+func checkRangeDeferredCausetsTypeAndValuesMatch(ctx stochastikctx.Context, spacetime *perceptron.TableInfo, exprs []ast.ExprNode) error {
 	// Validate() has already checked len(defCausNames) = len(exprs)
-	// create block ... partition by range defCausumns (defcaus)
+	// create causet ... partition by range defCausumns (defcaus)
 	// partition p0 values less than (expr)
 	// check the type of defcaus[i] and expr is consistent.
-	defCausNames := meta.Partition.DeferredCausets
+	defCausNames := spacetime.Partition.DeferredCausets
 	for i, defCausExpr := range exprs {
 		if _, ok := defCausExpr.(*ast.MaxValueExpr); ok {
 			continue
 		}
 
 		defCausName := defCausNames[i]
-		defCausInfo := getDeferredCausetInfoByName(meta, defCausName.L)
+		defCausInfo := getDeferredCausetInfoByName(spacetime, defCausName.L)
 		if defCausInfo == nil {
 			return errors.Trace(ErrFieldNotFoundPart)
 		}
 		defCausType := &defCausInfo.FieldType
 
-		val, err := expression.EvalAstExpr(ctx, defCausExpr)
+		val, err := memex.EvalAstExpr(ctx, defCausExpr)
 		if err != nil {
 			return err
 		}
@@ -4966,7 +4966,7 @@ func checkRangeDeferredCausetsTypeAndValuesMatch(ctx stochastikctx.Context, meta
 	return nil
 }
 
-// LockTables uses to execute lock blocks statement.
+// LockTables uses to execute dagger blocks memex.
 func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) error {
 	lockTables := make([]perceptron.TableLockTpInfo, 0, len(stmt.TableLocks))
 	stochastikInfo := perceptron.StochastikInfo{
@@ -4974,7 +4974,7 @@ func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) er
 		StochastikID: ctx.GetStochastikVars().ConnectionID,
 	}
 	uniqueTableID := make(map[int64]struct{})
-	// Check whether the block was already locked by another.
+	// Check whether the causet was already locked by another.
 	for _, tl := range stmt.TableLocks {
 		tb := tl.Block
 		err := throwErrIfInMemOrSysDB(ctx, tb.Schema.L)
@@ -4986,7 +4986,7 @@ func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) er
 			return errors.Trace(err)
 		}
 		if t.Meta().IsView() || t.Meta().IsSequence() {
-			return block.ErrUnsupportedOp.GenWithStackByArgs()
+			return causet.ErrUnsupportedOp.GenWithStackByArgs()
 		}
 		err = checkTableLocked(t.Meta(), tl.Type, stochastikInfo)
 		if err != nil {
@@ -5023,7 +5023,7 @@ func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) er
 	return errors.Trace(err)
 }
 
-// UnlockTables uses to execute unlock blocks statement.
+// UnlockTables uses to execute unlock blocks memex.
 func (d *dbs) UnlockTables(ctx stochastikctx.Context, unlockTables []perceptron.TableLockTpInfo) error {
 	if len(unlockTables) == 0 {
 		return nil
@@ -5051,7 +5051,7 @@ func (d *dbs) UnlockTables(ctx stochastikctx.Context, unlockTables []perceptron.
 	return errors.Trace(err)
 }
 
-// CleanDeadTableLock uses to clean dead block locks.
+// CleanDeadTableLock uses to clean dead causet locks.
 func (d *dbs) CleanDeadTableLock(unlockTables []perceptron.TableLockTpInfo, se perceptron.StochastikInfo) error {
 	if len(unlockTables) == 0 {
 		return nil
@@ -5092,7 +5092,7 @@ func (d *dbs) CleanupTableLock(ctx stochastikctx.Context, blocks []*ast.TableNam
 	uniqueTableID := make(map[int64]struct{})
 	cleanupTables := make([]perceptron.TableLockTpInfo, 0, len(blocks))
 	unlockedTablesNum := 0
-	// Check whether the block was already locked by another.
+	// Check whether the causet was already locked by another.
 	for _, tb := range blocks {
 		err := throwErrIfInMemOrSysDB(ctx, tb.Schema.L)
 		if err != nil {
@@ -5103,11 +5103,11 @@ func (d *dbs) CleanupTableLock(ctx stochastikctx.Context, blocks []*ast.TableNam
 			return errors.Trace(err)
 		}
 		if t.Meta().IsView() || t.Meta().IsSequence() {
-			return block.ErrUnsupportedOp
+			return causet.ErrUnsupportedOp
 		}
-		// Maybe the block t was not locked, but still try to unlock this block.
-		// If we skip unlock the block here, the job maybe not consistent with the job.Query.
-		// eg: unlock blocks t1,t2;  If t2 is not locked and skip here, then the job will only unlock block t1,
+		// Maybe the causet t was not locked, but still try to unlock this causet.
+		// If we skip unlock the causet here, the job maybe not consistent with the job.Query.
+		// eg: unlock blocks t1,t2;  If t2 is not locked and skip here, then the job will only unlock causet t1,
 		// and this behaviour is not consistent with the allegrosql query.
 		if !t.Meta().IsLocked() {
 			unlockedTablesNum++
@@ -5151,11 +5151,11 @@ type lockTablesArg struct {
 	IsCleanup     bool
 }
 
-func (d *dbs) RepairTable(ctx stochastikctx.Context, block *ast.TableName, createStmt *ast.CreateTableStmt) error {
-	// Existence of EDB and block has been checked in the preprocessor.
+func (d *dbs) RepairTable(ctx stochastikctx.Context, causet *ast.TableName, createStmt *ast.CreateTableStmt) error {
+	// Existence of EDB and causet has been checked in the preprocessor.
 	oldTableInfo, ok := (ctx.Value(petriutil.RepairedTable)).(*perceptron.TableInfo)
 	if !ok || oldTableInfo == nil {
-		return ErrRepairTableFail.GenWithStack("Failed to get the repaired block")
+		return ErrRepairTableFail.GenWithStack("Failed to get the repaired causet")
 	}
 	oldDBInfo, ok := (ctx.Value(petriutil.RepairedDatabase)).(*perceptron.DBInfo)
 	if !ok || oldDBInfo == nil {
@@ -5163,10 +5163,10 @@ func (d *dbs) RepairTable(ctx stochastikctx.Context, block *ast.TableName, creat
 	}
 	// By now only support same EDB repair.
 	if createStmt.Block.Schema.L != oldDBInfo.Name.L {
-		return ErrRepairTableFail.GenWithStack("Repaired block should in same database with the old one")
+		return ErrRepairTableFail.GenWithStack("Repaired causet should in same database with the old one")
 	}
 
-	// It is necessary to specify the block.ID and partition.ID manually.
+	// It is necessary to specify the causet.ID and partition.ID manually.
 	newTableInfo, err := buildTableInfoWithCheck(ctx, createStmt, oldTableInfo.Charset, oldTableInfo.DefCauslate)
 	if err != nil {
 		return errors.Trace(err)
@@ -5188,7 +5188,7 @@ func (d *dbs) RepairTable(ctx stochastikctx.Context, block *ast.TableName, creat
 			return ErrRepairTableFail.GenWithStackByArgs("DeferredCauset " + newOne.Name.L + " type should be the same")
 		}
 		if newOne.Flen != old.Flen {
-			logutil.BgLogger().Warn("[dbs] admin repair block : DeferredCauset " + newOne.Name.L + " flen is not equal to the old one")
+			logutil.BgLogger().Warn("[dbs] admin repair causet : DeferredCauset " + newOne.Name.L + " flen is not equal to the old one")
 		}
 		newTableInfo.DeferredCausets[i].ID = old.ID
 	}
@@ -5234,7 +5234,7 @@ func (d *dbs) OrderByDeferredCausets(ctx stochastikctx.Context, ident ast.Ident)
 		return errors.Trace(err)
 	}
 	if tb.Meta().GetPkDefCausInfo() != nil {
-		ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.Errorf("ORDER BY ignored as there is a user-defined clustered index in the block '%s'", ident.Name))
+		ctx.GetStochastikVars().StmtCtx.AppendWarning(errors.Errorf("ORDER BY ignored as there is a user-defined clustered index in the causet '%s'", ident.Name))
 	}
 	return nil
 }
@@ -5245,7 +5245,7 @@ func (d *dbs) CreateSequence(ctx stochastikctx.Context, stmt *ast.CreateSequence
 	if err != nil {
 		return err
 	}
-	// MilevaDB describe the sequence within a blockInfo, as a same-level object of a block and view.
+	// MilevaDB describe the sequence within a blockInfo, as a same-level object of a causet and view.
 	tbInfo, err := buildTableInfo(ctx, ident.Name, nil, nil, "", "")
 	if err != nil {
 		return err
@@ -5440,7 +5440,7 @@ func buildPlacementSpecs(specs []*ast.PlacementSpec) ([]*memristed.MemruleOp, er
 					DeleteByIDPrefix: true,
 					Memrule: &memristed.Memrule{
 						GroupID: memristed.MemruleDefaultGroupID,
-						// ROLE is useless for FIDel, prevent two alter statements from coexisting
+						// ROLE is useless for FIDel, prevent two alter memexs from coexisting
 						Role: rule.Role,
 					},
 				})
@@ -5477,12 +5477,12 @@ func (d *dbs) AlterTablePartition(ctx stochastikctx.Context, ident ast.Ident, sp
 		return errors.Trace(err)
 	}
 
-	meta := tb.Meta()
-	if meta.Partition == nil {
+	spacetime := tb.Meta()
+	if spacetime.Partition == nil {
 		return errors.Trace(ErrPartitionMgmtOnNonpartitioned)
 	}
 
-	partitionID, err := blocks.FindPartitionByName(meta, spec.PartitionNames[0].L)
+	partitionID, err := blocks.FindPartitionByName(spacetime, spec.PartitionNames[0].L)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -5502,7 +5502,7 @@ func (d *dbs) AlterTablePartition(ctx stochastikctx.Context, ident ast.Ident, sp
 
 	job := &perceptron.Job{
 		SchemaID:   schemaReplicant.ID,
-		TableID:    meta.ID,
+		TableID:    spacetime.ID,
 		SchemaName: schemaReplicant.Name.L,
 		Type:       perceptron.CausetActionAlterTableAlterPartition,
 		BinlogInfo: &perceptron.HistoryInfo{},

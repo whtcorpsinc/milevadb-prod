@@ -50,7 +50,7 @@ type Lock struct {
 	// The slot IDs of the latches(keys) that a startTS must acquire before being able to processed.
 	requiredSlots []int
 	// acquiredCount represents the number of latches that the transaction has acquired.
-	// For status is stale, it include the latch whose front is current lock already.
+	// For status is stale, it include the latch whose front is current dagger already.
 	acquiredCount int
 	// startTS represents current transaction's.
 	startTS uint64
@@ -85,7 +85,7 @@ func (l *Lock) isLocked() bool {
 	return !l.isStale && l.acquiredCount != len(l.requiredSlots)
 }
 
-// SetCommitTS sets the lock's commitTS.
+// SetCommitTS sets the dagger's commitTS.
 func (l *Lock) SetCommitTS(commitTS uint64) {
 	l.commitTS = commitTS
 }
@@ -145,13 +145,13 @@ func (latches *Latches) slotID(key []byte) int {
 	return int(murmur3.Sum32(key)) & (len(latches.slots) - 1)
 }
 
-// acquire tries to acquire the lock for a transaction.
-func (latches *Latches) acquire(lock *Lock) acquireResult {
-	if lock.IsStale() {
+// acquire tries to acquire the dagger for a transaction.
+func (latches *Latches) acquire(dagger *Lock) acquireResult {
+	if dagger.IsStale() {
 		return acquireStale
 	}
-	for lock.acquiredCount < len(lock.requiredSlots) {
-		status := latches.acquireSlot(lock)
+	for dagger.acquiredCount < len(dagger.requiredSlots) {
+		status := latches.acquireSlot(dagger)
 		if status != acquireSuccess {
 			return status
 		}
@@ -159,31 +159,31 @@ func (latches *Latches) acquire(lock *Lock) acquireResult {
 	return acquireSuccess
 }
 
-// release releases all latches owned by the `lock` and returns the wakeup list.
+// release releases all latches owned by the `dagger` and returns the wakeup list.
 // Preconditions: the caller must ensure the transaction's status is not locked.
-func (latches *Latches) release(lock *Lock, wakeupList []*Lock) []*Lock {
+func (latches *Latches) release(dagger *Lock, wakeupList []*Lock) []*Lock {
 	wakeupList = wakeupList[:0]
-	for lock.acquiredCount > 0 {
-		if nextLock := latches.releaseSlot(lock); nextLock != nil {
+	for dagger.acquiredCount > 0 {
+		if nextLock := latches.releaseSlot(dagger); nextLock != nil {
 			wakeupList = append(wakeupList, nextLock)
 		}
 	}
 	return wakeupList
 }
 
-func (latches *Latches) releaseSlot(lock *Lock) (nextLock *Lock) {
-	key := lock.keys[lock.acquiredCount-1]
-	slotID := lock.requiredSlots[lock.acquiredCount-1]
+func (latches *Latches) releaseSlot(dagger *Lock) (nextLock *Lock) {
+	key := dagger.keys[dagger.acquiredCount-1]
+	slotID := dagger.requiredSlots[dagger.acquiredCount-1]
 	latch := &latches.slots[slotID]
-	lock.acquiredCount--
+	dagger.acquiredCount--
 	latch.Lock()
 	defer latch.Unlock()
 
 	find := findNode(latch.queue, key)
-	if find.value != lock {
+	if find.value != dagger {
 		panic("releaseSlot wrong")
 	}
-	find.maxCommitTS = mathutil.MaxUint64(find.maxCommitTS, lock.commitTS)
+	find.maxCommitTS = mathutil.MaxUint64(find.maxCommitTS, dagger.commitTS)
 	find.value = nil
 	// Make a copy of the key, so latch does not reference the transaction's memory.
 	// If we do not do it, transaction memory can't be recycle by GC and there will
@@ -220,16 +220,16 @@ func (latches *Latches) releaseSlot(lock *Lock) (nextLock *Lock) {
 	return
 }
 
-func (latches *Latches) acquireSlot(lock *Lock) acquireResult {
-	key := lock.keys[lock.acquiredCount]
-	slotID := lock.requiredSlots[lock.acquiredCount]
+func (latches *Latches) acquireSlot(dagger *Lock) acquireResult {
+	key := dagger.keys[dagger.acquiredCount]
+	slotID := dagger.requiredSlots[dagger.acquiredCount]
 	latch := &latches.slots[slotID]
 	latch.Lock()
 	defer latch.Unlock()
 
 	// Try to recycle to limit the memory usage.
 	if latch.count >= latchListCount {
-		latch.recycle(lock.startTS)
+		latch.recycle(dagger.startTS)
 	}
 
 	find := findNode(latch.queue, key)
@@ -237,33 +237,33 @@ func (latches *Latches) acquireSlot(lock *Lock) acquireResult {
 		tmp := &node{
 			slotID: slotID,
 			key:    key,
-			value:  lock,
+			value:  dagger,
 		}
 		tmp.next = latch.queue
 		latch.queue = tmp
 		latch.count++
 
-		lock.acquiredCount++
+		dagger.acquiredCount++
 		return acquireSuccess
 	}
 
-	if find.maxCommitTS > lock.startTS {
-		lock.isStale = true
+	if find.maxCommitTS > dagger.startTS {
+		dagger.isStale = true
 		return acquireStale
 	}
 
 	if find.value == nil {
-		find.value = lock
-		lock.acquiredCount++
+		find.value = dagger
+		dagger.acquiredCount++
 		return acquireSuccess
 	}
 
 	// Push the current transaction into waitingQueue.
-	latch.waiting = append(latch.waiting, lock)
+	latch.waiting = append(latch.waiting, dagger)
 	return acquireLocked
 }
 
-// recycle is not thread safe, the latch should acquire its lock before executing this function.
+// recycle is not thread safe, the latch should acquire its dagger before executing this function.
 func (l *latch) recycle(currentTS uint64) int {
 	total := 0
 	fakeHead := node{next: l.queue}

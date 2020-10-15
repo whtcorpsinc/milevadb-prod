@@ -24,7 +24,7 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/metapb"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/format"
@@ -34,12 +34,12 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs/memristed"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -52,7 +52,7 @@ const (
 	partitionMaxValue = "MAXVALUE"
 )
 
-func checkAddPartition(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.PartitionInfo, []perceptron.PartitionDefinition, error) {
+func checkAddPartition(t *spacetime.Meta, job *perceptron.Job) (*perceptron.BlockInfo, *perceptron.PartitionInfo, []perceptron.PartitionDefinition, error) {
 	schemaID := job.SchemaID
 	tblInfo, err := getBlockInfoAndCancelFaultJob(t, job, schemaID)
 	if err != nil {
@@ -70,7 +70,7 @@ func checkAddPartition(t *meta.Meta, job *perceptron.Job) (*perceptron.BlockInfo
 	return tblInfo, partInfo, []perceptron.PartitionDefinition{}, nil
 }
 
-func onAddBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onAddBlockPartition(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	// Handle the rolling back job
 	if job.IsRollingback() {
 		ver, err := onDropBlockPartition(t, job)
@@ -116,7 +116,7 @@ func onAddBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int6
 	case perceptron.StateReplicaOnly:
 		// replica only -> public
 		// Here need do some tiflash replica complement check.
-		// TODO: If a block is with no TiFlashReplica or it is not available, the replica-only state can be eliminated.
+		// TODO: If a causet is with no TiFlashReplica or it is not available, the replica-only state can be eliminated.
 		if tblInfo.TiFlashReplica != nil && tblInfo.TiFlashReplica.Available {
 			// For available state, the new added partition should wait it's replica to
 			// be finished. Otherwise the query to this partition will be blocked.
@@ -133,7 +133,7 @@ func onAddBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int6
 			}
 		}
 
-		// For normal and replica finished block, move the `addingDefinitions` into `Definitions`.
+		// For normal and replica finished causet, move the `addingDefinitions` into `Definitions`.
 		uFIDelatePartitionInfo(tblInfo)
 
 		ver, err = uFIDelateVersionAndBlockInfo(t, job, tblInfo, true)
@@ -179,9 +179,9 @@ func rollbackAddingPartitionInfo(tblInfo *perceptron.BlockInfo) []int64 {
 }
 
 // checkAddPartitionValue values less than value must be strictly increasing for each partition.
-func checkAddPartitionValue(meta *perceptron.BlockInfo, part *perceptron.PartitionInfo) error {
-	if meta.Partition.Type == perceptron.PartitionTypeRange && len(meta.Partition.DeferredCausets) == 0 {
-		newDefs, oldDefs := part.Definitions, meta.Partition.Definitions
+func checkAddPartitionValue(spacetime *perceptron.BlockInfo, part *perceptron.PartitionInfo) error {
+	if spacetime.Partition.Type == perceptron.PartitionTypeRange && len(spacetime.Partition.DeferredCausets) == 0 {
+		newDefs, oldDefs := part.Definitions, spacetime.Partition.Definitions
 		rangeValue := oldDefs[len(oldDefs)-1].LessThan[0]
 		if strings.EqualFold(rangeValue, "MAXVALUE") {
 			return errors.Trace(ErrPartitionMaxvalue)
@@ -248,7 +248,7 @@ func checkPartitionReplica(addingDefinitions []perceptron.PartitionDefinition, d
 	return needWait, nil
 }
 
-func checkTiFlashPeerStoreAtLeastOne(stores []*metapb.CausetStore, peers []*metapb.Peer) bool {
+func checkTiFlashPeerStoreAtLeastOne(stores []*spacetimepb.CausetStore, peers []*spacetimepb.Peer) bool {
 	for _, peer := range peers {
 		for _, causetstore := range stores {
 			if peer.StoreId == causetstore.Id && storeHasEngineTiFlashLabel(causetstore) {
@@ -259,7 +259,7 @@ func checkTiFlashPeerStoreAtLeastOne(stores []*metapb.CausetStore, peers []*meta
 	return false
 }
 
-func storeHasEngineTiFlashLabel(causetstore *metapb.CausetStore) bool {
+func storeHasEngineTiFlashLabel(causetstore *spacetimepb.CausetStore) bool {
 	for _, label := range causetstore.Labels {
 		if label.Key == "engine" && label.Value == "tiflash" {
 			return true
@@ -283,7 +283,7 @@ func buildBlockPartitionInfo(ctx stochastikctx.Context, s *ast.CreateBlockStmt) 
 	// When milevadb_enable_block_partition is 'on' or 'auto'.
 	if s.Partition.Tp == perceptron.PartitionTypeRange {
 		if s.Partition.Sub == nil {
-			// Partition by range expression is enabled by default.
+			// Partition by range memex is enabled by default.
 			if s.Partition.DeferredCausetNames == nil {
 				enable = true
 			}
@@ -421,7 +421,7 @@ func checkAndOverridePartitionID(newBlockInfo, oldBlockInfo *perceptron.BlockInf
 		return nil
 	}
 	if oldBlockInfo.Partition == nil {
-		return ErrRepairBlockFail.GenWithStackByArgs("Old block doesn't have partitions")
+		return ErrRepairBlockFail.GenWithStackByArgs("Old causet doesn't have partitions")
 	}
 	if newBlockInfo.Partition.Type != oldBlockInfo.Partition.Type {
 		return ErrRepairBlockFail.GenWithStackByArgs("Partition type should be the same")
@@ -544,7 +544,7 @@ func checkPartitionFuncCallValid(ctx stochastikctx.Context, tblInfo *perceptron.
 			if colName, ok := arg.(*ast.DeferredCausetNameExpr); ok {
 				col := findDeferredCausetByName(colName.Name.Name.L, tblInfo)
 				if col == nil {
-					return ErrBadField.GenWithStackByArgs(colName.Name.Name.O, "expression")
+					return ErrBadField.GenWithStackByArgs(colName.Name.Name.O, "memex")
 				}
 
 				if ok && col.FieldType.Tp == allegrosql.TypeTimestamp {
@@ -554,12 +554,12 @@ func checkPartitionFuncCallValid(ctx stochastikctx.Context, tblInfo *perceptron.
 		}
 	}
 
-	// check function which allowed in partitioning expressions
+	// check function which allowed in partitioning memexs
 	// see https://dev.allegrosql.com/doc/allegrosql-partitioning-excerpt/5.7/en/partitioning-limitations-functions.html
 	switch expr.FnName.L {
-	// Mysql don't allow creating partitions with expressions with non matching
+	// Mysql don't allow creating partitions with memexs with non matching
 	// arguments as a (sub)partitioning function,
-	// but we want to allow such expressions when opening existing blocks for
+	// but we want to allow such memexs when opening existing blocks for
 	// easier maintenance. This exception should be deprecated at some point in future so that we always throw an error.
 	// See https://github.com/allegrosql/allegrosql-server/blob/5.7/allegrosql/sql_partition.cc#L1072
 	case ast.Day, ast.DayOfMonth, ast.DayOfWeek, ast.DayOfYear, ast.Month, ast.Quarter, ast.ToDays, ast.ToSeconds,
@@ -571,7 +571,7 @@ func checkPartitionFuncCallValid(ctx stochastikctx.Context, tblInfo *perceptron.
 		if len(expr.Args) != 1 {
 			return errors.Trace(errWrongExprInPartitionFunc)
 		}
-		col, err := expression.RewriteSimpleExprWithBlockInfo(ctx, tblInfo, expr.Args[0])
+		col, err := memex.RewriteSimpleExprWithBlockInfo(ctx, tblInfo, expr.Args[0])
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -590,7 +590,7 @@ func checkPartitionFuncCallValid(ctx stochastikctx.Context, tblInfo *perceptron.
 	return errors.Trace(ErrPartitionFunctionIsNotAllowed)
 }
 
-// checkPartitionExprValid checks partition expression validly.
+// checkPartitionExprValid checks partition memex validly.
 func checkPartitionExprValid(ctx stochastikctx.Context, tblInfo *perceptron.BlockInfo, expr ast.ExprNode) error {
 	switch v := expr.(type) {
 	case *ast.FuncCastExpr, *ast.CaseExpr, *ast.SubqueryExpr, *ast.WindowFuncExpr, *ast.RowExpr, *ast.DefaultExpr, *ast.ValuesExpr:
@@ -638,7 +638,7 @@ func checkPartitionFuncValid(ctx stochastikctx.Context, tblInfo *perceptron.Bloc
 }
 
 // checkResultOK derives from https://github.com/allegrosql/allegrosql-server/blob/5.7/allegrosql/item_timefunc
-// For partition blocks, allegrosql do not support Constant, random or timezone-dependent expressions
+// For partition blocks, allegrosql do not support Constant, random or timezone-dependent memexs
 // Based on allegrosql code to check whether field is valid, every time related type has check_valid_arguments_processor function.
 func checkResultOK(ok bool, err error) error {
 	if err != nil {
@@ -695,7 +695,7 @@ func checkPartitionFuncType(ctx stochastikctx.Context, s *ast.CreateBlockStmt, t
 		}
 	}
 
-	e, err := expression.ParseSimpleExprWithBlockInfo(ctx, exprStr, tblInfo)
+	e, err := memex.ParseSimpleExprWithBlockInfo(ctx, exprStr, tblInfo)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -712,7 +712,7 @@ func checkPartitionFuncType(ctx stochastikctx.Context, s *ast.CreateBlockStmt, t
 }
 
 // checkCreatePartitionValue checks whether `less than value` is strictly increasing for each partition.
-// Side effect: it may simplify the partition range definition from a constant expression to an integer.
+// Side effect: it may simplify the partition range definition from a constant memex to an integer.
 func checkCreatePartitionValue(ctx stochastikctx.Context, tblInfo *perceptron.BlockInfo) error {
 	pi := tblInfo.Partition
 	defs := pi.Definitions
@@ -736,7 +736,7 @@ func checkCreatePartitionValue(ctx stochastikctx.Context, tblInfo *perceptron.Bl
 			return errors.Trace(err)
 		}
 		if fromExpr {
-			// Constant fold the expression.
+			// Constant fold the memex.
 			defs[i].LessThan[0] = fmt.Sprintf("%d", currentRangeValue)
 		}
 
@@ -760,7 +760,7 @@ func checkCreatePartitionValue(ctx stochastikctx.Context, tblInfo *perceptron.Bl
 }
 
 // getRangeValue gets an integer from the range value string.
-// The returned boolean value indicates whether the input string is a constant expression.
+// The returned boolean value indicates whether the input string is a constant memex.
 func getRangeValue(ctx stochastikctx.Context, str string, unsignedBigint bool) (interface{}, bool, error) {
 	// Unsigned bigint was converted to uint64 handle.
 	if unsignedBigint {
@@ -768,7 +768,7 @@ func getRangeValue(ctx stochastikctx.Context, str string, unsignedBigint bool) (
 			return value, false, nil
 		}
 
-		e, err1 := expression.ParseSimpleExprWithBlockInfo(ctx, str, &perceptron.BlockInfo{})
+		e, err1 := memex.ParseSimpleExprWithBlockInfo(ctx, str, &perceptron.BlockInfo{})
 		if err1 != nil {
 			return 0, false, err1
 		}
@@ -780,11 +780,11 @@ func getRangeValue(ctx stochastikctx.Context, str string, unsignedBigint bool) (
 		if value, err := strconv.ParseInt(str, 10, 64); err == nil {
 			return value, false, nil
 		}
-		// The range value maybe not an integer, it could be a constant expression.
+		// The range value maybe not an integer, it could be a constant memex.
 		// For example, the following two cases are the same:
 		// PARTITION p0 VALUES LESS THAN (TO_SECONDS('2004-01-01'))
 		// PARTITION p0 VALUES LESS THAN (63340531200)
-		e, err1 := expression.ParseSimpleExprWithBlockInfo(ctx, str, &perceptron.BlockInfo{})
+		e, err1 := memex.ParseSimpleExprWithBlockInfo(ctx, str, &perceptron.BlockInfo{})
 		if err1 != nil {
 			return 0, false, err1
 		}
@@ -806,9 +806,9 @@ func validRangePartitionType(col *perceptron.DeferredCausetInfo) bool {
 	}
 }
 
-// checkDropBlockPartition checks if the partition exists and does not allow deleting the last existing partition in the block.
-func checkDropBlockPartition(meta *perceptron.BlockInfo, partLowerNames []string) error {
-	pi := meta.Partition
+// checkDropBlockPartition checks if the partition exists and does not allow deleting the last existing partition in the causet.
+func checkDropBlockPartition(spacetime *perceptron.BlockInfo, partLowerNames []string) error {
+	pi := spacetime.Partition
 	if pi.Type != perceptron.PartitionTypeRange && pi.Type != perceptron.PartitionTypeList {
 		return errOnlyOnRangeListPartition.GenWithStackByArgs("DROP")
 	}
@@ -864,7 +864,7 @@ func getPartitionDef(tblInfo *perceptron.BlockInfo, partName string) (index int,
 			return i, &(defs[i]), nil
 		}
 	}
-	return index, nil, block.ErrUnknownPartition.GenWithStackByArgs(partName, tblInfo.Name.O)
+	return index, nil, causet.ErrUnknownPartition.GenWithStackByArgs(partName, tblInfo.Name.O)
 }
 
 func buildPlacementDropMemrules(schemaID, blockID int64, partitionIDs []int64) []*memristed.MemruleOp {
@@ -882,8 +882,8 @@ func buildPlacementDropMemrules(schemaID, blockID int64, partitionIDs []int64) [
 	return rules
 }
 
-// onDropBlockPartition deletes old partition meta.
-func onDropBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+// onDropBlockPartition deletes old partition spacetime.
+func onDropBlockPartition(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var partNames []string
 	if err := job.DecodeArgs(&partNames); err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -895,7 +895,7 @@ func onDropBlockPartition(t *meta.Meta, job *perceptron.Job) (ver int64, _ error
 	}
 	var physicalBlockIDs []int64
 	if job.Type == perceptron.CausetActionAddBlockPartition {
-		// It is rollbacked from adding block partition, just remove addingDefinitions from blockInfo.
+		// It is rollbacked from adding causet partition, just remove addingDefinitions from blockInfo.
 		physicalBlockIDs = rollbackAddingPartitionInfo(tblInfo)
 	} else {
 		// If an error occurs, it returns that it cannot delete all partitions or that the partition doesn't exist.
@@ -956,8 +956,8 @@ func buildPlacementTruncateMemrules(rules []*memristed.MemruleOp, schemaID, bloc
 	return newMemrules
 }
 
-// onTruncateBlockPartition truncates old partition meta.
-func onTruncateBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (int64, error) {
+// onTruncateBlockPartition truncates old partition spacetime.
+func onTruncateBlockPartition(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (int64, error) {
 	var ver int64
 	var oldIDs []int64
 	if err := job.DecodeArgs(&oldIDs); err != nil {
@@ -990,7 +990,7 @@ func onTruncateBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (int
 		}
 	}
 	if len(newPartitions) == 0 {
-		return ver, block.ErrUnknownPartition.GenWithStackByArgs("drop?", tblInfo.Name.O)
+		return ver, causet.ErrUnknownPartition.GenWithStackByArgs("drop?", tblInfo.Name.O)
 	}
 
 	// Clear the tiflash replica available status.
@@ -1041,7 +1041,7 @@ func onTruncateBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (int
 }
 
 // onExchangeBlockPartition exchange partition data
-func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var (
 		// defID only for uFIDelateSchemaVersion
 		defID          int64
@@ -1077,7 +1077,7 @@ func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptr
 
 	if pt.State != perceptron.StatePublic {
 		job.State = perceptron.JobStateCancelled
-		return ver, ErrInvalidDBSState.GenWithStack("block %s is not in public, but %s", pt.Name, pt.State)
+		return ver, ErrInvalidDBSState.GenWithStack("causet %s is not in public, but %s", pt.Name, pt.State)
 	}
 
 	err = checkExchangePartition(pt, nt)
@@ -1105,7 +1105,7 @@ func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptr
 		}
 	}
 
-	// partition block base auto id
+	// partition causet base auto id
 	ptBaseID, err := t.GetAutoBlockID(ptSchemaID, pt.ID)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -1118,7 +1118,7 @@ func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptr
 		return ver, errors.Trace(err)
 	}
 
-	// non-partition block base auto id
+	// non-partition causet base auto id
 	ntBaseID, err := t.GetAutoBlockID(job.SchemaID, nt.ID)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -1138,7 +1138,7 @@ func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptr
 	}
 
 	tempID := partDef.ID
-	// exchange block meta id
+	// exchange causet spacetime id
 	partDef.ID = nt.ID
 
 	if pt.TiFlashReplica != nil {
@@ -1163,7 +1163,7 @@ func (w *worker) onExchangeBlockPartition(d *dbsCtx, t *meta.Meta, job *perceptr
 		}
 	})
 
-	// recreate non-partition block meta info
+	// recreate non-partition causet spacetime info
 	err = t.DropBlockOrView(job.SchemaID, nt.ID, true)
 	if err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -1234,7 +1234,7 @@ func checkExchangePartitionRecordValidation(w *worker, pt *perceptron.BlockInfo,
 		if len(pi.Definitions) == 1 && strings.EqualFold(pi.Definitions[index].LessThan[0], partitionMaxValue) {
 			return nil
 		}
-		// For range expression and range columns
+		// For range memex and range columns
 		if len(pi.DeferredCausets) == 0 {
 			allegrosql = buildCheckALLEGROSQLForRangeExprPartition(pi, index, schemaName, blockName)
 		} else if len(pi.DeferredCausets) == 1 {
@@ -1251,7 +1251,7 @@ func checkExchangePartitionRecordValidation(w *worker, pt *perceptron.BlockInfo,
 	}
 	defer w.sessPool.put(ctx)
 
-	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLExecutor).ExecRestrictedALLEGROSQL(allegrosql)
+	rows, _, err := ctx.(sqlexec.RestrictedALLEGROSQLInterlockingDirectorate).InterDircRestrictedALLEGROSQL(allegrosql)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -1304,20 +1304,20 @@ func checkNoRangePartitions(partitionNum int) error {
 	return nil
 }
 
-func getPartitionIDs(block *perceptron.BlockInfo) []int64 {
-	if block.GetPartitionInfo() == nil {
+func getPartitionIDs(causet *perceptron.BlockInfo) []int64 {
+	if causet.GetPartitionInfo() == nil {
 		return []int64{}
 	}
-	physicalBlockIDs := make([]int64, 0, len(block.Partition.Definitions))
-	for _, def := range block.Partition.Definitions {
+	physicalBlockIDs := make([]int64, 0, len(causet.Partition.Definitions))
+	for _, def := range causet.Partition.Definitions {
 		physicalBlockIDs = append(physicalBlockIDs, def.ID)
 	}
 	return physicalBlockIDs
 }
 
-// checkPartitioningKeysConstraints checks that the range partitioning key is included in the block constraint.
+// checkPartitioningKeysConstraints checks that the range partitioning key is included in the causet constraint.
 func checkPartitioningKeysConstraints(sctx stochastikctx.Context, s *ast.CreateBlockStmt, tblInfo *perceptron.BlockInfo) error {
-	// Returns directly if there are no unique keys in the block.
+	// Returns directly if there are no unique keys in the causet.
 	if len(tblInfo.Indices) == 0 && !tblInfo.PKIsHandle {
 		return nil
 	}
@@ -1340,7 +1340,7 @@ func checkPartitioningKeysConstraints(sctx stochastikctx.Context, s *ast.CreateB
 	}
 
 	// Checks that the partitioning key is included in the constraint.
-	// Every unique key on the block must use every column in the block's partitioning expression.
+	// Every unique key on the causet must use every column in the causet's partitioning memex.
 	// See https://dev.allegrosql.com/doc/refman/5.7/en/partitioning-limitations-partitioning-keys-unique-keys.html
 	for _, index := range tblInfo.Indices {
 		if index.Unique && !checkUniqueKeyIncludePartKey(partDefCauss, index.DeferredCausets) {
@@ -1387,8 +1387,8 @@ func checkPartitionKeysConstraint(pi *perceptron.PartitionInfo, indexDeferredCau
 		}
 	}
 
-	// In MyALLEGROSQL, every unique key on the block must use every column in the block's partitioning expression.(This
-	// also includes the block's primary key.)
+	// In MyALLEGROSQL, every unique key on the causet must use every column in the causet's partitioning memex.(This
+	// also includes the causet's primary key.)
 	// In MilevaDB, global index will be built when this constraint is not satisfied and EnableGlobalIndex is set.
 	// See https://dev.allegrosql.com/doc/refman/5.7/en/partitioning-limitations-partitioning-keys-unique-keys.html
 	return checkUniqueKeyIncludePartKey(columnInfoSlice(partDefCauss), indexDeferredCausets), nil
@@ -1411,7 +1411,7 @@ func (cne *columnNameExtractor) Leave(node ast.Node) (ast.Node, bool) {
 			cne.extractedDeferredCausets = append(cne.extractedDeferredCausets, info)
 			return node, true
 		}
-		cne.err = ErrBadField.GenWithStackByArgs(c.Name.Name.O, "expression")
+		cne.err = ErrBadField.GenWithStackByArgs(c.Name.Name.O, "memex")
 		return nil, false
 	}
 	return node, true
@@ -1501,7 +1501,7 @@ func isRangePartitionDefCausUnsignedBigint(defcaus []*perceptron.DeferredCausetI
 }
 
 // truncateBlockByReassignPartitionIDs reassigns new partition ids.
-func truncateBlockByReassignPartitionIDs(t *meta.Meta, tblInfo *perceptron.BlockInfo) error {
+func truncateBlockByReassignPartitionIDs(t *spacetime.Meta, tblInfo *perceptron.BlockInfo) error {
 	newDefs := make([]perceptron.PartitionDefinition, 0, len(tblInfo.Partition.Definitions))
 	for _, def := range tblInfo.Partition.Definitions {
 		pid, err := t.GenGlobalID()
@@ -1516,7 +1516,7 @@ func truncateBlockByReassignPartitionIDs(t *meta.Meta, tblInfo *perceptron.Block
 	return nil
 }
 
-func onAlterBlockPartition(t *meta.Meta, job *perceptron.Job) (int64, error) {
+func onAlterBlockPartition(t *spacetime.Meta, job *perceptron.Job) (int64, error) {
 	var partitionID int64
 	var rules []*memristed.MemruleOp
 	err := job.DecodeArgs(&partitionID, &rules)
@@ -1533,7 +1533,7 @@ func onAlterBlockPartition(t *meta.Meta, job *perceptron.Job) (int64, error) {
 	ptInfo := tblInfo.GetPartitionInfo()
 	if ptInfo.GetNameByID(partitionID) == "" {
 		job.State = perceptron.JobStateCancelled
-		return 0, errors.Trace(block.ErrUnknownPartition.GenWithStackByArgs("drop?", tblInfo.Name.O))
+		return 0, errors.Trace(causet.ErrUnknownPartition.GenWithStackByArgs("drop?", tblInfo.Name.O))
 	}
 
 	for i, rule := range rules {

@@ -24,10 +24,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
@@ -56,7 +56,7 @@ func testTableInfoWith2IndexOnFirstDeferredCauset(c *C, d *dbs, name string, num
 	return normalInfo
 }
 
-// testTableInfo creates a test block with num int columns and with no index.
+// testTableInfo creates a test causet with num int columns and with no index.
 func testTableInfo(c *C, d *dbs, name string, num int) *perceptron.TableInfo {
 	tblInfo := &perceptron.TableInfo{
 		Name: perceptron.NewCIStr(name),
@@ -84,7 +84,7 @@ func testTableInfo(c *C, d *dbs, name string, num int) *perceptron.TableInfo {
 	return tblInfo
 }
 
-// testTableInfoWithPartition creates a test block with num int columns and with no index.
+// testTableInfoWithPartition creates a test causet with num int columns and with no index.
 func testTableInfoWithPartition(c *C, d *dbs, name string, num int) *perceptron.TableInfo {
 	tblInfo := testTableInfo(c, d, name, num)
 	genIDs, err := d.genGlobalIDs(1)
@@ -104,7 +104,7 @@ func testTableInfoWithPartition(c *C, d *dbs, name string, num int) *perceptron.
 	return tblInfo
 }
 
-// testTableInfoWithPartitionLessThan creates a test block with num int columns and one partition specified with lessthan.
+// testTableInfoWithPartitionLessThan creates a test causet with num int columns and one partition specified with lessthan.
 func testTableInfoWithPartitionLessThan(c *C, d *dbs, name string, num int, lessthan string) *perceptron.TableInfo {
 	tblInfo := testTableInfoWithPartition(c, d, name, num)
 	tblInfo.Partition.Definitions[0].LessThan = []string{lessthan}
@@ -246,7 +246,7 @@ func testLockTable(c *C, ctx stochastikctx.Context, d *dbs, newSchemaID int64, t
 
 func checkTableLockedTest(c *C, d *dbs, dbInfo *perceptron.DBInfo, tblInfo *perceptron.TableInfo, serverID string, stochastikID uint64, lockTp perceptron.TableLockType) {
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		info, err := t.GetTable(dbInfo.ID, tblInfo.ID)
 		c.Assert(err, IsNil)
 
@@ -299,7 +299,7 @@ func testTruncateTable(c *C, ctx stochastikctx.Context, d *dbs, dbInfo *perceptr
 
 func testCheckTableState(c *C, d *dbs, dbInfo *perceptron.DBInfo, tblInfo *perceptron.TableInfo, state perceptron.SchemaState) {
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		info, err := t.GetTable(dbInfo.ID, tblInfo.ID)
 		c.Assert(err, IsNil)
 
@@ -315,16 +315,16 @@ func testCheckTableState(c *C, d *dbs, dbInfo *perceptron.DBInfo, tblInfo *perce
 	c.Assert(err, IsNil)
 }
 
-func testGetTable(c *C, d *dbs, schemaID int64, blockID int64) block.Block {
+func testGetTable(c *C, d *dbs, schemaID int64, blockID int64) causet.Block {
 	tbl, err := testGetTableWithError(d, schemaID, blockID)
 	c.Assert(err, IsNil)
 	return tbl
 }
 
-func testGetTableWithError(d *dbs, schemaID, blockID int64) (block.Block, error) {
+func testGetTableWithError(d *dbs, schemaID, blockID int64) (causet.Block, error) {
 	var tblInfo *perceptron.TableInfo
 	err := ekv.RunInNewTxn(d.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		var err1 error
 		tblInfo, err1 = t.GetTable(schemaID, blockID)
 		if err1 != nil {
@@ -336,10 +336,10 @@ func testGetTableWithError(d *dbs, schemaID, blockID int64) (block.Block, error)
 		return nil, errors.Trace(err)
 	}
 	if tblInfo == nil {
-		return nil, errors.New("block not found")
+		return nil, errors.New("causet not found")
 	}
 	alloc := autoid.NewSlabPredictor(d.causetstore, schemaID, false, autoid.RowIDAllocType)
-	tbl, err := block.TableFromMeta(autoid.NewSlabPredictors(alloc), tblInfo)
+	tbl, err := causet.TableFromMeta(autoid.NewSlabPredictors(alloc), tblInfo)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -375,7 +375,7 @@ func (s *testTableSuite) TestTable(c *C) {
 	testCheckTableState(c, d, s.dbInfo, tblInfo, perceptron.StatePublic)
 	testCheckJobDone(c, d, job, true)
 
-	// Create an existing block.
+	// Create an existing causet.
 	newTblInfo := testTableInfo(c, d, "t", 3)
 	doDBSJobErr(c, s.dbInfo.ID, newTblInfo.ID, perceptron.CausetActionCreateTable, []interface{}{newTblInfo}, ctx, d)
 
@@ -389,7 +389,7 @@ func (s *testTableSuite) TestTable(c *C) {
 	job = testDropTable(c, ctx, d, s.dbInfo, tblInfo)
 	testCheckJobDone(c, d, job, false)
 
-	// for truncate block
+	// for truncate causet
 	tblInfo = testTableInfo(c, d, "tt", 3)
 	job = testCreateTable(c, ctx, d, s.dbInfo, tblInfo)
 	testCheckTableState(c, d, s.dbInfo, tblInfo, perceptron.StatePublic)
@@ -398,7 +398,7 @@ func (s *testTableSuite) TestTable(c *C) {
 	testCheckTableState(c, d, s.dbInfo, tblInfo, perceptron.StatePublic)
 	testCheckJobDone(c, d, job, true)
 
-	// for rename block
+	// for rename causet
 	dbInfo1 := testSchemaInfo(c, s.d, "test_rename_block")
 	testCreateSchema(c, testNewContext(s.d), s.d, dbInfo1)
 	job = testRenameTable(c, ctx, d, dbInfo1.ID, s.dbInfo.ID, tblInfo)

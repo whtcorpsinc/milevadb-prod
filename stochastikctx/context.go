@@ -19,7 +19,7 @@ import (
 
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
@@ -30,10 +30,10 @@ import (
 type Context interface {
 	// NewTxn creates a new transaction for further execution.
 	// If old transaction is valid, it is committed first.
-	// It's used in BEGIN statement and DBS statements to commit old transaction.
+	// It's used in BEGIN memex and DBS memexs to commit old transaction.
 	NewTxn(context.Context) error
 
-	// Txn returns the current transaction which is created before executing a statement.
+	// Txn returns the current transaction which is created before executing a memex.
 	// The returned ekv.Transaction is not nil, but it maybe pending or invalid.
 	// If the active parameter is true, call this function will wait for the pending txn
 	// to become valid.
@@ -61,40 +61,40 @@ type Context interface {
 	RefreshTxnCtx(context.Context) error
 
 	// InitTxnWithStartTS initializes a transaction with startTS.
-	// It should be called right before we builds an executor.
+	// It should be called right before we builds an interlock.
 	InitTxnWithStartTS(startTS uint64) error
 
 	// GetStore returns the causetstore of stochastik.
 	GetStore() ekv.CausetStorage
 
-	// PreparedPlanCache returns the cache of the physical plan
-	PreparedPlanCache() *kvcache.SimpleLRUCache
+	// PreparedCausetCache returns the cache of the physical plan
+	PreparedCausetCache() *kvcache.SimpleLRUCache
 
 	// StoreQueryFeedback stores the query feedback.
 	StoreQueryFeedback(feedback interface{})
 
-	// HasDirtyContent checks whether there's dirty uFIDelate on the given block.
+	// HasDirtyContent checks whether there's dirty uFIDelate on the given causet.
 	HasDirtyContent(tid int64) bool
 
-	// StmtCommit flush all changes by the statement to the underlying transaction.
+	// StmtCommit flush all changes by the memex to the underlying transaction.
 	StmtCommit()
-	// StmtRollback provides statement level rollback.
+	// StmtRollback provides memex level rollback.
 	StmtRollback()
-	// StmtGetMutation gets the binlog mutation for current statement.
+	// StmtGetMutation gets the binlog mutation for current memex.
 	StmtGetMutation(int64) *binlog.BlockMutation
-	// DBSOwnerChecker returns owner.DBSOwnerChecker.
-	DBSOwnerChecker() owner.DBSOwnerChecker
-	// AddBlockLock adds block lock to the stochastik lock map.
+	// DBSTenantChecker returns tenant.DBSTenantChecker.
+	DBSTenantChecker() tenant.DBSTenantChecker
+	// AddBlockLock adds causet dagger to the stochastik dagger map.
 	AddBlockLock([]perceptron.BlockLockTpInfo)
-	// ReleaseBlockLocks releases block locks in the stochastik lock map.
+	// ReleaseBlockLocks releases causet locks in the stochastik dagger map.
 	ReleaseBlockLocks(locks []perceptron.BlockLockTpInfo)
-	// ReleaseBlockLockByBlockID releases block locks in the stochastik lock map by block ID.
+	// ReleaseBlockLockByBlockID releases causet locks in the stochastik dagger map by causet ID.
 	ReleaseBlockLockByBlockIDs(blockIDs []int64)
-	// CheckBlockLocked checks the block lock.
+	// CheckBlockLocked checks the causet dagger.
 	CheckBlockLocked(tblID int64) (bool, perceptron.BlockLockType)
-	// GetAllBlockLocks gets all block locks block id and EDB id hold by the stochastik.
+	// GetAllBlockLocks gets all causet locks causet id and EDB id hold by the stochastik.
 	GetAllBlockLocks() []perceptron.BlockLockTpInfo
-	// ReleaseAllBlockLocks releases all block locks hold by the stochastik.
+	// ReleaseAllBlockLocks releases all causet locks hold by the stochastik.
 	ReleaseAllBlockLocks()
 	// HasLockedBlocks uses to check whether this stochastik locked any blocks.
 	HasLockedBlocks() bool
@@ -110,7 +110,7 @@ func (t basicCtxType) String() string {
 		return "query_string"
 	case Initing:
 		return "initing"
-	case LastExecuteDBS:
+	case LastInterDircuteDBS:
 		return "last_execute_dbs"
 	}
 	return "unknown"
@@ -122,8 +122,8 @@ const (
 	QueryString basicCtxType = 1
 	// Initing is the key for indicating if the server is running bootstrap or upgrade job.
 	Initing basicCtxType = 2
-	// LastExecuteDBS is the key for whether the stochastik execute a dbs command last time.
-	LastExecuteDBS basicCtxType = 3
+	// LastInterDircuteDBS is the key for whether the stochastik execute a dbs command last time.
+	LastInterDircuteDBS basicCtxType = 3
 )
 
 type connIDCtxKeyType struct{}

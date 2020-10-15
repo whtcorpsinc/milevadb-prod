@@ -251,7 +251,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			ApproximateKeys: 200,
 			ApproximateSize: 500,
 		},
-		// block: 41, record + index: 1
+		// causet: 41, record + index: 1
 		{
 			ID:       2,
 			StartKey: "7480000000000000FF295F698000000000FF0000010000000000FA",
@@ -260,7 +260,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			Peers:    []helper.RegionPeer{{ID: 3, StoreID: 1}},
 			Leader:   helper.RegionPeer{ID: 3, StoreID: 1},
 		},
-		// block: 63, record + index: 1, 2
+		// causet: 63, record + index: 1, 2
 		{
 			ID:       3,
 			StartKey: "7480000000000000FF3F5F698000000000FF0000010000000000FA",
@@ -269,7 +269,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			Peers:    []helper.RegionPeer{{ID: 4, StoreID: 1}},
 			Leader:   helper.RegionPeer{ID: 4, StoreID: 1},
 		},
-		// block: 66, record
+		// causet: 66, record
 		{
 			ID:       4,
 			StartKey: "7480000000000000FF425F72C000000000FF0000000000000000FA",
@@ -278,7 +278,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			Peers:    []helper.RegionPeer{{ID: 5, StoreID: 1}},
 			Leader:   helper.RegionPeer{ID: 5, StoreID: 1},
 		},
-		// block: 66, record + index: 3
+		// causet: 66, record + index: 3
 		{
 			ID:       5,
 			StartKey: "7480000000000000FF425F698000000000FF0000030000000000FA",
@@ -287,7 +287,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			Peers:    []helper.RegionPeer{{ID: 6, StoreID: 1}},
 			Leader:   helper.RegionPeer{ID: 6, StoreID: 1},
 		},
-		// block: 66, index: 1
+		// causet: 66, index: 1
 		{
 			ID:       6,
 			StartKey: "7480000000000000FF425F698000000000FF0000010000000000FA",
@@ -296,7 +296,7 @@ func getMockEinsteinDBRegionsInfo() *helper.RegionsInfo {
 			Peers:    []helper.RegionPeer{{ID: 7, StoreID: 1}},
 			Leader:   helper.RegionPeer{ID: 7, StoreID: 1},
 		},
-		// block: 66, index: 2
+		// causet: 66, index: 2
 		{
 			ID:       7,
 			StartKey: "7480000000000000FF425F698000000000FF0000020000000000FA",

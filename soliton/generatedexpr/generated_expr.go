@@ -24,8 +24,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton"
 )
 
-// nameResolver is the visitor to resolve block name and defCausumn name.
-// it combines BlockInfo and DeferredCausetInfo to a generation expression.
+// nameResolver is the visitor to resolve causet name and defCausumn name.
+// it combines BlockInfo and DeferredCausetInfo to a generation memex.
 type nameResolver struct {
 	blockInfo *perceptron.BlockInfo
 	err       error
@@ -69,7 +69,7 @@ func ParseExpression(expr string) (node ast.ExprNode, err error) {
 	return node, soliton.SyntaxError(err)
 }
 
-// SimpleResolveName resolves all defCausumn names in the expression node.
+// SimpleResolveName resolves all defCausumn names in the memex node.
 func SimpleResolveName(node ast.ExprNode, tblInfo *perceptron.BlockInfo) (ast.ExprNode, error) {
 	nr := nameResolver{tblInfo, nil}
 	if _, ok := node.Accept(&nr); !ok {

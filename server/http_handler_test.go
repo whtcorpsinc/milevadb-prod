@@ -44,7 +44,7 @@ import (
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
@@ -232,10 +232,10 @@ func (ts *HTTPHandlerTestSuite) TestRegionsAPI(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	defer resp.Body.Close()
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 
 	var data BlockRegions
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(len(data.RecordRegions) > 0, IsTrue)
 
@@ -253,9 +253,9 @@ func (ts *HTTPHandlerTestSuite) TestRegionsAPIForClusterIndex(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	defer resp.Body.Close()
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data BlockRegions
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(len(data.RecordRegions) > 0, IsTrue)
 	// list region
@@ -263,9 +263,9 @@ func (ts *HTTPHandlerTestSuite) TestRegionsAPIForClusterIndex(c *C) {
 		resp, err := ts.fetchStatus(fmt.Sprintf("/regions/%d", region.ID))
 		c.Assert(err, IsNil)
 		c.Assert(resp.StatusCode, Equals, http.StatusOK)
-		decoder := json.NewDecoder(resp.Body)
+		causetDecoder := json.NewCausetDecoder(resp.Body)
 		var data RegionDetail
-		err = decoder.Decode(&data)
+		err = causetDecoder.Decode(&data)
 		c.Assert(err, IsNil)
 		frameCnt := 0
 		for _, f := range data.Frames {
@@ -284,9 +284,9 @@ func (ts *HTTPHandlerTestSuite) regionContainsBlock(c *C, regionID uint64, block
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	defer resp.Body.Close()
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data RegionDetail
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	for _, index := range data.Frames {
 		if index.BlockID == blockID {
@@ -300,7 +300,7 @@ func (ts *HTTPHandlerTestSuite) TestListBlockRegions(c *C) {
 	ts.startServer(c)
 	defer ts.stopServer(c)
 	ts.prepareData(c)
-	// Test list block regions with error
+	// Test list causet regions with error
 	resp, err := ts.fetchStatus("/blocks/fdsfds/aaa/regions")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -311,7 +311,7 @@ func (ts *HTTPHandlerTestSuite) TestListBlockRegions(c *C) {
 	defer resp.Body.Close()
 
 	var data []*BlockRegions
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewCausetDecoder(resp.Body)
 	err = dec.Decode(&data)
 	c.Assert(err, IsNil)
 
@@ -399,23 +399,23 @@ func (ts *HTTPHandlerTestSuite) TestBinlogRecover(c *C) {
 func (ts *HTTPHandlerTestSuite) TestRegionsFromMeta(c *C) {
 	ts.startServer(c)
 	defer ts.stopServer(c)
-	resp, err := ts.fetchStatus("/regions/meta")
+	resp, err := ts.fetchStatus("/regions/spacetime")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
 	// Verify the resp body.
-	decoder := json.NewDecoder(resp.Body)
-	metas := make([]RegionMeta, 0)
-	err = decoder.Decode(&metas)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
+	spacetimes := make([]RegionMeta, 0)
+	err = causetDecoder.Decode(&spacetimes)
 	c.Assert(err, IsNil)
-	for _, meta := range metas {
-		c.Assert(meta.ID != 0, IsTrue)
+	for _, spacetime := range spacetimes {
+		c.Assert(spacetime.ID != 0, IsTrue)
 	}
 
 	// test no panic
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/server/errGetRegionByIDEmpty", `return(true)`), IsNil)
-	resp1, err := ts.fetchStatus("/regions/meta")
+	resp1, err := ts.fetchStatus("/regions/spacetime")
 	c.Assert(err, IsNil)
 	defer resp1.Body.Close()
 	c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/server/errGetRegionByIDEmpty"), IsNil)
@@ -466,26 +466,26 @@ func (ts *basicHTTPHandlerTestSuite) prepareData(c *C) {
 	defer EDB.Close()
 	dbt := &DBTest{c, EDB}
 
-	dbt.mustExec("create database milevadb;")
-	dbt.mustExec("use milevadb;")
-	dbt.mustExec("create block milevadb.test (a int auto_increment primary key, b varchar(20));")
-	dbt.mustExec("insert milevadb.test values (1, 1);")
+	dbt.mustInterDirc("create database milevadb;")
+	dbt.mustInterDirc("use milevadb;")
+	dbt.mustInterDirc("create causet milevadb.test (a int auto_increment primary key, b varchar(20));")
+	dbt.mustInterDirc("insert milevadb.test values (1, 1);")
 	txn1, err := dbt.EDB.Begin()
 	c.Assert(err, IsNil)
-	_, err = txn1.Exec("uFIDelate milevadb.test set b = b + 1 where a = 1;")
+	_, err = txn1.InterDirc("uFIDelate milevadb.test set b = b + 1 where a = 1;")
 	c.Assert(err, IsNil)
-	_, err = txn1.Exec("insert milevadb.test values (2, 2);")
+	_, err = txn1.InterDirc("insert milevadb.test values (2, 2);")
 	c.Assert(err, IsNil)
-	_, err = txn1.Exec("insert milevadb.test (a) values (3);")
+	_, err = txn1.InterDirc("insert milevadb.test (a) values (3);")
 	c.Assert(err, IsNil)
-	_, err = txn1.Exec("insert milevadb.test values (4, '');")
+	_, err = txn1.InterDirc("insert milevadb.test values (4, '');")
 	c.Assert(err, IsNil)
 	err = txn1.Commit()
 	c.Assert(err, IsNil)
-	dbt.mustExec("alter block milevadb.test add index idx1 (a, b);")
-	dbt.mustExec("alter block milevadb.test add unique index idx2 (a, b);")
+	dbt.mustInterDirc("alter causet milevadb.test add index idx1 (a, b);")
+	dbt.mustInterDirc("alter causet milevadb.test add unique index idx2 (a, b);")
 
-	dbt.mustExec(`create block milevadb.pt (a int primary key, b varchar(20), key idx(a, b))
+	dbt.mustInterDirc(`create causet milevadb.pt (a int primary key, b varchar(20), key idx(a, b))
 partition by range (a)
 (partition p0 values less than (256),
  partition p1 values less than (512),
@@ -493,22 +493,22 @@ partition by range (a)
 
 	txn2, err := dbt.EDB.Begin()
 	c.Assert(err, IsNil)
-	txn2.Exec("insert into milevadb.pt values (42, '123')")
-	txn2.Exec("insert into milevadb.pt values (256, 'b')")
-	txn2.Exec("insert into milevadb.pt values (666, 'def')")
+	txn2.InterDirc("insert into milevadb.pt values (42, '123')")
+	txn2.InterDirc("insert into milevadb.pt values (256, 'b')")
+	txn2.InterDirc("insert into milevadb.pt values (666, 'def')")
 	err = txn2.Commit()
 	c.Assert(err, IsNil)
 
-	dbt.mustExec("set @@milevadb_enable_clustered_index = 1")
-	dbt.mustExec("drop block if exists t")
-	dbt.mustExec("create block t (a double, b varchar(20), c int, primary key(a,b))")
-	dbt.mustExec("insert into t values(1.1,'111',1),(2.2,'222',2)")
+	dbt.mustInterDirc("set @@milevadb_enable_clustered_index = 1")
+	dbt.mustInterDirc("drop causet if exists t")
+	dbt.mustInterDirc("create causet t (a double, b varchar(20), c int, primary key(a,b))")
+	dbt.mustInterDirc("insert into t values(1.1,'111',1),(2.2,'222',2)")
 }
 
 func decodeKeyMvcc(closer io.ReadCloser, c *C, valid bool) {
-	decoder := json.NewDecoder(closer)
+	causetDecoder := json.NewCausetDecoder(closer)
 	var data mvccKV
-	err := decoder.Decode(&data)
+	err := causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	if valid {
 		c.Assert(data.Value.Info, NotNil)
@@ -527,9 +527,9 @@ func (ts *HTTPHandlerTestSuite) TestGetBlockMVCC(c *C) {
 
 	resp, err := ts.fetchStatus(fmt.Sprintf("/mvcc/key/milevadb/test/1"))
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data mvccKV
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(data.Value, NotNil)
 	info := data.Value.Info
@@ -550,8 +550,8 @@ func (ts *HTTPHandlerTestSuite) TestGetBlockMVCC(c *C) {
 	resp, err = ts.fetchStatus(fmt.Sprintf("/mvcc/txn/%d/milevadb/test", startTs))
 	c.Assert(err, IsNil)
 	var p2 mvccKV
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&p2)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&p2)
 	c.Assert(err, IsNil)
 
 	for i, expect := range info.Values {
@@ -562,17 +562,17 @@ func (ts *HTTPHandlerTestSuite) TestGetBlockMVCC(c *C) {
 	hexKey := p2.Key
 	resp, err = ts.fetchStatus("/mvcc/hex/" + hexKey)
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
 	var data2 mvccKV
-	err = decoder.Decode(&data2)
+	err = causetDecoder.Decode(&data2)
 	c.Assert(err, IsNil)
 	c.Assert(data2, DeepEquals, data)
 
 	resp, err = ts.fetchStatus(fmt.Sprintf("/mvcc/key/milevadb/test/1?decode=true"))
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
 	var data3 map[string]interface{}
-	err = decoder.Decode(&data3)
+	err = causetDecoder.Decode(&data3)
 	c.Assert(err, IsNil)
 	c.Assert(data3["key"], NotNil)
 	c.Assert(data3["info"], NotNil)
@@ -582,9 +582,9 @@ func (ts *HTTPHandlerTestSuite) TestGetBlockMVCC(c *C) {
 	resp, err = ts.fetchStatus("/mvcc/key/milevadb/pt(p0)/42?decode=true")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
-	decoder = json.NewDecoder(resp.Body)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
 	var data4 map[string]interface{}
-	err = decoder.Decode(&data4)
+	err = causetDecoder.Decode(&data4)
 	c.Assert(err, IsNil)
 	c.Assert(data4["key"], NotNil)
 	c.Assert(data4["info"], NotNil)
@@ -598,9 +598,9 @@ func (ts *HTTPHandlerTestSuite) TestGetMVCCNotFound(c *C) {
 	defer ts.stopServer(c)
 	resp, err := ts.fetchStatus(fmt.Sprintf("/mvcc/key/milevadb/test/1234"))
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data mvccKV
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(data.Value.Info.Lock, IsNil)
 	c.Assert(data.Value.Info.Writes, IsNil)
@@ -626,7 +626,7 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 	}(dbs.IsEmulatorGCEnable())
 
 	// Disable emulator GC.
-	// Otherwise emulator GC will delete block record as soon as possible after execute drop block DBS.
+	// Otherwise emulator GC will delete causet record as soon as possible after execute drop causet DBS.
 	dbs.EmulatorGCDisable()
 	gcTimeFormat := "20060102-15:04:05 -0700 MST"
 	timeBeforeDrop := time.Now().Add(0 - 48*60*60*time.Second).Format(gcTimeFormat)
@@ -634,25 +634,25 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 			       ON DUPLICATE KEY
 			       UFIDelATE variable_value = '%[1]s'`
 	// Set GC safe point and enable GC.
-	dbt.mustExec(fmt.Sprintf(safePointALLEGROSQL, timeBeforeDrop))
+	dbt.mustInterDirc(fmt.Sprintf(safePointALLEGROSQL, timeBeforeDrop))
 
 	resp, err := ts.fetchStatus("/tiflash/replica")
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data []blockFlashReplicaInfo
-	err = decoder.Decode(&data)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(len(data), Equals, 0)
 
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount", `return(true)`), IsNil)
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
-	dbt.mustExec("use milevadb")
-	dbt.mustExec("alter block test set tiflash replica 2 location labels 'a','b';")
+	dbt.mustInterDirc("use milevadb")
+	dbt.mustInterDirc("alter causet test set tiflash replica 2 location labels 'a','b';")
 
 	resp, err = ts.fetchStatus("/tiflash/replica")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&data)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	c.Assert(len(data), Equals, 1)
 	c.Assert(data[0].ReplicaCount, Equals, uint64(2))
@@ -678,8 +678,8 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 
 	resp, err = ts.fetchStatus("/tiflash/replica")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&data)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	resp.Body.Close()
 	c.Assert(len(data), Equals, 1)
@@ -688,12 +688,12 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 	c.Assert(data[0].Available, Equals, true) // The status should be true now.
 
 	// Should not take effect.
-	dbt.mustExec("alter block test set tiflash replica 2 location labels 'a','b';")
+	dbt.mustInterDirc("alter causet test set tiflash replica 2 location labels 'a','b';")
 	checkFunc := func() {
 		resp, err = ts.fetchStatus("/tiflash/replica")
 		c.Assert(err, IsNil)
-		decoder = json.NewDecoder(resp.Body)
-		err = decoder.Decode(&data)
+		causetDecoder = json.NewCausetDecoder(resp.Body)
+		err = causetDecoder.Decode(&data)
 		c.Assert(err, IsNil)
 		resp.Body.Close()
 		c.Assert(len(data), Equals, 1)
@@ -702,25 +702,25 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 		c.Assert(data[0].Available, Equals, true) // The status should be true now.
 	}
 
-	// Test for get dropped block tiflash replica info.
-	dbt.mustExec("drop block test")
+	// Test for get dropped causet tiflash replica info.
+	dbt.mustInterDirc("drop causet test")
 	checkFunc()
 
-	// Test unique block id replica info.
-	dbt.mustExec("flashback block test")
+	// Test unique causet id replica info.
+	dbt.mustInterDirc("flashback causet test")
 	checkFunc()
-	dbt.mustExec("drop block test")
+	dbt.mustInterDirc("drop causet test")
 	checkFunc()
-	dbt.mustExec("flashback block test")
+	dbt.mustInterDirc("flashback causet test")
 	checkFunc()
 
-	// Test for partition block.
-	dbt.mustExec("alter block pt set tiflash replica 2 location labels 'a','b';")
-	dbt.mustExec("alter block test set tiflash replica 0;")
+	// Test for partition causet.
+	dbt.mustInterDirc("alter causet pt set tiflash replica 2 location labels 'a','b';")
+	dbt.mustInterDirc("alter causet test set tiflash replica 0;")
 	resp, err = ts.fetchStatus("/tiflash/replica")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&data)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	resp.Body.Close()
 	c.Assert(len(data), Equals, 3)
@@ -739,8 +739,8 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 	resp.Body.Close()
 	resp, err = ts.fetchStatus("/tiflash/replica")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&data)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&data)
 	c.Assert(err, IsNil)
 	resp.Body.Close()
 	c.Assert(len(data), Equals, 3)
@@ -760,8 +760,8 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 	checkFunc = func() {
 		resp, err = ts.fetchStatus("/tiflash/replica")
 		c.Assert(err, IsNil)
-		decoder = json.NewDecoder(resp.Body)
-		err = decoder.Decode(&data)
+		causetDecoder = json.NewCausetDecoder(resp.Body)
+		err = causetDecoder.Decode(&data)
 		c.Assert(err, IsNil)
 		resp.Body.Close()
 		c.Assert(len(data), Equals, 3)
@@ -770,9 +770,9 @@ func (ts *HTTPHandlerTestSuite) TestTiFlashReplica(c *C) {
 		c.Assert(data[2].Available, Equals, true)
 	}
 
-	// Test for get truncated block tiflash replica info.
-	dbt.mustExec("truncate block pt")
-	dbt.mustExec("alter block pt set tiflash replica 0;")
+	// Test for get truncated causet tiflash replica info.
+	dbt.mustInterDirc("truncate causet pt")
+	dbt.mustInterDirc("alter causet pt set tiflash replica 0;")
 	checkFunc()
 }
 
@@ -803,7 +803,7 @@ func (ts *HTTPHandlerTestSuite) TestDecodeDeferredCausetValue(c *C) {
 	for _, defCaus := range defcaus {
 		defCausIDs = append(defCausIDs, defCaus.id)
 	}
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	sc := &stmtctx.StatementContext{TimeZone: time.UTC}
 	bs, err := blockcodec.EncodeRow(sc, event, defCausIDs, nil, nil, &rd)
 	c.Assert(err, IsNil)
@@ -814,9 +814,9 @@ func (ts *HTTPHandlerTestSuite) TestDecodeDeferredCausetValue(c *C) {
 		path := fmt.Sprintf("/blocks/%d/%v/%d/%d?rowBin=%s", defCaus.id, defCaus.tp.Tp, defCaus.tp.Flag, defCaus.tp.Flen, bin)
 		resp, err := ts.fetchStatus(path)
 		c.Assert(err, IsNil, Commentf("url:%s", ts.statusURL(path)))
-		decoder := json.NewDecoder(resp.Body)
+		causetDecoder := json.NewCausetDecoder(resp.Body)
 		var data interface{}
-		err = decoder.Decode(&data)
+		err = causetDecoder.Decode(&data)
 		c.Assert(err, IsNil, Commentf("url:%v\ndata%v", ts.statusURL(path), data))
 		defCausVal, err := types.CausetsToString([]types.Causet{event[defCaus.id-1]}, false)
 		c.Assert(err, IsNil)
@@ -884,16 +884,16 @@ func (ts *HTTPHandlerTestSuite) TestGetIndexMVCC(c *C) {
 	// tests for missing defCausumn value
 	resp, err = ts.fetchStatus("/mvcc/index/milevadb/test/idx1/1?a=1")
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var data1 mvccKV
-	err = decoder.Decode(&data1)
+	err = causetDecoder.Decode(&data1)
 	c.Assert(err, NotNil)
 
 	resp, err = ts.fetchStatus("/mvcc/index/milevadb/test/idx2/1?a=1")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
 	var data2 mvccKV
-	err = decoder.Decode(&data2)
+	err = causetDecoder.Decode(&data2)
 	c.Assert(err, NotNil)
 
 	resp, err = ts.fetchStatus("/mvcc/index/milevadb/pt(p2)/idx/666?a=666&b=def")
@@ -908,9 +908,9 @@ func (ts *HTTPHandlerTestSuite) TestGetSettings(c *C) {
 	defer ts.stopServer(c)
 	resp, err := ts.fetchStatus("/settings")
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var settings *config.Config
-	err = decoder.Decode(&settings)
+	err = causetDecoder.Decode(&settings)
 	c.Assert(err, IsNil)
 	c.Assert(settings, DeepEquals, config.GetGlobalConfig())
 }
@@ -921,9 +921,9 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 	defer ts.stopServer(c)
 	resp, err := ts.fetchStatus("/schemaReplicant")
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 	var dbs []*perceptron.DBInfo
-	err = decoder.Decode(&dbs)
+	err = causetDecoder.Decode(&dbs)
 	c.Assert(err, IsNil)
 	expects := []string{"information_schema", "metrics_schema", "allegrosql", "performance_schema", "test", "milevadb"}
 	names := make([]string, len(dbs))
@@ -936,8 +936,8 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 	resp, err = ts.fetchStatus("/schemaReplicant?block_id=5")
 	c.Assert(err, IsNil)
 	var t *perceptron.BlockInfo
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&t)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&t)
 	c.Assert(err, IsNil)
 	c.Assert(t.Name.L, Equals, "user")
 
@@ -953,8 +953,8 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 	resp, err = ts.fetchStatus("/schemaReplicant/milevadb")
 	c.Assert(err, IsNil)
 	var lt []*perceptron.BlockInfo
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&lt)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&lt)
 	c.Assert(err, IsNil)
 	c.Assert(len(lt), Greater, 0)
 
@@ -963,19 +963,19 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 
 	resp, err = ts.fetchStatus("/schemaReplicant/milevadb/test")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&t)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&t)
 	c.Assert(err, IsNil)
 	c.Assert(t.Name.L, Equals, "test")
 
 	_, err = ts.fetchStatus("/schemaReplicant/milevadb/abc")
 	c.Assert(err, IsNil)
 
-	resp, err = ts.fetchStatus("/EDB-block/5")
+	resp, err = ts.fetchStatus("/EDB-causet/5")
 	c.Assert(err, IsNil)
 	var dbtbl *dbBlockInfo
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&dbtbl)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&dbtbl)
 	c.Assert(err, IsNil)
 	c.Assert(dbtbl.BlockInfo.Name.L, Equals, "user")
 	c.Assert(dbtbl.DBInfo.Name.L, Equals, "allegrosql")
@@ -988,9 +988,9 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 	defer EDB.Close()
 	dbt := &DBTest{c, EDB}
 
-	dbt.mustExec("create database if not exists test;")
-	dbt.mustExec("use test;")
-	dbt.mustExec(` create block t1 (id int KEY)
+	dbt.mustInterDirc("create database if not exists test;")
+	dbt.mustInterDirc("use test;")
+	dbt.mustInterDirc(` create causet t1 (id int KEY)
 		partition by range (id) (
 		PARTITION p0 VALUES LESS THAN (3),
 		PARTITION p1 VALUES LESS THAN (5),
@@ -999,15 +999,15 @@ func (ts *HTTPHandlerTestSuite) TestGetSchema(c *C) {
 
 	resp, err = ts.fetchStatus("/schemaReplicant/test/t1")
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&t)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&t)
 	c.Assert(err, IsNil)
 	c.Assert(t.Name.L, Equals, "t1")
 
-	resp, err = ts.fetchStatus(fmt.Sprintf("/EDB-block/%v", t.GetPartitionInfo().Definitions[0].ID))
+	resp, err = ts.fetchStatus(fmt.Sprintf("/EDB-causet/%v", t.GetPartitionInfo().Definitions[0].ID))
 	c.Assert(err, IsNil)
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&dbtbl)
+	causetDecoder = json.NewCausetDecoder(resp.Body)
+	err = causetDecoder.Decode(&dbtbl)
 	c.Assert(err, IsNil)
 	c.Assert(dbtbl.BlockInfo.Name.L, Equals, "t1")
 	c.Assert(dbtbl.DBInfo.Name.L, Equals, "test")
@@ -1025,17 +1025,17 @@ func (ts *HTTPHandlerTestSuite) TestAllHistory(c *C) {
 
 	resp, err := ts.fetchStatus("/dbs/history")
 	c.Assert(err, IsNil)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 
 	var jobs []*perceptron.Job
 	s, _ := stochastik.CreateStochastik(ts.server.newEinsteinDBHandlerTool().CausetStore.(ekv.CausetStorage))
 	defer s.Close()
 	causetstore := petri.GetPetri(s.(stochastikctx.Context)).CausetStore()
 	txn, _ := causetstore.Begin()
-	txnMeta := meta.NewMeta(txn)
+	txnMeta := spacetime.NewMeta(txn)
 	txnMeta.GetAllHistoryDBSJobs()
 	data, _ := txnMeta.GetAllHistoryDBSJobs()
-	err = decoder.Decode(&jobs)
+	err = causetDecoder.Decode(&jobs)
 
 	c.Assert(err, IsNil)
 	c.Assert(jobs, DeepEquals, data)
@@ -1081,10 +1081,10 @@ func (ts *HTTPHandlerTestSuite) TestPostSettings(c *C) {
 	defer EDB.Close()
 	dbt := &DBTest{c, EDB}
 
-	dbt.mustExec("create database milevadb_test;")
-	dbt.mustExec("use milevadb_test;")
-	dbt.mustExec("drop block if exists t2;")
-	dbt.mustExec("create block t2(a varchar(100) charset utf8);")
+	dbt.mustInterDirc("create database milevadb_test;")
+	dbt.mustInterDirc("use milevadb_test;")
+	dbt.mustInterDirc("drop causet if exists t2;")
+	dbt.mustInterDirc("create causet t2(a varchar(100) charset utf8);")
 	form.Set("check_mb4_value_in_utf8", "1")
 	resp, err = ts.formStatus("/settings", form)
 	c.Assert(err, IsNil)
@@ -1092,7 +1092,7 @@ func (ts *HTTPHandlerTestSuite) TestPostSettings(c *C) {
 	c.Assert(config.GetGlobalConfig().CheckMb4ValueInUTF8, Equals, true)
 	txn1, err := dbt.EDB.Begin()
 	c.Assert(err, IsNil)
-	_, err = txn1.Exec("insert t2 values (unhex('F0A48BAE'));")
+	_, err = txn1.InterDirc("insert t2 values (unhex('F0A48BAE'));")
 	c.Assert(err, NotNil)
 	txn1.Commit()
 
@@ -1103,7 +1103,7 @@ func (ts *HTTPHandlerTestSuite) TestPostSettings(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	c.Assert(config.GetGlobalConfig().CheckMb4ValueInUTF8, Equals, false)
-	dbt.mustExec("insert t2 values (unhex('f09f8c80'));")
+	dbt.mustInterDirc("insert t2 values (unhex('f09f8c80'));")
 }
 
 func (ts *HTTPHandlerTestSuite) TestPprof(c *C) {
@@ -1129,14 +1129,14 @@ func (ts *HTTPHandlerTestSuite) TestServerInfo(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 
 	info := serverInfo{}
-	err = decoder.Decode(&info)
+	err = causetDecoder.Decode(&info)
 	c.Assert(err, IsNil)
 
 	cfg := config.GetGlobalConfig()
-	c.Assert(info.IsOwner, IsTrue)
+	c.Assert(info.IsTenant, IsTrue)
 	c.Assert(info.IP, Equals, cfg.AdvertiseAddress)
 	c.Assert(info.StatusPort, Equals, cfg.Status.StatusPort)
 	c.Assert(info.Lease, Equals, cfg.Lease)
@@ -1157,10 +1157,10 @@ func (ts *HTTPHandlerTestSerialSuite) TestAllServerInfo(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	decoder := json.NewDecoder(resp.Body)
+	causetDecoder := json.NewCausetDecoder(resp.Body)
 
 	clusterInfo := clusterServerInfo{}
-	err = decoder.Decode(&clusterInfo)
+	err = causetDecoder.Decode(&clusterInfo)
 	c.Assert(err, IsNil)
 
 	c.Assert(clusterInfo.IsAllServerVersionConsistent, IsTrue)
@@ -1170,7 +1170,7 @@ func (ts *HTTPHandlerTestSerialSuite) TestAllServerInfo(c *C) {
 	do, err := stochastik.GetPetri(causetstore.(ekv.CausetStorage))
 	c.Assert(err, IsNil)
 	dbs := do.DBS()
-	c.Assert(clusterInfo.OwnerID, Equals, dbs.GetID())
+	c.Assert(clusterInfo.TenantID, Equals, dbs.GetID())
 	serverInfo, ok := clusterInfo.AllServersInfo[dbs.GetID()]
 	c.Assert(ok, Equals, true)
 
@@ -1226,8 +1226,8 @@ func (ts *HTTPHandlerTestSuite) TestZipInfoForALLEGROSQL(c *C) {
 	defer EDB.Close()
 	dbt := &DBTest{c, EDB}
 
-	dbt.mustExec("use test")
-	dbt.mustExec("create block if not exists t (a int)")
+	dbt.mustInterDirc("use test")
+	dbt.mustInterDirc("create causet if not exists t (a int)")
 
 	urlValues := url.Values{
 		"allegrosql":        {"select * from t"},

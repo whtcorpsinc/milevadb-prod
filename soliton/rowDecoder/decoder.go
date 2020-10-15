@@ -11,18 +11,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoder
+package causetDecoder
 
 import (
 	"sort"
 	"time"
 
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/block"
-	"github.com/whtcorpsinc/milevadb/block/blocks"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -31,24 +31,24 @@ import (
 
 // DeferredCauset contains the info and generated expr of defCausumn.
 type DeferredCauset struct {
-	DefCaus     *block.DeferredCauset
-	GenExpr expression.Expression
+	DefCaus     *causet.DeferredCauset
+	GenExpr memex.Expression
 }
 
-// RowDecoder decodes a byte slice into datums and eval the generated defCausumn value.
-type RowDecoder struct {
-	tbl           block.Block
+// RowCausetDecoder decodes a byte slice into datums and eval the generated defCausumn value.
+type RowCausetDecoder struct {
+	tbl           causet.Block
 	mutRow        chunk.MutRow
 	defCausMap        map[int64]DeferredCauset
 	defCausTypes      map[int64]*types.FieldType
 	haveGenDeferredCauset bool
 	defaultVals   []types.Causet
-	defcaus          []*block.DeferredCauset
+	defcaus          []*causet.DeferredCauset
 	pkDefCauss        []int64
 }
 
-// NewRowDecoder returns a new RowDecoder.
-func NewRowDecoder(tbl block.Block, defcaus []*block.DeferredCauset, decodeDefCausMap map[int64]DeferredCauset) *RowDecoder {
+// NewRowCausetDecoder returns a new RowCausetDecoder.
+func NewRowCausetDecoder(tbl causet.Block, defcaus []*causet.DeferredCauset, decodeDefCausMap map[int64]DeferredCauset) *RowCausetDecoder {
 	tblInfo := tbl.Meta()
 	defCausFieldMap := make(map[int64]*types.FieldType, len(decodeDefCausMap))
 	for id, defCaus := range decodeDefCausMap {
@@ -66,7 +66,7 @@ func NewRowDecoder(tbl block.Block, defcaus []*block.DeferredCauset, decodeDefCa
 	case tblInfo.PKIsHandle:
 		pkDefCauss = []int64{tblInfo.GetPkDefCausInfo().ID}
 	}
-	return &RowDecoder{
+	return &RowCausetDecoder{
 		tbl:         tbl,
 		mutRow:      chunk.MutRowFromTypes(tps),
 		defCausMap:      decodeDefCausMap,
@@ -78,7 +78,7 @@ func NewRowDecoder(tbl block.Block, defcaus []*block.DeferredCauset, decodeDefCa
 }
 
 // DecodeAndEvalRowWithMap decodes a byte slice into datums and evaluates the generated defCausumn value.
-func (rd *RowDecoder) DecodeAndEvalRowWithMap(ctx stochastikctx.Context, handle ekv.Handle, b []byte, decodeLoc, sysLoc *time.Location, event map[int64]types.Causet) (map[int64]types.Causet, error) {
+func (rd *RowCausetDecoder) DecodeAndEvalRowWithMap(ctx stochastikctx.Context, handle ekv.Handle, b []byte, decodeLoc, sysLoc *time.Location, event map[int64]types.Causet) (map[int64]types.Causet, error) {
 	var err error
 	if rowcodec.IsNewFormat(b) {
 		event, err = blockcodec.DecodeRowWithMapNew(b, rd.defCausTypes, decodeLoc, event)
@@ -102,7 +102,7 @@ func (rd *RowDecoder) DecodeAndEvalRowWithMap(ctx stochastikctx.Context, handle 
 		if dDefCaus.DefCaus.ChangeStateInfo != nil {
 			val, _, err = blocks.GetChangingDefCausVal(ctx, rd.defcaus, dDefCaus.DefCaus, event, rd.defaultVals)
 		} else {
-			// Get the default value of the defCausumn in the generated defCausumn expression.
+			// Get the default value of the defCausumn in the generated defCausumn memex.
 			val, err = blocks.GetDefCausDefaultValue(ctx, dDefCaus.DefCaus, rd.defaultVals)
 		}
 		if err != nil {
@@ -127,7 +127,7 @@ func (rd *RowDecoder) DecodeAndEvalRowWithMap(ctx stochastikctx.Context, handle 
 		if err != nil {
 			return nil, err
 		}
-		val, err = block.CastValue(ctx, val, defCaus.DefCaus.DeferredCausetInfo, false, true)
+		val, err = causet.CastValue(ctx, val, defCaus.DefCaus.DeferredCausetInfo, false, true)
 		if err != nil {
 			return nil, err
 		}
@@ -149,8 +149,8 @@ func (rd *RowDecoder) DecodeAndEvalRowWithMap(ctx stochastikctx.Context, handle 
 	return event, nil
 }
 
-// BuildFullDecodeDefCausMap builds a map that contains [defCausumnID -> struct{*block.DeferredCauset, expression.Expression}] from all defCausumns.
-func BuildFullDecodeDefCausMap(defcaus []*block.DeferredCauset, schemaReplicant *expression.Schema) map[int64]DeferredCauset {
+// BuildFullDecodeDefCausMap builds a map that contains [defCausumnID -> struct{*causet.DeferredCauset, memex.Expression}] from all defCausumns.
+func BuildFullDecodeDefCausMap(defcaus []*causet.DeferredCauset, schemaReplicant *memex.Schema) map[int64]DeferredCauset {
 	decodeDefCausMap := make(map[int64]DeferredCauset, len(defcaus))
 	for _, defCaus := range defcaus {
 		decodeDefCausMap[defCaus.ID] = DeferredCauset{

@@ -43,7 +43,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Helper is a midbseware to get some information from einsteindb/fidel. It can be used for MilevaDB's http api or mem block.
+// Helper is a midbseware to get some information from einsteindb/fidel. It can be used for MilevaDB's http api or mem causet.
 type Helper struct {
 	CausetStore       einsteindb.CausetStorage
 	RegionCache *einsteindb.RegionCache
@@ -144,7 +144,7 @@ func (h *Helper) FetchHotRegion(rw string) (map[uint64]RegionMetric, error) {
 		}
 	}()
 	var regionResp StoreHotRegionInfos
-	err = json.NewDecoder(resp.Body).Decode(&regionResp)
+	err = json.NewCausetDecoder(resp.Body).Decode(&regionResp)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -161,7 +161,7 @@ func (h *Helper) FetchHotRegion(rw string) (map[uint64]RegionMetric, error) {
 	return metric, nil
 }
 
-// TblIndex stores the things to index one block.
+// TblIndex stores the things to index one causet.
 type TblIndex struct {
 	DbName    string
 	BlockName string
@@ -170,7 +170,7 @@ type TblIndex struct {
 	IndexID   int64
 }
 
-// FrameItem includes a index's or record's meta data with block's info.
+// FrameItem includes a index's or record's spacetime data with causet's info.
 type FrameItem struct {
 	DBName      string   `json:"db_name"`
 	BlockName   string   `json:"block_name"`
@@ -189,7 +189,7 @@ type RegionFrameRange struct {
 	region *einsteindb.KeyLocation // the region
 }
 
-// HotBlockIndex contains region and its block/index info.
+// HotBlockIndex contains region and its causet/index info.
 type HotBlockIndex struct {
 	RegionID     uint64        `json:"region_id"`
 	RegionMetric *RegionMetric `json:"region_metric"`
@@ -200,7 +200,7 @@ type HotBlockIndex struct {
 	IndexID      int64         `json:"index_id"`
 }
 
-// FetchRegionBlockIndex constructs a map that maps a block to its hot region information by the given raw hot RegionMetric metrics.
+// FetchRegionBlockIndex constructs a map that maps a causet to its hot region information by the given raw hot RegionMetric metrics.
 func (h *Helper) FetchRegionBlockIndex(metrics map[uint64]RegionMetric, allSchemas []*perceptron.DBInfo) ([]HotBlockIndex, error) {
 	hotBlocks := make([]HotBlockIndex, 0, len(metrics))
 	for regionID, regionMetric := range metrics {
@@ -229,7 +229,7 @@ func (h *Helper) FetchRegionBlockIndex(metrics map[uint64]RegionMetric, allSchem
 	return hotBlocks, nil
 }
 
-// FindBlockIndexOfRegion finds what block is involved in this hot region. And constructs the new frame item for future use.
+// FindBlockIndexOfRegion finds what causet is involved in this hot region. And constructs the new frame item for future use.
 func (h *Helper) FindBlockIndexOfRegion(allSchemas []*perceptron.DBInfo, hotRange *RegionFrameRange) *FrameItem {
 	for _, EDB := range allSchemas {
 		for _, tbl := range EDB.Blocks {
@@ -353,7 +353,7 @@ func NewFrameItemFromRegionKey(key []byte) (frame *FrameItem, err error) {
 	}
 
 	// key start with blockPrefix must be either record key or index key
-	// That's means block's record key and index key are always together
+	// That's means causet's record key and index key are always together
 	// in the continuous interval. And for key with prefix smaller than
 	// blockPrefix, is smaller than all blocks. While for key with prefix
 	// bigger than blockPrefix, means is bigger than all blocks.
@@ -371,7 +371,7 @@ func NewFrameItemFromRegionKey(key []byte) (frame *FrameItem, err error) {
 	return
 }
 
-// GetRecordFrame returns the record frame of a block. If the block's records
+// GetRecordFrame returns the record frame of a causet. If the causet's records
 // are not covered by this frame range, it returns nil.
 func (r *RegionFrameRange) GetRecordFrame(blockID int64, dbName, blockName string, isCommonHandle bool) (f *FrameItem) {
 	if blockID == r.First.BlockID && r.First.IsRecord {
@@ -394,7 +394,7 @@ func (r *RegionFrameRange) GetRecordFrame(blockID int64, dbName, blockName strin
 	return
 }
 
-// GetIndexFrame returns the indnex frame of a block. If the block's indices are
+// GetIndexFrame returns the indnex frame of a causet. If the causet's indices are
 // not covered by this frame range, it returns nil.
 func (r *RegionFrameRange) GetIndexFrame(blockID, indexID int64, dbName, blockName, indexName string) *FrameItem {
 	if blockID == r.First.BlockID && !r.First.IsRecord && indexID == r.First.IndexID {
@@ -470,7 +470,7 @@ type ReplicationStatus struct {
 	StateID int64  `json:"state_id"`
 }
 
-// BlockInfo stores the information of a block or an index
+// BlockInfo stores the information of a causet or an index
 type BlockInfo struct {
 	EDB      *perceptron.DBInfo
 	Block   *perceptron.BlockInfo
@@ -520,7 +520,7 @@ func (xs byRegionStartKey) Less(i, j int) bool {
 	return xs[i].getStartKey() < xs[j].getStartKey()
 }
 
-// blockInfoWithKeyRange stores block or index informations with its key range.
+// blockInfoWithKeyRange stores causet or index informations with its key range.
 type blockInfoWithKeyRange struct {
 	*BlockInfo
 	StartKey string
@@ -539,14 +539,14 @@ func (xs byBlockStartKey) Less(i, j int) bool {
 	return xs[i].getStartKey() < xs[j].getStartKey()
 }
 
-func newBlockWithKeyRange(EDB *perceptron.DBInfo, block *perceptron.BlockInfo) blockInfoWithKeyRange {
-	sk, ek := blockcodec.GetBlockHandleKeyRange(block.ID)
+func newBlockWithKeyRange(EDB *perceptron.DBInfo, causet *perceptron.BlockInfo) blockInfoWithKeyRange {
+	sk, ek := blockcodec.GetBlockHandleKeyRange(causet.ID)
 	startKey := bytesKeyToHex(codec.EncodeBytes(nil, sk))
 	endKey := bytesKeyToHex(codec.EncodeBytes(nil, ek))
 	return blockInfoWithKeyRange{
 		&BlockInfo{
 			EDB:      EDB,
-			Block:   block,
+			Block:   causet,
 			IsIndex: false,
 			Index:   nil,
 		},
@@ -555,14 +555,14 @@ func newBlockWithKeyRange(EDB *perceptron.DBInfo, block *perceptron.BlockInfo) b
 	}
 }
 
-func newIndexWithKeyRange(EDB *perceptron.DBInfo, block *perceptron.BlockInfo, index *perceptron.IndexInfo) blockInfoWithKeyRange {
-	sk, ek := blockcodec.GetBlockIndexKeyRange(block.ID, index.ID)
+func newIndexWithKeyRange(EDB *perceptron.DBInfo, causet *perceptron.BlockInfo, index *perceptron.IndexInfo) blockInfoWithKeyRange {
+	sk, ek := blockcodec.GetBlockIndexKeyRange(causet.ID, index.ID)
 	startKey := bytesKeyToHex(codec.EncodeBytes(nil, sk))
 	endKey := bytesKeyToHex(codec.EncodeBytes(nil, ek))
 	return blockInfoWithKeyRange{
 		&BlockInfo{
 			EDB:      EDB,
-			Block:   block,
+			Block:   causet,
 			IsIndex: true,
 			Index:   index,
 		},
@@ -585,10 +585,10 @@ func (h *Helper) GetRegionsBlockInfo(regionsInfo *RegionsInfo, schemas []*percep
 
 	blocks := []blockInfoWithKeyRange{}
 	for _, EDB := range schemas {
-		for _, block := range EDB.Blocks {
-			blocks = append(blocks, newBlockWithKeyRange(EDB, block))
-			for _, index := range block.Indices {
-				blocks = append(blocks, newIndexWithKeyRange(EDB, block, index))
+		for _, causet := range EDB.Blocks {
+			blocks = append(blocks, newBlockWithKeyRange(EDB, causet))
+			for _, index := range causet.Indices {
+				blocks = append(blocks, newIndexWithKeyRange(EDB, causet, index))
 			}
 		}
 	}
@@ -666,7 +666,7 @@ func (h *Helper) requestFIDel(method, uri string, body io.Reader, res interface{
 		}
 	}()
 
-	err = json.NewDecoder(resp.Body).Decode(res)
+	err = json.NewCausetDecoder(resp.Body).Decode(res)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -750,7 +750,7 @@ func (h *Helper) GetStoresStat() (*StoresStat, error) {
 		}
 	}()
 	var storesStat StoresStat
-	err = json.NewDecoder(resp.Body).Decode(&storesStat)
+	err = json.NewCausetDecoder(resp.Body).Decode(&storesStat)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -812,7 +812,7 @@ func (h *Helper) GetFIDelRegionStats(blockID int64, stats *FIDelRegionStats) err
 		}
 	}()
 
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewCausetDecoder(resp.Body)
 
 	return dec.Decode(stats)
 }

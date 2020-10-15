@@ -1504,7 +1504,7 @@ func DecimalNeg(from *MyDecimal) *MyDecimal {
 }
 
 // DecimalAdd adds two decimals, sets the result to 'to'.
-// Note: DO NOT use `from1` or `from2` as `to` since the metadata
+// Note: DO NOT use `from1` or `from2` as `to` since the spacetimedata
 // of `to` may be changed during evaluating.
 func DecimalAdd(from1, from2, to *MyDecimal) error {
 	from1, from2, to = validateArgs(from1, from2, to)

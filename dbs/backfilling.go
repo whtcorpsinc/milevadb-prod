@@ -24,17 +24,17 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	decoder "github.com/whtcorpsinc/milevadb/soliton/rowDecoder"
+	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"go.uber.org/zap"
 )
 
@@ -84,15 +84,15 @@ type backfillWorker struct {
 	sessCtx   stochastikctx.Context
 	taskCh    chan *reorgBackfillTask
 	resultCh  chan *backfillResult
-	block     block.Block
+	causet     causet.Block
 	closed    bool
 	priority  int
 }
 
-func newBackfillWorker(sessCtx stochastikctx.Context, worker *worker, id int, t block.PhysicalTable) *backfillWorker {
+func newBackfillWorker(sessCtx stochastikctx.Context, worker *worker, id int, t causet.PhysicalTable) *backfillWorker {
 	return &backfillWorker{
 		id:        id,
-		block:     t,
+		causet:     t,
 		dbsWorker: worker,
 		batchCnt:  int(variable.GetDBSReorgBatchSize()),
 		sessCtx:   sessCtx,
@@ -150,7 +150,7 @@ func mergeBackfillCtxToResult(taskCtx *backfillTaskContext, result *backfillResu
 	result.scanCount += taskCtx.scanCount
 }
 
-// handleBackfillTask backfills range [task.startHandle, task.endHandle) handle's index to block.
+// handleBackfillTask backfills range [task.startHandle, task.endHandle) handle's index to causet.
 func (w *backfillWorker) handleBackfillTask(d *dbsCtx, task *reorgBackfillTask, bf backfiller) *backfillResult {
 	handleRange := *task
 	result := &backfillResult{addedCount: 0, nextHandle: handleRange.startHandle, err: nil}
@@ -227,14 +227,14 @@ func (w *backfillWorker) run(d *dbsCtx, bf backfiller) {
 	logutil.BgLogger().Info("[dbs] backfill worker exit", zap.Int("workerID", w.id))
 }
 
-// splitTableRanges uses FIDel region's key ranges to split the backfilling block key range space,
-// to speed up backfilling data in block with disperse handle.
-// The `t` should be a non-partitioned block or a partition.
-func splitTableRanges(t block.PhysicalTable, causetstore ekv.CausetStorage, startHandle, endHandle ekv.Handle) ([]ekv.KeyRange, error) {
+// splitTableRanges uses FIDel region's key ranges to split the backfilling causet key range space,
+// to speed up backfilling data in causet with disperse handle.
+// The `t` should be a non-partitioned causet or a partition.
+func splitTableRanges(t causet.PhysicalTable, causetstore ekv.CausetStorage, startHandle, endHandle ekv.Handle) ([]ekv.KeyRange, error) {
 	startRecordKey := t.RecordKey(startHandle)
 	endRecordKey := t.RecordKey(endHandle)
 
-	logutil.BgLogger().Info("[dbs] split block range from FIDel", zap.Int64("physicalTableID", t.GetPhysicalID()),
+	logutil.BgLogger().Info("[dbs] split causet range from FIDel", zap.Int64("physicalTableID", t.GetPhysicalID()),
 		zap.String("startHandle", toString(startHandle)), zap.String("endHandle", toString(endHandle)))
 	kvRange := ekv.KeyRange{StartKey: startRecordKey, EndKey: endRecordKey}
 	s, ok := causetstore.(einsteindb.CausetStorage)
@@ -398,38 +398,38 @@ func loadDBSReorgVars(w *worker) error {
 	return dbsutil.LoadDBSReorgVars(ctx)
 }
 
-func makeuFIDelecodeDefCausMap(sessCtx stochastikctx.Context, t block.Block) (map[int64]decoder.DeferredCauset, error) {
+func makeuFIDelecodeDefCausMap(sessCtx stochastikctx.Context, t causet.Block) (map[int64]causetDecoder.DeferredCauset, error) {
 	dbName := perceptron.NewCIStr(sessCtx.GetStochastikVars().CurrentDB)
 	wriblockDefCausInfos := make([]*perceptron.DeferredCausetInfo, 0, len(t.WriblockDefCauss()))
 	for _, col := range t.WriblockDefCauss() {
 		wriblockDefCausInfos = append(wriblockDefCausInfos, col.DeferredCausetInfo)
 	}
-	exprDefCauss, _, err := expression.DeferredCausetInfos2DeferredCausetsAndNames(sessCtx, dbName, t.Meta().Name, wriblockDefCausInfos, t.Meta())
+	exprDefCauss, _, err := memex.DeferredCausetInfos2DeferredCausetsAndNames(sessCtx, dbName, t.Meta().Name, wriblockDefCausInfos, t.Meta())
 	if err != nil {
 		return nil, err
 	}
-	mockSchema := expression.NewSchema(exprDefCauss...)
+	mockSchema := memex.NewSchema(exprDefCauss...)
 
-	decodeDefCausMap := decoder.BuildFullDecodeDefCausMap(t.WriblockDefCauss(), mockSchema)
+	decodeDefCausMap := causetDecoder.BuildFullDecodeDefCausMap(t.WriblockDefCauss(), mockSchema)
 
 	return decodeDefCausMap, nil
 }
 
-// writePhysicalTableRecord handles the "add index" or "modify/change column" reorganization state for a non-partitioned block or a partition.
-// For a partitioned block, it should be handled partition by partition.
+// writePhysicalTableRecord handles the "add index" or "modify/change column" reorganization state for a non-partitioned causet or a partition.
+// For a partitioned causet, it should be handled partition by partition.
 //
 // How to "add index" or "uFIDelate column value" in reorganization state?
 // Concurrently process the @@milevadb_dbs_reorg_worker_cnt tasks. Each task deals with a handle range of the index/event record.
-// The handle range is split from FIDel regions now. Each worker deal with a region block key range one time.
+// The handle range is split from FIDel regions now. Each worker deal with a region causet key range one time.
 // Each handle range by estimation, concurrent processing needs to perform after the handle range has been acquired.
 // The operation flow is as follows:
 //	1. Open numbers of defaultWorkers goroutines.
-//	2. Split block key range from FIDel regions.
+//	2. Split causet key range from FIDel regions.
 //	3. Send tasks to running workers by workers's task channel. Each task deals with a region key ranges.
 //	4. Wait all these running tasks finished, then continue to step 3, until all tasks is done.
 // The above operations are completed in a transaction.
 // Finally, uFIDelate the concurrent processing of the total number of rows, and causetstore the completed handle value.
-func (w *worker) writePhysicalTableRecord(t block.PhysicalTable, bfWorkerType backfillWorkerType, indexInfo *perceptron.IndexInfo, oldDefCausInfo, colInfo *perceptron.DeferredCausetInfo, reorgInfo *reorgInfo) error {
+func (w *worker) writePhysicalTableRecord(t causet.PhysicalTable, bfWorkerType backfillWorkerType, indexInfo *perceptron.IndexInfo, oldDefCausInfo, colInfo *perceptron.DeferredCausetInfo, reorgInfo *reorgInfo) error {
 	job := reorgInfo.Job
 	totalAddedCount := job.GetRowCount()
 
@@ -536,7 +536,7 @@ func (w *worker) writePhysicalTableRecord(t block.PhysicalTable, bfWorkerType ba
 // recordIterFunc is used for low-level record iteration.
 type recordIterFunc func(h ekv.Handle, rowKey ekv.Key, rawRecord []byte) (more bool, err error)
 
-func iterateSnapshotRows(causetstore ekv.CausetStorage, priority int, t block.Block, version uint64, startHandle ekv.Handle, endHandle ekv.Handle, endIncluded bool, fn recordIterFunc) error {
+func iterateSnapshotRows(causetstore ekv.CausetStorage, priority int, t causet.Block, version uint64, startHandle ekv.Handle, endHandle ekv.Handle, endIncluded bool, fn recordIterFunc) error {
 	var firstKey ekv.Key
 	if startHandle == nil {
 		firstKey = t.RecordPrefix()

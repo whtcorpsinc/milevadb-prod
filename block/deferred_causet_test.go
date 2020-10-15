@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package block
+package causet
 
 import (
 	"testing"
@@ -21,7 +21,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/expression"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
@@ -434,12 +434,12 @@ func (t *testBlockSuite) TestGetDefaultValue(c *C) {
 		},
 	}
 
-	exp := expression.EvalAstExpr
-	expression.EvalAstExpr = func(sctx stochastikctx.Context, expr ast.ExprNode) (types.Causet, error) {
+	exp := memex.EvalAstExpr
+	memex.EvalAstExpr = func(sctx stochastikctx.Context, expr ast.ExprNode) (types.Causet, error) {
 		return types.NewIntCauset(1), nil
 	}
 	defer func() {
-		expression.EvalAstExpr = exp
+		memex.EvalAstExpr = exp
 	}()
 
 	for _, tt := range tests {

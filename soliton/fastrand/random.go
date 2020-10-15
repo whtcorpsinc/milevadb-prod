@@ -30,7 +30,7 @@ func Buf(size int) []byte {
 	return buf
 }
 
-// Uint32 returns a lock free uint32 value.
+// Uint32 returns a dagger free uint32 value.
 //go:linkname Uint32 runtime.fastrand
 func Uint32() uint32
 

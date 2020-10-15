@@ -33,10 +33,10 @@ import (
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/executor"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
@@ -78,45 +78,45 @@ func (s *testStateChangeSuiteBase) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.se, err = stochastik.CreateStochastik4Test(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "create database test_db_state default charset utf8 default defCauslate utf8_bin")
+	_, err = s.se.InterDircute(context.Background(), "create database test_db_state default charset utf8 default defCauslate utf8_bin")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "use test_db_state")
+	_, err = s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	s.p = BerolinaSQL.New()
 }
 
 func (s *testStateChangeSuiteBase) TearDownSuite(c *C) {
-	s.se.Execute(context.Background(), "drop database if exists test_db_state")
+	s.se.InterDircute(context.Background(), "drop database if exists test_db_state")
 	s.se.Close()
 	s.dom.Close()
 	s.causetstore.Close()
 }
 
-// TestShowCreateBlock tests the result of "show create block" when we are running "add index" or "add defCausumn".
+// TestShowCreateBlock tests the result of "show create causet" when we are running "add index" or "add defCausumn".
 func (s *serialTestStateChangeSuite) TestShowCreateBlock(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t (id int)")
-	tk.MustExec("create block t2 (a int, b varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci")
-	// tkInternal is used to execute additional allegrosql (here show create block) in dbs change callback.
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t (id int)")
+	tk.MustInterDirc("create causet t2 (a int, b varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci")
+	// tkInternal is used to execute additional allegrosql (here show create causet) in dbs change callback.
 	// Using same `tk` in different goroutines may lead to data race.
 	tkInternal := testkit.NewTestKit(c, s.causetstore)
-	tkInternal.MustExec("use test")
+	tkInternal.MustInterDirc("use test")
 
 	var checkErr error
 	testCases := []struct {
 		allegrosql         string
 		expectedRet string
 	}{
-		{"alter block t add index idx(id)",
+		{"alter causet t add index idx(id)",
 			"CREATE TABLE `t` (\n  `id` int(11) DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"},
-		{"alter block t add index idx1(id)",
+		{"alter causet t add index idx1(id)",
 			"CREATE TABLE `t` (\n  `id` int(11) DEFAULT NULL,\n  KEY `idx` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"},
-		{"alter block t add defCausumn c int",
+		{"alter causet t add defCausumn c int",
 			"CREATE TABLE `t` (\n  `id` int(11) DEFAULT NULL,\n  KEY `idx` (`id`),\n  KEY `idx1` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"},
-		{"alter block t2 add defCausumn c varchar(1)",
+		{"alter causet t2 add defCausumn c varchar(1)",
 			"CREATE TABLE `t2` (\n  `a` int(11) DEFAULT NULL,\n  `b` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"},
-		{"alter block t2 add defCausumn d varchar(1)",
+		{"alter causet t2 add defCausumn d varchar(1)",
 			"CREATE TABLE `t2` (\n  `a` int(11) DEFAULT NULL,\n  `b` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL,\n  `c` varchar(1) COLLATE utf8mb4_general_ci DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"},
 	}
 	prevState := perceptron.StateNone
@@ -134,12 +134,12 @@ func (s *serialTestStateChangeSuite) TestShowCreateBlock(c *C) {
 			tbl2 := testGetBlockByName(c, tkInternal.Se, "test", "t2")
 			if job.BlockID == tbl2.Meta().ID {
 				// Try to do not use mustQuery in hook func, cause assert fail in mustQuery will cause dbs job hung.
-				result, checkErr = tkInternal.Exec("show create block t2")
+				result, checkErr = tkInternal.InterDirc("show create causet t2")
 				if checkErr != nil {
 					return
 				}
 			} else {
-				result, checkErr = tkInternal.Exec("show create block t")
+				result, checkErr = tkInternal.InterDirc("show create causet t")
 				if checkErr != nil {
 					return
 				}
@@ -162,7 +162,7 @@ func (s *serialTestStateChangeSuite) TestShowCreateBlock(c *C) {
 	defer d.(dbs.DBSForTest).SetHook(originalCallback)
 	d.(dbs.DBSForTest).SetHook(callback)
 	for _, tc := range testCases {
-		tk.MustExec(tc.allegrosql)
+		tk.MustInterDirc(tc.allegrosql)
 		c.Assert(checkErr, IsNil)
 	}
 }
@@ -170,17 +170,17 @@ func (s *serialTestStateChangeSuite) TestShowCreateBlock(c *C) {
 // TestDropNotNullDeferredCauset is used to test issue #8654.
 func (s *testStateChangeSuite) TestDropNotNullDeferredCauset(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("create block t (id int, a int not null default 11)")
-	tk.MustExec("insert into t values(1, 1)")
-	tk.MustExec("create block t1 (id int, b varchar(255) not null)")
-	tk.MustExec("insert into t1 values(2, '')")
-	tk.MustExec("create block t2 (id int, c time not null)")
-	tk.MustExec("insert into t2 values(3, '11:22:33')")
-	tk.MustExec("create block t3 (id int, d json not null)")
-	tk.MustExec("insert into t3 values(4, d)")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("create causet t (id int, a int not null default 11)")
+	tk.MustInterDirc("insert into t values(1, 1)")
+	tk.MustInterDirc("create causet t1 (id int, b varchar(255) not null)")
+	tk.MustInterDirc("insert into t1 values(2, '')")
+	tk.MustInterDirc("create causet t2 (id int, c time not null)")
+	tk.MustInterDirc("insert into t2 values(3, '11:22:33')")
+	tk.MustInterDirc("create causet t3 (id int, d json not null)")
+	tk.MustInterDirc("insert into t3 values(4, d)")
 	tk1 := testkit.NewTestKit(c, s.causetstore)
-	tk1.MustExec("use test")
+	tk1.MustInterDirc("use test")
 
 	var checkErr error
 	d := s.dom.DBS()
@@ -195,37 +195,37 @@ func (s *testStateChangeSuite) TestDropNotNullDeferredCauset(c *C) {
 		if job.SchemaState == perceptron.StateWriteOnly {
 			switch sqlNum {
 			case 0:
-				_, checkErr = tk1.Exec("insert into t set id = 1")
+				_, checkErr = tk1.InterDirc("insert into t set id = 1")
 			case 1:
-				_, checkErr = tk1.Exec("insert into t1 set id = 2")
+				_, checkErr = tk1.InterDirc("insert into t1 set id = 2")
 			case 2:
-				_, checkErr = tk1.Exec("insert into t2 set id = 3")
+				_, checkErr = tk1.InterDirc("insert into t2 set id = 3")
 			case 3:
-				_, checkErr = tk1.Exec("insert into t3 set id = 4")
+				_, checkErr = tk1.InterDirc("insert into t3 set id = 4")
 			}
 		}
 	}
 
 	d.(dbs.DBSForTest).SetHook(callback)
-	tk.MustExec("alter block t drop defCausumn a")
+	tk.MustInterDirc("alter causet t drop defCausumn a")
 	c.Assert(checkErr, IsNil)
 	sqlNum++
-	tk.MustExec("alter block t1 drop defCausumn b")
+	tk.MustInterDirc("alter causet t1 drop defCausumn b")
 	c.Assert(checkErr, IsNil)
 	sqlNum++
-	tk.MustExec("alter block t2 drop defCausumn c")
+	tk.MustInterDirc("alter causet t2 drop defCausumn c")
 	c.Assert(checkErr, IsNil)
 	sqlNum++
-	tk.MustExec("alter block t3 drop defCausumn d")
+	tk.MustInterDirc("alter causet t3 drop defCausumn d")
 	c.Assert(checkErr, IsNil)
 	d.(dbs.DBSForTest).SetHook(originalCallback)
-	tk.MustExec("drop block t, t1, t2, t3")
+	tk.MustInterDirc("drop causet t, t1, t2, t3")
 }
 
 func (s *testStateChangeSuite) TestTwoStates(c *C) {
 	cnt := 5
-	// New the testExecInfo.
-	testInfo := &testExecInfo{
+	// New the testInterDircInfo.
+	testInfo := &testInterDircInfo{
 		execCases: cnt,
 		sqlInfos:  make([]*sqlInfo, 4),
 	}
@@ -241,29 +241,29 @@ func (s *testStateChangeSuite) TestTwoStates(c *C) {
 	// Fill the ALLEGROSQLs and expected error messages.
 	testInfo.sqlInfos[0].allegrosql = "insert into t (c1, c2, c3, c4) value(2, 'b', 'N', '2020-07-02')"
 	testInfo.sqlInfos[1].allegrosql = "insert into t (c1, c2, c3, d3, c4) value(3, 'b', 'N', 'a', '2020-07-03')"
-	unknownDefCausErr := "[planner:1054]Unknown defCausumn 'd3' in 'field list'"
+	unknownDefCausErr := "[causet:1054]Unknown defCausumn 'd3' in 'field list'"
 	testInfo.sqlInfos[1].cases[0].expectedCompileErr = unknownDefCausErr
 	testInfo.sqlInfos[1].cases[1].expectedCompileErr = unknownDefCausErr
 	testInfo.sqlInfos[1].cases[2].expectedCompileErr = unknownDefCausErr
 	testInfo.sqlInfos[1].cases[3].expectedCompileErr = unknownDefCausErr
 	testInfo.sqlInfos[2].allegrosql = "uFIDelate t set c2 = 'c2_uFIDelate'"
 	testInfo.sqlInfos[3].allegrosql = "replace into t values(5, 'e', 'N', '2020-07-05')"
-	testInfo.sqlInfos[3].cases[4].expectedCompileErr = "[planner:1136]DeferredCauset count doesn't match value count at event 1"
-	alterBlockALLEGROSQL := "alter block t add defCausumn d3 enum('a', 'b') not null default 'a' after c3"
+	testInfo.sqlInfos[3].cases[4].expectedCompileErr = "[causet:1136]DeferredCauset count doesn't match value count at event 1"
+	alterBlockALLEGROSQL := "alter causet t add defCausumn d3 enum('a', 'b') not null default 'a' after c3"
 	s.test(c, "", alterBlockALLEGROSQL, testInfo)
-	// TODO: Add more DBS statements.
+	// TODO: Add more DBS memexs.
 }
 
-func (s *testStateChangeSuite) test(c *C, blockName, alterBlockALLEGROSQL string, testInfo *testExecInfo) {
-	_, err := s.se.Execute(context.Background(), `create block t (
+func (s *testStateChangeSuite) test(c *C, blockName, alterBlockALLEGROSQL string, testInfo *testInterDircInfo) {
+	_, err := s.se.InterDircute(context.Background(), `create causet t (
 		c1 int,
 		c2 varchar(64),
 		c3 enum('N','Y') not null default 'N',
 		c4 timestamp on uFIDelate current_timestamp,
 		key(c1, c2))`)
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block t")
-	_, err = s.se.Execute(context.Background(), "insert into t values(1, 'a', 'N', '2020-07-01')")
+	defer s.se.InterDircute(context.Background(), "drop causet t")
+	_, err = s.se.InterDircute(context.Background(), "insert into t values(1, 'a', 'N', '2020-07-01')")
 	c.Assert(err, IsNil)
 
 	callback := &dbs.TestDBSCallback{}
@@ -324,7 +324,7 @@ func (s *testStateChangeSuite) test(c *C, blockName, alterBlockALLEGROSQL string
 	originalCallback := d.GetHook()
 	defer d.(dbs.DBSForTest).SetHook(originalCallback)
 	d.(dbs.DBSForTest).SetHook(callback)
-	_, err = s.se.Execute(context.Background(), alterBlockALLEGROSQL)
+	_, err = s.se.InterDircute(context.Background(), alterBlockALLEGROSQL)
 	c.Assert(err, IsNil)
 	err = testInfo.compileALLEGROSQL(4)
 	c.Assert(err, IsNil)
@@ -340,7 +340,7 @@ type stateCase struct {
 	stochastik            stochastik.Stochastik
 	rawStmt            ast.StmtNode
 	stmt               sqlexec.Statement
-	expectedExecErr    string
+	expectedInterDircErr    string
 	expectedCompileErr string
 }
 
@@ -351,9 +351,9 @@ type sqlInfo struct {
 	cases []*stateCase
 }
 
-// testExecInfo contains some ALLEGROALLEGROSQL information and the number of times each ALLEGROALLEGROSQL is executed
-// in a DBS statement.
-type testExecInfo struct {
+// testInterDircInfo contains some ALLEGROALLEGROSQL information and the number of times each ALLEGROALLEGROSQL is executed
+// in a DBS memex.
+type testInterDircInfo struct {
 	// execCases represents every ALLEGROALLEGROSQL need to be executed execCases times.
 	// And the schemaReplicant state is different at each execution.
 	execCases int
@@ -361,7 +361,7 @@ type testExecInfo struct {
 	sqlInfos []*sqlInfo
 }
 
-func (t *testExecInfo) createStochastiks(causetstore ekv.CausetStorage, useDB string) error {
+func (t *testInterDircInfo) createStochastiks(causetstore ekv.CausetStorage, useDB string) error {
 	var err error
 	for i, info := range t.sqlInfos {
 		for j, c := range info.cases {
@@ -369,7 +369,7 @@ func (t *testExecInfo) createStochastiks(causetstore ekv.CausetStorage, useDB st
 			if err != nil {
 				return errors.Trace(err)
 			}
-			_, err = c.stochastik.Execute(context.Background(), "use "+useDB)
+			_, err = c.stochastik.InterDircute(context.Background(), "use "+useDB)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -380,7 +380,7 @@ func (t *testExecInfo) createStochastiks(causetstore ekv.CausetStorage, useDB st
 	return nil
 }
 
-func (t *testExecInfo) parseALLEGROSQLs(p *BerolinaSQL.BerolinaSQL) error {
+func (t *testInterDircInfo) parseALLEGROSQLs(p *BerolinaSQL.BerolinaSQL) error {
 	if t.execCases <= 0 {
 		return nil
 	}
@@ -398,15 +398,15 @@ func (t *testExecInfo) parseALLEGROSQLs(p *BerolinaSQL.BerolinaSQL) error {
 	return nil
 }
 
-func (t *testExecInfo) compileALLEGROSQL(idx int) (err error) {
+func (t *testInterDircInfo) compileALLEGROSQL(idx int) (err error) {
 	for _, info := range t.sqlInfos {
 		c := info.cases[idx]
-		compiler := executor.Compiler{Ctx: c.stochastik}
+		compiler := interlock.Compiler{Ctx: c.stochastik}
 		se := c.stochastik
 		ctx := context.TODO()
 		se.PrepareTxnCtx(ctx)
 		sctx := se.(stochastikctx.Context)
-		if err = executor.ResetContextOfStmt(sctx, c.rawStmt); err != nil {
+		if err = interlock.ResetContextOfStmt(sctx, c.rawStmt); err != nil {
 			return errors.Trace(err)
 		}
 		c.stmt, err = compiler.Compile(ctx, c.rawStmt)
@@ -424,17 +424,17 @@ func (t *testExecInfo) compileALLEGROSQL(idx int) (err error) {
 	return nil
 }
 
-func (t *testExecInfo) execALLEGROSQL(idx int) error {
+func (t *testInterDircInfo) execALLEGROSQL(idx int) error {
 	for _, sqlInfo := range t.sqlInfos {
 		c := sqlInfo.cases[idx]
 		if c.expectedCompileErr != "" {
 			continue
 		}
-		_, err := c.stmt.Exec(context.TODO())
-		if c.expectedExecErr != "" {
+		_, err := c.stmt.InterDirc(context.TODO())
+		if c.expectedInterDircErr != "" {
 			if err == nil {
-				err = errors.Errorf("expected error %s but got nil", c.expectedExecErr)
-			} else if err.Error() == c.expectedExecErr {
+				err = errors.Errorf("expected error %s but got nil", c.expectedInterDircErr)
+			} else if err.Error() == c.expectedInterDircErr {
 				err = nil
 			}
 		}
@@ -460,48 +460,48 @@ type expectQuery struct {
 }
 
 func (s *testStateChangeSuite) TestAppendEnum(c *C) {
-	_, err := s.se.Execute(context.Background(), `create block t (
+	_, err := s.se.InterDircute(context.Background(), `create causet t (
 			c1 varchar(64),
 			c2 enum('N','Y') not null default 'N',
 			c3 timestamp on uFIDelate current_timestamp,
 			c4 int primary key,
 			unique key idx2 (c2, c3))`)
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block t")
-	_, err = s.se.Execute(context.Background(), "insert into t values('a', 'N', '2020-07-01', 8)")
+	defer s.se.InterDircute(context.Background(), "drop causet t")
+	_, err = s.se.InterDircute(context.Background(), "insert into t values('a', 'N', '2020-07-01', 8)")
 	c.Assert(err, IsNil)
 	// Make sure these sqls use the the plan of index scan.
-	_, err = s.se.Execute(context.Background(), "drop stats t")
+	_, err = s.se.InterDircute(context.Background(), "drop stats t")
 	c.Assert(err, IsNil)
 	se, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db_state")
+	_, err = se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 
-	_, err = s.se.Execute(context.Background(), "insert into t values('a', 'A', '2020-09-19', 9)")
+	_, err = s.se.InterDircute(context.Background(), "insert into t values('a', 'A', '2020-09-19', 9)")
 	c.Assert(err.Error(), Equals, "[types:1265]Data truncated for defCausumn 'c2' at event 1")
-	failAlterBlockALLEGROSQL1 := "alter block t change c2 c2 enum('N') DEFAULT 'N'"
-	_, err = s.se.Execute(context.Background(), failAlterBlockALLEGROSQL1)
+	failAlterBlockALLEGROSQL1 := "alter causet t change c2 c2 enum('N') DEFAULT 'N'"
+	_, err = s.se.InterDircute(context.Background(), failAlterBlockALLEGROSQL1)
 	c.Assert(err.Error(), Equals, "[dbs:8200]Unsupported modify defCausumn: the number of enum defCausumn's elements is less than the original: 2")
-	failAlterBlockALLEGROSQL2 := "alter block t change c2 c2 int default 0"
-	_, err = s.se.Execute(context.Background(), failAlterBlockALLEGROSQL2)
+	failAlterBlockALLEGROSQL2 := "alter causet t change c2 c2 int default 0"
+	_, err = s.se.InterDircute(context.Background(), failAlterBlockALLEGROSQL2)
 	c.Assert(err.Error(), Equals, "[dbs:8200]Unsupported modify defCausumn: cannot modify enum type defCausumn's to type int(11)")
-	alterBlockALLEGROSQL := "alter block t change c2 c2 enum('N','Y','A') DEFAULT 'A'"
-	_, err = s.se.Execute(context.Background(), alterBlockALLEGROSQL)
+	alterBlockALLEGROSQL := "alter causet t change c2 c2 enum('N','Y','A') DEFAULT 'A'"
+	_, err = s.se.InterDircute(context.Background(), alterBlockALLEGROSQL)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "insert into t values('a', 'A', '2020-09-20', 10)")
+	_, err = se.InterDircute(context.Background(), "insert into t values('a', 'A', '2020-09-20', 10)")
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "insert into t (c1, c3, c4) values('a', '2020-09-21', 11)")
+	_, err = se.InterDircute(context.Background(), "insert into t (c1, c3, c4) values('a', '2020-09-21', 11)")
 	c.Assert(err, IsNil)
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db_state")
+	tk.MustInterDirc("use test_db_state")
 	result, err := s.execQuery(tk, "select c4, c2 from t order by c4 asc")
 	c.Assert(err, IsNil)
 	expected := []string{"8 N", "10 A", "11 A"}
 	checkResult(result, testkit.Rows(expected...))
 
-	_, err = s.se.Execute(context.Background(), "uFIDelate t set c2='N' where c4 = 10")
+	_, err = s.se.InterDircute(context.Background(), "uFIDelate t set c2='N' where c4 = 10")
 	c.Assert(err, IsNil)
 	result, err = s.execQuery(tk, "select c2 from t where c4 = 10")
 	c.Assert(err, IsNil)
@@ -513,7 +513,7 @@ func (s *testStateChangeSuite) TestAppendEnum(c *C) {
 func (s *testStateChangeSuite) TestWriteOnlyWriteNULL(c *C) {
 	sqls := make([]sqlWithErr, 1)
 	sqls[0] = sqlWithErr{"insert t set c1 = 'c1_new', c3 = '2020-02-12', c4 = 8 on duplicate key uFIDelate c1 = values(c1)", nil}
-	addDeferredCausetALLEGROSQL := "alter block t add defCausumn c5 int not null default 1 after c4"
+	addDeferredCausetALLEGROSQL := "alter causet t add defCausumn c5 int not null default 1 after c4"
 	expectQuery := &expectQuery{"select c4, c5 from t", []string{"8 1"}}
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, true, addDeferredCausetALLEGROSQL, sqls, expectQuery)
 }
@@ -523,7 +523,7 @@ func (s *testStateChangeSuite) TestWriteOnlyOnDupUFIDelate(c *C) {
 	sqls[0] = sqlWithErr{"delete from t", nil}
 	sqls[1] = sqlWithErr{"insert t set c1 = 'c1_dup', c3 = '2020-02-12', c4 = 2 on duplicate key uFIDelate c1 = values(c1)", nil}
 	sqls[2] = sqlWithErr{"insert t set c1 = 'c1_new', c3 = '2020-02-12', c4 = 2 on duplicate key uFIDelate c1 = values(c1)", nil}
-	addDeferredCausetALLEGROSQL := "alter block t add defCausumn c5 int not null default 1 after c4"
+	addDeferredCausetALLEGROSQL := "alter causet t add defCausumn c5 int not null default 1 after c4"
 	expectQuery := &expectQuery{"select c4, c5 from t", []string{"2 1"}}
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, true, addDeferredCausetALLEGROSQL, sqls, expectQuery)
 }
@@ -533,7 +533,7 @@ func (s *testStateChangeSuite) TestWriteOnlyOnDupUFIDelateForAddDeferredCausets(
 	sqls[0] = sqlWithErr{"delete from t", nil}
 	sqls[1] = sqlWithErr{"insert t set c1 = 'c1_dup', c3 = '2020-02-12', c4 = 2 on duplicate key uFIDelate c1 = values(c1)", nil}
 	sqls[2] = sqlWithErr{"insert t set c1 = 'c1_new', c3 = '2020-02-12', c4 = 2 on duplicate key uFIDelate c1 = values(c1)", nil}
-	addDeferredCausetsALLEGROSQL := "alter block t add defCausumn c5 int not null default 1 after c4, add defCausumn c44 int not null default 1"
+	addDeferredCausetsALLEGROSQL := "alter causet t add defCausumn c5 int not null default 1 after c4, add defCausumn c44 int not null default 1"
 	expectQuery := &expectQuery{"select c4, c5, c44 from t", []string{"2 1 1"}}
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, true, addDeferredCausetsALLEGROSQL, sqls, expectQuery)
 }
@@ -548,19 +548,19 @@ const (
 
 // TestWriteReorgForModifyDeferredCauset tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCauset(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint not null default 1 first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint not null default 1 first"
 	s.testModifyDeferredCauset(c, perceptron.StateWriteReorganization, modifyDeferredCausetALLEGROSQL, noneIdx)
 }
 
 // TestWriteReorgForModifyDeferredCausetWithUniqIdx tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithUniqIdx(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint unsigned not null default 1 first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint unsigned not null default 1 first"
 	s.testModifyDeferredCauset(c, perceptron.StateWriteReorganization, modifyDeferredCausetALLEGROSQL, uniqIdx)
 }
 
 // TestWriteReorgForModifyDeferredCausetWithPKIsHandle tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithPKIsHandle(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint unsigned not null default 1 first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint unsigned not null default 1 first"
 	enableChangeDeferredCausetType := s.se.GetStochastikVars().EnableChangeDeferredCausetType
 	s.se.GetStochastikVars().EnableChangeDeferredCausetType = true
 	defer func() {
@@ -572,15 +572,15 @@ func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithPK
 		conf.AlterPrimaryKey = false
 	})
 
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block tt (a int not null, b int default 1, c int not null default 0, unique index idx(c), primary key idx1(a), index idx2(a, c))`)
+	_, err = s.se.InterDircute(context.Background(), `create causet tt (a int not null, b int default 1, c int not null default 0, unique index idx(c), primary key idx1(a), index idx2(a, c))`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (a, c) values(-1, -11)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (a, c) values(-1, -11)")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (a, c) values(1, 11)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (a, c) values(1, 11)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tt")
+	defer s.se.InterDircute(context.Background(), "drop causet tt")
 
 	sqls := make([]sqlWithErr, 12)
 	sqls[0] = sqlWithErr{"delete from tt where c = -11", nil}
@@ -596,31 +596,31 @@ func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithPK
 	sqls[10] = sqlWithErr{"replace into tt values(5, 55, 56)", nil}
 	sqls[11] = sqlWithErr{"replace into tt values(6, 66, 56)", nil}
 
-	query := &expectQuery{allegrosql: "admin check block tt;", rows: nil}
+	query := &expectQuery{allegrosql: "admin check causet tt;", rows: nil}
 	s.runTestInSchemaState(c, perceptron.StateWriteReorganization, false, modifyDeferredCausetALLEGROSQL, sqls, query)
 }
 
 // TestWriteReorgForModifyDeferredCausetWithPrimaryIdx tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithPrimaryIdx(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint not null default 1 first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint not null default 1 first"
 	s.testModifyDeferredCauset(c, perceptron.StateWriteReorganization, modifyDeferredCausetALLEGROSQL, uniqIdx)
 }
 
 // TestWriteReorgForModifyDeferredCausetWithoutFirst tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithoutFirst(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint not null default 1"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint not null default 1"
 	s.testModifyDeferredCauset(c, perceptron.StateWriteReorganization, modifyDeferredCausetALLEGROSQL, noneIdx)
 }
 
 // TestWriteReorgForModifyDeferredCausetWithoutDefaultVal tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestWriteReorgForModifyDeferredCausetWithoutDefaultVal(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint first"
 	s.testModifyDeferredCauset(c, perceptron.StateWriteReorganization, modifyDeferredCausetALLEGROSQL, noneIdx)
 }
 
 // TestDeleteOnlyForModifyDeferredCausetWithoutDefaultVal tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *serialTestStateChangeSuite) TestDeleteOnlyForModifyDeferredCausetWithoutDefaultVal(c *C) {
-	modifyDeferredCausetALLEGROSQL := "alter block tt change defCausumn c cc tinyint first"
+	modifyDeferredCausetALLEGROSQL := "alter causet tt change defCausumn c cc tinyint first"
 	s.testModifyDeferredCauset(c, perceptron.StateDeleteOnly, modifyDeferredCausetALLEGROSQL, noneIdx)
 }
 
@@ -631,23 +631,23 @@ func (s *serialTestStateChangeSuite) testModifyDeferredCauset(c *C, state percep
 		s.se.GetStochastikVars().EnableChangeDeferredCausetType = enableChangeDeferredCausetType
 	}()
 
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	switch idx {
 	case uniqIdx:
-		_, err = s.se.Execute(context.Background(), `create block tt  (a varchar(64), b int default 1, c int not null default 0, unique index idx(c), unique index idx1(a), index idx2(a, c))`)
+		_, err = s.se.InterDircute(context.Background(), `create causet tt  (a varchar(64), b int default 1, c int not null default 0, unique index idx(c), unique index idx1(a), index idx2(a, c))`)
 	case primaryIdx:
 		// TODO: Support modify/change defCausumn with the primary key.
-		_, err = s.se.Execute(context.Background(), `create block tt  (a varchar(64), b int default 1, c int not null default 0, index idx(c), primary index idx1(a), index idx2(a, c))`)
+		_, err = s.se.InterDircute(context.Background(), `create causet tt  (a varchar(64), b int default 1, c int not null default 0, index idx(c), primary index idx1(a), index idx2(a, c))`)
 	default:
-		_, err = s.se.Execute(context.Background(), `create block tt  (a varchar(64), b int default 1, c int not null default 0, index idx(c), index idx1(a), index idx2(a, c))`)
+		_, err = s.se.InterDircute(context.Background(), `create causet tt  (a varchar(64), b int default 1, c int not null default 0, index idx(c), index idx1(a), index idx2(a, c))`)
 	}
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (a, c) values('a', 11)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (a, c) values('a', 11)")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (a, c) values('b', 22)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (a, c) values('b', 22)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tt")
+	defer s.se.InterDircute(context.Background(), "drop causet tt")
 
 	sqls := make([]sqlWithErr, 13)
 	sqls[0] = sqlWithErr{"delete from tt where c = 11", nil}
@@ -673,7 +673,7 @@ func (s *serialTestStateChangeSuite) testModifyDeferredCauset(c *C, state percep
 	sqls[11] = sqlWithErr{"replace into tt values('a_replace_1', 55, 56)", nil}
 	sqls[12] = sqlWithErr{"replace into tt values('a_replace_2', 77, 56)", nil}
 
-	query := &expectQuery{allegrosql: "admin check block tt;", rows: nil}
+	query := &expectQuery{allegrosql: "admin check causet tt;", rows: nil}
 	s.runTestInSchemaState(c, state, false, modifyDeferredCausetALLEGROSQL, sqls, query)
 }
 
@@ -683,7 +683,7 @@ func (s *testStateChangeSuite) TestWriteOnly(c *C) {
 	sqls[0] = sqlWithErr{"delete from t where c1 = 'a'", nil}
 	sqls[1] = sqlWithErr{"uFIDelate t use index(idx2) set c1 = 'c1_uFIDelate' where c1 = 'a'", nil}
 	sqls[2] = sqlWithErr{"insert t set c1 = 'c1_insert', c3 = '2020-02-12', c4 = 1", nil}
-	addDeferredCausetALLEGROSQL := "alter block t add defCausumn c5 int not null default 1 first"
+	addDeferredCausetALLEGROSQL := "alter causet t add defCausumn c5 int not null default 1 first"
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, true, addDeferredCausetALLEGROSQL, sqls, nil)
 }
 
@@ -693,54 +693,54 @@ func (s *testStateChangeSuite) TestWriteOnlyForAddDeferredCausets(c *C) {
 	sqls[0] = sqlWithErr{"delete from t where c1 = 'a'", nil}
 	sqls[1] = sqlWithErr{"uFIDelate t use index(idx2) set c1 = 'c1_uFIDelate' where c1 = 'a'", nil}
 	sqls[2] = sqlWithErr{"insert t set c1 = 'c1_insert', c3 = '2020-02-12', c4 = 1", nil}
-	addDeferredCausetsALLEGROSQL := "alter block t add defCausumn c5 int not null default 1 first, add defCausumn c6 int not null default 1"
+	addDeferredCausetsALLEGROSQL := "alter causet t add defCausumn c5 int not null default 1 first, add defCausumn c6 int not null default 1"
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, true, addDeferredCausetsALLEGROSQL, sqls, nil)
 }
 
 // TestDeleteOnly tests whether the correct defCausumns is used in PhysicalIndexScan's ToPB function.
 func (s *testStateChangeSuite) TestDeleteOnly(c *C) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block tt (c varchar(64), c4 int)`)
+	_, err = s.se.InterDircute(context.Background(), `create causet tt (c varchar(64), c4 int)`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (c, c4) values('a', 8)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (c, c4) values('a', 8)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tt")
+	defer s.se.InterDircute(context.Background(), "drop causet tt")
 
 	sqls := make([]sqlWithErr, 5)
 	sqls[0] = sqlWithErr{"insert t set c1 = 'c1_insert', c3 = '2020-02-12', c4 = 1",
 		errors.Errorf("Can't find defCausumn c1")}
 	sqls[1] = sqlWithErr{"uFIDelate t set c1 = 'c1_insert', c3 = '2020-02-12', c4 = 1",
-		errors.Errorf("[planner:1054]Unknown defCausumn 'c1' in 'field list'")}
+		errors.Errorf("[causet:1054]Unknown defCausumn 'c1' in 'field list'")}
 	sqls[2] = sqlWithErr{"delete from t where c1='a'",
-		errors.Errorf("[planner:1054]Unknown defCausumn 'c1' in 'where clause'")}
+		errors.Errorf("[causet:1054]Unknown defCausumn 'c1' in 'where clause'")}
 	sqls[3] = sqlWithErr{"delete t, tt from tt inner join t on t.c4=tt.c4 where tt.c='a' and t.c1='a'",
-		errors.Errorf("[planner:1054]Unknown defCausumn 't.c1' in 'where clause'")}
+		errors.Errorf("[causet:1054]Unknown defCausumn 't.c1' in 'where clause'")}
 	sqls[4] = sqlWithErr{"delete t, tt from tt inner join t on t.c1=tt.c where tt.c='a'",
-		errors.Errorf("[planner:1054]Unknown defCausumn 't.c1' in 'on clause'")}
+		errors.Errorf("[causet:1054]Unknown defCausumn 't.c1' in 'on clause'")}
 	query := &expectQuery{allegrosql: "select * from t;", rows: []string{"N 2020-07-01 00:00:00 8"}}
-	dropDeferredCausetALLEGROSQL := "alter block t drop defCausumn c1"
+	dropDeferredCausetALLEGROSQL := "alter causet t drop defCausumn c1"
 	s.runTestInSchemaState(c, perceptron.StateDeleteOnly, true, dropDeferredCausetALLEGROSQL, sqls, query)
 }
 
 // TestDeleteOnlyForDropExpressionIndex tests for deleting data when the hidden defCausumn is delete-only state.
 func (s *serialTestStateChangeSuite) TestDeleteOnlyForDropExpressionIndex(c *C) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block tt (a int, b int)`)
+	_, err = s.se.InterDircute(context.Background(), `create causet tt (a int, b int)`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `alter block tt add index expr_idx((a+1))`)
+	_, err = s.se.InterDircute(context.Background(), `alter causet tt add index expr_idx((a+1))`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (a, b) values(8, 8)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (a, b) values(8, 8)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tt")
+	defer s.se.InterDircute(context.Background(), "drop causet tt")
 
 	sqls := make([]sqlWithErr, 1)
 	sqls[0] = sqlWithErr{"delete from tt where b=8", nil}
-	dropIdxALLEGROSQL := "alter block tt drop index expr_idx"
+	dropIdxALLEGROSQL := "alter causet tt drop index expr_idx"
 	s.runTestInSchemaState(c, perceptron.StateDeleteOnly, true, dropIdxALLEGROSQL, sqls, nil)
 
-	_, err = s.se.Execute(context.Background(), "admin check block tt")
+	_, err = s.se.InterDircute(context.Background(), "admin check causet tt")
 	c.Assert(err, IsNil)
 }
 
@@ -749,64 +749,64 @@ func (s *testStateChangeSuite) TestDeleteOnlyForDropDeferredCausets(c *C) {
 	sqls := make([]sqlWithErr, 1)
 	sqls[0] = sqlWithErr{"insert t set c1 = 'c1_insert', c3 = '2020-02-12', c4 = 1",
 		errors.Errorf("Can't find defCausumn c1")}
-	dropDeferredCausetsALLEGROSQL := "alter block t drop defCausumn c1, drop defCausumn c3"
+	dropDeferredCausetsALLEGROSQL := "alter causet t drop defCausumn c1, drop defCausumn c3"
 	s.runTestInSchemaState(c, perceptron.StateDeleteOnly, true, dropDeferredCausetsALLEGROSQL, sqls, nil)
 }
 
 func (s *testStateChangeSuite) TestWriteOnlyForDropDeferredCauset(c *C) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block tt (c1 int, c4 int)`)
+	_, err = s.se.InterDircute(context.Background(), `create causet tt (c1 int, c4 int)`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (c1, c4) values(8, 8)")
+	_, err = s.se.InterDircute(context.Background(), "insert into tt (c1, c4) values(8, 8)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tt")
+	defer s.se.InterDircute(context.Background(), "drop causet tt")
 
 	sqls := make([]sqlWithErr, 2)
-	sqls[0] = sqlWithErr{"uFIDelate t set c1='5', c3='2020-03-01';", errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
+	sqls[0] = sqlWithErr{"uFIDelate t set c1='5', c3='2020-03-01';", errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
 	sqls[1] = sqlWithErr{"uFIDelate t t1, tt t2 set t1.c1='5', t1.c3='2020-03-01', t2.c1='10' where t1.c4=t2.c4",
-		errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
+		errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
 	// TODO: Fix the case of sqls[2].
-	// sqls[2] = sqlWithErr{"uFIDelate t set c1='5' where c3='2020-07-01';", errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
-	dropDeferredCausetALLEGROSQL := "alter block t drop defCausumn c3"
+	// sqls[2] = sqlWithErr{"uFIDelate t set c1='5' where c3='2020-07-01';", errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
+	dropDeferredCausetALLEGROSQL := "alter causet t drop defCausumn c3"
 	query := &expectQuery{allegrosql: "select * from t;", rows: []string{"a N 8"}}
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, false, dropDeferredCausetALLEGROSQL, sqls, query)
 }
 
 func (s *testStateChangeSuite) TestWriteOnlyForDropDeferredCausets(c *C) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block t_drop_defCausumns (c1 int, c4 int)`)
+	_, err = s.se.InterDircute(context.Background(), `create causet t_drop_defCausumns (c1 int, c4 int)`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into t_drop_defCausumns (c1, c4) values(8, 8)")
+	_, err = s.se.InterDircute(context.Background(), "insert into t_drop_defCausumns (c1, c4) values(8, 8)")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block t_drop_defCausumns")
+	defer s.se.InterDircute(context.Background(), "drop causet t_drop_defCausumns")
 
 	sqls := make([]sqlWithErr, 2)
-	sqls[0] = sqlWithErr{"uFIDelate t set c1='5', c3='2020-03-01';", errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
+	sqls[0] = sqlWithErr{"uFIDelate t set c1='5', c3='2020-03-01';", errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
 	sqls[1] = sqlWithErr{"uFIDelate t t1, t_drop_defCausumns t2 set t1.c1='5', t1.c3='2020-03-01', t2.c1='10' where t1.c4=t2.c4",
-		errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
+		errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
 	// TODO: Fix the case of sqls[2].
-	// sqls[2] = sqlWithErr{"uFIDelate t set c1='5' where c3='2020-07-01';", errors.New("[planner:1054]Unknown defCausumn 'c3' in 'field list'")}
-	dropDeferredCausetsALLEGROSQL := "alter block t drop defCausumn c3, drop defCausumn c1"
+	// sqls[2] = sqlWithErr{"uFIDelate t set c1='5' where c3='2020-07-01';", errors.New("[causet:1054]Unknown defCausumn 'c3' in 'field list'")}
+	dropDeferredCausetsALLEGROSQL := "alter causet t drop defCausumn c3, drop defCausumn c1"
 	query := &expectQuery{allegrosql: "select * from t;", rows: []string{"N 8"}}
 	s.runTestInSchemaState(c, perceptron.StateWriteOnly, false, dropDeferredCausetsALLEGROSQL, sqls, query)
 }
 
 func (s *testStateChangeSuiteBase) runTestInSchemaState(c *C, state perceptron.SchemaState, isOnJobUFIDelated bool, alterBlockALLEGROSQL string,
 	sqlWithErrs []sqlWithErr, expectQuery *expectQuery) {
-	_, err := s.se.Execute(context.Background(), `create block t (
+	_, err := s.se.InterDircute(context.Background(), `create causet t (
 	 	c1 varchar(64),
 	 	c2 enum('N','Y') not null default 'N',
 	 	c3 timestamp on uFIDelate current_timestamp,
 	 	c4 int primary key,
 	 	unique key idx2 (c2))`)
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block t")
-	_, err = s.se.Execute(context.Background(), "insert into t values('a', 'N', '2020-07-01', 8)")
+	defer s.se.InterDircute(context.Background(), "drop causet t")
+	_, err = s.se.InterDircute(context.Background(), "insert into t values('a', 'N', '2020-07-01', 8)")
 	c.Assert(err, IsNil)
 	// Make sure these sqls use the the plan of index scan.
-	_, err = s.se.Execute(context.Background(), "drop stats t")
+	_, err = s.se.InterDircute(context.Background(), "drop stats t")
 	c.Assert(err, IsNil)
 
 	callback := &dbs.TestDBSCallback{}
@@ -815,7 +815,7 @@ func (s *testStateChangeSuiteBase) runTestInSchemaState(c *C, state perceptron.S
 	times := 0
 	se, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db_state")
+	_, err = se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	cbFunc := func(job *perceptron.Job) {
 		if job.SchemaState == prevState || checkErr != nil || times >= 3 {
@@ -826,7 +826,7 @@ func (s *testStateChangeSuiteBase) runTestInSchemaState(c *C, state perceptron.S
 			return
 		}
 		for _, sqlWithErr := range sqlWithErrs {
-			_, err = se.Execute(context.Background(), sqlWithErr.allegrosql)
+			_, err = se.InterDircute(context.Background(), sqlWithErr.allegrosql)
 			if !terror.ErrorEqual(err, sqlWithErr.expectErr) {
 				checkErr = errors.Errorf("allegrosql: %s, expect err: %v, got err: %v", sqlWithErr.allegrosql, sqlWithErr.expectErr, err)
 				break
@@ -841,14 +841,14 @@ func (s *testStateChangeSuiteBase) runTestInSchemaState(c *C, state perceptron.S
 	d := s.dom.DBS()
 	originalCallback := d.GetHook()
 	d.(dbs.DBSForTest).SetHook(callback)
-	_, err = s.se.Execute(context.Background(), alterBlockALLEGROSQL)
+	_, err = s.se.InterDircute(context.Background(), alterBlockALLEGROSQL)
 	c.Assert(err, IsNil)
 	c.Assert(errors.ErrorStack(checkErr), Equals, "")
 	d.(dbs.DBSForTest).SetHook(originalCallback)
 
 	if expectQuery != nil {
 		tk := testkit.NewTestKit(c, s.causetstore)
-		tk.MustExec("use test_db_state")
+		tk.MustInterDirc("use test_db_state")
 		result, err := s.execQuery(tk, expectQuery.allegrosql)
 		c.Assert(err, IsNil)
 		if expectQuery.rows == nil {
@@ -862,7 +862,7 @@ func (s *testStateChangeSuiteBase) runTestInSchemaState(c *C, state perceptron.S
 
 func (s *testStateChangeSuiteBase) execQuery(tk *testkit.TestKit, allegrosql string, args ...interface{}) (*testkit.Result, error) {
 	comment := Commentf("allegrosql:%s, args:%v", allegrosql, args)
-	rs, err := tk.Exec(allegrosql, args...)
+	rs, err := tk.InterDirc(allegrosql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +884,7 @@ func checkResult(result *testkit.Result, expected [][]interface{}) error {
 
 func (s *testStateChangeSuiteBase) CheckResult(tk *testkit.TestKit, allegrosql string, args ...interface{}) (*testkit.Result, error) {
 	comment := Commentf("allegrosql:%s, args:%v", allegrosql, args)
-	rs, err := tk.Exec(allegrosql, args...)
+	rs, err := tk.InterDirc(allegrosql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -893,14 +893,14 @@ func (s *testStateChangeSuiteBase) CheckResult(tk *testkit.TestKit, allegrosql s
 }
 
 func (s *testStateChangeSuite) TestShowIndex(c *C) {
-	_, err := s.se.Execute(context.Background(), `create block t(c1 int primary key, c2 int)`)
+	_, err := s.se.InterDircute(context.Background(), `create causet t(c1 int primary key, c2 int)`)
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block t")
+	defer s.se.InterDircute(context.Background(), "drop causet t")
 
 	callback := &dbs.TestDBSCallback{}
 	prevState := perceptron.StateNone
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test_db_state")
+	tk.MustInterDirc("use test_db_state")
 	showIndexALLEGROSQL := `show index from t`
 	var checkErr error
 	callback.OnJobUFIDelatedExported = func(job *perceptron.Job) {
@@ -921,8 +921,8 @@ func (s *testStateChangeSuite) TestShowIndex(c *C) {
 	d := s.dom.DBS()
 	originalCallback := d.GetHook()
 	d.(dbs.DBSForTest).SetHook(callback)
-	alterBlockALLEGROSQL := `alter block t add index c2(c2)`
-	_, err = s.se.Execute(context.Background(), alterBlockALLEGROSQL)
+	alterBlockALLEGROSQL := `alter causet t add index c2(c2)`
+	_, err = s.se.InterDircute(context.Background(), alterBlockALLEGROSQL)
 	c.Assert(err, IsNil)
 	c.Assert(errors.ErrorStack(checkErr), Equals, "")
 
@@ -937,7 +937,7 @@ func (s *testStateChangeSuite) TestShowIndex(c *C) {
 
 	c.Assert(err, IsNil)
 
-	_, err = s.se.Execute(context.Background(), `create block tr(
+	_, err = s.se.InterDircute(context.Background(), `create causet tr(
 		id int, name varchar(50),
 		purchased date
 	)
@@ -950,8 +950,8 @@ func (s *testStateChangeSuite) TestShowIndex(c *C) {
     	partition p5 values less than (2020)
    	);`)
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tr")
-	_, err = s.se.Execute(context.Background(), "create index idx1 on tr (purchased);")
+	defer s.se.InterDircute(context.Background(), "drop causet tr")
+	_, err = s.se.InterDircute(context.Background(), "create index idx1 on tr (purchased);")
 	c.Assert(err, IsNil)
 	result, err = s.execQuery(tk, "show index from tr;")
 	c.Assert(err, IsNil)
@@ -964,10 +964,10 @@ func (s *testStateChangeSuite) TestParallelAlterModifyDeferredCauset(c *C) {
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, IsNil)
-		_, err := s.se.Execute(context.Background(), "select * from t")
+		_, err := s.se.InterDircute(context.Background(), "select * from t")
 		c.Assert(err, IsNil)
 	}
-	s.testControlParallelExecALLEGROSQL(c, allegrosql, allegrosql, f)
+	s.testControlParallelInterDircALLEGROSQL(c, allegrosql, allegrosql, f)
 }
 
 func (s *serialTestStateChangeSuite) TestParallelAlterModifyDeferredCausetAndAddPK(c *C) {
@@ -976,10 +976,10 @@ func (s *serialTestStateChangeSuite) TestParallelAlterModifyDeferredCausetAndAdd
 		conf.AlterPrimaryKey = true
 	})
 
-	_, err := s.se.Execute(context.Background(), "set global milevadb_enable_change_defCausumn_type = 1")
+	_, err := s.se.InterDircute(context.Background(), "set global milevadb_enable_change_defCausumn_type = 1")
 	c.Assert(err, IsNil)
 	defer func() {
-		_, err = s.se.Execute(context.Background(), "set global milevadb_enable_change_defCausumn_type = 0")
+		_, err = s.se.InterDircute(context.Background(), "set global milevadb_enable_change_defCausumn_type = 0")
 		c.Assert(err, IsNil)
 	}()
 	petri.GetPetri(s.se).GetGlobalVarsCache().Disable()
@@ -989,48 +989,48 @@ func (s *serialTestStateChangeSuite) TestParallelAlterModifyDeferredCausetAndAdd
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:8200]Unsupported modify defCausumn: milevadb_enable_change_defCausumn_type is true and this defCausumn has primary key flag")
-		_, err := s.se.Execute(context.Background(), "select * from t")
+		_, err := s.se.InterDircute(context.Background(), "select * from t")
 		c.Assert(err, IsNil)
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 // TODO: This test is not a test that performs two DBSs in parallel.
-// So we should not use the function of testControlParallelExecALLEGROSQL. We will handle this test in the next PR.
+// So we should not use the function of testControlParallelInterDircALLEGROSQL. We will handle this test in the next PR.
 // func (s *testStateChangeSuite) TestParallelDeferredCausetModifyingDefinition(c *C) {
 // 	sql1 := "insert into t(b) values (null);"
-// 	sql2 := "alter block t change b b2 bigint not null;"
+// 	sql2 := "alter causet t change b b2 bigint not null;"
 // 	f := func(c *C, err1, err2 error) {
 // 		c.Assert(err1, IsNil)
 // 		if err2 != nil {
 // 			c.Assert(err2.Error(), Equals, "[dbs:1265]Data truncated for defCausumn 'b2' at event 1")
 // 		}
 // 	}
-// 	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+// 	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 // }
 
 func (s *testStateChangeSuite) TestParallelAddDefCausumAndSetDefaultValue(c *C) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create block tx (
+	_, err = s.se.InterDircute(context.Background(), `create causet tx (
 		c1 varchar(64),
 		c2 enum('N','Y') not null default 'N',
 		primary key idx2 (c2, c1))`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tx values('a', 'N')")
+	_, err = s.se.InterDircute(context.Background(), "insert into tx values('a', 'N')")
 	c.Assert(err, IsNil)
-	defer s.se.Execute(context.Background(), "drop block tx")
+	defer s.se.InterDircute(context.Background(), "drop causet tx")
 
-	sql1 := "alter block tx add defCausumn cx int after c1"
-	sql2 := "alter block tx alter c2 set default 'N'"
+	sql1 := "alter causet tx add defCausumn cx int after c1"
+	sql2 := "alter causet tx alter c2 set default 'N'"
 
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, IsNil)
-		_, err := s.se.Execute(context.Background(), "delete from tx where c1='a'")
+		_, err := s.se.InterDircute(context.Background(), "delete from tx where c1='a'")
 		c.Assert(err, IsNil)
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelChangeDeferredCausetName(c *C) {
@@ -1048,7 +1048,7 @@ func (s *testStateChangeSuite) TestParallelChangeDeferredCausetName(c *C) {
 		}
 		c.Assert(oneErr.Error(), Equals, "[schemaReplicant:1060]Duplicate defCausumn name 'aa'")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelAlterAddIndex(c *C) {
@@ -1058,7 +1058,7 @@ func (s *testStateChangeSuite) TestParallelAlterAddIndex(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1061]index already exist index_b")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *serialTestStateChangeSuite) TestParallelAlterAddExpressionIndex(c *C) {
@@ -1068,7 +1068,7 @@ func (s *serialTestStateChangeSuite) TestParallelAlterAddExpressionIndex(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1061]index already exist expr_index_b")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelAddPrimaryKey(c *C) {
@@ -1078,21 +1078,21 @@ func (s *testStateChangeSuite) TestParallelAddPrimaryKey(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[schemaReplicant:1068]Multiple primary key defined")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelAlterAddPartition(c *C) {
-	sql1 := `alter block t_part add partition (
+	sql1 := `alter causet t_part add partition (
     partition p2 values less than (30)
    );`
-	sql2 := `alter block t_part add partition (
+	sql2 := `alter causet t_part add partition (
     partition p3 values less than (30)
    );`
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1493]VALUES LESS THAN value must be strictly increasing for each partition")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelDropDeferredCauset(c *C) {
@@ -1101,7 +1101,7 @@ func (s *testStateChangeSuite) TestParallelDropDeferredCauset(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1091]defCausumn c doesn't exist")
 	}
-	s.testControlParallelExecALLEGROSQL(c, allegrosql, allegrosql, f)
+	s.testControlParallelInterDircALLEGROSQL(c, allegrosql, allegrosql, f)
 }
 
 func (s *testStateChangeSuite) TestParallelDropDeferredCausets(c *C) {
@@ -1110,7 +1110,7 @@ func (s *testStateChangeSuite) TestParallelDropDeferredCausets(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1091]defCausumn b doesn't exist")
 	}
-	s.testControlParallelExecALLEGROSQL(c, allegrosql, allegrosql, f)
+	s.testControlParallelInterDircALLEGROSQL(c, allegrosql, allegrosql, f)
 }
 
 func (s *testStateChangeSuite) TestParallelDropIfExistsDeferredCausets(c *C) {
@@ -1119,17 +1119,17 @@ func (s *testStateChangeSuite) TestParallelDropIfExistsDeferredCausets(c *C) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, IsNil)
 	}
-	s.testControlParallelExecALLEGROSQL(c, allegrosql, allegrosql, f)
+	s.testControlParallelInterDircALLEGROSQL(c, allegrosql, allegrosql, f)
 }
 
 func (s *testStateChangeSuite) TestParallelDropIndex(c *C) {
-	sql1 := "alter block t drop index idx1 ;"
-	sql2 := "alter block t drop index idx2 ;"
+	sql1 := "alter causet t drop index idx1 ;"
+	sql2 := "alter causet t drop index idx2 ;"
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
-		c.Assert(err2.Error(), Equals, "[autoid:1075]Incorrect block definition; there can be only one auto defCausumn and it must be defined as a key")
+		c.Assert(err2.Error(), Equals, "[autoid:1075]Incorrect causet definition; there can be only one auto defCausumn and it must be defined as a key")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelDropPrimaryKey(c *C) {
@@ -1137,28 +1137,28 @@ func (s *testStateChangeSuite) TestParallelDropPrimaryKey(c *C) {
 	defer func() {
 		s.preALLEGROSQL = ""
 	}()
-	sql1 := "alter block t drop primary key;"
-	sql2 := "alter block t drop primary key;"
+	sql1 := "alter causet t drop primary key;"
+	sql2 := "alter causet t drop primary key;"
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[dbs:1091]index PRIMARY doesn't exist")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelCreateAndRename(c *C) {
-	sql1 := "create block t_exists(c int);"
-	sql2 := "alter block t rename to t_exists;"
-	defer s.se.Execute(context.Background(), "drop block t_exists")
+	sql1 := "create causet t_exists(c int);"
+	sql2 := "alter causet t rename to t_exists;"
+	defer s.se.InterDircute(context.Background(), "drop causet t_exists")
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2.Error(), Equals, "[schemaReplicant:1050]Block 't_exists' already exists")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 func (s *testStateChangeSuite) TestParallelAlterAndDropSchema(c *C) {
-	_, err := s.se.Execute(context.Background(), "create database db_drop_db")
+	_, err := s.se.InterDircute(context.Background(), "create database db_drop_db")
 	c.Assert(err, IsNil)
 	sql1 := "DROP SCHEMA db_drop_db"
 	sql2 := "ALTER SCHEMA db_drop_db CHARSET utf8mb4 COLLATE utf8mb4_general_ci"
@@ -1167,12 +1167,12 @@ func (s *testStateChangeSuite) TestParallelAlterAndDropSchema(c *C) {
 		c.Assert(err2, NotNil)
 		c.Assert(err2.Error(), Equals, "[schemaReplicant:1008]Can't drop database ''; database doesn't exist")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 type checkRet func(c *C, err1, err2 error)
 
-func (s *testStateChangeSuiteBase) prepareTestControlParallelExecALLEGROSQL(c *C) (stochastik.Stochastik, stochastik.Stochastik, chan struct{}, dbs.Callback) {
+func (s *testStateChangeSuiteBase) prepareTestControlParallelInterDircALLEGROSQL(c *C) (stochastik.Stochastik, stochastik.Stochastik, chan struct{}, dbs.Callback) {
 	callback := &dbs.TestDBSCallback{}
 	times := 0
 	callback.OnJobUFIDelatedExported = func(job *perceptron.Job) {
@@ -1202,11 +1202,11 @@ func (s *testStateChangeSuiteBase) prepareTestControlParallelExecALLEGROSQL(c *C
 
 	se, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db_state")
+	_, err = se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	se1, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se1.Execute(context.Background(), "use test_db_state")
+	_, err = se1.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	ch := make(chan struct{})
 	// Make sure the sql1 is put into the DBSJobQueue.
@@ -1232,26 +1232,26 @@ func (s *testStateChangeSuiteBase) prepareTestControlParallelExecALLEGROSQL(c *C
 	return se, se1, ch, originalCallback
 }
 
-func (s *testStateChangeSuiteBase) testControlParallelExecALLEGROSQL(c *C, sql1, sql2 string, f checkRet) {
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+func (s *testStateChangeSuiteBase) testControlParallelInterDircALLEGROSQL(c *C, sql1, sql2 string, f checkRet) {
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "create block t(a int, b int, c int, d int auto_increment,e int, index idx1(d), index idx2(d,e))")
+	_, err = s.se.InterDircute(context.Background(), "create causet t(a int, b int, c int, d int auto_increment,e int, index idx1(d), index idx2(d,e))")
 	c.Assert(err, IsNil)
 	if len(s.preALLEGROSQL) != 0 {
-		_, err := s.se.Execute(context.Background(), s.preALLEGROSQL)
+		_, err := s.se.InterDircute(context.Background(), s.preALLEGROSQL)
 		c.Assert(err, IsNil)
 	}
-	defer s.se.Execute(context.Background(), "drop block t")
+	defer s.se.InterDircute(context.Background(), "drop causet t")
 
-	_, err = s.se.Execute(context.Background(), "drop database if exists t_part")
+	_, err = s.se.InterDircute(context.Background(), "drop database if exists t_part")
 	c.Assert(err, IsNil)
-	s.se.Execute(context.Background(), `create block t_part (a int key)
+	s.se.InterDircute(context.Background(), `create causet t_part (a int key)
 	 partition by range(a) (
 	 partition p0 values less than (10),
 	 partition p1 values less than (20)
 	 );`)
 
-	se, se1, ch, originalCallback := s.prepareTestControlParallelExecALLEGROSQL(c)
+	se, se1, ch, originalCallback := s.prepareTestControlParallelInterDircALLEGROSQL(c)
 	defer s.dom.DBS().(dbs.DBSForTest).SetHook(originalCallback)
 
 	var err1 error
@@ -1260,12 +1260,12 @@ func (s *testStateChangeSuiteBase) testControlParallelExecALLEGROSQL(c *C, sql1,
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, err1 = se.Execute(context.Background(), sql1)
+		_, err1 = se.InterDircute(context.Background(), sql1)
 	}()
 	go func() {
 		defer wg.Done()
 		<-ch
-		_, err2 = se1.Execute(context.Background(), sql2)
+		_, err2 = se1.InterDircute(context.Background(), sql2)
 	}()
 
 	wg.Wait()
@@ -1277,16 +1277,16 @@ func (s *serialTestStateChangeSuite) TestParallelUFIDelateBlockReplica(c *C) {
 	defer failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockTiFlashStoreCount")
 
 	ctx := context.Background()
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(ctx, "drop block if exists t1;")
+	_, err = s.se.InterDircute(ctx, "drop causet if exists t1;")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(ctx, "create block t1 (a int);")
+	_, err = s.se.InterDircute(ctx, "create causet t1 (a int);")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(ctx, "alter block t1 set tiflash replica 3 location labels 'a','b';")
+	_, err = s.se.InterDircute(ctx, "alter causet t1 set tiflash replica 3 location labels 'a','b';")
 	c.Assert(err, IsNil)
 
-	se, se1, ch, originalCallback := s.prepareTestControlParallelExecALLEGROSQL(c)
+	se, se1, ch, originalCallback := s.prepareTestControlParallelInterDircALLEGROSQL(c)
 	defer s.dom.DBS().(dbs.DBSForTest).SetHook(originalCallback)
 
 	t1 := testGetBlockByName(c, se, "test_db_state", "t1")
@@ -1297,29 +1297,29 @@ func (s *serialTestStateChangeSuite) TestParallelUFIDelateBlockReplica(c *C) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		// Mock for block tiflash replica was available.
+		// Mock for causet tiflash replica was available.
 		err1 = petri.GetPetri(se).DBS().UFIDelateBlockReplicaInfo(se, t1.Meta().ID, true)
 	}()
 	go func() {
 		defer wg.Done()
 		<-ch
-		// Mock for block tiflash replica was available.
+		// Mock for causet tiflash replica was available.
 		err2 = petri.GetPetri(se1).DBS().UFIDelateBlockReplicaInfo(se1, t1.Meta().ID, true)
 	}()
 	wg.Wait()
 	c.Assert(err1, IsNil)
-	c.Assert(err2.Error(), Equals, "[dbs:-1]the replica available status of block t1 is already uFIDelated")
+	c.Assert(err2.Error(), Equals, "[dbs:-1]the replica available status of causet t1 is already uFIDelated")
 }
 
-func (s *testStateChangeSuite) testParallelExecALLEGROSQL(c *C, allegrosql string) {
+func (s *testStateChangeSuite) testParallelInterDircALLEGROSQL(c *C, allegrosql string) {
 	se, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db_state")
+	_, err = se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 
 	se1, err1 := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err1, IsNil)
-	_, err = se1.Execute(context.Background(), "use test_db_state")
+	_, err = se1.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 
 	var err2, err3 error
@@ -1342,100 +1342,100 @@ func (s *testStateChangeSuite) testParallelExecALLEGROSQL(c *C, allegrosql strin
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, err2 = se.Execute(context.Background(), allegrosql)
+		_, err2 = se.InterDircute(context.Background(), allegrosql)
 	}()
 
 	go func() {
 		defer wg.Done()
-		_, err3 = se1.Execute(context.Background(), allegrosql)
+		_, err3 = se1.InterDircute(context.Background(), allegrosql)
 	}()
 	wg.Wait()
 	c.Assert(err2, IsNil)
 	c.Assert(err3, IsNil)
 }
 
-// TestCreateBlockIfNotExists parallel exec create block if not exists xxx. No error returns is expected.
+// TestCreateBlockIfNotExists parallel exec create causet if not exists xxx. No error returns is expected.
 func (s *testStateChangeSuite) TestCreateBlockIfNotExists(c *C) {
-	defer s.se.Execute(context.Background(), "drop block test_not_exists")
-	s.testParallelExecALLEGROSQL(c, "create block if not exists test_not_exists(a int);")
+	defer s.se.InterDircute(context.Background(), "drop causet test_not_exists")
+	s.testParallelInterDircALLEGROSQL(c, "create causet if not exists test_not_exists(a int);")
 }
 
 // TestCreateDBIfNotExists parallel exec create database if not exists xxx. No error returns is expected.
 func (s *testStateChangeSuite) TestCreateDBIfNotExists(c *C) {
-	defer s.se.Execute(context.Background(), "drop database test_not_exists")
-	s.testParallelExecALLEGROSQL(c, "create database if not exists test_not_exists;")
+	defer s.se.InterDircute(context.Background(), "drop database test_not_exists")
+	s.testParallelInterDircALLEGROSQL(c, "create database if not exists test_not_exists;")
 }
 
 // TestDBSIfNotExists parallel exec some DBSs with `if not exists` clause. No error returns is expected.
 func (s *testStateChangeSuite) TestDBSIfNotExists(c *C) {
-	defer s.se.Execute(context.Background(), "drop block test_not_exists")
-	_, err := s.se.Execute(context.Background(), "create block if not exists test_not_exists(a int)")
+	defer s.se.InterDircute(context.Background(), "drop causet test_not_exists")
+	_, err := s.se.InterDircute(context.Background(), "create causet if not exists test_not_exists(a int)")
 	c.Assert(err, IsNil)
 
 	// ADD COLUMN
-	s.testParallelExecALLEGROSQL(c, "alter block test_not_exists add defCausumn if not exists b int")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_not_exists add defCausumn if not exists b int")
 
 	// ADD COLUMNS
-	s.testParallelExecALLEGROSQL(c, "alter block test_not_exists add defCausumn if not exists (c11 int, d11 int)")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_not_exists add defCausumn if not exists (c11 int, d11 int)")
 
 	// ADD INDEX
-	s.testParallelExecALLEGROSQL(c, "alter block test_not_exists add index if not exists idx_b (b)")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_not_exists add index if not exists idx_b (b)")
 
 	// CREATE INDEX
-	s.testParallelExecALLEGROSQL(c, "create index if not exists idx_b on test_not_exists (b)")
+	s.testParallelInterDircALLEGROSQL(c, "create index if not exists idx_b on test_not_exists (b)")
 }
 
 // TestDBSIfExists parallel exec some DBSs with `if exists` clause. No error returns is expected.
 func (s *testStateChangeSuite) TestDBSIfExists(c *C) {
 	defer func() {
-		s.se.Execute(context.Background(), "drop block test_exists")
-		s.se.Execute(context.Background(), "drop block test_exists_2")
+		s.se.InterDircute(context.Background(), "drop causet test_exists")
+		s.se.InterDircute(context.Background(), "drop causet test_exists_2")
 	}()
-	_, err := s.se.Execute(context.Background(), "create block if not exists test_exists (a int key, b int)")
+	_, err := s.se.InterDircute(context.Background(), "create causet if not exists test_exists (a int key, b int)")
 	c.Assert(err, IsNil)
 
 	// DROP COLUMNS
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists drop defCausumn if exists c, drop defCausumn if exists d")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists drop defCausumn if exists c, drop defCausumn if exists d")
 
 	// DROP COLUMN
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists drop defCausumn if exists b") // only `a` exists now
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists drop defCausumn if exists b") // only `a` exists now
 
 	// CHANGE COLUMN
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists change defCausumn if exists a c int") // only, `c` exists now
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists change defCausumn if exists a c int") // only, `c` exists now
 
 	// MODIFY COLUMN
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists modify defCausumn if exists a bigint")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists modify defCausumn if exists a bigint")
 
 	// DROP INDEX
-	_, err = s.se.Execute(context.Background(), "alter block test_exists add index idx_c (c)")
+	_, err = s.se.InterDircute(context.Background(), "alter causet test_exists add index idx_c (c)")
 	c.Assert(err, IsNil)
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists drop index if exists idx_c")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists drop index if exists idx_c")
 
 	// DROP PARTITION (ADD PARTITION tested in TestParallelAlterAddPartition)
-	_, err = s.se.Execute(context.Background(), "create block test_exists_2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
+	_, err = s.se.InterDircute(context.Background(), "create causet test_exists_2 (a int key) partition by range(a) (partition p0 values less than (10), partition p1 values less than (20))")
 	c.Assert(err, IsNil)
-	s.testParallelExecALLEGROSQL(c, "alter block test_exists_2 drop partition if exists p1")
+	s.testParallelInterDircALLEGROSQL(c, "alter causet test_exists_2 drop partition if exists p1")
 }
 
 // TestParallelDBSBeforeRunDBSJob tests a stochastik to execute DBS with an outdated information schemaReplicant.
 // This test is used to simulate the following conditions:
 // In a cluster, MilevaDB "a" executes the DBS.
-// MilevaDB "b" fails to load schemaReplicant, then MilevaDB "b" executes the DBS statement associated with the DBS statement executed by "a".
+// MilevaDB "b" fails to load schemaReplicant, then MilevaDB "b" executes the DBS memex associated with the DBS memex executed by "a".
 func (s *testStateChangeSuite) TestParallelDBSBeforeRunDBSJob(c *C) {
-	defer s.se.Execute(context.Background(), "drop block test_block")
-	_, err := s.se.Execute(context.Background(), "use test_db_state")
+	defer s.se.InterDircute(context.Background(), "drop causet test_block")
+	_, err := s.se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "create block test_block (c1 int, c2 int default 1, index (c1))")
+	_, err = s.se.InterDircute(context.Background(), "create causet test_block (c1 int, c2 int default 1, index (c1))")
 	c.Assert(err, IsNil)
 
 	// Create two stochastik.
 	se, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se.Execute(context.Background(), "use test_db_state")
+	_, err = se.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 	se1, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
-	_, err = se1.Execute(context.Background(), "use test_db_state")
+	_, err = se1.InterDircute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
 
 	intercept := &dbs.TestInterceptor{}
@@ -1486,7 +1486,7 @@ func (s *testStateChangeSuite) TestParallelDBSBeforeRunDBSJob(c *C) {
 		defer wg.Done()
 
 		se.SetConnectionID(firstConnID)
-		_, err1 := se.Execute(context.Background(), "alter block test_block drop defCausumn c2")
+		_, err1 := se.InterDircute(context.Background(), "alter causet test_block drop defCausumn c2")
 		c.Assert(err1, IsNil)
 		// Sleep a while to make sure the connection 2 break out the first for loop in OnGetSchemaReplicantExported, otherwise atomic.LoadInt32(&stochastikCnt) == 2 will be false forever.
 		time.Sleep(100 * time.Millisecond)
@@ -1496,7 +1496,7 @@ func (s *testStateChangeSuite) TestParallelDBSBeforeRunDBSJob(c *C) {
 		defer wg.Done()
 
 		se1.SetConnectionID(2)
-		_, err2 := se1.Execute(context.Background(), "alter block test_block add defCausumn c2 int")
+		_, err2 := se1.InterDircute(context.Background(), "alter causet test_block add defCausumn c2 int")
 		c.Assert(err2, NotNil)
 		c.Assert(strings.Contains(err2.Error(), "Information schemaReplicant is changed"), IsTrue)
 	}()
@@ -1513,7 +1513,7 @@ func (s *testStateChangeSuite) TestParallelAlterSchemaCharsetAndDefCauslate(c *C
 		c.Assert(err1, IsNil)
 		c.Assert(err2, IsNil)
 	}
-	s.testControlParallelExecALLEGROSQL(c, allegrosql, allegrosql, f)
+	s.testControlParallelInterDircALLEGROSQL(c, allegrosql, allegrosql, f)
 	allegrosql = `SELECT default_character_set_name, default_defCauslation_name
 			FROM information_schema.schemata
 			WHERE schema_name='test_db_state'`
@@ -1521,35 +1521,35 @@ func (s *testStateChangeSuite) TestParallelAlterSchemaCharsetAndDefCauslate(c *C
 	tk.MustQuery(allegrosql).Check(testkit.Rows("utf8mb4 utf8mb4_general_ci"))
 }
 
-// TestParallelTruncateBlockAndAddDeferredCauset tests add defCausumn when truncate block.
+// TestParallelTruncateBlockAndAddDeferredCauset tests add defCausumn when truncate causet.
 func (s *testStateChangeSuite) TestParallelTruncateBlockAndAddDeferredCauset(c *C) {
-	sql1 := "truncate block t"
-	sql2 := "alter block t add defCausumn c3 int"
+	sql1 := "truncate causet t"
+	sql2 := "alter causet t add defCausumn c3 int"
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, NotNil)
-		c.Assert(err2.Error(), Equals, "[petri:8028]Information schemaReplicant is changed during the execution of the statement(for example, block definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
+		c.Assert(err2.Error(), Equals, "[petri:8028]Information schemaReplicant is changed during the execution of the memex(for example, causet definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
-// TestParallelTruncateBlockAndAddDeferredCausets tests add defCausumns when truncate block.
+// TestParallelTruncateBlockAndAddDeferredCausets tests add defCausumns when truncate causet.
 func (s *testStateChangeSuite) TestParallelTruncateBlockAndAddDeferredCausets(c *C) {
-	sql1 := "truncate block t"
-	sql2 := "alter block t add defCausumn c3 int, add defCausumn c4 int"
+	sql1 := "truncate causet t"
+	sql2 := "alter causet t add defCausumn c3 int, add defCausumn c4 int"
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, NotNil)
-		c.Assert(err2.Error(), Equals, "[petri:8028]Information schemaReplicant is changed during the execution of the statement(for example, block definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
+		c.Assert(err2.Error(), Equals, "[petri:8028]Information schemaReplicant is changed during the execution of the memex(for example, causet definition may be uFIDelated by other DBS ran in parallel). If you see this error often, try increasing `milevadb_max_delta_schema_count`. [try again later]")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
-// TestParallelFlashbackBlock tests parallel flashback block.
+// TestParallelFlashbackBlock tests parallel flashback causet.
 func (s *serialTestStateChangeSuite) TestParallelFlashbackBlock(c *C) {
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange", `return(true)`), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange", `return(true)`), IsNil)
 	defer func(originGC bool) {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/meta/autoid/mockAutoIDChange"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/spacetime/autoid/mockAutoIDChange"), IsNil)
 		if originGC {
 			dbs.EmulatorGCEnable()
 		} else {
@@ -1558,7 +1558,7 @@ func (s *serialTestStateChangeSuite) TestParallelFlashbackBlock(c *C) {
 	}(dbs.IsEmulatorGCEnable())
 
 	// disable emulator GC.
-	// Disable emulator GC, otherwise, emulator GC will delete block record as soon as possible after executing drop block DBS.
+	// Disable emulator GC, otherwise, emulator GC will delete causet record as soon as possible after executing drop causet DBS.
 	dbs.EmulatorGCDisable()
 	gcTimeFormat := "20060102-15:04:05 -0700 MST"
 	timeBeforeDrop := time.Now().Add(0 - 48*60*60*time.Second).Format(gcTimeFormat)
@@ -1567,32 +1567,32 @@ func (s *serialTestStateChangeSuite) TestParallelFlashbackBlock(c *C) {
 			       UFIDelATE variable_value = '%[1]s'`
 	tk := testkit.NewTestKit(c, s.causetstore)
 	// clear GC variables first.
-	tk.MustExec("delete from allegrosql.milevadb where variable_name in ( 'einsteindb_gc_safe_point','einsteindb_gc_enable' )")
+	tk.MustInterDirc("delete from allegrosql.milevadb where variable_name in ( 'einsteindb_gc_safe_point','einsteindb_gc_enable' )")
 	// set GC safe point
-	tk.MustExec(fmt.Sprintf(safePointALLEGROSQL, timeBeforeDrop))
+	tk.MustInterDirc(fmt.Sprintf(safePointALLEGROSQL, timeBeforeDrop))
 	// set GC enable.
 	err := gcutil.EnableGC(tk.Se)
 	c.Assert(err, IsNil)
 
-	// prepare dropped block.
-	tk.MustExec("use test_db_state")
-	tk.MustExec("drop block if exists t")
-	tk.MustExec("create block t (a int);")
-	tk.MustExec("drop block if exists t")
-	// Test parallel flashback block.
-	sql1 := "flashback block t to t_flashback"
+	// prepare dropped causet.
+	tk.MustInterDirc("use test_db_state")
+	tk.MustInterDirc("drop causet if exists t")
+	tk.MustInterDirc("create causet t (a int);")
+	tk.MustInterDirc("drop causet if exists t")
+	// Test parallel flashback causet.
+	sql1 := "flashback causet t to t_flashback"
 	f := func(c *C, err1, err2 error) {
 		c.Assert(err1, IsNil)
 		c.Assert(err2, NotNil)
 		c.Assert(err2.Error(), Equals, "[schemaReplicant:1050]Block 't_flashback' already exists")
 	}
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql1, f)
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql1, f)
 
-	// Test parallel flashback block with different name
-	tk.MustExec("drop block t_flashback")
-	sql1 = "flashback block t_flashback"
-	sql2 := "flashback block t_flashback to t_flashback2"
-	s.testControlParallelExecALLEGROSQL(c, sql1, sql2, f)
+	// Test parallel flashback causet with different name
+	tk.MustInterDirc("drop causet t_flashback")
+	sql1 = "flashback causet t_flashback"
+	sql2 := "flashback causet t_flashback to t_flashback2"
+	s.testControlParallelInterDircALLEGROSQL(c, sql1, sql2, f)
 }
 
 // TestModifyDeferredCausetTypeArgs test job raw args won't be uFIDelated when error occurs in `uFIDelateVersionAndBlockInfo`.
@@ -1603,9 +1603,9 @@ func (s *serialTestStateChangeSuite) TestModifyDeferredCausetTypeArgs(c *C) {
 	}()
 
 	tk := testkit.NewTestKit(c, s.causetstore)
-	tk.MustExec("use test")
-	tk.MustExec("drop block if exists t_modify_defCausumn_args")
-	tk.MustExec("create block t_modify_defCausumn_args(a int, unique(a))")
+	tk.MustInterDirc("use test")
+	tk.MustInterDirc("drop causet if exists t_modify_defCausumn_args")
+	tk.MustInterDirc("create causet t_modify_defCausumn_args(a int, unique(a))")
 
 	enableChangeDeferredCausetType := tk.Se.GetStochastikVars().EnableChangeDeferredCausetType
 	tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = true
@@ -1613,7 +1613,7 @@ func (s *serialTestStateChangeSuite) TestModifyDeferredCausetTypeArgs(c *C) {
 		tk.Se.GetStochastikVars().EnableChangeDeferredCausetType = enableChangeDeferredCausetType
 	}()
 
-	_, err := tk.Exec("alter block t_modify_defCausumn_args modify defCausumn a tinyint")
+	_, err := tk.InterDirc("alter causet t_modify_defCausumn_args modify defCausumn a tinyint")
 	c.Assert(err, NotNil)
 	// error goes like `mock uFIDelate version and blockInfo error,jobID=xx`
 	strs := strings.Split(err.Error(), ",")
@@ -1628,7 +1628,7 @@ func (s *serialTestStateChangeSuite) TestModifyDeferredCausetTypeArgs(c *C) {
 	c.Assert(err, IsNil)
 	var historyJob *perceptron.Job
 	err = ekv.RunInNewTxn(s.causetstore, false, func(txn ekv.Transaction) error {
-		t := meta.NewMeta(txn)
+		t := spacetime.NewMeta(txn)
 		historyJob, err = t.GetHistoryDBSJob(int64(ID))
 		if err != nil {
 			return err

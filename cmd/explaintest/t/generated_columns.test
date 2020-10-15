@@ -113,7 +113,7 @@ KEY(city_no));
 INSERT INTO person (name, address_info) VALUES ("John", CAST('{"city_no": 1}' AS JSON));
 EXPLAIN SELECT name FROM person where city_no=1;
 
--- Virtual generated columns in aggregate statement
+-- Virtual generated columns in aggregate memex
 -- ISSUE https://github.com/whtcorpsinc/milevadb/issues/14072
 
 DROP TABLE IF EXISTS t1;

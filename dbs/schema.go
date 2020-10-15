@@ -17,10 +17,10 @@ import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 )
 
-func onCreateSchema(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onCreateSchema(d *dbsCtx, t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	schemaID := job.SchemaID
 	dbInfo := &perceptron.DBInfo{}
 	if err := job.DecodeArgs(dbInfo); err != nil {
@@ -63,7 +63,7 @@ func onCreateSchema(d *dbsCtx, t *meta.Meta, job *perceptron.Job) (ver int64, _ 
 	}
 }
 
-func checkSchemaNotExists(d *dbsCtx, t *meta.Meta, schemaID int64, dbInfo *perceptron.DBInfo) error {
+func checkSchemaNotExists(d *dbsCtx, t *spacetime.Meta, schemaID int64, dbInfo *perceptron.DBInfo) error {
 	// d.infoHandle maybe nil in some test.
 	if d.infoHandle == nil {
 		return checkSchemaNotExistsFromStore(t, schemaID, dbInfo)
@@ -92,7 +92,7 @@ func checkSchemaNotExistsFromSchemaReplicant(is schemareplicant.SchemaReplicant,
 	return nil
 }
 
-func checkSchemaNotExistsFromStore(t *meta.Meta, schemaID int64, dbInfo *perceptron.DBInfo) error {
+func checkSchemaNotExistsFromStore(t *spacetime.Meta, schemaID int64, dbInfo *perceptron.DBInfo) error {
 	dbs, err := t.ListDatabases()
 	if err != nil {
 		return errors.Trace(err)
@@ -109,7 +109,7 @@ func checkSchemaNotExistsFromStore(t *meta.Meta, schemaID int64, dbInfo *percept
 	return nil
 }
 
-func onModifySchemaCharsetAndDefCauslate(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onModifySchemaCharsetAndDefCauslate(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	var toCharset, toDefCauslate string
 	if err := job.DecodeArgs(&toCharset, &toDefCauslate); err != nil {
 		job.State = perceptron.JobStateCancelled
@@ -139,7 +139,7 @@ func onModifySchemaCharsetAndDefCauslate(t *meta.Meta, job *perceptron.Job) (ver
 	return ver, nil
 }
 
-func onDropSchema(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
+func onDropSchema(t *spacetime.Meta, job *perceptron.Job) (ver int64, _ error) {
 	dbInfo, err := checkSchemaExistAndCancelNotExistJob(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
@@ -189,7 +189,7 @@ func onDropSchema(t *meta.Meta, job *perceptron.Job) (ver int64, _ error) {
 	return ver, errors.Trace(err)
 }
 
-func checkSchemaExistAndCancelNotExistJob(t *meta.Meta, job *perceptron.Job) (*perceptron.DBInfo, error) {
+func checkSchemaExistAndCancelNotExistJob(t *spacetime.Meta, job *perceptron.Job) (*perceptron.DBInfo, error) {
 	dbInfo, err := t.GetDatabase(job.SchemaID)
 	if err != nil {
 		return nil, errors.Trace(err)

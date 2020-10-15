@@ -27,7 +27,7 @@ import (
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/owner"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	milevadbutil "github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"go.etcd.io/etcd/clientv3"
@@ -57,7 +57,7 @@ const (
 )
 
 var (
-	// CheckVersFirstWaitTime is a waitting time before the owner checks all the servers of the schemaReplicant version,
+	// CheckVersFirstWaitTime is a waitting time before the tenant checks all the servers of the schemaReplicant version,
 	// and it's an exported variable for testing.
 	CheckVersFirstWaitTime = 50 * time.Millisecond
 	// SyncerStochastikTTL is the etcd stochastik's TTL in seconds.
@@ -72,8 +72,8 @@ type SchemaSyncer interface {
 	Init(ctx context.Context) error
 	// UFIDelateSelfVersion uFIDelates the current version to the self path on etcd.
 	UFIDelateSelfVersion(ctx context.Context, version int64) error
-	// OwnerUFIDelateGlobalVersion uFIDelates the latest version to the global path on etcd until uFIDelating is successful or the ctx is done.
-	OwnerUFIDelateGlobalVersion(ctx context.Context, version int64) error
+	// TenantUFIDelateGlobalVersion uFIDelates the latest version to the global path on etcd until uFIDelating is successful or the ctx is done.
+	TenantUFIDelateGlobalVersion(ctx context.Context, version int64) error
 	// GlobalVersionCh gets the chan for watching global version.
 	GlobalVersionCh() clientv3.WatchChan
 	// WatchGlobalSchemaVer watches the global schemaReplicant version.
@@ -84,10 +84,10 @@ type SchemaSyncer interface {
 	Done() <-chan struct{}
 	// Restart restarts the syncer when it's on longer being refreshed.
 	Restart(ctx context.Context) error
-	// OwnerCheckAllVersions checks whether all followers' schemaReplicant version are equal to
+	// TenantCheckAllVersions checks whether all followers' schemaReplicant version are equal to
 	// the latest schemaReplicant version. If the result is false, wait for a while and check again soliton the processing time reach 2 * lease.
 	// It returns until all servers' versions are equal to the latest version or the ctx is done.
-	OwnerCheckAllVersions(ctx context.Context, latestVer int64) error
+	TenantCheckAllVersions(ctx context.Context, latestVer int64) error
 	// NotifyCleanExpiredPaths informs to clean up expired paths.
 	// The returned value is used for testing.
 	NotifyCleanExpiredPaths() bool
@@ -97,8 +97,8 @@ type SchemaSyncer interface {
 	Close()
 }
 
-type ownerChecker interface {
-	IsOwner() bool
+type tenantChecker interface {
+	IsTenant() bool
 }
 
 type schemaVersionSyncer struct {
@@ -111,19 +111,19 @@ type schemaVersionSyncer struct {
 	}
 
 	// for clean worker
-	ownerChecker              ownerChecker
+	tenantChecker              tenantChecker
 	notifyCleanExpiredPathsCh chan struct{}
 	ctx                       context.Context
 	cancel                    context.CancelFunc
 }
 
 // NewSchemaSyncer creates a new SchemaSyncer.
-func NewSchemaSyncer(ctx context.Context, etcdCli *clientv3.Client, id string, oc ownerChecker) SchemaSyncer {
+func NewSchemaSyncer(ctx context.Context, etcdCli *clientv3.Client, id string, oc tenantChecker) SchemaSyncer {
 	childCtx, cancelFunc := context.WithCancel(ctx)
 	return &schemaVersionSyncer{
 		etcdCli:                   etcdCli,
 		selfSchemaVerPath:         fmt.Sprintf("%s/%s", DBSAllSchemaVersions, id),
-		ownerChecker:              oc,
+		tenantChecker:              oc,
 		notifyCleanExpiredPathsCh: make(chan struct{}, 1),
 		ctx:                       childCtx,
 		cancel:                    cancelFunc,
@@ -170,7 +170,7 @@ func (s *schemaVersionSyncer) Init(ctx context.Context) error {
 		return errors.Trace(err)
 	}
 	logPrefix := fmt.Sprintf("[%s] %s", dbsPrompt, s.selfSchemaVerPath)
-	stochastik, err := owner.NewStochastik(ctx, logPrefix, s.etcdCli, owner.NewStochastikDefaultRetryCnt, SyncerStochastikTTL)
+	stochastik, err := tenant.NewStochastik(ctx, logPrefix, s.etcdCli, tenant.NewStochastikDefaultRetryCnt, SyncerStochastikTTL)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -215,7 +215,7 @@ func (s *schemaVersionSyncer) Restart(ctx context.Context) error {
 
 	logPrefix := fmt.Sprintf("[%s] %s", dbsPrompt, s.selfSchemaVerPath)
 	// NewStochastik's context will affect the exit of the stochastik.
-	stochastik, err := owner.NewStochastik(ctx, logPrefix, s.etcdCli, owner.NewStochastikRetryUnlimited, SyncerStochastikTTL)
+	stochastik, err := tenant.NewStochastik(ctx, logPrefix, s.etcdCli, tenant.NewStochastikRetryUnlimited, SyncerStochastikTTL)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -268,14 +268,14 @@ func (s *schemaVersionSyncer) UFIDelateSelfVersion(ctx context.Context, version 
 	return errors.Trace(err)
 }
 
-// OwnerUFIDelateGlobalVersion implements SchemaSyncer.OwnerUFIDelateGlobalVersion interface.
-func (s *schemaVersionSyncer) OwnerUFIDelateGlobalVersion(ctx context.Context, version int64) error {
+// TenantUFIDelateGlobalVersion implements SchemaSyncer.TenantUFIDelateGlobalVersion interface.
+func (s *schemaVersionSyncer) TenantUFIDelateGlobalVersion(ctx context.Context, version int64) error {
 	startTime := time.Now()
 	ver := strconv.FormatInt(version, 10)
 	// TODO: If the version is larger than the original global version, we need set the version.
 	// Otherwise, we'd better set the original global version.
 	err := PutKVToEtcd(ctx, s.etcdCli, putKeyRetryUnlimited, DBSGlobalSchemaVersion, ver)
-	metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerUFIDelateGlobalVersion, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
+	metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantUFIDelateGlobalVersion, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
 	return errors.Trace(err)
 }
 
@@ -319,7 +319,7 @@ func (s *schemaVersionSyncer) MustGetGlobalVersion(ctx context.Context) (int64, 
 	intervalCnt := int(time.Second / keyOpRetryInterval)
 
 	defer func() {
-		metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerGetGlobalVersion, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
+		metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantGetGlobalVersion, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
 	}()
 	for {
 		if err != nil {
@@ -357,8 +357,8 @@ func isContextDone(ctx context.Context) bool {
 	return false
 }
 
-// OwnerCheckAllVersions implements SchemaSyncer.OwnerCheckAllVersions interface.
-func (s *schemaVersionSyncer) OwnerCheckAllVersions(ctx context.Context, latestVer int64) error {
+// TenantCheckAllVersions implements SchemaSyncer.TenantCheckAllVersions interface.
+func (s *schemaVersionSyncer) TenantCheckAllVersions(ctx context.Context, latestVer int64) error {
 	startTime := time.Now()
 	time.Sleep(CheckVersFirstWaitTime)
 	notMatchVerCnt := 0
@@ -367,7 +367,7 @@ func (s *schemaVersionSyncer) OwnerCheckAllVersions(ctx context.Context, latestV
 
 	var err error
 	defer func() {
-		metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerCheckAllVersions, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
+		metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantCheckAllVersions, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
 	}()
 	for {
 		if isContextDone(ctx) {
@@ -428,7 +428,7 @@ func (s *schemaVersionSyncer) StartCleanWork() {
 	for {
 		select {
 		case <-s.notifyCleanExpiredPathsCh:
-			if !s.ownerChecker.IsOwner() {
+			if !s.tenantChecker.IsTenant() {
 				continue
 			}
 
@@ -471,7 +471,7 @@ func (s *schemaVersionSyncer) NotifyCleanExpiredPaths() bool {
 	default:
 		err = errors.New("channel is full, failed to notify clean expired paths")
 	}
-	metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerNotifyCleanExpirePaths, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
+	metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantNotifyCleanExpirePaths, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
 	return isNotified
 }
 
@@ -481,11 +481,11 @@ func (s *schemaVersionSyncer) doCleanExpirePaths(leases []clientv3.LeaseStatus) 
 	startTime := time.Now()
 
 	defer func() {
-		metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerCleanExpirePaths, metrics.RetLabel(nil)).Observe(time.Since(startTime).Seconds())
+		metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantCleanExpirePaths, metrics.RetLabel(nil)).Observe(time.Since(startTime).Seconds())
 	}()
 	// TODO: Now LeaseStatus only has lease ID.
 	for _, lease := range leases {
-		// The DBS owner key uses '%x', so here print it too.
+		// The DBS tenant key uses '%x', so here print it too.
 		leaseID := fmt.Sprintf("%x, %d", lease.ID, lease.ID)
 		childCtx, cancelFunc := context.WithTimeout(s.ctx, oFIDelefaultTimeout)
 		ttlResp, err := s.etcdCli.TimeToLive(childCtx, lease.ID)
@@ -513,7 +513,7 @@ func (s *schemaVersionSyncer) doCleanExpirePaths(leases []clientv3.LeaseStatus) 
 			failedRevokeIDs++
 		}
 		logutil.BgLogger().Warn("[dbs] syncer clean expired paths,", zap.String("leaseID", leaseID), zap.Int64("TTL", ttlResp.TTL))
-		metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerCleanOneExpirePath, metrics.RetLabel(err)).Observe(time.Since(st).Seconds())
+		metrics.TenantHandleSyncerHistogram.WithLabelValues(metrics.TenantCleanOneExpirePath, metrics.RetLabel(err)).Observe(time.Since(st).Seconds())
 	}
 
 	if failedGetIDs == 0 && failedRevokeIDs == 0 {

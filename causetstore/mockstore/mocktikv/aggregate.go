@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/milevadb/expression"
-	"github.com/whtcorpsinc/milevadb/expression/aggregation"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/memex/aggregation"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -28,15 +28,15 @@ import (
 type aggCtxsMapper map[string][]*aggregation.AggEvaluateContext
 
 var (
-	_ executor = &hashAggExec{}
-	_ executor = &streamAggExec{}
+	_ interlock = &hashAggInterDirc{}
+	_ interlock = &streamAggInterDirc{}
 )
 
-type hashAggExec struct {
+type hashAggInterDirc struct {
 	evalCtx           *evalContext
 	aggExprs          []aggregation.Aggregation
 	aggCtxsMap        aggCtxsMapper
-	groupByExprs      []expression.Expression
+	groupByExprs      []memex.Expression
 	relatedDefCausOffsets []int
 	event               []types.Causet
 	groups            map[string]struct{}
@@ -47,34 +47,34 @@ type hashAggExec struct {
 	count             int64
 	execDetail        *execDetail
 
-	src executor
+	src interlock
 }
 
-func (e *hashAggExec) ExecDetails() []*execDetail {
+func (e *hashAggInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *hashAggExec) SetSrcExec(exec executor) {
+func (e *hashAggInterDirc) SetSrcInterDirc(exec interlock) {
 	e.src = exec
 }
 
-func (e *hashAggExec) GetSrcExec() executor {
+func (e *hashAggInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *hashAggExec) ResetCounts() {
+func (e *hashAggInterDirc) ResetCounts() {
 	e.src.ResetCounts()
 }
 
-func (e *hashAggExec) Counts() []int64 {
+func (e *hashAggInterDirc) Counts() []int64 {
 	return e.src.Counts()
 }
 
-func (e *hashAggExec) innerNext(ctx context.Context) (bool, error) {
+func (e *hashAggInterDirc) innerNext(ctx context.Context) (bool, error) {
 	values, err := e.src.Next(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
@@ -89,11 +89,11 @@ func (e *hashAggExec) innerNext(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (e *hashAggExec) Cursor() ([]byte, bool) {
+func (e *hashAggInterDirc) Cursor() ([]byte, bool) {
 	panic("don't not use interlock streaming API for hash aggregation!")
 }
 
-func (e *hashAggExec) Next(ctx context.Context) (value [][]byte, err error) {
+func (e *hashAggInterDirc) Next(ctx context.Context) (value [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, value)
 	}(time.Now())
@@ -136,7 +136,7 @@ func (e *hashAggExec) Next(ctx context.Context) (value [][]byte, err error) {
 	return value, nil
 }
 
-func (e *hashAggExec) getGroupKey() ([]byte, [][]byte, error) {
+func (e *hashAggInterDirc) getGroupKey() ([]byte, [][]byte, error) {
 	length := len(e.groupByExprs)
 	if length == 0 {
 		return nil, nil, nil
@@ -163,7 +163,7 @@ func (e *hashAggExec) getGroupKey() ([]byte, [][]byte, error) {
 }
 
 // aggregate uFIDelates aggregate functions with event.
-func (e *hashAggExec) aggregate(value [][]byte) error {
+func (e *hashAggInterDirc) aggregate(value [][]byte) error {
 	err := e.evalCtx.decodeRelatedDeferredCausetVals(e.relatedDefCausOffsets, value, e.event)
 	if err != nil {
 		return errors.Trace(err)
@@ -178,7 +178,7 @@ func (e *hashAggExec) aggregate(value [][]byte) error {
 		e.groupKeys = append(e.groupKeys, gk)
 		e.groupKeyRows = append(e.groupKeyRows, gbyKeyRow)
 	}
-	// UFIDelate aggregate expressions.
+	// UFIDelate aggregate memexs.
 	aggCtxs := e.getContexts(gk)
 	for i, agg := range e.aggExprs {
 		err = agg.UFIDelate(aggCtxs[i], e.evalCtx.sc, chunk.MutRowFromCausets(e.event).ToRow())
@@ -189,7 +189,7 @@ func (e *hashAggExec) aggregate(value [][]byte) error {
 	return nil
 }
 
-func (e *hashAggExec) getContexts(groupKey []byte) []*aggregation.AggEvaluateContext {
+func (e *hashAggInterDirc) getContexts(groupKey []byte) []*aggregation.AggEvaluateContext {
 	groupKeyString := string(groupKey)
 	aggCtxs, ok := e.aggCtxsMap[groupKeyString]
 	if !ok {
@@ -202,11 +202,11 @@ func (e *hashAggExec) getContexts(groupKey []byte) []*aggregation.AggEvaluateCon
 	return aggCtxs
 }
 
-type streamAggExec struct {
+type streamAggInterDirc struct {
 	evalCtx           *evalContext
 	aggExprs          []aggregation.Aggregation
 	aggCtxs           []*aggregation.AggEvaluateContext
-	groupByExprs      []expression.Expression
+	groupByExprs      []memex.Expression
 	relatedDefCausOffsets []int
 	event               []types.Causet
 	tmpGroupByRow     []types.Causet
@@ -218,34 +218,34 @@ type streamAggExec struct {
 	count             int64
 	execDetail        *execDetail
 
-	src executor
+	src interlock
 }
 
-func (e *streamAggExec) ExecDetails() []*execDetail {
+func (e *streamAggInterDirc) InterDircDetails() []*execDetail {
 	var suffix []*execDetail
 	if e.src != nil {
-		suffix = e.src.ExecDetails()
+		suffix = e.src.InterDircDetails()
 	}
 	return append(suffix, e.execDetail)
 }
 
-func (e *streamAggExec) SetSrcExec(exec executor) {
+func (e *streamAggInterDirc) SetSrcInterDirc(exec interlock) {
 	e.src = exec
 }
 
-func (e *streamAggExec) GetSrcExec() executor {
+func (e *streamAggInterDirc) GetSrcInterDirc() interlock {
 	return e.src
 }
 
-func (e *streamAggExec) ResetCounts() {
+func (e *streamAggInterDirc) ResetCounts() {
 	e.src.ResetCounts()
 }
 
-func (e *streamAggExec) Counts() []int64 {
+func (e *streamAggInterDirc) Counts() []int64 {
 	return e.src.Counts()
 }
 
-func (e *streamAggExec) getPartialResult() ([][]byte, error) {
+func (e *streamAggInterDirc) getPartialResult() ([][]byte, error) {
 	value := make([][]byte, 0, len(e.groupByExprs)+2*len(e.aggExprs))
 	for i, agg := range e.aggExprs {
 		partialResults := agg.GetPartialResult(e.aggCtxs[i])
@@ -271,7 +271,7 @@ func (e *streamAggExec) getPartialResult() ([][]byte, error) {
 	return append(value, e.currGroupByValues...), nil
 }
 
-func (e *streamAggExec) meetNewGroup(event [][]byte) (bool, error) {
+func (e *streamAggInterDirc) meetNewGroup(event [][]byte) (bool, error) {
 	if len(e.groupByExprs) == 0 {
 		return false, nil
 	}
@@ -305,11 +305,11 @@ func (e *streamAggExec) meetNewGroup(event [][]byte) (bool, error) {
 	return !firstGroup, nil
 }
 
-func (e *streamAggExec) Cursor() ([]byte, bool) {
+func (e *streamAggInterDirc) Cursor() ([]byte, bool) {
 	panic("don't not use interlock streaming API for stream aggregation!")
 }
 
-func (e *streamAggExec) Next(ctx context.Context) (retRow [][]byte, err error) {
+func (e *streamAggInterDirc) Next(ctx context.Context) (retRow [][]byte, err error) {
 	defer func(begin time.Time) {
 		e.execDetail.uFIDelate(begin, retRow)
 	}(time.Now())

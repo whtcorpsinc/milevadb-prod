@@ -65,17 +65,17 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 20), // 1ms ~ 524s
 		}, []string{LblResult})
 
-	OwnerUFIDelateGlobalVersion    = "uFIDelate_global_version"
-	OwnerGetGlobalVersion       = "get_global_version"
-	OwnerCheckAllVersions       = "check_all_versions"
-	OwnerNotifyCleanExpirePaths = "notify_clean_expire_paths"
-	OwnerCleanExpirePaths       = "clean_expire_paths"
-	OwnerCleanOneExpirePath     = "clean_an_expire_path"
-	OwnerHandleSyncerHistogram  = prometheus.NewHistogramVec(
+	TenantUFIDelateGlobalVersion    = "uFIDelate_global_version"
+	TenantGetGlobalVersion       = "get_global_version"
+	TenantCheckAllVersions       = "check_all_versions"
+	TenantNotifyCleanExpirePaths = "notify_clean_expire_paths"
+	TenantCleanExpirePaths       = "clean_expire_paths"
+	TenantCleanOneExpirePath     = "clean_an_expire_path"
+	TenantHandleSyncerHistogram  = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "milevadb",
 			Subsystem: "dbs",
-			Name:      "owner_handle_syncer_duration_seconds",
+			Name:      "tenant_handle_syncer_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of handle syncer",
 			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 20), // 1ms ~ 524s
 		}, []string{LblType, LblResult})
@@ -97,13 +97,13 @@ var (
 	CreateDBSInstance = "create_dbs_instance"
 	CreateDBS         = "create_dbs"
 	StartCleanWork    = "start_clean_work"
-	DBSOwner          = "owner"
+	DBSTenant          = "tenant"
 	DBSCounter        = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "milevadb",
 			Subsystem: "dbs",
 			Name:      "worker_operation_total",
-			Help:      "Counter of creating dbs/worker and isowner.",
+			Help:      "Counter of creating dbs/worker and istenant.",
 		}, []string{LblType})
 
 	BackfillTotalCounter = prometheus.NewCounterVec(

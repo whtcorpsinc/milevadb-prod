@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package block
+package causet
 
 import (
 	"context"
@@ -25,12 +25,12 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta/autoid"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
-// Type , the type of block, causetstore data in different ways.
+// Type , the type of causet, causetstore data in different ways.
 type Type int16
 
 const (
@@ -42,25 +42,25 @@ const (
 	ClusterBlock
 )
 
-// IsNormalBlock checks whether the block is a normal block type.
+// IsNormalBlock checks whether the causet is a normal causet type.
 func (tp Type) IsNormalBlock() bool {
 	return tp == NormalBlock
 }
 
-// IsVirtualBlock checks whether the block is a virtual block type.
+// IsVirtualBlock checks whether the causet is a virtual causet type.
 func (tp Type) IsVirtualBlock() bool {
 	return tp == VirtualBlock
 }
 
-// IsClusterBlock checks whether the block is a cluster block type.
+// IsClusterBlock checks whether the causet is a cluster causet type.
 func (tp Type) IsClusterBlock() bool {
 	return tp == ClusterBlock
 }
 
 const (
-	// DirtyBlockAddRow is the constant for dirty block operation type.
+	// DirtyBlockAddRow is the constant for dirty causet operation type.
 	DirtyBlockAddRow = iota
-	// DirtyBlockDeleteRow is the constant for dirty block operation type.
+	// DirtyBlockDeleteRow is the constant for dirty causet operation type.
 	DirtyBlockDeleteRow
 )
 
@@ -82,7 +82,7 @@ var (
 	ErrUnsupportedOp = terror.ClassBlock.New(allegrosql.ErrUnsupportedOp, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnsupportedOp])
 	// ErrRowNotFound returns for event not found.
 	ErrRowNotFound = terror.ClassBlock.New(allegrosql.ErrRowNotFound, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrRowNotFound])
-	// ErrBlockStateCantNone returns for block none state.
+	// ErrBlockStateCantNone returns for causet none state.
 	ErrBlockStateCantNone = terror.ClassBlock.New(allegrosql.ErrBlockStateCantNone, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrBlockStateCantNone])
 	// ErrDeferredCausetStateCantNone returns for defCausumn none state.
 	ErrDeferredCausetStateCantNone = terror.ClassBlock.New(allegrosql.ErrDeferredCausetStateCantNone, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrDeferredCausetStateCantNone])
@@ -96,9 +96,9 @@ var (
 	ErrTruncatedWrongValueForField = terror.ClassBlock.New(allegrosql.ErrTruncatedWrongValueForField, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrTruncatedWrongValueForField])
 	// ErrUnknownPartition returns unknown partition error.
 	ErrUnknownPartition = terror.ClassBlock.New(allegrosql.ErrUnknownPartition, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrUnknownPartition])
-	// ErrNoPartitionForGivenValue returns block has no partition for value.
+	// ErrNoPartitionForGivenValue returns causet has no partition for value.
 	ErrNoPartitionForGivenValue = terror.ClassBlock.New(allegrosql.ErrNoPartitionForGivenValue, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrNoPartitionForGivenValue])
-	// ErrLockOrActiveTransaction returns when execute unsupported statement in a lock stochastik or an active transaction.
+	// ErrLockOrActiveTransaction returns when execute unsupported memex in a dagger stochastik or an active transaction.
 	ErrLockOrActiveTransaction = terror.ClassBlock.New(allegrosql.ErrLockOrActiveTransaction, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrLockOrActiveTransaction])
 	// ErrSequenceHasRunOut returns when sequence has run out.
 	ErrSequenceHasRunOut = terror.ClassBlock.New(allegrosql.ErrSequenceRunOut, allegrosql.MyALLEGROSQLErrName[allegrosql.ErrSequenceRunOut])
@@ -130,7 +130,7 @@ func (n WithReserveAutoIDHint) ApplyOn(opt *AddRecordOpt) {
 }
 
 // ApplyOn implements the AddRecordOption interface, so any CreateIdxOptFunc
-// can be passed as the optional argument to the block.AddRecord method.
+// can be passed as the optional argument to the causet.AddRecord method.
 func (f CreateIdxOptFunc) ApplyOn(opt *AddRecordOpt) {
 	f(&opt.CreateIdxOpt)
 }
@@ -144,9 +144,9 @@ func (i isUFIDelate) ApplyOn(opt *AddRecordOpt) {
 	opt.IsUFIDelate = true
 }
 
-// Block is used to retrieve and modify rows in block.
+// Block is used to retrieve and modify rows in causet.
 type Block interface {
-	// IterRecords iterates records in the block and calls fn.
+	// IterRecords iterates records in the causet and calls fn.
 	IterRecords(ctx stochastikctx.Context, startKey ekv.Key, defcaus []*DeferredCauset, fn RecordIterFunc) error
 
 	// RowWithDefCauss returns a event that contains the given defcaus.
@@ -155,29 +155,29 @@ type Block interface {
 	// Row returns a event for all defCausumns.
 	Row(ctx stochastikctx.Context, h ekv.Handle) ([]types.Causet, error)
 
-	// DefCauss returns the defCausumns of the block which is used in select, including hidden defCausumns.
+	// DefCauss returns the defCausumns of the causet which is used in select, including hidden defCausumns.
 	DefCauss() []*DeferredCauset
 
-	// VisibleDefCauss returns the defCausumns of the block which is used in select, excluding hidden defCausumns.
+	// VisibleDefCauss returns the defCausumns of the causet which is used in select, excluding hidden defCausumns.
 	VisibleDefCauss() []*DeferredCauset
 
-	// HiddenDefCauss returns the hidden defCausumns of the block.
+	// HiddenDefCauss returns the hidden defCausumns of the causet.
 	HiddenDefCauss() []*DeferredCauset
 
-	// WriblockDefCauss returns defCausumns of the block in wriblock states.
+	// WriblockDefCauss returns defCausumns of the causet in wriblock states.
 	// Wriblock states includes Public, WriteOnly, WriteOnlyReorganization.
 	WriblockDefCauss() []*DeferredCauset
 
 	// FullHiddenDefCaussAndVisibleDefCauss returns hidden defCausumns in all states and unhidden defCausumns in public states.
 	FullHiddenDefCaussAndVisibleDefCauss() []*DeferredCauset
 
-	// Indices returns the indices of the block.
+	// Indices returns the indices of the causet.
 	Indices() []Index
 
-	// WriblockIndices returns write-only and public indices of the block.
+	// WriblockIndices returns write-only and public indices of the causet.
 	WriblockIndices() []Index
 
-	// DeleblockIndices returns delete-only, write-only and public indices of the block.
+	// DeleblockIndices returns delete-only, write-only and public indices of the causet.
 	DeleblockIndices() []Index
 
 	// RecordPrefix returns the record key prefix.
@@ -198,7 +198,7 @@ type Block interface {
 	// UFIDelateRecord uFIDelates a event which should contain only wriblock defCausumns.
 	UFIDelateRecord(ctx context.Context, sctx stochastikctx.Context, h ekv.Handle, currData, newData []types.Causet, touched []bool) error
 
-	// RemoveRecord removes a event in the block.
+	// RemoveRecord removes a event in the causet.
 	RemoveRecord(ctx stochastikctx.Context, h ekv.Handle, r []types.Causet) error
 
 	// SlabPredictors returns all allocators.
@@ -215,14 +215,14 @@ type Block interface {
 	// Seek returns the handle greater or equal to h.
 	Seek(ctx stochastikctx.Context, h ekv.Handle) (handle ekv.Handle, found bool, err error)
 
-	// Type returns the type of block
+	// Type returns the type of causet
 	Type() Type
 }
 
 // AllocAutoIncrementValue allocates an auto_increment value for a new event.
 func AllocAutoIncrementValue(ctx context.Context, t Block, sctx stochastikctx.Context) (int64, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("block.AllocAutoIncrementValue", opentracing.ChildOf(span.Context()))
+		span1 := span.Tracer().StartSpan("causet.AllocAutoIncrementValue", opentracing.ChildOf(span.Context()))
 		defer span1.Finish()
 	}
 	increment := sctx.GetStochastikVars().AutoIncrementIncrement
@@ -238,7 +238,7 @@ func AllocAutoIncrementValue(ctx context.Context, t Block, sctx stochastikctx.Co
 // The caller can derive the autoID by adding increment to firstID for N-1 times.
 func AllocBatchAutoIncrementValue(ctx context.Context, t Block, sctx stochastikctx.Context, N int) (firstID int64, increment int64, err error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("block.AllocBatchAutoIncrementValue", opentracing.ChildOf(span.Context()))
+		span1 := span.Tracer().StartSpan("causet.AllocBatchAutoIncrementValue", opentracing.ChildOf(span.Context()))
 		defer span1.Finish()
 	}
 	increment = int64(sctx.GetStochastikVars().AutoIncrementIncrement)
@@ -253,23 +253,23 @@ func AllocBatchAutoIncrementValue(ctx context.Context, t Block, sctx stochastikc
 	return nr, increment, nil
 }
 
-// PhysicalBlock is an abstraction for two HoTTs of block representation: partition or non-partitioned block.
+// PhysicalBlock is an abstraction for two HoTTs of causet representation: partition or non-partitioned causet.
 // PhysicalID is a ID that can be used to construct a key ranges, all the data in the key range belongs to the corresponding PhysicalBlock.
-// For a non-partitioned block, its PhysicalID equals to its BlockID; For a partition of a partitioned block, its PhysicalID is the partition's ID.
+// For a non-partitioned causet, its PhysicalID equals to its BlockID; For a partition of a partitioned causet, its PhysicalID is the partition's ID.
 type PhysicalBlock interface {
 	Block
 	GetPhysicalID() int64
 }
 
 // PartitionedBlock is a Block, and it has a GetPartition() method.
-// GetPartition() gets the partition from a partition block by a physical block ID,
+// GetPartition() gets the partition from a partition causet by a physical causet ID,
 type PartitionedBlock interface {
 	Block
 	GetPartition(physicalID int64) PhysicalBlock
 	GetPartitionByRow(stochastikctx.Context, []types.Causet) (PhysicalBlock, error)
 }
 
-// BlockFromMeta builds a block.Block from *perceptron.BlockInfo.
+// BlockFromMeta builds a causet.Block from *perceptron.BlockInfo.
 // Currently, it is assigned to blocks.BlockFromMeta in milevadb package's init function.
 var BlockFromMeta func(allocators autoid.SlabPredictors, tblInfo *perceptron.BlockInfo) (Block, error)
 

@@ -24,23 +24,23 @@ run-dbs = true
 # Schema lease duration, very dangerous to change only if you know what you do.
 lease = "45s"
 
-# When create block, split a separated region for it. It is recommended to
+# When create causet, split a separated region for it. It is recommended to
 # turn off this option if there will be a large number of blocks created.
-split-block = true
+split-causet = true
 
 # The limit of concurrent executed stochastik.
 token-limit = 1000
 
-# The maximum memory available for a single ALLEGROALLEGROSQL statement. Default: 1GB
+# The maximum memory available for a single ALLEGROALLEGROSQL memex. Default: 1GB
 mem-quota-query = 1073741824
 
-# The maximum number available of a NLJ cache for a single ALLEGROALLEGROSQL statement. Default: 20MB
+# The maximum number available of a NLJ cache for a single ALLEGROALLEGROSQL memex. Default: 20MB
 nested-loop-join-cache-capacity = 20971520
 
-# Controls whether to enable the temporary storage for some operators when a single ALLEGROALLEGROSQL statement exceeds the memory quota specified by mem-quota-query.
+# Controls whether to enable the temporary storage for some operators when a single ALLEGROALLEGROSQL memex exceeds the memory quota specified by mem-quota-query.
 oom-use-tmp-storage = true
 
-# Specifies the temporary storage path for some operators when a single ALLEGROALLEGROSQL statement exceeds the memory quota specified by mem-quota-query.
+# Specifies the temporary storage path for some operators when a single ALLEGROALLEGROSQL memex exceeds the memory quota specified by mem-quota-query.
 # It defaults to a generated directory in `<TMFIDelIR>/<os/user.Current().Uid>_milevadb/` if it is unset.
 # It only takes effect when `oom-use-tmp-storage` is `true`.
 # tmp-storage-path = "/tmp/<os/user.Current().Uid>_milevadb/MC4wLjAuMDo0MDAwLzAuMC4wLjA6MTAwODA=/tmp-storage"
@@ -50,7 +50,7 @@ oom-use-tmp-storage = true
 # The default value of tmp-storage-quota is under 0 which means milevadb-server wouldn't check the capacity.
 tmp-storage-quota = -1
 
-# Specifies what operation MilevaDB performs when a single ALLEGROALLEGROSQL statement exceeds the memory quota specified by mem-quota-query and cannot be spilled over to disk.
+# Specifies what operation MilevaDB performs when a single ALLEGROALLEGROSQL memex exceeds the memory quota specified by mem-quota-query and cannot be spilled over to disk.
 # Valid options: ["log", "cancel"]
 oom-action = "cancel"
 
@@ -61,7 +61,7 @@ enable-streaming = false
 enable-batch-dml = false
 
 # Set system variable 'lower_case_block_names'
-lower-case-block-names = 2
+lower-case-causet-names = 2
 
 # Make "kill query" behavior compatible with MyALLEGROSQL. It's not recommend to
 # turn on this option when MilevaDB server is behind a proxy.
@@ -70,23 +70,23 @@ compatible-kill-query = false
 # check mb4 value in utf8 is used to control whether to check the mb4 characters when the charset is utf8.
 check-mb4-value-in-utf8 = true
 
-# treat-old-version-utf8-as-utf8mb4 use for upgrade compatibility. Set to true will treat old version block/column UTF8 charset as UTF8MB4.
+# treat-old-version-utf8-as-utf8mb4 use for upgrade compatibility. Set to true will treat old version causet/column UTF8 charset as UTF8MB4.
 treat-old-version-utf8-as-utf8mb4 = true
 
 # max-index-length is used to deal with compatibility issues from v3.0.7 and previous version upgrades. It can only be in [3072, 3072*4].
 max-index-length = 3072
 
-# enable-block-lock is used to control block lock feature. Default is false, indicate the block lock feature is disabled.
-enable-block-lock = false
+# enable-causet-dagger is used to control causet dagger feature. Default is false, indicate the causet dagger feature is disabled.
+enable-causet-dagger = false
 
-# delay-clean-block-lock is used to control the time (Milliseconds) of delay before unlock the block in the abnormal situation.
-delay-clean-block-lock = 0
+# delay-clean-causet-dagger is used to control the time (Milliseconds) of delay before unlock the causet in the abnormal situation.
+delay-clean-causet-dagger = 0
 
-# Maximum number of the splitting region, which is used by the split region statement.
+# Maximum number of the splitting region, which is used by the split region memex.
 split-region-max-num = 1000
 
 # alter-primary-key is used to control alter primary key feature. Default is false, indicate the alter primary key feature is disabled.
-# If it is true, we can add the primary key by "alter block". However, if a block already exists before the switch is turned true and the data type of its primary key column is an integer,
+# If it is true, we can add the primary key by "alter causet". However, if a causet already exists before the switch is turned true and the data type of its primary key column is an integer,
 # the primary key cannot be dropped.
 alter-primary-key = false
 
@@ -96,12 +96,12 @@ alter-primary-key = false
 # if server-version = "", the default value(original MilevaDB version string) is used.
 server-version = ""
 
-# repair mode is used to repair the broken block meta in EinsteinDB in extreme cases.
+# repair mode is used to repair the broken causet spacetime in EinsteinDB in extreme cases.
 repair-mode = false
 
-# Repair block list is used to list the blocks in repair mode with the format like ["EDB.block",].
-# In repair mode, repairing block which is not in repair list will get wrong database or wrong block error.
-repair-block-list = []
+# Repair causet list is used to list the blocks in repair mode with the format like ["EDB.causet",].
+# In repair mode, repairing causet which is not in repair list will get wrong database or wrong causet error.
+repair-causet-list = []
 
 # The maximum permitted number of simultaneous client connections. When the value is 0, the number of connections is unlimited.
 max-server-connections = 0
@@ -212,7 +212,7 @@ metrics-addr = ""
 # Prometheus client push interval in second, set \"0\" to disable push to pushgateway.
 metrics-interval = 15
 
-# Record statements qps by database name if it is enabled.
+# Record memexs qps by database name if it is enabled.
 record-EDB-qps = false
 
 [performance]
@@ -222,7 +222,7 @@ max-procs = 0
 # Memory size quota for milevadb server, 0 means unlimited
 server-memory-quota = 0
 
-# StmtCountLimit limits the max count of statement inside a transaction.
+# StmtCountLimit limits the max count of memex inside a transaction.
 stmt-count-limit = 5000
 
 # Set keep alive option for tcp connection.
@@ -244,10 +244,10 @@ feedback-probability = 0.05
 query-feedback-limit = 512
 
 # Pseudo stats will be used if the ratio between the modify count and
-# event count in statistics of a block is greater than it.
+# event count in statistics of a causet is greater than it.
 pseudo-estimate-ratio = 0.8
 
-# Force the priority of all statements in a specified priority.
+# Force the priority of all memexs in a specified priority.
 # The value could be "NO_PRIORITY", "LOW_PRIORITY", "HIGH_PRIORITY" or "DELAYED".
 force-priority = "NO_PRIORITY"
 
@@ -386,8 +386,8 @@ causetstore-limit = 0
 # causetstore-liveness-timeout is used to control timeout for causetstore liveness after sending request failed.
 causetstore-liveness-timeout = "5s"
 
-# ttl-refreshed-txn-size decides whether a transaction should uFIDelate its lock TTL.
-# If the size(in byte) of a transaction is large than `ttl-refreshed-txn-size`, it uFIDelate the lock TTL during the 2PC.
+# ttl-refreshed-txn-size decides whether a transaction should uFIDelate its dagger TTL.
+# If the size(in byte) of a transaction is large than `ttl-refreshed-txn-size`, it uFIDelate the dagger TTL during the 2PC.
 ttl-refreshed-txn-size = 33554432
 
 [einsteindb-client.copr-cache]
@@ -423,26 +423,26 @@ binlog-socket = ""
 strategy = "range"
 
 [pessimistic-txn]
-# max retry count for a statement in a pessimistic transaction.
+# max retry count for a memex in a pessimistic transaction.
 max-retry-count = 256
 
 [stmt-summary]
-# enable statement summary.
+# enable memex summary.
 enable = true
 
-# enable statement summary for MilevaDB internal query, default is false.
+# enable memex summary for MilevaDB internal query, default is false.
 enable-internal-query = false
 
-# max number of statements kept in memory.
+# max number of memexs kept in memory.
 max-stmt-count = 200
 
 # max length of displayed normalized allegrosql and sample allegrosql.
 max-allegrosql-length = 4096
 
-# the refresh interval of statement summary, it's counted in seconds.
+# the refresh interval of memex summary, it's counted in seconds.
 refresh-interval = 1800
 
-# the maximum history size of statement summary.
+# the maximum history size of memex summary.
 history-size = 24
 
 # experimental section controls the features that are still experimental: their semantics,

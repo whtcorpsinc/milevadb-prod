@@ -226,7 +226,7 @@ const (
 	ErrCannotAddForeign                                             = 1215
 	ErrNoReferencedRow                                              = 1216
 	ErrRowIsReferenced                                              = 1217
-	ErrErrorWhenExecutingCommand                                    = 1220
+	ErrErrorWhenInterDircutingCommand                                    = 1220
 	ErrWrongUsage                                                   = 1221
 	ErrWrongNumberOfDeferredCausetsInSelect                                 = 1222
 	ErrCantUFIDelateWithReadlock                                       = 1223
@@ -313,7 +313,7 @@ const (
 	ErrSpUninitVar                                                  = 1311
 	ErrSpBadselect                                                  = 1312
 	ErrSpBadreturn                                                  = 1313
-	ErrSpBadstatement                                               = 1314
+	ErrSpBadmemex                                               = 1314
 	ErrUFIDelateLogDeprecatedIgnored                                   = 1315
 	ErrUFIDelateLogDeprecatedTranslated                                = 1316
 	ErrQueryInterrupted                                             = 1317
@@ -419,7 +419,7 @@ const (
 	ErrFailedRoutineBreakBinlog                                     = 1417
 	ErrBinlogUnsafeRoutine                                          = 1418
 	ErrBinlogCreateRoutineNeedSuper                                 = 1419
-	ErrExecStmtWithOpenCursor                                       = 1420
+	ErrInterDircStmtWithOpenCursor                                       = 1420
 	ErrStmtHasNoOpenCursor                                          = 1421
 	ErrCommitNotAllowedInSfOrTrg                                    = 1422
 	ErrNoDefaultForViewField                                        = 1423
@@ -541,7 +541,7 @@ const (
 	ErrEventDropFailed                                              = 1541
 	ErrEventIntervalNotPositiveOrTooBig                             = 1542
 	ErrEventEndsBeforeStarts                                        = 1543
-	ErrEventExecTimeInThePast                                       = 1544
+	ErrEventInterDircTimeInThePast                                       = 1544
 	ErrEventOpenTableFailed                                         = 1545
 	ErrEventNeitherMExprNorMAt                                      = 1546
 	ErrObsoleteDefCausCountDoesntMatchCorrupted                         = 1547
@@ -753,7 +753,7 @@ const (
 	ErrGtidModeCanOnlyChangeOneStepAtATime                          = 1788
 	ErrCantSetGtidNextWhenOwningGtid                                = 1790
 	ErrUnknownExplainFormat                                         = 1791
-	ErrCantExecuteInReadOnlyTransaction                             = 1792
+	ErrCantInterDircuteInReadOnlyTransaction                             = 1792
 	ErrTooLongTablePartitionComment                                 = 1793
 	ErrInnodbFtLimit                                                = 1795
 	ErrInnodbNoFtTempTable                                          = 1796
@@ -796,10 +796,10 @@ const (
 	ErrReadOnlyMode                                                 = 1836
 	ErrVariableNotSetblockInSp                                      = 1838
 	ErrCantSetGtidPurgedWhenGtidModeIsOff                           = 1839
-	ErrCantSetGtidPurgedWhenGtidExecutedIsNotEmpty                  = 1840
+	ErrCantSetGtidPurgedWhenGtidInterDircutedIsNotEmpty                  = 1840
 	ErrCantSetGtidPurgedWhenOwnedGtidsIsNotEmpty                    = 1841
 	ErrGtidPurgedWasChanged                                         = 1842
-	ErrGtidExecutedWasChanged                                       = 1843
+	ErrGtidInterDircutedWasChanged                                       = 1843
 	ErrBinlogStmtModeAndNoReplTables                                = 1844
 	ErrAlterOperationNotSupported                                   = 1845
 	ErrAlterOperationNotSupportedReason                             = 1846
@@ -820,7 +820,7 @@ const (
 	ErrMustChangePasswordLogin                                      = 1862
 	ErrRowInWrongPartition                                          = 1863
 	ErrErrorLast                                                    = 1863
-	ErrMaxExecTimeExceeded                                          = 1907
+	ErrMaxInterDircTimeExceeded                                          = 1907
 	ErrInvalidFieldSize                                             = 3013
 	ErrInvalidArgumentForLogarithm                                  = 3020
 	ErrIncorrectType                                                = 3064
@@ -967,11 +967,11 @@ const (
 	ErrPreparedStmtNotFound                = 8111
 	ErrWrongParamCount                     = 8112
 	ErrSchemaChanged                       = 8113
-	ErrUnknownPlan                         = 8114
+	ErrUnknownCauset                         = 8114
 	ErrPrepareMulti                        = 8115
 	ErrPrepareDBS                          = 8116
 	ErrResultIsEmpty                       = 8117
-	ErrBuildExecutor                       = 8118
+	ErrBuildInterlockingDirectorate                       = 8118
 	ErrBatchInsertFail                     = 8119
 	ErrGetStartTS                          = 8120
 	ErrPrivilegeCheckFail                  = 8121
@@ -984,7 +984,7 @@ const (
 
 	// Error codes used by MilevaDB dbs package
 	ErrUnsupportedDBSOperation            = 8200
-	ErrNotOwner                           = 8201
+	ErrNotTenant                           = 8201
 	ErrCantDecodeRecord                   = 8202
 	ErrInvalidDBSWorker                   = 8203
 	ErrInvalidDBSJob                      = 8204

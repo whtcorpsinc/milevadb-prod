@@ -23,15 +23,15 @@ import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	plannercore "github.com/whtcorpsinc/milevadb/planner/core"
+	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 	log "github.com/sirupsen/logrus"
 	goctx "golang.org/x/net/context"
 )
 
-// After add column finished, check the records in the block.
+// After add column finished, check the records in the causet.
 func (s *TestDBSSuite) checkAddDeferredCauset(c *C, rowID int64, defaultVal interface{}, uFIDelatedVal interface{}) {
 	ctx := s.ctx
 	err := ctx.NewTxn(goctx.Background())
@@ -42,7 +42,7 @@ func (s *TestDBSSuite) checkAddDeferredCauset(c *C, rowID int64, defaultVal inte
 	newInsertCount := int64(0)
 	oldUFIDelateCount := int64(0)
 	newUFIDelateCount := int64(0)
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		col1Val := data[0].GetValue()
 		col2Val := data[1].GetValue()
 		col3Val := data[2].GetValue()
@@ -82,7 +82,7 @@ func (s *TestDBSSuite) checkAddDeferredCauset(c *C, rowID int64, defaultVal inte
 	c.Assert(deleteCount, Greater, int64(0))
 }
 
-func (s *TestDBSSuite) checkDropDeferredCauset(c *C, rowID int64, alterDeferredCauset *block.DeferredCauset, uFIDelateDefault interface{}) {
+func (s *TestDBSSuite) checkDropDeferredCauset(c *C, rowID int64, alterDeferredCauset *causet.DeferredCauset, uFIDelateDefault interface{}) {
 	ctx := s.ctx
 	err := ctx.NewTxn(goctx.Background())
 	c.Assert(err, IsNil)
@@ -93,7 +93,7 @@ func (s *TestDBSSuite) checkDropDeferredCauset(c *C, rowID int64, alterDeferredC
 	}
 	insertCount := int64(0)
 	uFIDelateCount := int64(0)
-	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*block.DeferredCauset) (bool, error) {
+	err = tbl.IterRecords(ctx, tbl.FirstKey(), tbl.DefCauss(), func(_ ekv.Handle, data []types.Causet, defcaus []*causet.DeferredCauset) (bool, error) {
 		if reflect.DeepEqual(data[1].GetValue(), data[0].GetValue()) {
 			// Check inserted event.
 			insertCount++
@@ -137,13 +137,13 @@ func (s *TestDBSSuite) TestDeferredCauset(c *C) {
 		Add        bool
 		Default    interface{}
 	}{
-		{"alter block test_column add column c3 int default -1", "c3", true, int64(-1)},
-		{"alter block test_column drop column c3", "c3", false, nil},
+		{"alter causet test_column add column c3 int default -1", "c3", true, int64(-1)},
+		{"alter causet test_column drop column c3", "c3", false, nil},
 	}
 
 	rowID := int64(*dataNum)
 	uFIDelateDefault := int64(-2)
-	var alterDeferredCauset *block.DeferredCauset
+	var alterDeferredCauset *causet.DeferredCauset
 
 	for _, t := range tbl {
 		c.Logf("run DBS %s", t.Query)
@@ -170,7 +170,7 @@ func (s *TestDBSSuite) TestDeferredCauset(c *C) {
 		}
 
 		tbl := s.getTable(c, "test_column")
-		alterDeferredCauset = block.FindDefCaus(tbl.DefCauss(), t.DeferredCausetName)
+		alterDeferredCauset = causet.FindDefCaus(tbl.DefCauss(), t.DeferredCausetName)
 		if t.Add {
 			c.Assert(alterDeferredCauset, NotNil)
 		} else {
@@ -191,11 +191,11 @@ func (s *TestDBSSuite) execDeferredCausetOperations(c *C, workerNum, count int, 
 				s.execInsert(c, fmt.Sprintf("insert into test_column (c1, c2) values (%d, %d)",
 					key-1, key-1))
 				s.exec(fmt.Sprintf("insert into test_column values (%d, %d, %d)", key, key, key))
-				s.mustExec(c, fmt.Sprintf("uFIDelate test_column set c2 = %d where c1 = %d",
+				s.mustInterDirc(c, fmt.Sprintf("uFIDelate test_column set c2 = %d where c1 = %d",
 					uFIDelateDefault, randomNum(key)))
 				s.exec(fmt.Sprintf("uFIDelate test_column set c2 = %d, c3 = %d where c1 = %d",
 					uFIDelateDefault, uFIDelateDefault, randomNum(key)))
-				s.mustExec(c, fmt.Sprintf("delete from test_column where c1 = %d", randomNum(key)))
+				s.mustInterDirc(c, fmt.Sprintf("delete from test_column where c1 = %d", randomNum(key)))
 			}
 		}()
 	}
@@ -203,23 +203,23 @@ func (s *TestDBSSuite) execDeferredCausetOperations(c *C, workerNum, count int, 
 }
 
 func (s *TestDBSSuite) TestCommitWhenSchemaChanged(c *C) {
-	s.mustExec(c, "drop block if exists test_commit")
-	s.mustExec(c, "create block test_commit (a int, b int)")
-	s.mustExec(c, "insert into test_commit values (1, 1)")
-	s.mustExec(c, "insert into test_commit values (2, 2)")
+	s.mustInterDirc(c, "drop causet if exists test_commit")
+	s.mustInterDirc(c, "create causet test_commit (a int, b int)")
+	s.mustInterDirc(c, "insert into test_commit values (1, 1)")
+	s.mustInterDirc(c, "insert into test_commit values (2, 2)")
 
 	s1, err := stochastik.CreateStochastik(s.causetstore)
 	c.Assert(err, IsNil)
 	ctx := goctx.Background()
-	_, err = s1.Execute(ctx, "use test_dbs")
+	_, err = s1.InterDircute(ctx, "use test_dbs")
 	c.Assert(err, IsNil)
-	s1.Execute(ctx, "begin")
-	s1.Execute(ctx, "insert into test_commit values (3, 3)")
+	s1.InterDircute(ctx, "begin")
+	s1.InterDircute(ctx, "insert into test_commit values (3, 3)")
 
-	s.mustExec(c, "alter block test_commit drop column b")
+	s.mustInterDirc(c, "alter causet test_commit drop column b")
 
 	// When this transaction commit, it will find schemaReplicant already changed.
-	s1.Execute(ctx, "insert into test_commit values (4, 4)")
-	_, err = s1.Execute(ctx, "commit")
-	c.Assert(terror.ErrorEqual(err, plannercore.ErrWrongValueCountOnRow), IsTrue, Commentf("err %v", err))
+	s1.InterDircute(ctx, "insert into test_commit values (4, 4)")
+	_, err = s1.InterDircute(ctx, "commit")
+	c.Assert(terror.ErrorEqual(err, causetcore.ErrWrongValueCountOnRow), IsTrue, Commentf("err %v", err))
 }

@@ -21,7 +21,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/meta"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	. "github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
@@ -58,7 +58,7 @@ func (s *testSuite) TearDownSuite(c *C) {
 func (s *testSuite) TestGetDBSInfo(c *C) {
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 
 	dbInfo2 := &perceptron.DBInfo{
 		ID:    2,
@@ -83,7 +83,7 @@ func (s *testSuite) TestGetDBSInfo(c *C) {
 	c.Assert(info.Jobs[0], DeepEquals, job)
 	c.Assert(info.ReorgHandle, Equals, nil)
 	// Two jobs.
-	t = meta.NewMeta(txn, meta.AddIndexJobListKey)
+	t = spacetime.NewMeta(txn, spacetime.AddIndexJobListKey)
 	err = t.EnQueueDBSJob(job1)
 	c.Assert(err, IsNil)
 	info, err = GetDBSInfo(txn)
@@ -99,7 +99,7 @@ func (s *testSuite) TestGetDBSInfo(c *C) {
 func (s *testSuite) TestGetDBSJobs(c *C) {
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	cnt := 10
 	jobs := make([]*perceptron.Job, cnt)
 	var currJobs2 []*perceptron.Job
@@ -154,7 +154,7 @@ func isJobsSorted(jobs []*perceptron.Job) bool {
 	return true
 }
 
-func enQueueDBSJobs(c *C, t *meta.Meta, jobType perceptron.CausetActionType, start, end int) {
+func enQueueDBSJobs(c *C, t *spacetime.Meta, jobType perceptron.CausetActionType, start, end int) {
 	for i := start; i < end; i++ {
 		job := &perceptron.Job{
 			ID:       int64(i),
@@ -170,15 +170,15 @@ func (s *testSuite) TestGetDBSJobsIsSort(c *C) {
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
 
-	// insert 5 drop block jobs to DefaultJobListKey queue
-	t := meta.NewMeta(txn)
+	// insert 5 drop causet jobs to DefaultJobListKey queue
+	t := spacetime.NewMeta(txn)
 	enQueueDBSJobs(c, t, perceptron.CausetActionDropBlock, 10, 15)
 
-	// insert 5 create block jobs to DefaultJobListKey queue
+	// insert 5 create causet jobs to DefaultJobListKey queue
 	enQueueDBSJobs(c, t, perceptron.CausetActionCreateBlock, 0, 5)
 
 	// insert add index jobs to AddIndexJobListKey queue
-	t = meta.NewMeta(txn, meta.AddIndexJobListKey)
+	t = spacetime.NewMeta(txn, spacetime.AddIndexJobListKey)
 	enQueueDBSJobs(c, t, perceptron.CausetActionAddIndex, 5, 10)
 
 	currJobs, err := GetDBSJobs(txn)
@@ -195,7 +195,7 @@ func (s *testSuite) TestGetDBSJobsIsSort(c *C) {
 func (s *testSuite) TestCancelJobs(c *C) {
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	cnt := 10
 	ids := make([]int64, cnt)
 	for i := 0; i < cnt; i++ {
@@ -285,11 +285,11 @@ func (s *testSuite) TestCancelJobs(c *C) {
 		BlockID:  2,
 		Type:     perceptron.CausetActionRepairBlock,
 	}
-	err = t.EnQueueDBSJob(job, meta.AddIndexJobListKey)
+	err = t.EnQueueDBSJob(job, spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
 	err = t.EnQueueDBSJob(job1)
 	c.Assert(err, IsNil)
-	err = t.EnQueueDBSJob(job2, meta.AddIndexJobListKey)
+	err = t.EnQueueDBSJob(job2, spacetime.AddIndexJobListKey)
 	c.Assert(err, IsNil)
 	err = t.EnQueueDBSJob(job3)
 	c.Assert(err, IsNil)
@@ -306,7 +306,7 @@ func (s *testSuite) TestCancelJobs(c *C) {
 func (s *testSuite) TestGetHistoryDBSJobs(c *C) {
 	txn, err := s.causetstore.Begin()
 	c.Assert(err, IsNil)
-	t := meta.NewMeta(txn)
+	t := spacetime.NewMeta(txn)
 	cnt := 11
 	jobs := make([]*perceptron.Job, cnt)
 	for i := 0; i < cnt; i++ {

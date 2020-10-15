@@ -66,7 +66,7 @@ func putMutations(kvpairs ...string) []*kvrpcpb.Mutation {
 	return mutations
 }
 
-func lock(key, primary string, ts uint64) *kvrpcpb.LockInfo {
+func dagger(key, primary string, ts uint64) *kvrpcpb.LockInfo {
 	return &kvrpcpb.LockInfo{
 		Key:         []byte(key),
 		PrimaryLock: []byte(primary),
@@ -243,12 +243,12 @@ func (s *testMockEinsteinDBSuite) TestGetWithLock(c *C) {
 		Key: []byte(key),
 	},
 	}
-	// test with lock's type is lock
+	// test with dagger's type is dagger
 	s.mustPrewriteOK(c, mutations, key, 20)
 	s.mustGetOK(c, key, 25, value)
 	s.mustCommitOK(c, [][]byte{[]byte(key)}, 20, 30)
 
-	// test get with lock's max ts and primary key
+	// test get with dagger's max ts and primary key
 	s.mustPrewriteOK(c, putMutations(key, "value2", "key2", "v5"), key, 40)
 	s.mustGetErr(c, key, 41)
 	s.mustGetErr(c, "key2", math.MaxUint64)
@@ -429,15 +429,15 @@ func (s *testMockEinsteinDBSuite) TestScanLock(c *C) {
 	locks, err := s.causetstore.ScanLock([]byte("a"), []byte("r"), 12)
 	c.Assert(err, IsNil)
 	c.Assert(locks, DeepEquals, []*kvrpcpb.LockInfo{
-		lock("p1", "p1", 5),
-		lock("p2", "p2", 10),
+		dagger("p1", "p1", 5),
+		dagger("p2", "p2", 10),
 	})
 
 	s.mustScanLock(c, 10, []*kvrpcpb.LockInfo{
-		lock("p1", "p1", 5),
-		lock("p2", "p2", 10),
-		lock("s1", "p1", 5),
-		lock("s2", "p2", 10),
+		dagger("p1", "p1", 5),
+		dagger("p2", "p2", 10),
+		dagger("s1", "p1", 5),
+		dagger("s2", "p2", 10),
 	})
 }
 
@@ -446,13 +446,13 @@ func (s *testMockEinsteinDBSuite) TestScanWithResolvedLock(c *C) {
 	s.mustPrewriteOK(c, putMutations("p2", "v10", "s2", "v10"), "p1", 5)
 
 	pairs := s.causetstore.Scan([]byte("p1"), nil, 3, 10, kvrpcpb.IsolationLevel_SI, nil)
-	lock, ok := errors.Cause(pairs[0].Err).(*ErrLocked)
+	dagger, ok := errors.Cause(pairs[0].Err).(*ErrLocked)
 	c.Assert(ok, IsTrue)
 	_, ok = errors.Cause(pairs[1].Err).(*ErrLocked)
 	c.Assert(ok, IsTrue)
 
-	// Mock the request after resolving lock.
-	pairs = s.causetstore.Scan([]byte("p1"), nil, 3, 10, kvrpcpb.IsolationLevel_SI, []uint64{lock.StartTS})
+	// Mock the request after resolving dagger.
+	pairs = s.causetstore.Scan([]byte("p1"), nil, 3, 10, kvrpcpb.IsolationLevel_SI, []uint64{dagger.StartTS})
 	for _, pair := range pairs {
 		c.Assert(pair.Err, IsNil)
 	}
@@ -463,7 +463,7 @@ func (s *testMockEinsteinDBSuite) TestCommitConflict(c *C) {
 	// txn B want set x to B
 	// A prewrite.
 	s.mustPrewriteOK(c, putMutations("x", "A"), "x", 5)
-	// B prewrite and find A's lock.
+	// B prewrite and find A's dagger.
 	req := &kvrpcpb.PrewriteRequest{
 		Mutations:    putMutations("x", "B"),
 		PrimaryLock:  []byte("x"),
@@ -473,11 +473,11 @@ func (s *testMockEinsteinDBSuite) TestCommitConflict(c *C) {
 	c.Assert(errs[0], NotNil)
 	// B find rollback A because A exist too long.
 	s.mustRollbackOK(c, [][]byte{[]byte("x")}, 5)
-	// if A commit here, it would find its lock removed, report error txn not found.
+	// if A commit here, it would find its dagger removed, report error txn not found.
 	s.mustCommitErr(c, [][]byte{[]byte("x")}, 5, 10)
 	// B prewrite itself after it rollback A.
 	s.mustPrewriteOK(c, putMutations("x", "B"), "x", 10)
-	// if A commit here, it would find its lock replaced by others and commit fail.
+	// if A commit here, it would find its dagger replaced by others and commit fail.
 	s.mustCommitErr(c, [][]byte{[]byte("x")}, 5, 20)
 	// B commit success.
 	s.mustCommitOK(c, [][]byte{[]byte("x")}, 10, 20)
@@ -515,8 +515,8 @@ func (s *testMockEinsteinDBSuite) TestBatchResolveLock(c *C) {
 	s.mustGetOK(c, "p2", 30, "v12")
 	s.mustGetOK(c, "s4", 30, "v14")
 	s.mustScanLock(c, 30, []*kvrpcpb.LockInfo{
-		lock("p5", "p5", 15),
-		lock("s5", "p5", 15),
+		dagger("p5", "p5", 15),
+		dagger("s5", "p5", 15),
 	})
 	txnInfos = map[uint64]uint64{
 		15: 0,
@@ -572,7 +572,7 @@ func (s *testMockEinsteinDBSuite) TestGC(c *C) {
 func (s *testMockEinsteinDBSuite) TestRollbackAndWriteConflict(c *C) {
 	s.mustPutOK(c, "test", "test", 1, 3)
 	req := &kvrpcpb.PrewriteRequest{
-		Mutations:    putMutations("lock", "lock", "test", "test1"),
+		Mutations:    putMutations("dagger", "dagger", "test", "test1"),
 		PrimaryLock:  []byte("test"),
 		StartVersion: 2,
 		LockTtl:      2,
@@ -790,7 +790,7 @@ func (s *testMVCCLevelDB) TestTxnHeartBeat(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ttl, Greater, uint64(300))
 
-	// The lock has already been clean up
+	// The dagger has already been clean up
 	c.Assert(s.causetstore.Cleanup([]byte("pk"), 5, math.MaxUint64), IsNil)
 	_, err = s.causetstore.TxnHeartBeat([]byte("pk"), 5, 1000)
 	c.Assert(err, NotNil)

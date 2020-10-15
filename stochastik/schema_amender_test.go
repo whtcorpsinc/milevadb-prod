@@ -25,10 +25,10 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/planner/core"
+	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/block"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
@@ -45,17 +45,17 @@ func (s *testSchemaAmenderSuite) SetUpSuite(c *C) {
 func (s *testSchemaAmenderSuite) TearDownSuite(c *C) {
 }
 
-func initTblDefCausIdxID(metaInfo *perceptron.TableInfo) {
-	for i, col := range metaInfo.DeferredCausets {
+func initTblDefCausIdxID(spacetimeInfo *perceptron.TableInfo) {
+	for i, col := range spacetimeInfo.DeferredCausets {
 		col.ID = int64(i + 1)
 	}
-	for i, idx := range metaInfo.Indices {
+	for i, idx := range spacetimeInfo.Indices {
 		idx.ID = int64(i + 1)
 		// TODO unique index is not supported now.
 		idx.Unique = false
 	}
-	metaInfo.ID = 1
-	metaInfo.State = perceptron.StatePublic
+	spacetimeInfo.ID = 1
+	spacetimeInfo.State = perceptron.StatePublic
 }
 
 func mutationsEqual(res *einsteindb.CommitterMutations, expected *einsteindb.CommitterMutations, c *C) {
@@ -83,7 +83,7 @@ type data struct {
 	rowValue [][]types.Causet
 }
 
-func prepareTestData(se *stochastik, mutations *einsteindb.CommitterMutations, oldTblInfo block.Block, newTblInfo block.Block,
+func prepareTestData(se *stochastik, mutations *einsteindb.CommitterMutations, oldTblInfo causet.Block, newTblInfo causet.Block,
 	expecetedAmendOps []amendOp, c *C) (*data, *data, einsteindb.CommitterMutations) {
 	var err error
 	// Generated test data.
@@ -101,7 +101,7 @@ func prepareTestData(se *stochastik, mutations *einsteindb.CommitterMutations, o
 		kvrpcpb.Op_Del, kvrpcpb.Op_Insert, kvrpcpb.Op_Lock}
 	oldRowValues := make([][]types.Causet, len(KeyOps))
 	newRowValues := make([][]types.Causet, len(KeyOps))
-	rd := rowcodec.Encoder{Enable: true}
+	rd := rowcodec.CausetEncoder{Enable: true}
 	newData := &data{}
 	oldData := &data{}
 	expecteMutations := einsteindb.NewCommiterMutations(8)
@@ -248,7 +248,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 			initTblDefCausIdxID(oldTblMeta)
 			// Indices[0] does not exist at the start.
 			oldTblMeta.Indices = oldTblMeta.Indices[1:]
-			oldTbInfo, err := block.TableFromMeta(nil, oldTblMeta)
+			oldTbInfo, err := causet.TableFromMeta(nil, oldTblMeta)
 			c.Assert(err, IsNil)
 			oldTblMeta.Indices[0].State = startState
 			oldTblMeta.Indices[2].State = endState
@@ -267,7 +267,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 			// The last index "c_d_e_str_prefix is dropped.
 			newTblMeta.Indices = newTblMeta.Indices[:len(newTblMeta.Indices)-1]
 			newTblMeta.Indices[0].Unique = false
-			newTblInfo, err := block.TableFromMeta(nil, newTblMeta)
+			newTblInfo, err := causet.TableFromMeta(nil, newTblMeta)
 			c.Assert(err, IsNil)
 			newTblMeta.Indices[0].State = endState
 			// Indices[1] is newly created.
@@ -290,7 +290,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 				tblInfoAtCommit:   newTblInfo,
 				indexInfoAtStart:  nil,
 				indexInfoAtCommit: newTblInfo.Indices()[0],
-				relatedOldIdxDefCauss: []*block.DeferredCauset{oldTbInfo.DefCauss()[2], oldTbInfo.DefCauss()[3], oldTbInfo.DefCauss()[4]},
+				relatedOldIdxDefCauss: []*causet.DeferredCauset{oldTbInfo.DefCauss()[2], oldTbInfo.DefCauss()[3], oldTbInfo.DefCauss()[4]},
 			}
 			if addIndexNeedRemoveOp(addIndexOpInfo.AmendOpType) {
 				expectedAmendOps = append(expectedAmendOps, &amendOperationDeleteOldIndex{
@@ -310,7 +310,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 				tblInfoAtCommit:   newTblInfo,
 				indexInfoAtStart:  oldTbInfo.Indices()[0],
 				indexInfoAtCommit: newTblInfo.Indices()[1],
-				relatedOldIdxDefCauss: []*block.DeferredCauset{oldTbInfo.DefCauss()[4]},
+				relatedOldIdxDefCauss: []*causet.DeferredCauset{oldTbInfo.DefCauss()[4]},
 			}
 			if addIndexNeedRemoveOp(addIndexOpInfo1.AmendOpType) {
 				expectedAmendOps = append(expectedAmendOps, &amendOperationDeleteOldIndex{
@@ -352,7 +352,7 @@ func (s *testSchemaAmenderSuite) TestAmendDefCauslectAndGenMutations(c *C) {
 			// Generated test data.
 			mutations := einsteindb.NewCommiterMutations(8)
 			newData, oldData, expectedMutations := prepareTestData(se, &mutations, oldTbInfo, newTblInfo, expectedAmendOps, c)
-			// Prepare old data in block.
+			// Prepare old data in causet.
 			txnPrepare, err := se.causetstore.Begin()
 			c.Assert(err, IsNil)
 			for i, key := range oldData.keys {
