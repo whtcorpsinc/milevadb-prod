@@ -18,14 +18,14 @@ import (
 	"strconv"
 
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"go.uber.org/zap"
 )
 
@@ -92,7 +92,7 @@ func (e *ChecksumBlockInterDirc) Next(ctx context.Context, req *chunk.Chunk) err
 		req.AppendString(0, t.DBInfo.Name.O)
 		req.AppendString(1, t.BlockInfo.Name.O)
 		req.AppendUint64(2, t.Response.Checksum)
-		req.AppendUint64(3, t.Response.TotalKvs)
+		req.AppendUint64(3, t.Response.TotalEkvs)
 		req.AppendUint64(4, t.Response.TotalBytes)
 	}
 	e.done = true
@@ -275,6 +275,6 @@ func getChecksumBlockConcurrency(ctx stochastikctx.Context) (int, error) {
 
 func uFIDelateChecksumResponse(resp, uFIDelate *fidelpb.ChecksumResponse) {
 	resp.Checksum ^= uFIDelate.Checksum
-	resp.TotalKvs += uFIDelate.TotalKvs
+	resp.TotalEkvs += uFIDelate.TotalEkvs
 	resp.TotalBytes += uFIDelate.TotalBytes
 }

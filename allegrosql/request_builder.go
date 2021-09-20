@@ -17,17 +17,17 @@ import (
 	"math"
 
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // RequestBuilder is used to build a "ekv.Request".

@@ -22,28 +22,28 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/dbs/solitonutil"
-	"github.com/whtcorpsinc/milevadb/petri"
-	tmysql "github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/dbs"
+	"github.com/whtcorpsinc/milevadb/dbs/solitonutil"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	tmysql "github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 func (s *testIntegrationSuite3) TestCreateBlockWithPartition(c *C) {
@@ -393,7 +393,7 @@ create causet log_message_1 (
 
 	type testCase struct {
 		allegrosql string
-		err *terror.Error
+		err        *terror.Error
 	}
 
 	cases := []testCase{
@@ -1043,7 +1043,7 @@ func (s *testIntegrationSuite4) TestExchangePartitionBlockCompatiable(c *C) {
 		ptALLEGROSQL       string
 		ntALLEGROSQL       string
 		exchangeALLEGROSQL string
-		err         *terror.Error
+		err                *terror.Error
 	}
 	cases := []testCase{
 		{

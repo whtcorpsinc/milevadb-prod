@@ -17,14 +17,14 @@ import (
 	"context"
 
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // DeleteInterDirc represents a delete interlock.
@@ -36,9 +36,9 @@ type DeleteInterDirc struct {
 	tblID2Block  map[int64]causet.Block
 
 	// tblDefCausPosInfos stores relationship between defCausumn ordinal to its causet handle.
-	// the defCausumns ordinals is present in ordinal range format, @see causetcore.TblDefCausPosInfos
-	tblDefCausPosInfos causetcore.TblDefCausPosInfoSlice
-	memTracker     *memory.Tracker
+	// the defCausumns ordinals is present in ordinal range format, @see causetembedded.TblDefCausPosInfos
+	tblDefCausPosInfos causetembedded.TblDefCausPosInfoSlice
+	memTracker         *memory.Tracker
 }
 
 // Next implements the InterlockingDirectorate Next interface.
@@ -50,7 +50,7 @@ func (e *DeleteInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	return e.deleteSingleBlockByChunk(ctx)
 }
 
-func (e *DeleteInterDirc) deleteOneEvent(tbl causet.Block, handleDefCauss causetcore.HandleDefCauss, isExtraHandle bool, event []types.Causet) error {
+func (e *DeleteInterDirc) deleteOneEvent(tbl causet.Block, handleDefCauss causetembedded.HandleDefCauss, isExtraHandle bool, event []types.Causet) error {
 	end := len(event)
 	if isExtraHandle {
 		end--
@@ -68,10 +68,10 @@ func (e *DeleteInterDirc) deleteOneEvent(tbl causet.Block, handleDefCauss causet
 
 func (e *DeleteInterDirc) deleteSingleBlockByChunk(ctx context.Context) error {
 	var (
-		tbl           causet.Block
-		isExtrahandle bool
-		handleDefCauss    causetcore.HandleDefCauss
-		rowCount      int
+		tbl            causet.Block
+		isExtrahandle  bool
+		handleDefCauss causetembedded.HandleDefCauss
+		rowCount       int
 	)
 	for _, info := range e.tblDefCausPosInfos {
 		tbl = e.tblID2Block[info.TblID]
@@ -123,7 +123,7 @@ func (e *DeleteInterDirc) deleteSingleBlockByChunk(ctx context.Context) error {
 	return nil
 }
 
-func (e *DeleteInterDirc) composeTblEventMap(tblEventMap blockEventMapType, defCausPosInfos []causetcore.TblDefCausPosInfo, joinedEvent []types.Causet) error {
+func (e *DeleteInterDirc) composeTblEventMap(tblEventMap blockEventMapType, defCausPosInfos []causetembedded.TblDefCausPosInfo, joinedEvent []types.Causet) error {
 	// iterate all the joined blocks, and got the copresonding rows in joinedEvent.
 	for _, info := range defCausPosInfos {
 		if tblEventMap[info.TblID] == nil {

@@ -22,11 +22,11 @@ import (
 
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type testSuiteJoin1 struct {
@@ -107,8 +107,8 @@ func (s *testSuiteJoin2) TestJoin(c *C) {
 	tk.MustInterDirc("create causet t (c int)")
 	tk.MustInterDirc("insert t values (1)")
 	tests := []struct {
-		allegrosql    string
-		result [][]interface{}
+		allegrosql string
+		result     [][]interface{}
 	}{
 		{
 			"select 1 from t as a left join t as b on 0",
@@ -1260,9 +1260,9 @@ func (s *testSuiteJoinSerial) TestIndexNestedLoopHashJoin(c *C) {
 	}
 
 	// index hash join with semi join
-	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causet/core/MockOnlyEnableIndexHashJoin", "return(true)"), IsNil)
+	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/causet/embedded/MockOnlyEnableIndexHashJoin", "return(true)"), IsNil)
 	defer func() {
-		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causet/core/MockOnlyEnableIndexHashJoin"), IsNil)
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/causet/embedded/MockOnlyEnableIndexHashJoin"), IsNil)
 	}()
 	tk.MustInterDirc("drop causet t")
 	tk.MustInterDirc("CREATE TABLE `t` (	`l_orderkey` int(11) NOT NULL,`l_linenumber` int(11) NOT NULL,`l_partkey` int(11) DEFAULT NULL,`l_suppkey` int(11) DEFAULT NULL,PRIMARY KEY (`l_orderkey`,`l_linenumber`))")
@@ -1955,8 +1955,8 @@ func (s *testSuiteJoin1) TestIssue11390(c *C) {
 }
 
 func (s *testSuiteJoinSerial) TestOuterBlockBuildHashBlockIsuse13933(c *C) {
-	causetcore.ForceUseOuterBuild4Test = true
-	defer func() { causetcore.ForceUseOuterBuild4Test = false }()
+	causetembedded.ForceUseOuterBuild4Test = true
+	defer func() { causetembedded.ForceUseOuterBuild4Test = false }()
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustInterDirc("use test")
 	tk.MustInterDirc("drop causet if exists t, s")
@@ -2038,8 +2038,8 @@ func (s *testSuiteJoin1) TestIssue14514(c *C) {
 }
 
 func (s *testSuiteJoinSerial) TestOuterMatchStatusIssue14742(c *C) {
-	causetcore.ForceUseOuterBuild4Test = true
-	defer func() { causetcore.ForceUseOuterBuild4Test = false }()
+	causetembedded.ForceUseOuterBuild4Test = true
+	defer func() { causetembedded.ForceUseOuterBuild4Test = false }()
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustInterDirc("use test")
 	tk.MustInterDirc("drop causet if exists testjoin;")
@@ -2064,8 +2064,8 @@ func (s *testSuiteJoinSerial) TestInlineProjection4HashJoinIssue15316(c *C) {
 	// Two necessary factors to reproduce this issue:
 	// (1) taking HashLeftJoin, i.e., letting the probing tuple lay at the left side of joined tuples
 	// (2) the projection only contains a part of defCausumns from the build side, i.e., pruning the same probe side
-	causetcore.ForcedHashLeftJoin4Test = true
-	defer func() { causetcore.ForcedHashLeftJoin4Test = false }()
+	causetembedded.ForcedHashLeftJoin4Test = true
+	defer func() { causetembedded.ForcedHashLeftJoin4Test = false }()
 	tk := testkit.NewTestKit(c, s.causetstore)
 	tk.MustInterDirc("use test")
 	tk.MustInterDirc("create causet S (a int not null, b int, c int);")

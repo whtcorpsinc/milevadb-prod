@@ -21,27 +21,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	dbssolitonutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
 	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
+	dbssolitonutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/chunk"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 func (s *testSuite6) TestTruncateBlock(c *C) {
@@ -247,13 +247,13 @@ func (s *testSuite6) TestCreateView(c *C) {
 	tk.MustQuery("select * from v").Sort().Check(testkit.Events("1 1", "1 2", "1 3"))
 	tk.MustInterDirc("alter causet t1 drop defCausumn a")
 	_, err = tk.InterDirc("select * from v")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrViewInvalid), IsTrue)
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrViewInvalid), IsTrue)
 	tk.MustInterDirc("alter causet t1 add defCausumn a int")
 	tk.MustQuery("select * from v").Sort().Check(testkit.Events("1 1", "1 3", "<nil> 1", "<nil> 2"))
 	tk.MustInterDirc("alter causet t1 drop defCausumn a")
 	tk.MustInterDirc("alter causet t2 drop defCausumn b")
 	_, err = tk.InterDirc("select * from v")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrViewInvalid), IsTrue)
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrViewInvalid), IsTrue)
 	tk.MustInterDirc("drop view v")
 
 	tk.MustInterDirc("create view v as (select * from t1)")
@@ -273,7 +273,7 @@ func (s *testSuite6) TestCreateView(c *C) {
 	tk.MustInterDirc("create definer='root'@'localhost' view v_nested as select * from test_v_nested")
 	tk.MustInterDirc("create definer='root'@'localhost' view v_nested2 as select * from v_nested")
 	_, err = tk.InterDirc("create or replace definer='root'@'localhost' view v_nested as select * from v_nested2")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrNoSuchBlock), IsTrue)
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrNoSuchBlock), IsTrue)
 	tk.MustInterDirc("drop causet test_v_nested")
 	tk.MustInterDirc("drop view v_nested, v_nested2")
 }
@@ -349,9 +349,9 @@ func (s *testSuite6) TestCreateDroFIDelatabase(c *C) {
 	tk.MustInterDirc("use drop_test;")
 	tk.MustInterDirc("drop database drop_test;")
 	_, err := tk.InterDirc("drop causet t;")
-	c.Assert(err.Error(), Equals, causetcore.ErrNoDB.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrNoDB.Error())
 	err = tk.InterDircToErr("select * from t;")
-	c.Assert(err.Error(), Equals, causetcore.ErrNoDB.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrNoDB.Error())
 
 	_, err = tk.InterDirc("drop database allegrosql")
 	c.Assert(err, NotNil)
@@ -599,59 +599,59 @@ func (s *testSuite6) TestDeferredCausetCharsetAndDefCauslate(c *C) {
 	tk.MustInterDirc("use " + dbName)
 	tests := []struct {
 		defCausType     string
-		charset     string
+		charset         string
 		defCauslates    string
-		exptCharset string
+		exptCharset     string
 		exptDefCauslate string
-		errMsg      string
+		errMsg          string
 	}{
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset utf8",
+			charset:         "charset utf8",
 			defCauslates:    "defCauslate utf8_bin",
-			exptCharset: "utf8",
+			exptCharset:     "utf8",
 			exptDefCauslate: "utf8_bin",
-			errMsg:      "",
+			errMsg:          "",
 		},
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset utf8mb4",
+			charset:         "charset utf8mb4",
 			defCauslates:    "",
-			exptCharset: "utf8mb4",
+			exptCharset:     "utf8mb4",
 			exptDefCauslate: "utf8mb4_bin",
-			errMsg:      "",
+			errMsg:          "",
 		},
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset utf16",
+			charset:         "charset utf16",
 			defCauslates:    "",
-			exptCharset: "",
+			exptCharset:     "",
 			exptDefCauslate: "",
-			errMsg:      "Unknown charset utf16",
+			errMsg:          "Unknown charset utf16",
 		},
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset latin1",
+			charset:         "charset latin1",
 			defCauslates:    "",
-			exptCharset: "latin1",
+			exptCharset:     "latin1",
 			exptDefCauslate: "latin1_bin",
-			errMsg:      "",
+			errMsg:          "",
 		},
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset binary",
+			charset:         "charset binary",
 			defCauslates:    "",
-			exptCharset: "binary",
+			exptCharset:     "binary",
 			exptDefCauslate: "binary",
-			errMsg:      "",
+			errMsg:          "",
 		},
 		{
 			defCausType:     "varchar(10)",
-			charset:     "charset ascii",
+			charset:         "charset ascii",
 			defCauslates:    "",
-			exptCharset: "ascii",
+			exptCharset:     "ascii",
 			exptDefCauslate: "ascii_bin",
-			errMsg:      "",
+			errMsg:          "",
 		},
 	}
 	sctx := tk.Se.(stochastikctx.Context)

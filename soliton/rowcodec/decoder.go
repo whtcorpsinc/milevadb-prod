@@ -17,14 +17,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/types/json"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
+	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/types/json"
 )
 
 // causetDecoder contains base soliton for decode event.
@@ -32,7 +32,7 @@ type causetDecoder struct {
 	event
 	defCausumns      []DefCausInfo
 	handleDefCausIDs []int64
-	loc          *time.Location
+	loc              *time.Location
 }
 
 // NewCausetDecoder creates a causetDecoder.
@@ -40,33 +40,33 @@ func NewCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, loc *
 	return &causetDecoder{
 		defCausumns:      defCausumns,
 		handleDefCausIDs: handleDefCausIDs,
-		loc:          loc,
+		loc:              loc,
 	}
 }
 
 // DefCausInfo is used as defCausumn spacetime info for event causetDecoder.
 type DefCausInfo struct {
-	ID            int64
-	IsPKHandle    bool
+	ID                int64
+	IsPKHandle        bool
 	VirtualGenDefCaus bool
-	Ft            *types.FieldType
+	Ft                *types.FieldType
 }
 
-// CausetMaFIDelecoder decodes the event to causet map.
-type CausetMaFIDelecoder struct {
+// CausetFIDeliocoderdecodes the event to causet map.
+type CausetFIDeliocoderstruct {
 	causetDecoder
 }
 
-// NewCausetMaFIDelecoder creates a CausetMaFIDelecoder.
-func NewCausetMaFIDelecoder(defCausumns []DefCausInfo, loc *time.Location) *CausetMaFIDelecoder {
-	return &CausetMaFIDelecoder{causetDecoder{
+// NewCausetFIDeliocodercreates a CausetFIDelioecoder.
+func NewCausetFIDelioecoder(defCausumns []DefCausInfo, loc *time.Location) *CausetFIDeliocoder{
+	return &CausetFIDelioecoder{causetDecoder{
 		defCausumns: defCausumns,
-		loc:     loc,
+		loc:         loc,
 	}}
 }
 
 // DecodeToCausetMap decodes byte slices to causet map.
-func (causetDecoder *CausetMaFIDelecoder) DecodeToCausetMap(rowData []byte, event map[int64]types.Causet) (map[int64]types.Causet, error) {
+func (causetDecoder *CausetFIDelioecoder) DecodeToCausetMap(rowData []byte, event map[int64]types.Causet) (map[int64]types.Causet, error) {
 	if event == nil {
 		event = make(map[int64]types.Causet, len(causetDecoder.defCausumns))
 	}
@@ -97,7 +97,7 @@ func (causetDecoder *CausetMaFIDelecoder) DecodeToCausetMap(rowData []byte, even
 	return event, nil
 }
 
-func (causetDecoder *CausetMaFIDelecoder) decodeDefCausCauset(defCaus *DefCausInfo, defCausData []byte) (types.Causet, error) {
+func (causetDecoder *CausetFIDelioecoder) decodeDefCausCauset(defCaus *DefCausInfo, defCausData []byte) (types.Causet, error) {
 	var d types.Causet
 	switch defCaus.Ft.Tp {
 	case allegrosql.TypeLonglong, allegrosql.TypeLong, allegrosql.TypeInt24, allegrosql.TypeShort, allegrosql.TypeTiny:
@@ -191,7 +191,7 @@ func NewChunkCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, 
 		causetDecoder: causetDecoder{
 			defCausumns:      defCausumns,
 			handleDefCausIDs: handleDefCausIDs,
-			loc:          loc,
+			loc:              loc,
 		},
 		defCauset: defCauset,
 	}
@@ -364,7 +364,7 @@ func NewByteCausetDecoder(defCausumns []DefCausInfo, handleDefCausIDs []int64, d
 		causetDecoder: causetDecoder{
 			defCausumns:      defCausumns,
 			handleDefCausIDs: handleDefCausIDs,
-			loc:          loc,
+			loc:              loc,
 		},
 		defBytes: defBytes,
 	}

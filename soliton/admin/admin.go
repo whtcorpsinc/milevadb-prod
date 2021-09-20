@@ -21,29 +21,29 @@ import (
 	"sort"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
 // DBSInfo is for DBS information.
 type DBSInfo struct {
 	SchemaVer   int64
-	ReorgHandle ekv.Handle    // It's only used for DBS information.
+	ReorgHandle ekv.Handle        // It's only used for DBS information.
 	Jobs        []*perceptron.Job // It's the currently running jobs.
 }
 

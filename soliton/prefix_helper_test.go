@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/ekv"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 )

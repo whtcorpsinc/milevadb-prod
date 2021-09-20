@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !codes
 // +build !codes
 
 package testkit
@@ -23,10 +24,10 @@ import (
 	"github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type stochastikCtxKeyType struct{}
@@ -47,14 +48,14 @@ func setStochastik(ctx context.Context, se stochastik.Stochastik) context.Contex
 
 // CTestKit is a utility to run allegrosql test with concurrent execution support.
 type CTestKit struct {
-	c     *check.C
+	c           *check.C
 	causetstore ekv.CausetStorage
 }
 
 // NewCTestKit returns a new *CTestKit.
 func NewCTestKit(c *check.C, causetstore ekv.CausetStorage) *CTestKit {
 	return &CTestKit{
-		c:     c,
+		c:           c,
 		causetstore: causetstore,
 	}
 }

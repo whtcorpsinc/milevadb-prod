@@ -22,22 +22,22 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -70,9 +70,9 @@ type selectResult struct {
 	fieldTypes []*types.FieldType
 	ctx        stochastikctx.Context
 
-	selectResp       *fidelpb.SelectResponse
-	selectRespSize   int64 // record the selectResp.Size() when it is initialized.
-	respChkIdx       int
+	selectResp             *fidelpb.SelectResponse
+	selectRespSize         int64 // record the selectResp.Size() when it is initialized.
+	respChkIdx             int
 	respChunkCausetDecoder *chunk.CausetDecoder
 
 	feedback     *statistics.QueryFeedback

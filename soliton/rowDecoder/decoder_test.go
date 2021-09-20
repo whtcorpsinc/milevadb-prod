@@ -17,21 +17,21 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	_ "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	_ "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
-	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testleak"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 func TestT(t *testing.T) {
@@ -98,9 +98,9 @@ func (s *testCausetDecoderSuite) TestRowCausetDecoder(c *C) {
 	t3 := types.NewTimeCauset(time3)
 
 	testRows := []struct {
-		defcaus   []int64
-		input  []types.Causet
-		output []types.Causet
+		defcaus []int64
+		input   []types.Causet
+		output  []types.Causet
 	}{
 		{
 			[]int64{defcaus[0].ID, defcaus[1].ID, defcaus[2].ID, defcaus[3].ID, defcaus[4].ID},
@@ -189,9 +189,9 @@ func (s *testCausetDecoderSuite) TestClusterIndexRowCausetDecoder(c *C) {
 	c.Assert(err, IsNil)
 
 	testRows := []struct {
-		defcaus   []int64
-		input  []types.Causet
-		output []types.Causet
+		defcaus []int64
+		input   []types.Causet
+		output  []types.Causet
 	}{
 		{
 			[]int64{defcaus[0].ID, defcaus[1].ID, defcaus[2].ID},

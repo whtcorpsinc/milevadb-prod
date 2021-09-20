@@ -19,16 +19,16 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/codec"
 )
 
 func validInterval(sc *stmtctx.StatementContext, low, high point) (bool, error) {
@@ -558,7 +558,7 @@ func DetachCondAndBuildRangeForPartition(sctx stochastikctx.Context, conditions 
 	d := &rangeDetacher{
 		sctx:             sctx,
 		allConds:         conditions,
-		defcaus:             defcaus,
+		defcaus:          defcaus,
 		lengths:          lengths,
 		mergeConsecutive: false,
 	}

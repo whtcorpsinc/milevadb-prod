@@ -21,17 +21,17 @@ import (
 	"sort"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testSplitIndex{})
@@ -108,11 +108,11 @@ func (s *testSplitIndex) TestSplitIndex(c *C) {
 	}
 	idxDefCauss := []*perceptron.IndexDeferredCauset{{Name: tbInfo.DeferredCausets[0].Name, Offset: 0, Length: types.UnspecifiedLength}}
 	idxInfo := &perceptron.IndexInfo{
-		ID:      2,
-		Name:    perceptron.NewCIStr("idx1"),
-		Block:   perceptron.NewCIStr("t1"),
+		ID:              2,
+		Name:            perceptron.NewCIStr("idx1"),
+		Block:           perceptron.NewCIStr("t1"),
 		DeferredCausets: idxDefCauss,
-		State:   perceptron.StatePublic,
+		State:           perceptron.StatePublic,
 	}
 	firstIdxInfo0 := idxInfo.Clone()
 	firstIdxInfo0.ID = 1
@@ -135,11 +135,11 @@ func (s *testSplitIndex) TestSplitIndex(c *C) {
 	ctx := mock.NewContext()
 	e := &SplitIndexRegionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, nil, 0),
-		blockInfo:    tbInfo,
-		indexInfo:    idxInfo,
-		lower:        []types.Causet{types.NewCauset(0)},
-		upper:        []types.Causet{types.NewCauset(100)},
-		num:          10,
+		blockInfo:                   tbInfo,
+		indexInfo:                   idxInfo,
+		lower:                       []types.Causet{types.NewCauset(0)},
+		upper:                       []types.Causet{types.NewCauset(100)},
+		num:                         10,
 	}
 	valueList, err := e.getSplitIdxKeys()
 	sort.Slice(valueList, func(i, j int) bool { return bytes.Compare(valueList[i], valueList[j]) < 0 })
@@ -324,11 +324,11 @@ func (s *testSplitIndex) TestSplitBlock(c *C) {
 	ctx := mock.NewContext()
 	e := &SplitBlockRegionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, nil, 0),
-		blockInfo:    tbInfo,
-		handleDefCauss:   core.NewIntHandleDefCauss(&memex.DeferredCauset{RetType: types.NewFieldType(allegrosql.TypeLonglong)}),
-		lower:        []types.Causet{types.NewCauset(0)},
-		upper:        []types.Causet{types.NewCauset(100)},
-		num:          10,
+		blockInfo:                   tbInfo,
+		handleDefCauss:              embedded.NewIntHandleDefCauss(&memex.DeferredCauset{RetType: types.NewFieldType(allegrosql.TypeLonglong)}),
+		lower:                       []types.Causet{types.NewCauset(0)},
+		upper:                       []types.Causet{types.NewCauset(100)},
+		num:                         10,
 	}
 	valueList, err := e.getSplitBlockKeys()
 	c.Assert(err, IsNil)
@@ -414,11 +414,11 @@ func (s *testSplitIndex) TestClusterIndexSplitBlock(c *C) {
 	sc := &stmtctx.StatementContext{TimeZone: time.Local}
 	e := &SplitBlockRegionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, nil, 0),
-		blockInfo:    tbInfo,
-		handleDefCauss:   buildHandleDefCaussForSplit(sc, tbInfo),
-		lower:        types.MakeCausets(1, 0),
-		upper:        types.MakeCausets(1, 100),
-		num:          10,
+		blockInfo:                   tbInfo,
+		handleDefCauss:              buildHandleDefCaussForSplit(sc, tbInfo),
+		lower:                       types.MakeCausets(1, 0),
+		upper:                       types.MakeCausets(1, 100),
+		num:                         10,
 	}
 	valueList, err := e.getSplitBlockKeys()
 	c.Assert(err, IsNil)

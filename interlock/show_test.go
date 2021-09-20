@@ -17,22 +17,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
-	"github.com/whtcorpsinc/milevadb/petri"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/interlock"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/privilege/privileges"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 func (s *testSuite5) TestShowVisibility(c *C) {
@@ -165,7 +165,7 @@ func (s *testSuite5) TestShowStatsPrivilege(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(se.Auth(&auth.UserIdentity{Username: "show_stats", Hostname: "%"}, nil, nil), IsTrue)
 	tk1.Se = se
-	eqErr := causetcore.ErrDBaccessDenied.GenWithStackByArgs("show_stats", "%", allegrosql.SystemDB)
+	eqErr := causetembedded.ErrDBaccessDenied.GenWithStackByArgs("show_stats", "%", allegrosql.SystemDB)
 	_, err = tk1.InterDirc("show stats_spacetime")
 	c.Assert(err.Error(), Equals, eqErr.Error())
 	_, err = tk1.InterDirc("SHOW STATS_BUCKETS")
@@ -223,9 +223,9 @@ func (s *testSuite5) TestIssue17794(c *C) {
 func (s *testSuite5) TestIssue3641(c *C) {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	_, err := tk.InterDirc("show blocks;")
-	c.Assert(err.Error(), Equals, causetcore.ErrNoDB.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrNoDB.Error())
 	_, err = tk.InterDirc("show causet status;")
-	c.Assert(err.Error(), Equals, causetcore.ErrNoDB.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrNoDB.Error())
 }
 
 func (s *testSuite5) TestIssue10549(c *C) {

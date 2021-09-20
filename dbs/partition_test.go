@@ -16,9 +16,9 @@ package dbs
 import (
 	"context"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"

@@ -16,11 +16,11 @@ package interlock
 import (
 	"context"
 
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 // ReloadOptMemruleBlacklistInterDirc indicates ReloadOptMemruleBlacklist interlock.
@@ -45,6 +45,6 @@ func LoadOptMemruleBlacklist(ctx stochastikctx.Context) (err error) {
 		name := event.GetString(0)
 		newDisabledLogicalMemrules.Insert(name)
 	}
-	causetcore.DefaultDisabledLogicalMemrulesList.CausetStore(newDisabledLogicalMemrules)
+	causetembedded.DefaultDisabledLogicalMemrulesList.CausetStore(newDisabledLogicalMemrules)
 	return nil
 }

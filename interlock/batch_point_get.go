@@ -18,43 +18,43 @@ import (
 	"sort"
 	"sync/atomic"
 
-	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/math"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // BatchPointGetInterDirc executes a bunch of point select queries.
 type BatchPointGetInterDirc struct {
 	baseInterlockingDirectorate
 
-	tblInfo     *perceptron.BlockInfo
-	idxInfo     *perceptron.IndexInfo
-	handles     []ekv.Handle
-	physIDs     []int64
-	partPos     int
-	idxVals     [][]types.Causet
-	startTS     uint64
-	snapshotTS  uint64
-	txn         ekv.Transaction
-	dagger        bool
-	waitTime    int64
-	inited      uint32
-	values      [][]byte
-	index       int
-	rowCausetDecoder  *rowcodec.ChunkCausetDecoder
-	keepOrder   bool
-	desc        bool
-	batchGetter ekv.BatchGetter
+	tblInfo          *perceptron.BlockInfo
+	idxInfo          *perceptron.IndexInfo
+	handles          []ekv.Handle
+	physIDs          []int64
+	partPos          int
+	idxVals          [][]types.Causet
+	startTS          uint64
+	snapshotTS       uint64
+	txn              ekv.Transaction
+	dagger           bool
+	waitTime         int64
+	inited           uint32
+	values           [][]byte
+	index            int
+	rowCausetDecoder *rowcodec.ChunkCausetDecoder
+	keepOrder        bool
+	desc             bool
+	batchGetter      ekv.BatchGetter
 
 	defCausumns []*perceptron.DeferredCausetInfo
 	// virtualDeferredCausetIndex records all the indices of virtual defCausumns and sort them in definition

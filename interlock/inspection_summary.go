@@ -18,22 +18,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/errors"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type inspectionSummaryRetriever struct {
 	dummyCloser
 	retrieved bool
-	causet     *perceptron.BlockInfo
-	extractor *causetcore.InspectionSummaryBlockExtractor
-	timeRange causetcore.QueryTimeRange
+	causet    *perceptron.BlockInfo
+	extractor *causetembedded.InspectionSummaryBlockExtractor
+	timeRange causetembedded.QueryTimeRange
 }
 
 // inspectionSummaryMemrules is used to maintain
@@ -68,8 +68,8 @@ var inspectionSummaryMemrules = map[string][]string{
 		"milevadb_cop_duration",
 		"milevadb_batch_client_wait_duration",
 		"milevadb_batch_client_unavailable_duration",
-		"milevadb_kv_backoff_duration",
-		"milevadb_kv_request_duration",
+		"milevadb_ekv_backoff_duration",
+		"milevadb_ekv_request_duration",
 		"FIDel_client_cmd_duration",
 		"einsteindb_grpc_message_duration",
 		"einsteindb_average_grpc_messge_duration",
@@ -144,13 +144,13 @@ var inspectionSummaryMemrules = map[string][]string{
 		"milevadb_batch_client_pending_req_count",
 		"milevadb_batch_client_unavailable_duration",
 		"milevadb_batch_client_wait_duration",
-		"milevadb_kv_backoff_duration",
-		"milevadb_kv_backoff_ops",
-		"milevadb_kv_region_error_ops",
-		"milevadb_kv_request_duration",
-		"milevadb_kv_request_ops",
-		"milevadb_kv_snapshot_ops",
-		"milevadb_kv_txn_ops",
+		"milevadb_ekv_backoff_duration",
+		"milevadb_ekv_backoff_ops",
+		"milevadb_ekv_region_error_ops",
+		"milevadb_ekv_request_duration",
+		"milevadb_ekv_request_ops",
+		"milevadb_ekv_snapshot_ops",
+		"milevadb_ekv_txn_ops",
 		"einsteindb_average_grpc_messge_duration",
 		"einsteindb_grpc_avg_req_batch_size",
 		"einsteindb_grpc_avg_resp_batch_size",
@@ -164,7 +164,7 @@ var inspectionSummaryMemrules = map[string][]string{
 		"einsteindb_coprocessor_is_busy",
 		"einsteindb_coprocessor_request_error",
 		"einsteindb_cop_handle_duration",
-		"einsteindb_cop_kv_cursor_operations",
+		"einsteindb_cop_ekv_cursor_operations",
 		"einsteindb_cop_request_duration",
 		"einsteindb_cop_request_durations",
 		"einsteindb_cop_scan_details",
@@ -206,15 +206,15 @@ var inspectionSummaryMemrules = map[string][]string{
 		"milevadb_auto_id_qps",
 		"milevadb_auto_id_request_duration",
 		"milevadb_region_cache_ops",
-		"milevadb_kv_backoff_duration",
-		"milevadb_kv_backoff_ops",
-		"milevadb_kv_region_error_ops",
-		"milevadb_kv_request_duration",
-		"milevadb_kv_request_ops",
-		"milevadb_kv_snapshot_ops",
-		"milevadb_kv_txn_ops",
-		"milevadb_kv_write_num",
-		"milevadb_kv_write_size",
+		"milevadb_ekv_backoff_duration",
+		"milevadb_ekv_backoff_ops",
+		"milevadb_ekv_region_error_ops",
+		"milevadb_ekv_request_duration",
+		"milevadb_ekv_request_ops",
+		"milevadb_ekv_snapshot_ops",
+		"milevadb_ekv_txn_ops",
+		"milevadb_ekv_write_num",
+		"milevadb_ekv_write_size",
 		"einsteindb_average_grpc_messge_duration",
 		"einsteindb_grpc_avg_req_batch_size",
 		"einsteindb_grpc_avg_resp_batch_size",

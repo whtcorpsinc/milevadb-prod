@@ -17,22 +17,22 @@ import (
 	"flag"
 	"fmt"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type testUFIDelateSuite struct {
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	petri  *petri.Petri
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }

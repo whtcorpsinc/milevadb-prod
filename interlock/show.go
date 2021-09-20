@@ -24,46 +24,46 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/node"
 	"github.com/whtcorpsinc/milevadb-tools/pkg/etcd"
 	"github.com/whtcorpsinc/milevadb-tools/pkg/utils"
-	"github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/node"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/plugin"
 	"github.com/whtcorpsinc/milevadb/privilege"
 	"github.com/whtcorpsinc/milevadb/privilege/privileges"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/types/json"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
 	"github.com/whtcorpsinc/milevadb/soliton/format"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/types/json"
 )
 
 var etcdDialTimeout = 5 * time.Second
@@ -72,14 +72,14 @@ var etcdDialTimeout = 5 * time.Second
 type ShowInterDirc struct {
 	baseInterlockingDirectorate
 
-	Tp        ast.ShowStmtType // Databases/Blocks/DeferredCausets/....
-	DBName    perceptron.CIStr
-	Block     *ast.BlockName       // Used for showing defCausumns.
-	DeferredCauset    *ast.DeferredCausetName      // Used for `desc causet defCausumn`.
-	IndexName perceptron.CIStr          // Used for show causet regions.
-	Flag      int                  // Some flag parsed from allegrosql, such as FULL.
-	Roles     []*auth.RoleIdentity // Used for show grants.
-	User      *auth.UserIdentity   // Used by show grants, show create user.
+	Tp             ast.ShowStmtType // Databases/Blocks/DeferredCausets/....
+	DBName         perceptron.CIStr
+	Block          *ast.BlockName          // Used for showing defCausumns.
+	DeferredCauset *ast.DeferredCausetName // Used for `desc causet defCausumn`.
+	IndexName      perceptron.CIStr        // Used for show causet regions.
+	Flag           int                     // Some flag parsed from allegrosql, such as FULL.
+	Roles          []*auth.RoleIdentity    // Used for show grants.
+	User           *auth.UserIdentity      // Used by show grants, show create user.
 
 	is schemareplicant.SchemaReplicant
 
@@ -462,7 +462,7 @@ func (e *ShowInterDirc) fetchShowDeferredCausets(ctx context.Context) error {
 	if tb.Meta().IsView() {
 		// Because view's underblock's defCausumn could change or recreate, so view's defCausumn type may change overtime.
 		// To avoid this situation we need to generate a logical plan and extract current defCausumn types from Schema.
-		planBuilder := causetcore.NewCausetBuilder(e.ctx, e.is, &hint.BlockHintProcessor{})
+		planBuilder := causetembedded.NewCausetBuilder(e.ctx, e.is, &hint.BlockHintProcessor{})
 		viewLogicalCauset, err := planBuilder.BuildDataSourceFromView(ctx, e.DBName, tb.Meta())
 		if err != nil {
 			return err
@@ -555,7 +555,7 @@ func (e *ShowInterDirc) fetchShowIndex() error {
 			0,                // Non_unique
 			"PRIMARY",        // Key_name
 			1,                // Seq_in_index
-			pkDefCaus.Name.O,     // DeferredCauset_name
+			pkDefCaus.Name.O, // DeferredCauset_name
 			"A",              // DefCauslation
 			0,                // Cardinality
 			nil,              // Sub_part
@@ -607,7 +607,7 @@ func (e *ShowInterDirc) fetchShowIndex() error {
 				nonUniq,                // Non_unique
 				idx.Meta().Name.O,      // Key_name
 				i + 1,                  // Seq_in_index
-				defCausName,                // DeferredCauset_name
+				defCausName,            // DeferredCauset_name
 				"A",                    // DefCauslation
 				0,                      // Cardinality
 				subPart,                // Sub_part
@@ -617,7 +617,7 @@ func (e *ShowInterDirc) fetchShowIndex() error {
 				"",                     // Comment
 				idx.Meta().Comment,     // Index_comment
 				visible,                // Index_visible
-				memex,             // Expression
+				memex,                  // Expression
 			})
 		}
 	}
@@ -647,10 +647,10 @@ func (e *ShowInterDirc) fetchShowMasterStatus() error {
 
 func (e *ShowInterDirc) fetchShowVariables() (err error) {
 	var (
-		value         string
-		ok            bool
-		stochastikVars   = e.ctx.GetStochastikVars()
-		unreachedVars = make([]string, 0, len(variable.SysVars))
+		value          string
+		ok             bool
+		stochastikVars = e.ctx.GetStochastikVars()
+		unreachedVars  = make([]string, 0, len(variable.SysVars))
 	)
 	for _, v := range variable.SysVars {
 		if !e.GlobalScope {
@@ -1523,7 +1523,7 @@ func (e *ShowInterDirc) fetchShowBlockRegions() error {
 		}
 	} else {
 		if len(e.Block.PartitionNames) != 0 {
-			return causetcore.ErrPartitionClauseOnNonpartitioned
+			return causetembedded.ErrPartitionClauseOnNonpartitioned
 		}
 		physicalIDs = append(physicalIDs, tb.Meta().ID)
 	}
@@ -1533,7 +1533,7 @@ func (e *ShowInterDirc) fetchShowBlockRegions() error {
 	if len(e.IndexName.L) != 0 {
 		indexInfo := tb.Meta().FindIndexByName(e.IndexName.L)
 		if indexInfo == nil {
-			return causetcore.ErrKeyDoesNotExist.GenWithStackByArgs(e.IndexName, tb.Meta().Name)
+			return causetembedded.ErrKeyDoesNotExist.GenWithStackByArgs(e.IndexName, tb.Meta().Name)
 		}
 		regions, err = getBlockIndexRegions(indexInfo, physicalIDs, einsteindbStore, splitStore)
 	} else {

@@ -19,20 +19,20 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // make sure `BlockReaderInterlockingDirectorate` implements `InterlockingDirectorate`.
@@ -40,19 +40,19 @@ var _ InterlockingDirectorate = &BlockReaderInterlockingDirectorate{}
 
 // selectResultHook is used to replog allegrosql.SelectWithRuntimeStats safely for testing.
 type selectResultHook struct {
-	selectResultFunc func(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
+	selectResultFunc func(ctx context.Context, sctx stochastikctx.Context, ekvReq *ekv.Request,
 		fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copCausetIDs []int) (allegrosql.SelectResult, error)
 }
 
-func (sr selectResultHook) SelectResult(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
+func (sr selectResultHook) SelectResult(ctx context.Context, sctx stochastikctx.Context, ekvReq *ekv.Request,
 	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copCausetIDs []int, rootCausetID int) (allegrosql.SelectResult, error) {
 	if sr.selectResultFunc == nil {
-		return allegrosql.SelectWithRuntimeStats(ctx, sctx, kvReq, fieldTypes, fb, copCausetIDs, rootCausetID)
+		return allegrosql.SelectWithRuntimeStats(ctx, sctx, ekvReq, fieldTypes, fb, copCausetIDs, rootCausetID)
 	}
-	return sr.selectResultFunc(ctx, sctx, kvReq, fieldTypes, fb, copCausetIDs)
+	return sr.selectResultFunc(ctx, sctx, ekvReq, fieldTypes, fb, copCausetIDs)
 }
 
-type kvRangeBuilder interface {
+type ekvRangeBuilder interface {
 	buildKeyRange(pid int64) ([]ekv.KeyRange, error)
 }
 
@@ -67,14 +67,14 @@ type BlockReaderInterlockingDirectorate struct {
 	// It may be calculated from ranger.Ranger, or calculated from handles.
 	// The causet ID may also change because of the partition causet, and causes the key range to change.
 	// So instead of keeping a `range` struct field, it's better to define a interface.
-	kvRangeBuilder
-	// TODO: remove this field, use the kvRangeBuilder interface.
+	ekvRangeBuilder
+	// TODO: remove this field, use the ekvRangeBuilder interface.
 	ranges []*ranger.Range
 
-	// kvRanges are only use for union scan.
-	kvRanges []ekv.KeyRange
-	posetPosetDagPB    *fidelpb.PosetDagRequest
-	startTS  uint64
+	// ekvRanges are only use for union scan.
+	ekvRanges       []ekv.KeyRange
+	posetPosetDagPB *fidelpb.PosetDagRequest
+	startTS         uint64
 	// defCausumns are only required by union scan and virtual defCausumn.
 	defCausumns []*perceptron.DeferredCausetInfo
 
@@ -82,8 +82,8 @@ type BlockReaderInterlockingDirectorate struct {
 	// for unsigned int.
 	resultHandler *blockResultHandler
 	feedback      *statistics.QueryFeedback
-	plans         []causetcore.PhysicalCauset
-	blockCauset     causetcore.PhysicalCauset
+	plans         []causetembedded.PhysicalCauset
+	blockCauset   causetembedded.PhysicalCauset
 
 	memTracker       *memory.Tracker
 	selectResultHook // for testing
@@ -136,7 +136,7 @@ func (e *BlockReaderInterlockingDirectorate) Open(ctx context.Context) error {
 		e.posetPosetDagPB.DefCauslectInterDircutionSummaries = &defCauslInterDirc
 	}
 	if e.corDefCausInAccess {
-		ts := e.plans[0].(*causetcore.PhysicalBlockScan)
+		ts := e.plans[0].(*causetembedded.PhysicalBlockScan)
 		access := ts.AccessCondition
 		pkTP := ts.Block.GetPkDefCausInfo().FieldType
 		e.ranges, err = ranger.BuildBlockRange(access, e.ctx.GetStochastikVars().StmtCtx, &pkTP)
@@ -203,7 +203,7 @@ func (e *BlockReaderInterlockingDirectorate) Close() error {
 	if e.resultHandler != nil {
 		err = e.resultHandler.Close()
 	}
-	e.kvRanges = e.kvRanges[:0]
+	e.ekvRanges = e.ekvRanges[:0]
 	e.ctx.StoreQueryFeedback(e.feedback)
 	return err
 }
@@ -213,18 +213,18 @@ func (e *BlockReaderInterlockingDirectorate) Close() error {
 func (e *BlockReaderInterlockingDirectorate) buildResp(ctx context.Context, ranges []*ranger.Range) (allegrosql.SelectResult, error) {
 	var builder allegrosql.RequestBuilder
 	var reqBuilder *allegrosql.RequestBuilder
-	if e.kvRangeBuilder != nil {
-		kvRange, err := e.kvRangeBuilder.buildKeyRange(getPhysicalBlockID(e.causet))
+	if e.ekvRangeBuilder != nil {
+		ekvRange, err := e.ekvRangeBuilder.buildKeyRange(getPhysicalBlockID(e.causet))
 		if err != nil {
 			return nil, err
 		}
-		reqBuilder = builder.SetKeyRanges(kvRange)
+		reqBuilder = builder.SetKeyRanges(ekvRange)
 	} else if e.causet.Meta() != nil && e.causet.Meta().IsCommonHandle {
 		reqBuilder = builder.SetCommonHandleRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.causet), ranges)
 	} else {
 		reqBuilder = builder.SetBlockRanges(getPhysicalBlockID(e.causet), ranges, e.feedback)
 	}
-	kvReq, err := reqBuilder.
+	ekvReq, err := reqBuilder.
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(e.startTS).
 		SetDesc(e.desc).
@@ -238,9 +238,9 @@ func (e *BlockReaderInterlockingDirectorate) buildResp(ctx context.Context, rang
 	if err != nil {
 		return nil, err
 	}
-	e.kvRanges = append(e.kvRanges, kvReq.KeyRanges...)
+	e.ekvRanges = append(e.ekvRanges, ekvReq.KeyRanges...)
 
-	result, err := e.SelectResult(ctx, e.ctx, kvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
+	result, err := e.SelectResult(ctx, e.ctx, ekvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +256,8 @@ func buildVirtualDeferredCausetIndex(schemaReplicant *memex.Schema, defCausumns 
 		}
 	}
 	sort.Slice(virtualDeferredCausetIndex, func(i, j int) bool {
-		return causetcore.FindDeferredCausetInfoByID(defCausumns, schemaReplicant.DeferredCausets[virtualDeferredCausetIndex[i]].ID).Offset <
-			causetcore.FindDeferredCausetInfoByID(defCausumns, schemaReplicant.DeferredCausets[virtualDeferredCausetIndex[j]].ID).Offset
+		return causetembedded.FindDeferredCausetInfoByID(defCausumns, schemaReplicant.DeferredCausets[virtualDeferredCausetIndex[i]].ID).Offset <
+			causetembedded.FindDeferredCausetInfoByID(defCausumns, schemaReplicant.DeferredCausets[virtualDeferredCausetIndex[j]].ID).Offset
 	})
 	return virtualDeferredCausetIndex
 }

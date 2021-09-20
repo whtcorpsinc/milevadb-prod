@@ -19,27 +19,27 @@ import (
 	"math/rand"
 
 	"github.com/cznic/mathutil"
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/allegrosql"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type requiredEventsSelectResult struct {
-	retTypes        []*types.FieldType
+	retTypes          []*types.FieldType
 	totalEvents       int
-	count           int
+	count             int
 	expectedEventsRet []int
-	numNextCalled   int
+	numNextCalled     int
 }
 
 func (r *requiredEventsSelectResult) Fetch(context.Context)                   {}
@@ -102,11 +102,11 @@ func mockDistsqlSelectCtxGet(ctx context.Context) (totalEvents int, expectedEven
 	return
 }
 
-func mockSelectResult(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
+func mockSelectResult(ctx context.Context, sctx stochastikctx.Context, ekvReq *ekv.Request,
 	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copCausetIDs []int) (allegrosql.SelectResult, error) {
 	totalEvents, expectedEventsRet := mockDistsqlSelectCtxGet(ctx)
 	return &requiredEventsSelectResult{
-		retTypes:        fieldTypes,
+		retTypes:          fieldTypes,
 		totalEvents:       totalEvents,
 		expectedEventsRet: expectedEventsRet,
 	}, nil
@@ -114,20 +114,20 @@ func mockSelectResult(ctx context.Context, sctx stochastikctx.Context, kvReq *ek
 
 func buildBlockReader(sctx stochastikctx.Context) InterlockingDirectorate {
 	e := &BlockReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:     buildMockBaseInterDirc(sctx),
-		causet:            &blocks.BlockCommon{},
-		posetPosetDagPB:            buildMockPosetDagRequest(sctx),
-		selectResultHook: selectResultHook{mockSelectResult},
+		baseInterlockingDirectorate: buildMockBaseInterDirc(sctx),
+		causet:                      &blocks.BlockCommon{},
+		posetPosetDagPB:             buildMockPosetDagRequest(sctx),
+		selectResultHook:            selectResultHook{mockSelectResult},
 	}
 	return e
 }
 
 func buildMockPosetDagRequest(sctx stochastikctx.Context) *fidelpb.PosetDagRequest {
 	builder := newInterlockingDirectorateBuilder(sctx, nil)
-	req, _, err := builder.constructPosetDagReq([]core.PhysicalCauset{&core.PhysicalBlockScan{
+	req, _, err := builder.constructPosetDagReq([]embedded.PhysicalCauset{&embedded.PhysicalBlockScan{
 		DeferredCausets: []*perceptron.DeferredCausetInfo{},
-		Block:   &perceptron.BlockInfo{ID: 12345, PKIsHandle: false},
-		Desc:    false,
+		Block:           &perceptron.BlockInfo{ID: 12345, PKIsHandle: false},
+		Desc:            false,
 	}}, ekv.EinsteinDB)
 	if err != nil {
 		panic(err)
@@ -190,10 +190,10 @@ func (s *testInterDircSuite) TestBlockReaderRequiredEvents(c *C) {
 
 func buildIndexReader(sctx stochastikctx.Context) InterlockingDirectorate {
 	e := &IndexReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:     buildMockBaseInterDirc(sctx),
-		posetPosetDagPB:            buildMockPosetDagRequest(sctx),
-		index:            &perceptron.IndexInfo{},
-		selectResultHook: selectResultHook{mockSelectResult},
+		baseInterlockingDirectorate: buildMockBaseInterDirc(sctx),
+		posetPosetDagPB:             buildMockPosetDagRequest(sctx),
+		index:                       &perceptron.IndexInfo{},
+		selectResultHook:            selectResultHook{mockSelectResult},
 	}
 	return e
 }

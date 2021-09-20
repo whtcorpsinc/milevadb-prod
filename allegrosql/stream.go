@@ -17,16 +17,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // streamResult implements the SelectResult interface.

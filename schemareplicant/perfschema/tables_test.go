@@ -25,16 +25,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant/perfschema"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 func TestT(t *testing.T) {
@@ -46,7 +46,7 @@ var _ = Suite(&testBlockSuite{})
 
 type testBlockSuite struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func (s *testBlockSuite) SetUpSuite(c *C) {
@@ -130,26 +130,26 @@ func (s *testBlockSuite) TestEinsteinDBProfileCPU(c *C) {
 		"├─einsteindb::server::load_statistics::linux::ThreadLoadStatistics::record::h59facb8d680e7794 75.00% 75.00%",
 		"│ └─procinfo::pid::stat::stat_task::h69e1aa2c331aebb6 75.00% 100%",
 		"├─nom::nom::digit::h905aaaeff7d8ec8e 16.07% 16.07%",
-		"│ ├─<core::iter::adapters::Enumerate<I> as core::iter::traits::iterator::Iterator>::next::h16936f9061bb75e4 6.25% 38.89%",
+		"│ ├─<embedded::iter::adapters::Enumerate<I> as embedded::iter::traits::iterator::Iterator>::next::h16936f9061bb75e4 6.25% 38.89%",
 		"│ ├─Unknown 3.57% 22.22%",
 		"│ ├─<&u8 as nom::traits::AsChar>::is_dec_digit::he9eacc3fad26ab81 2.68% 16.67%",
 		"│ ├─<&[u8] as nom::traits::InputIter>::iter_indices::h6192338433683bff 1.79% 11.11%",
-		"│ └─<&[T] as nom::traits::Slice<core::ops::range::RangeFrom<usize>>>::slice::h38d31f11f84aa302 1.79% 11.11%",
-		"├─<jemallocator::Jemalloc as core::alloc::GlobalAlloc>::realloc::h5199c50710ab6f9d 1.79% 1.79%",
+		"│ └─<&[T] as nom::traits::Slice<embedded::ops::range::RangeFrom<usize>>>::slice::h38d31f11f84aa302 1.79% 11.11%",
+		"├─<jemallocator::Jemalloc as embedded::alloc::GlobalAlloc>::realloc::h5199c50710ab6f9d 1.79% 1.79%",
 		"│ └─rallocx 1.79% 100%",
-		"├─<jemallocator::Jemalloc as core::alloc::GlobalAlloc>::dealloc::hea83459aa98dd2dc 1.79% 1.79%",
+		"├─<jemallocator::Jemalloc as embedded::alloc::GlobalAlloc>::dealloc::hea83459aa98dd2dc 1.79% 1.79%",
 		"│ └─sdallocx 1.79% 100%",
-		"├─<jemallocator::Jemalloc as core::alloc::GlobalAlloc>::alloc::hc7962e02169a5c56 0.89% 0.89%",
+		"├─<jemallocator::Jemalloc as embedded::alloc::GlobalAlloc>::alloc::hc7962e02169a5c56 0.89% 0.89%",
 		"│ └─mallocx 0.89% 100%",
 		"├─engine::rocks::soliton::engine_metrics::flush_engine_iostall_properties::h64a7661c95aa1db7 0.89% 0.89%",
 		"│ └─lmdb::lmdb::EDB::get_map_property_cf::h9722f9040411af44 0.89% 100%",
-		"├─core::ptr::real_drop_in_place::h8def0d99e7136f33 0.89% 0.89%",
-		"│ └─<alloc::raw_vec::RawVec<T,A> as core::ops::drop::Drop>::drop::h9b59b303bffde02c 0.89% 100%",
+		"├─embedded::ptr::real_drop_in_place::h8def0d99e7136f33 0.89% 0.89%",
+		"│ └─<alloc::raw_vec::RawVec<T,A> as embedded::ops::drop::Drop>::drop::h9b59b303bffde02c 0.89% 100%",
 		"├─einsteindb_util::metrics::threads_linux::ThreadInfoStatistics::record::ha8cc290b3f46af88 0.89% 0.89%",
 		"│ └─procinfo::pid::stat::stat_task::h69e1aa2c331aebb6 0.89% 100%",
 		"├─crossbeam_utils::backoff::Backoff::snooze::h5c121ef4ce616a3c 0.89% 0.89%",
-		"│ └─core::iter::range::<impl core::iter::traits::iterator::Iterator for core::ops::range::Range<A>>::next::hdb23ceb766e7a91f 0.89% 100%",
-		"└─<hashbrown::raw::bitmask::BitMaskIter as core::iter::traits::iterator::Iterator>::next::he129c78b3deb639d 0.89% 0.89%",
+		"│ └─embedded::iter::range::<impl embedded::iter::traits::iterator::Iterator for embedded::ops::range::Range<A>>::next::hdb23ceb766e7a91f 0.89% 100%",
+		"└─<hashbrown::raw::bitmask::BitMaskIter as embedded::iter::traits::iterator::Iterator>::next::he129c78b3deb639d 0.89% 0.89%",
 		"  └─Unknown 0.89% 100%"))
 
 	// We can use current processe profile to mock profile of FIDel because the FIDel has the

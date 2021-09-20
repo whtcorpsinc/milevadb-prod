@@ -20,9 +20,9 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/codec"
 )
 
 // Range represents a range generated in physical plan building phase.

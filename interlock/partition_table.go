@@ -19,10 +19,10 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/errors"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
 
 // PartitionBlockInterlockingDirectorate is a InterlockingDirectorate for partitioned causet.
@@ -46,7 +46,7 @@ type nextPartitionForBlockReader struct {
 
 func (n nextPartitionForBlockReader) nextPartition(ctx context.Context, tbl causet.PhysicalBlock) (InterlockingDirectorate, error) {
 	n.exec.causet = tbl
-	n.exec.kvRanges = n.exec.kvRanges[:0]
+	n.exec.ekvRanges = n.exec.ekvRanges[:0]
 	if err := uFIDelatePosetDagRequestBlockID(ctx, n.exec.posetPosetDagPB, tbl.Meta().ID, tbl.GetPhysicalID()); err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (n nextPartitionForIndexMerge) nextPartition(ctx context.Context, tbl cause
 
 type nextPartitionForUnionScan struct {
 	b     *interlockBuilder
-	us    *causetcore.PhysicalUnionScan
+	us    *causetembedded.PhysicalUnionScan
 	child nextPartition
 }
 

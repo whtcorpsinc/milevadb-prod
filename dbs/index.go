@@ -26,21 +26,21 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
@@ -807,7 +807,7 @@ type addIndexWorker struct {
 	defaultVals        []types.Causet
 	idxRecords         []*indexRecord
 	rowMap             map[int64]types.Causet
-	rowCausetDecoder         *causetDecoder.RowCausetDecoder
+	rowCausetDecoder   *causetDecoder.RowCausetDecoder
 	idxKeyBufs         [][]byte
 	batchCheckKeys     []ekv.Key
 	distinctCheckFlags []bool
@@ -817,12 +817,12 @@ func newAddIndexWorker(sessCtx stochastikctx.Context, worker *worker, id int, t 
 	index := blocks.NewIndex(t.GetPhysicalID(), t.Meta(), indexInfo)
 	rowCausetDecoder := causetDecoder.NewRowCausetDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
 	return &addIndexWorker{
-		backfillWorker: newBackfillWorker(sessCtx, worker, id, t),
-		index:          index,
-		metricCounter:  metrics.BackfillTotalCounter.WithLabelValues("add_idx_speed"),
-		rowCausetDecoder:     rowCausetDecoder,
-		defaultVals:    make([]types.Causet, len(t.WriblockDefCauss())),
-		rowMap:         make(map[int64]types.Causet, len(decodeDefCausMap)),
+		backfillWorker:   newBackfillWorker(sessCtx, worker, id, t),
+		index:            index,
+		metricCounter:    metrics.BackfillTotalCounter.WithLabelValues("add_idx_speed"),
+		rowCausetDecoder: rowCausetDecoder,
+		defaultVals:      make([]types.Causet, len(t.WriblockDefCauss())),
+		rowMap:           make(map[int64]types.Causet, len(decodeDefCausMap)),
 	}
 }
 

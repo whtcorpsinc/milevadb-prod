@@ -18,14 +18,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
 var _ = SerialSuites(&inspectionResultSuite{&testClusterBlockBase{}})
@@ -90,9 +90,9 @@ func (s *inspectionResultSuite) TestInspectionResult(c *C) {
 		Events: [][]types.Causet{
 			types.MakeCausets("einsteindb", "192.168.1.22:1234", "disk", "sda", "used-percent", "80"),
 			types.MakeCausets("einsteindb", "192.168.1.23:1234", "disk", "sdb", "used-percent", "50"),
-			types.MakeCausets("fidel", "192.168.1.31:1234", "cpu", "cpu", "cpu-logical-cores", "1"),
-			types.MakeCausets("fidel", "192.168.1.32:1234", "cpu", "cpu", "cpu-logical-cores", "4"),
-			types.MakeCausets("fidel", "192.168.1.33:1234", "cpu", "cpu", "cpu-logical-cores", "10"),
+			types.MakeCausets("fidel", "192.168.1.31:1234", "cpu", "cpu", "cpu-logical-embeddeds", "1"),
+			types.MakeCausets("fidel", "192.168.1.32:1234", "cpu", "cpu", "cpu-logical-embeddeds", "4"),
+			types.MakeCausets("fidel", "192.168.1.33:1234", "cpu", "cpu", "cpu-logical-embeddeds", "10"),
 		},
 	}
 
@@ -112,8 +112,8 @@ func (s *inspectionResultSuite) TestInspectionResult(c *C) {
 	defer s.tearDownForInspection(c)
 
 	cases := []struct {
-		allegrosql  string
-		rows []string
+		allegrosql string
+		rows       []string
 	}{
 		{
 			allegrosql: "select rule, item, type, value, reference, severity, details from information_schema.inspection_result where rule in ('config', 'version')",
@@ -250,9 +250,9 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection(c *C) {
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "einsteindb-0s", "sched_2", 10.0),
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "einsteindb-0s", "split_check", 10.0),
 		},
-		"FIDel_tso_wait_duration":                {},
-		"milevadb_get_token_duration":             {},
-		"milevadb_load_schema_duration":           {},
+		"FIDel_tso_wait_duration":                   {},
+		"milevadb_get_token_duration":               {},
+		"milevadb_load_schema_duration":             {},
 		"einsteindb_scheduler_command_duration":     {},
 		"einsteindb_handle_snapshot_duration":       {},
 		"einsteindb_storage_async_request_duration": {},
@@ -263,8 +263,8 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection(c *C) {
 		"einsteindb_block_index_cache_hit":          {},
 		"einsteindb_block_data_cache_hit":           {},
 		"einsteindb_block_filter_cache_hit":         {},
-		"FIDel_scheduler_store_status":           {},
-		"FIDel_region_health":                    {},
+		"FIDel_scheduler_store_status":              {},
+		"FIDel_region_health":                       {},
 	}
 
 	ctx := s.setupForInspection(c, mockData, nil)
@@ -366,7 +366,7 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection2(c *C) {
 		"einsteindb_block_filter_cache_hit": {
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "einsteindb-0s", "ekv", 0.93),
 		},
-		"einsteindb_thread_cpu":           {},
+		"einsteindb_thread_cpu":        {},
 		"FIDel_scheduler_store_status": {},
 		"FIDel_region_health":          {},
 	}
@@ -407,12 +407,12 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection3(c *C) {
 	// construct some mock abnormal data
 	mockData := map[string][][]types.Causet{
 		"FIDel_scheduler_store_status": {
-			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "leader_score", 100.0),
-			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-1", "1", "leader_score", 50.0),
-			types.MakeCausets(datetime("2020-02-14 05:21:00"), "fidel-0", "einsteindb-0", "0", "leader_score", 99.0),
-			types.MakeCausets(datetime("2020-02-14 05:21:00"), "fidel-0", "einsteindb-1", "1", "leader_score", 51.0),
-			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "region_score", 100.0),
-			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-1", "1", "region_score", 90.0),
+			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "leader_sembedded", 100.0),
+			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-1", "1", "leader_sembedded", 50.0),
+			types.MakeCausets(datetime("2020-02-14 05:21:00"), "fidel-0", "einsteindb-0", "0", "leader_sembedded", 99.0),
+			types.MakeCausets(datetime("2020-02-14 05:21:00"), "fidel-0", "einsteindb-1", "1", "leader_sembedded", 51.0),
+			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "region_sembedded", 100.0),
+			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-1", "1", "region_sembedded", 90.0),
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "store_available", 100.0),
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-1", "1", "store_available", 70.0),
 			types.MakeCausets(datetime("2020-02-14 05:20:00"), "fidel-0", "einsteindb-0", "0", "region_count", 20001.0),
@@ -436,7 +436,7 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection3(c *C) {
 
 	rs, err := tk.Se.InterDircute(ctx, `select /*+ time_range('2020-02-14 04:20:00','2020-02-14 05:23:00') */
 		item, type, instance,status_address, value, reference, details from information_schema.inspection_result
-		where rule='threshold-check' and item in ('leader-score-balance','region-score-balance','region-count','region-health','causetstore-available-balance','leader-drop')
+		where rule='threshold-check' and item in ('leader-sembedded-balance','region-sembedded-balance','region-count','region-health','causetstore-available-balance','leader-drop')
 		order by item`)
 	c.Assert(err, IsNil)
 	result := tk.ResultSetToResultWithCtx(ctx, rs[0], Commentf("execute inspect ALLEGROALLEGROSQL failed"))
@@ -444,10 +444,10 @@ func (s *inspectionResultSuite) TestThresholdCheckInspection3(c *C) {
 	result.Check(testkit.Events(
 		"leader-drop einsteindb einsteindb-2 einsteindb-2s 10000 <= 50 einsteindb-2 einsteindb has too many leader-drop around time 2020-02-14 05:21:00.000000, leader count from 10000 drop to 0",
 		"leader-drop einsteindb einsteindb-0 einsteindb-0s 5000 <= 50 einsteindb-0 einsteindb has too many leader-drop around time 2020-02-14 05:21:00.000000, leader count from 10000 drop to 5000",
-		"leader-score-balance einsteindb einsteindb-1 einsteindb-1s 50.00% < 5.00% einsteindb-0 max leader_score is 100.00, much more than einsteindb-1 min leader_score 50.00",
+		"leader-sembedded-balance einsteindb einsteindb-1 einsteindb-1s 50.00% < 5.00% einsteindb-0 max leader_sembedded is 100.00, much more than einsteindb-1 min leader_sembedded 50.00",
 		"region-count einsteindb einsteindb-0 einsteindb-0s 20001.00 <= 20000 einsteindb-0 einsteindb has too many regions",
 		"region-health fidel fidel-0 fidel-0 110.00 < 100 the count of extra-perr and learner-peer and pending-peer are 110, it means the scheduling is too frequent or too slow",
-		"region-score-balance einsteindb einsteindb-1 einsteindb-1s 10.00% < 5.00% einsteindb-0 max region_score is 100.00, much more than einsteindb-1 min region_score 90.00",
+		"region-sembedded-balance einsteindb einsteindb-1 einsteindb-1s 10.00% < 5.00% einsteindb-0 max region_sembedded is 100.00, much more than einsteindb-1 min region_sembedded 90.00",
 		"causetstore-available-balance einsteindb einsteindb-1 einsteindb-1s 30.00% < 20.00% einsteindb-0 max store_available is 100.00, much more than einsteindb-1 min store_available 70.00"))
 }
 
@@ -635,10 +635,10 @@ func (s *inspectionResultSuite) TestNodeLoadInspection(c *C) {
 	result := tk.ResultSetToResultWithCtx(ctx, rs[0], Commentf("execute inspect ALLEGROALLEGROSQL failed"))
 	c.Assert(tk.Se.GetStochastikVars().StmtCtx.WarningCount(), Equals, uint16(0), Commentf("unexpected warnings: %+v", tk.Se.GetStochastikVars().StmtCtx.GetWarnings()))
 	result.Check(testkit.Events(
-		"cpu-load1 node node-0 28.1 < 28.0 cpu-load1 should less than (cpu_logical_cores * 0.7)",
-		"cpu-load15 node node-1 14.1 < 14.0 cpu-load15 should less than (cpu_logical_cores * 0.7)",
-		"cpu-load15 node node-0 30.0 < 28.0 cpu-load15 should less than (cpu_logical_cores * 0.7)",
-		"cpu-load5 node node-1 14.1 < 14.0 cpu-load5 should less than (cpu_logical_cores * 0.7)",
+		"cpu-load1 node node-0 28.1 < 28.0 cpu-load1 should less than (cpu_logical_embeddeds * 0.7)",
+		"cpu-load15 node node-1 14.1 < 14.0 cpu-load15 should less than (cpu_logical_embeddeds * 0.7)",
+		"cpu-load15 node node-0 30.0 < 28.0 cpu-load15 should less than (cpu_logical_embeddeds * 0.7)",
+		"cpu-load5 node node-1 14.1 < 14.0 cpu-load5 should less than (cpu_logical_embeddeds * 0.7)",
 		"disk-usage node node-0 80.0% < 70% the disk-usage of /dev/nvme0 is too high",
 		"swap-memory-used node node-1 1.0 0 ",
 		"virtual-memory-usage node node-0 80.0% < 70% the memory-usage is too high",

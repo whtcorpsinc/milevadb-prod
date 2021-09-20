@@ -16,11 +16,11 @@ package interlock
 import (
 	"context"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/bindinfo"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/petri"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
 
@@ -28,31 +28,31 @@ import (
 type ALLEGROSQLBindInterDirc struct {
 	baseInterlockingDirectorate
 
-	sqlBindOp    causetcore.ALLEGROSQLBindOpType
+	sqlBindOp           causetembedded.ALLEGROSQLBindOpType
 	normdOrigALLEGROSQL string
 	bindALLEGROSQL      string
-	charset      string
-	defCauslation    string
-	EDB           string
-	isGlobal     bool
-	bindAst      ast.StmtNode
+	charset             string
+	defCauslation       string
+	EDB                 string
+	isGlobal            bool
+	bindAst             ast.StmtNode
 }
 
 // Next implements the InterlockingDirectorate Next interface.
 func (e *ALLEGROSQLBindInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	req.Reset()
 	switch e.sqlBindOp {
-	case causetcore.OpALLEGROSQLBindCreate:
+	case causetembedded.OpALLEGROSQLBindCreate:
 		return e.createALLEGROSQLBind()
-	case causetcore.OpALLEGROSQLBindDrop:
+	case causetembedded.OpALLEGROSQLBindDrop:
 		return e.dropALLEGROSQLBind()
-	case causetcore.OpFlushBindings:
+	case causetembedded.OpFlushBindings:
 		return e.flushBindings()
-	case causetcore.OpCaptureBindings:
+	case causetembedded.OpCaptureBindings:
 		e.captureBindings()
-	case causetcore.OpEvolveBindings:
+	case causetembedded.OpEvolveBindings:
 		return e.evolveBindings()
-	case causetcore.OpReloadBindings:
+	case causetembedded.OpReloadBindings:
 		return e.reloadBindings()
 	default:
 		return errors.Errorf("unsupported ALLEGROALLEGROSQL bind operation: %v", e.sqlBindOp)
@@ -64,9 +64,9 @@ func (e *ALLEGROSQLBindInterDirc) dropALLEGROSQLBind() error {
 	var bindInfo *bindinfo.Binding
 	if e.bindALLEGROSQL != "" {
 		bindInfo = &bindinfo.Binding{
-			BindALLEGROSQL:   e.bindALLEGROSQL,
-			Charset:   e.charset,
-			DefCauslation: e.defCauslation,
+			BindALLEGROSQL: e.bindALLEGROSQL,
+			Charset:        e.charset,
+			DefCauslation:  e.defCauslation,
 		}
 	}
 	if !e.isGlobal {
@@ -78,16 +78,16 @@ func (e *ALLEGROSQLBindInterDirc) dropALLEGROSQLBind() error {
 
 func (e *ALLEGROSQLBindInterDirc) createALLEGROSQLBind() error {
 	bindInfo := bindinfo.Binding{
-		BindALLEGROSQL:   e.bindALLEGROSQL,
-		Charset:   e.charset,
-		DefCauslation: e.defCauslation,
-		Status:    bindinfo.Using,
-		Source:    bindinfo.Manual,
+		BindALLEGROSQL: e.bindALLEGROSQL,
+		Charset:        e.charset,
+		DefCauslation:  e.defCauslation,
+		Status:         bindinfo.Using,
+		Source:         bindinfo.Manual,
 	}
 	record := &bindinfo.BindRecord{
 		OriginalALLEGROSQL: e.normdOrigALLEGROSQL,
-		EDB:          e.EDB,
-		Bindings:    []bindinfo.Binding{bindInfo},
+		EDB:                e.EDB,
+		Bindings:           []bindinfo.Binding{bindInfo},
 	}
 	if !e.isGlobal {
 		handle := e.ctx.Value(bindinfo.StochastikBindInfoKeyType).(*bindinfo.StochastikHandle)

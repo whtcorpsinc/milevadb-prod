@@ -17,19 +17,19 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/testleak"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 func TestT(t *testing.T) {
@@ -87,11 +87,11 @@ func (*testSuite) TestT(c *C) {
 	tbID, err := genGlobalID(causetstore)
 	c.Assert(err, IsNil)
 	tblInfo := &perceptron.BlockInfo{
-		ID:      tbID,
-		Name:    tbName,
+		ID:              tbID,
+		Name:            tbName,
 		DeferredCausets: []*perceptron.DeferredCausetInfo{defCausInfo},
-		Indices: []*perceptron.IndexInfo{idxInfo},
-		State:   perceptron.StatePublic,
+		Indices:         []*perceptron.IndexInfo{idxInfo},
+		State:           perceptron.StatePublic,
 	}
 
 	dbID, err := genGlobalID(causetstore)

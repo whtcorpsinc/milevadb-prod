@@ -17,14 +17,14 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 func (s *testSuite7) TestStmtLabel(c *C) {
@@ -38,8 +38,8 @@ func (s *testSuite7) TestStmtLabel(c *C) {
 	tk.MustInterDirc("analyze causet label")
 
 	tests := []struct {
-		allegrosql   string
-		label string
+		allegrosql string
+		label      string
 	}{
 		{"select 1", "Select"},
 		{"select * from label t1, label t2", "Select"},
@@ -63,7 +63,7 @@ func (s *testSuite7) TestStmtLabel(c *C) {
 		stmtNode, err := BerolinaSQL.New().ParseOneStmt(tt.allegrosql, "", "")
 		c.Check(err, IsNil)
 		is := schemareplicant.GetSchemaReplicant(tk.Se)
-		err = causetcore.Preprocess(tk.Se.(stochastikctx.Context), stmtNode, is)
+		err = causetembedded.Preprocess(tk.Se.(stochastikctx.Context), stmtNode, is)
 		c.Assert(err, IsNil)
 		_, _, err = causet.Optimize(context.TODO(), tk.Se, stmtNode, is)
 		c.Assert(err, IsNil)

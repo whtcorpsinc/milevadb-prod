@@ -16,11 +16,11 @@ package interlock
 import (
 	"math/rand"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/types"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testSuiteJoiner{})
@@ -31,7 +31,7 @@ func (s *testSuiteJoiner) SetUpSuite(c *C) {
 }
 
 func (s *testSuiteJoiner) TestRequiredEvents(c *C) {
-	joinTypes := []core.JoinType{core.InnerJoin, core.LeftOuterJoin, core.RightOuterJoin}
+	joinTypes := []embedded.JoinType{embedded.InnerJoin, embedded.LeftOuterJoin, embedded.RightOuterJoin}
 	lTypes := [][]byte{
 		{allegrosql.TypeLong},
 		{allegrosql.TypeFloat},

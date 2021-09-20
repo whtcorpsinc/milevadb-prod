@@ -25,23 +25,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
-	"github.com/whtcorpsinc/log"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/sysutil"
+	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/log"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
+	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/soliton/set"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/chunk"
-	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
-	"github.com/whtcorpsinc/milevadb/soliton/set"
+	"github.com/whtcorpsinc/sysutil"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -61,7 +61,7 @@ type memBlockRetriever interface {
 // MemBlockReaderInterDirc executes memBlock information retrieving from the MemBlock components
 type MemBlockReaderInterDirc struct {
 	baseInterlockingDirectorate
-	causet     *perceptron.BlockInfo
+	causet    *perceptron.BlockInfo
 	retriever memBlockRetriever
 	// cacheRetrieved is used to indicate whether has the parent interlock retrieved
 	// from inspection cache in inspection mode.
@@ -133,7 +133,7 @@ func (e *MemBlockReaderInterDirc) Close() error {
 type clusterConfigRetriever struct {
 	dummyCloser
 	retrieved bool
-	extractor *causetcore.ClusterBlockExtractor
+	extractor *causetembedded.ClusterBlockExtractor
 }
 
 // retrieve implements the memBlockRetriever interface
@@ -269,7 +269,7 @@ func fetchClusterConfig(sctx stochastikctx.Context, nodeTypes, nodeAddrs set.Str
 
 type clusterServerInfoRetriever struct {
 	dummyCloser
-	extractor      *causetcore.ClusterBlockExtractor
+	extractor      *causetembedded.ClusterBlockExtractor
 	serverInfoType diagnosticspb.ServerInfoType
 	retrieved      bool
 }
@@ -423,7 +423,7 @@ type clusterLogRetriever struct {
 	isDrained  bool
 	retrieving bool
 	heap       *logResponseHeap
-	extractor  *causetcore.ClusterLogBlockExtractor
+	extractor  *causetembedded.ClusterLogBlockExtractor
 	cancel     context.CancelFunc
 }
 

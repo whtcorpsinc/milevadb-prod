@@ -18,16 +18,16 @@ import (
 	"fmt"
 	"runtime/trace"
 
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // UFIDelateInterDirc represents a new uFIDelate interlock.
@@ -39,12 +39,12 @@ type UFIDelateInterDirc struct {
 	// uFIDelatedEventKeys is a map for unique (Block, handle) pair.
 	// The value is true if the event is changed, or false otherwise
 	uFIDelatedEventKeys map[int64]*ekv.HandleMap
-	tblID2block    map[int64]causet.Block
+	tblID2block         map[int64]causet.Block
 
 	matched uint64 // a counter of matched rows during uFIDelate
 	// tblDefCausPosInfos stores relationship between defCausumn ordinal to its causet handle.
-	// the defCausumns ordinals is present in ordinal range format, @see causetcore.TblDefCausPosInfos
-	tblDefCausPosInfos            causetcore.TblDefCausPosInfoSlice
+	// the defCausumns ordinals is present in ordinal range format, @see causetembedded.TblDefCausPosInfos
+	tblDefCausPosInfos        causetembedded.TblDefCausPosInfoSlice
 	evalBuffer                chunk.MutEvent
 	allAssignmentsAreConstant bool
 	drained                   bool
@@ -55,7 +55,7 @@ type UFIDelateInterDirc struct {
 
 func (e *UFIDelateInterDirc) exec(ctx context.Context, schemaReplicant *memex.Schema, event, newData []types.Causet) error {
 	defer trace.StartRegion(ctx, "UFIDelateInterDirc").End()
-	assignFlag, err := causetcore.GetUFIDelateDeferredCausets(e.ctx, e.OrderedList, schemaReplicant.Len())
+	assignFlag, err := causetembedded.GetUFIDelateDeferredCausets(e.ctx, e.OrderedList, schemaReplicant.Len())
 	if err != nil {
 		return err
 	}

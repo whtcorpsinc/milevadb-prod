@@ -16,12 +16,12 @@ package interlock_test
 import (
 	"fmt"
 
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
 type testSuiteAgg struct {
@@ -686,39 +686,39 @@ func (s *testSuiteAgg) TestOnlyFullGroupBy(c *C) {
 	tk.MustQuery("select max(a), any_value(c) from t group by d;")
 	// test incompatible with sql_mode = ONLY_FULL_GROUP_BY
 	err := tk.InterDircToErr("select * from t group by d")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select b-c from t group by b+c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select (b-c)*(b+c), min(a) from t group by b+c, b-c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select b between c and d from t group by b,c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select case b when 1 then c when 2 then d else d end from t group by b,c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select c > (select b from t) from t group by b")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select c is null from t group by b")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select c is true from t group by b")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select (c+b)*d from t group by c,d")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select b in (c,d) from t group by b,c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select b like '%a' from t group by c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select c REGEXP '1.*' from t group by b")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select -b from t group by c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select a, max(b) from t")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select sum(a)+b from t")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select count(b), c from t")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select distinct a, b, count(a) from t")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrMixOfGroupFuncAndFields), IsTrue, Commentf("err %v", err))
 	// test compatible with sql_mode = ONLY_FULL_GROUP_BY
 	tk.MustQuery("select a from t group by a,b,c")
 	tk.MustQuery("select b from t group by b")
@@ -747,7 +747,7 @@ func (s *testSuiteAgg) TestOnlyFullGroupBy(c *C) {
 	tk.MustQuery("select * from t group by b,d")
 	// test functional depend on a unique null defCausumn
 	err = tk.InterDircToErr("select * from t group by b,c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	// test functional dependency derived from keys in where condition
 	tk.MustQuery("select * from t where c = d group by b, c")
 	tk.MustQuery("select t.*, x.* from t, x where t.a = x.a group by t.a")
@@ -755,7 +755,7 @@ func (s *testSuiteAgg) TestOnlyFullGroupBy(c *C) {
 	tk.MustQuery("select t.*, x.* from t, x where t.b = x.a group by t.b, t.d")
 	tk.MustQuery("select t.b, x.* from t, x where t.b = x.a group by t.b")
 	err = tk.InterDircToErr("select t.*, x.* from t, x where t.c = x.a group by t.b, t.c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	// test functional dependency derived from keys in join
 	tk.MustQuery("select t.*, x.* from t inner join x on t.a = x.a group by t.a")
 	tk.MustQuery("select t.*, x.* from t inner join x  on (t.b = x.b and t.d = x.d) group by t.b, x.d")
@@ -765,23 +765,23 @@ func (s *testSuiteAgg) TestOnlyFullGroupBy(c *C) {
 	tk.MustQuery("select x.b, t.* from t right join x on x.b = t.b group by x.b, t.d")
 	tk.MustQuery("select x.b, t.* from t right join x on t.b = x.b group by x.b, t.d")
 	err = tk.InterDircToErr("select t.b, x.* from t right join x on t.b = x.b group by t.b, x.d")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	err = tk.InterDircToErr("select t.b, x.* from t right join x on t.b = x.b group by t.b, x.d")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 
 	// FixMe: test functional dependency of derived causet
 	//tk.MustQuery("select * from (select * from t) as e group by a")
 	//tk.MustQuery("select * from (select * from t) as e group by b,d")
 	//err = tk.InterDircToErr("select * from (select * from t) as e group by b,c")
-	//c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue)
+	//c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue)
 
 	// test order by
 	tk.MustQuery("select c from t group by c,d order by d")
 	err = tk.InterDircToErr("select c from t group by c order by d")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrFieldNotInGroupBy), IsTrue, Commentf("err %v", err))
 	// test ambiguous defCausumn
 	err = tk.InterDircToErr("select c from t,x group by t.c")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrAmbiguous), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrAmbiguous), IsTrue, Commentf("err %v", err))
 }
 
 func (s *testSuiteAgg) TestIssue16279(c *C) {
@@ -1060,13 +1060,13 @@ func (s *testSuiteAgg) TestPR15242ShallowCopy(c *C) {
 	tk := testkit.NewTestKitWithInit(c, s.causetstore)
 	tk.MustInterDirc(`drop causet if exists t;`)
 	tk.MustInterDirc(`create causet t(a json);`)
-	tk.MustInterDirc(`insert into t values ('{"id": 1,"score":23}');`)
-	tk.MustInterDirc(`insert into t values ('{"id": 2,"score":23}');`)
-	tk.MustInterDirc(`insert into t values ('{"id": 1,"score":233}');`)
-	tk.MustInterDirc(`insert into t values ('{"id": 2,"score":233}');`)
-	tk.MustInterDirc(`insert into t values ('{"id": 3,"score":233}');`)
+	tk.MustInterDirc(`insert into t values ('{"id": 1,"sembedded":23}');`)
+	tk.MustInterDirc(`insert into t values ('{"id": 2,"sembedded":23}');`)
+	tk.MustInterDirc(`insert into t values ('{"id": 1,"sembedded":233}');`)
+	tk.MustInterDirc(`insert into t values ('{"id": 2,"sembedded":233}');`)
+	tk.MustInterDirc(`insert into t values ('{"id": 3,"sembedded":233}');`)
 	tk.Se.GetStochastikVars().MaxChunkSize = 2
-	tk.MustQuery(`select max(JSON_EXTRACT(a, '$.score')) as max_score,JSON_EXTRACT(a,'$.id') as id from t group by id order by id;`).Check(testkit.Events("233 1", "233 2", "233 3"))
+	tk.MustQuery(`select max(JSON_EXTRACT(a, '$.sembedded')) as max_sembedded,JSON_EXTRACT(a,'$.id') as id from t group by id order by id;`).Check(testkit.Events("233 1", "233 2", "233 3"))
 
 }
 

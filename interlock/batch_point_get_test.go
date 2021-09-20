@@ -16,16 +16,16 @@ package interlock_test
 import (
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type testBatchPointGetSuite struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func newStoreWithBootstrap() (ekv.CausetStorage, *petri.Petri, error) {

@@ -25,8 +25,8 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -86,10 +86,10 @@ type indexHashJoinInnerWorker struct {
 	joinChkResourceCh chan *chunk.Chunk
 	// resultCh is valid only when indexNestedLoopHashJoin do not need to keep
 	// order. Otherwise, it will be nil.
-	resultCh       chan *indexHashJoinResult
-	taskCh         <-chan *indexHashJoinTask
-	wg             *sync.WaitGroup
-	joinKeyBuf     []byte
+	resultCh         chan *indexHashJoinResult
+	taskCh           <-chan *indexHashJoinTask
+	wg               *sync.WaitGroup
+	joinKeyBuf       []byte
 	outerEventStatus []outerEventStatusFlag
 }
 
@@ -102,9 +102,9 @@ type indexHashJoinResult struct {
 type indexHashJoinTask struct {
 	*lookUpJoinTask
 	outerEventStatus [][]outerEventStatusFlag
-	lookupMap      baseHashBlock
-	err            error
-	keepOuterOrder bool
+	lookupMap        baseHashBlock
+	err              error
+	keepOuterOrder   bool
 	// resultCh is only used when the outer order needs to be promised.
 	resultCh chan *indexHashJoinResult
 	// matchedInnerEventPtrs is only valid when the outer order needs to be
@@ -351,7 +351,7 @@ func (ow *indexHashJoinOuterWorker) buildTask(ctx context.Context) (*indexHashJo
 		return nil, err
 	}
 	var (
-		resultCh            chan *indexHashJoinResult
+		resultCh              chan *indexHashJoinResult
 		matchedInnerEventPtrs [][][]chunk.EventPtr
 	)
 	if ow.keepOuterOrder {
@@ -367,10 +367,10 @@ func (ow *indexHashJoinOuterWorker) buildTask(ctx context.Context) (*indexHashJo
 		outerEventStatus[i] = make([]outerEventStatusFlag, task.outerResult.GetChunk(i).NumEvents())
 	}
 	return &indexHashJoinTask{
-		lookUpJoinTask:      task,
+		lookUpJoinTask:        task,
 		outerEventStatus:      outerEventStatus,
-		keepOuterOrder:      ow.keepOuterOrder,
-		resultCh:            resultCh,
+		keepOuterOrder:        ow.keepOuterOrder,
+		resultCh:              resultCh,
 		matchedInnerEventPtrs: matchedInnerEventPtrs,
 	}, nil
 }
@@ -389,7 +389,7 @@ func (e *IndexNestedLoopHashJoin) newOuterWorker(innerCh chan *indexHashJoinTask
 		outerWorker: outerWorker{
 			outerCtx:         e.outerCtx,
 			ctx:              e.ctx,
-			interlock:         e.children[0],
+			interlock:        e.children[0],
 			batchSize:        32,
 			maxBatchSize:     e.ctx.GetStochastikVars().IndexJoinBatchSize,
 			parentMemTracker: e.memTracker,
@@ -417,7 +417,7 @@ func (e *IndexNestedLoopHashJoin) newInnerWorker(taskCh chan *indexHashJoinTask,
 			innerCtx:      e.innerCtx,
 			outerCtx:      e.outerCtx,
 			ctx:           e.ctx,
-			interlockChk:   chunk.NewChunkWithCapacity(e.innerCtx.rowTypes, e.maxChunkSize),
+			interlockChk:  chunk.NewChunkWithCapacity(e.innerCtx.rowTypes, e.maxChunkSize),
 			indexRanges:   copiedRanges,
 			keyOff2IdxOff: e.keyOff2IdxOff,
 			stats:         innerStats,
@@ -428,7 +428,7 @@ func (e *IndexNestedLoopHashJoin) newInnerWorker(taskCh chan *indexHashJoinTask,
 		resultCh:          e.resultCh,
 		matchedOuterPtrs:  make([]chunk.EventPtr, 0, e.maxChunkSize),
 		joinKeyBuf:        make([]byte, 1),
-		outerEventStatus:    make([]outerEventStatusFlag, 0, e.maxChunkSize),
+		outerEventStatus:  make([]outerEventStatusFlag, 0, e.maxChunkSize),
 	}
 	if e.lastDefCausHelper != nil {
 		// nextCwf.TmpConstant needs to be reset for every individual
@@ -643,7 +643,7 @@ func (iw *indexHashJoinInnerWorker) getMatchedOuterEvents(innerEvent chunk.Event
 		return nil, nil, nil
 	}
 	joinType := JoinerType(iw.joiner)
-	isSemiJoin := joinType == causetcore.SemiJoin || joinType == causetcore.LeftOuterSemiJoin
+	isSemiJoin := joinType == causetembedded.SemiJoin || joinType == causetembedded.LeftOuterSemiJoin
 	matchedEvents = make([]chunk.Event, 0, len(iw.matchedOuterPtrs))
 	matchedEventPtr = make([]chunk.EventPtr, 0, len(iw.matchedOuterPtrs))
 	for _, ptr := range iw.matchedOuterPtrs {

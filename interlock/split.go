@@ -22,21 +22,21 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/helper"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/helper"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -50,7 +50,7 @@ type SplitIndexRegionInterDirc struct {
 	lower          []types.Causet
 	upper          []types.Causet
 	num            int
-	handleDefCauss     core.HandleDefCauss
+	handleDefCauss embedded.HandleDefCauss
 	valueLists     [][]types.Causet
 	splitIdxKeys   [][]byte
 
@@ -328,7 +328,7 @@ type SplitBlockRegionInterDirc struct {
 	lower          []types.Causet
 	upper          []types.Causet
 	num            int
-	handleDefCauss     core.HandleDefCauss
+	handleDefCauss embedded.HandleDefCauss
 	valueLists     [][]types.Causet
 	splitKeys      [][]byte
 
@@ -800,7 +800,7 @@ func getRegionInfo(causetstore einsteindb.CausetStorage, regions []regionMeta) (
 		return regions, nil
 	}
 	einsteindbHelper := &helper.Helper{
-		CausetStore:       causetstore,
+		CausetStore: causetstore,
 		RegionCache: causetstore.GetRegionCache(),
 	}
 	for i := range regions {

@@ -23,15 +23,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/plancodec"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -66,7 +66,7 @@ func (key *stmtSummaryByDigestKey) Hash() []byte {
 type stmtSummaryByDigestMap struct {
 	// It's rare to read concurrently, so RWMutex is not needed.
 	sync.Mutex
-	summaryMap *kvcache.SimpleLRUCache
+	summaryMap *ekvcache.SimpleLRUCache
 	// beginTimeForCurInterval is the begin time for current summary.
 	beginTimeForCurInterval int64
 
@@ -87,13 +87,13 @@ type stmtSummaryByDigest struct {
 	history *list.List
 	// Following fields are common for each summary element.
 	// They won't change once this object is created, so locking is not needed.
-	schemaName    string
-	digest        string
-	planDigest    string
-	stmtType      string
+	schemaName           string
+	digest               string
+	planDigest           string
+	stmtType             string
 	normalizedALLEGROSQL string
-	blockNames    string
-	isInternal    bool
+	blockNames           string
+	isInternal           bool
 }
 
 // stmtSummaryByDigestElement is the summary for each type of memexs in current interval.
@@ -103,13 +103,13 @@ type stmtSummaryByDigestElement struct {
 	beginTime int64
 	endTime   int64
 	// basic
-	sampleALLEGROSQL   string
-	prevALLEGROSQL     string
-	sampleCauset  string
-	indexNames  []string
-	execCount   int64
-	sumErrors   int
-	sumWarnings int
+	sampleALLEGROSQL string
+	prevALLEGROSQL   string
+	sampleCauset     string
+	indexNames       []string
+	execCount        int64
+	sumErrors        int
+	sumWarnings      int
 	// latency
 	sumLatency        time.Duration
 	maxLatency        time.Duration
@@ -119,7 +119,7 @@ type stmtSummaryByDigestElement struct {
 	sumCompileLatency time.Duration
 	maxCompileLatency time.Duration
 	// interlock
-	sumNumCausetTasks       int64
+	sumNumCausetTasks    int64
 	maxCopProcessTime    time.Duration
 	maxCopProcessAddress string
 	maxCopWaitTime       time.Duration
@@ -136,32 +136,32 @@ type stmtSummaryByDigestElement struct {
 	sumProcessedKeys int64
 	maxProcessedKeys int64
 	// txn
-	commitCount          int64
-	sumGetCommitTsTime   time.Duration
-	maxGetCommitTsTime   time.Duration
-	sumPrewriteTime      time.Duration
-	maxPrewriteTime      time.Duration
-	sumCommitTime        time.Duration
-	maxCommitTime        time.Duration
-	sumLocalLatchTime    time.Duration
-	maxLocalLatchTime    time.Duration
-	sumCommitBackoffTime int64
-	maxCommitBackoffTime int64
-	sumResolveLockTime   int64
-	maxResolveLockTime   int64
-	sumWriteKeys         int64
-	maxWriteKeys         int
-	sumWriteSize         int64
-	maxWriteSize         int
-	sumPrewriteRegionNum int64
-	maxPrewriteRegionNum int32
-	sumTxnRetry          int64
-	maxTxnRetry          int
-	sumInterDircRetryCount    int64
-	sumInterDircRetryTime     time.Duration
-	sumBackoffTimes      int64
-	backoffTypes         map[fmt.Stringer]int
-	authUsers            map[string]struct{}
+	commitCount            int64
+	sumGetCommitTsTime     time.Duration
+	maxGetCommitTsTime     time.Duration
+	sumPrewriteTime        time.Duration
+	maxPrewriteTime        time.Duration
+	sumCommitTime          time.Duration
+	maxCommitTime          time.Duration
+	sumLocalLatchTime      time.Duration
+	maxLocalLatchTime      time.Duration
+	sumCommitBackoffTime   int64
+	maxCommitBackoffTime   int64
+	sumResolveLockTime     int64
+	maxResolveLockTime     int64
+	sumWriteKeys           int64
+	maxWriteKeys           int
+	sumWriteSize           int64
+	maxWriteSize           int
+	sumPrewriteRegionNum   int64
+	maxPrewriteRegionNum   int32
+	sumTxnRetry            int64
+	maxTxnRetry            int
+	sumInterDircRetryCount int64
+	sumInterDircRetryTime  time.Duration
+	sumBackoffTimes        int64
+	backoffTypes           map[fmt.Stringer]int
+	authUsers              map[string]struct{}
 	// other
 	sumMem          int64
 	maxMem          int64
@@ -182,30 +182,30 @@ type stmtSummaryByDigestElement struct {
 
 // StmtInterDircInfo records execution information of each memex.
 type StmtInterDircInfo struct {
-	SchemaName     string
-	OriginalALLEGROSQL    string
-	NormalizedALLEGROSQL  string
-	Digest         string
-	PrevALLEGROSQL        string
-	PrevALLEGROSQLDigest  string
-	CausetGenerator  func() string
-	CausetDigest     string
-	CausetDigestGen  func() string
-	User           string
-	TotalLatency   time.Duration
-	ParseLatency   time.Duration
-	CompileLatency time.Duration
-	StmtCtx        *stmtctx.StatementContext
-	CausetTasks       *stmtctx.CausetTasksDetails
-	InterDircDetail     *execdetails.InterDircDetails
-	MemMax         int64
-	DiskMax        int64
-	StartTime      time.Time
-	IsInternal     bool
-	Succeed        bool
-	CausetInCache    bool
-	InterDircRetryCount uint
-	InterDircRetryTime  time.Duration
+	SchemaName           string
+	OriginalALLEGROSQL   string
+	NormalizedALLEGROSQL string
+	Digest               string
+	PrevALLEGROSQL       string
+	PrevALLEGROSQLDigest string
+	CausetGenerator      func() string
+	CausetDigest         string
+	CausetDigestGen      func() string
+	User                 string
+	TotalLatency         time.Duration
+	ParseLatency         time.Duration
+	CompileLatency       time.Duration
+	StmtCtx              *stmtctx.StatementContext
+	CausetTasks          *stmtctx.CausetTasksDetails
+	InterDircDetail      *execdetails.InterDircDetails
+	MemMax               int64
+	DiskMax              int64
+	StartTime            time.Time
+	IsInternal           bool
+	Succeed              bool
+	CausetInCache        bool
+	InterDircRetryCount  uint
+	InterDircRetryTime   time.Duration
 }
 
 // newStmtSummaryByDigestMap creates an empty stmtSummaryByDigestMap.
@@ -213,7 +213,7 @@ func newStmtSummaryByDigestMap() *stmtSummaryByDigestMap {
 	sysVars := newSysVars()
 	maxStmtCount := uint(sysVars.getVariable(typeMaxStmtCount))
 	return &stmtSummaryByDigestMap{
-		summaryMap: kvcache.NewSimpleLRUCache(maxStmtCount, 0, 0),
+		summaryMap: ekvcache.NewSimpleLRUCache(maxStmtCount, 0, 0),
 		sysVars:    sysVars,
 	}
 }
@@ -577,12 +577,12 @@ func newStmtSummaryByDigestElement(sei *StmtInterDircInfo, beginTime int64, inte
 	// sampleALLEGROSQL / authUsers(sampleUser) / sampleCauset / prevALLEGROSQL / indexNames causetstore the values shown at the first time,
 	// because it compacts performance to uFIDelate every time.
 	ssElement := &stmtSummaryByDigestElement{
-		beginTime: beginTime,
+		beginTime:        beginTime,
 		sampleALLEGROSQL: formatALLEGROSQL(sei.OriginalALLEGROSQL),
 		// PrevALLEGROSQL is already truncated to cfg.Log.QueryLogMaxLen.
 		prevALLEGROSQL: sei.PrevALLEGROSQL,
 		// sampleCauset needs to be decoded so it can't be truncated.
-		sampleCauset:    sei.CausetGenerator(),
+		sampleCauset:  sei.CausetGenerator(),
 		indexNames:    sei.StmtCtx.IndexNames,
 		minLatency:    sei.TotalLatency,
 		firstSeen:     sei.StartTime,

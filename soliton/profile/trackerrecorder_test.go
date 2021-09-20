@@ -19,7 +19,7 @@ import (
 	"unsafe"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 )
 
 var _ = Suite(&trackRecorderSuite{})
@@ -64,7 +64,7 @@ func (t *trackRecorderSuite) TestHeapProfileRecorder(c *C) {
 	// As runtime.MemProfileRate default values is 512 KB , so the num should be greater than 60000
 	// that the memory usage of the values would be greater than 512 KB.
 	num := 60000
-	lru := kvcache.NewSimpleLRUCache(uint(num), 0, 0)
+	lru := ekvcache.NewSimpleLRUCache(uint(num), 0, 0)
 
 	keys := make([]*mockCacheKey, num)
 	for i := 0; i < num; i++ {
@@ -80,7 +80,7 @@ func (t *trackRecorderSuite) TestHeapProfileRecorder(c *C) {
 		c.Assert(len(val), Equals, 10)
 	}
 
-	bytes, err := defCaus.getFuncMemUsage(kvcache.ProfileName)
+	bytes, err := defCaus.getFuncMemUsage(ekvcache.ProfileName)
 	c.Assert(err, IsNil)
 	valueSize := int(unsafe.Sizeof(getRandomString(10)))
 	// ensure that the consumed bytes is at least larger than num * size of value

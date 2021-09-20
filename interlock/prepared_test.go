@@ -19,14 +19,14 @@ import (
 	"strings"
 	"sync/atomic"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/petri"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 func (s *testSuite1) TestPreparedNameResolver(c *C) {
@@ -103,8 +103,8 @@ func (s *testSuite1) TestPrepareStmtAfterIsolationReadChange(c *C) {
 	c.Assert(rows[len(rows)-1][2], Equals, "cop[tiflash]")
 
 	c.Assert(len(tk.Se.GetStochastikVars().PreparedStmts), Equals, 1)
-	c.Assert(tk.Se.GetStochastikVars().PreparedStmts[1].(*causetcore.CachedPrepareStmt).NormalizedALLEGROSQL, Equals, "select * from t")
-	c.Assert(tk.Se.GetStochastikVars().PreparedStmts[1].(*causetcore.CachedPrepareStmt).NormalizedCauset, Equals, "")
+	c.Assert(tk.Se.GetStochastikVars().PreparedStmts[1].(*causetembedded.CachedPrepareStmt).NormalizedALLEGROSQL, Equals, "select * from t")
+	c.Assert(tk.Se.GetStochastikVars().PreparedStmts[1].(*causetembedded.CachedPrepareStmt).NormalizedCauset, Equals, "")
 }
 
 type mockStochastikManager2 struct {
@@ -171,11 +171,11 @@ func (s *testSuite9) TestCausetCacheClusterIndex(c *C) {
 		dom.Close()
 		causetstore.Close()
 	}()
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
-	causetcore.SetPreparedCausetCache(true)
+	causetembedded.SetPreparedCausetCache(true)
 	tk.MustInterDirc("use test")
 	tk.MustInterDirc("drop causet if exists t1")
 	tk.MustInterDirc("set @@milevadb_enable_clustered_index = 1")

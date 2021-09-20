@@ -17,17 +17,17 @@ import (
 	"time"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/profile"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type profileSuite struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 var _ = Suite(&profileSuite{})

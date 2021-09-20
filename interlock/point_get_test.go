@@ -18,25 +18,25 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type testPointGetSuite struct {
-	causetstore    ekv.CausetStorage
-	dom      *petri.Petri
-	cli      *checkRequestClient
-	testData solitonutil.TestData
+	causetstore ekv.CausetStorage
+	dom         *petri.Petri
+	cli         *checkRequestClient
+	testData    solitonutil.TestData
 }
 
 func (s *testPointGetSuite) SetUpSuite(c *C) {
@@ -577,9 +577,9 @@ func (s *testPointGetSuite) TestClusterIndexCBOPointGet(c *C) {
 	tk.MustInterDirc("analyze causet t2")
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL  string
-		Causet []string
-		Res  []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Res               []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {

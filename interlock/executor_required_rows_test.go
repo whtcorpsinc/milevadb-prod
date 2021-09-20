@@ -21,31 +21,31 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	. "github.com/whtcorpsinc/check"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causet/soliton"
 	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/memex/aggregation"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/types/json"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/types/json"
 )
 
 type requiredEventsDataSource struct {
 	baseInterlockingDirectorate
 	totalEvents int
-	count     int
-	ctx       stochastikctx.Context
+	count       int
+	ctx         stochastikctx.Context
 
 	expectedEventsRet []int
-	numNextCalled   int
+	numNextCalled     int
 
 	generator func(valType *types.FieldType) interface{}
 }
@@ -126,48 +126,48 @@ func (s *testInterDircSuite) TestLimitRequiredEvents(c *C) {
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
 		totalEvents      int
-		limitOffset    int
-		limitCount     int
+		limitOffset      int
+		limitCount       int
 		requiredEvents   []int
 		expectedEvents   []int
 		expectedEventsDS []int
 	}{
 		{
 			totalEvents:      20,
-			limitOffset:    0,
-			limitCount:     10,
+			limitOffset:      0,
+			limitCount:       10,
 			requiredEvents:   []int{3, 5, 1, 500, 500},
 			expectedEvents:   []int{3, 5, 1, 1, 0},
 			expectedEventsDS: []int{3, 5, 1, 1},
 		},
 		{
 			totalEvents:      20,
-			limitOffset:    0,
-			limitCount:     25,
+			limitOffset:      0,
+			limitCount:       25,
 			requiredEvents:   []int{9, 500},
 			expectedEvents:   []int{9, 11},
 			expectedEventsDS: []int{9, 11},
 		},
 		{
 			totalEvents:      100,
-			limitOffset:    50,
-			limitCount:     30,
+			limitOffset:      50,
+			limitCount:       30,
 			requiredEvents:   []int{10, 5, 10, 20},
 			expectedEvents:   []int{10, 5, 10, 5},
 			expectedEventsDS: []int{60, 5, 10, 5},
 		},
 		{
 			totalEvents:      100,
-			limitOffset:    101,
-			limitCount:     10,
+			limitOffset:      101,
+			limitCount:       10,
 			requiredEvents:   []int{10},
 			expectedEvents:   []int{0},
 			expectedEventsDS: []int{100, 0},
 		},
 		{
 			totalEvents:      maxChunkSize + 20,
-			limitOffset:    maxChunkSize + 1,
-			limitCount:     10,
+			limitOffset:      maxChunkSize + 1,
+			limitCount:       10,
 			requiredEvents:   []int{3, 3, 3, 100},
 			expectedEvents:   []int{3, 3, 3, 1},
 			expectedEventsDS: []int{maxChunkSize, 4, 3, 3, 1},
@@ -197,8 +197,8 @@ func buildLimitInterDirc(ctx stochastikctx.Context, src InterlockingDirectorate,
 	base.initCap = n
 	limitInterDirc := &LimitInterDirc{
 		baseInterlockingDirectorate: base,
-		begin:        uint64(offset),
-		end:          uint64(offset + count),
+		begin:                       uint64(offset),
+		end:                         uint64(offset + count),
 	}
 	return limitInterDirc
 }
@@ -217,35 +217,35 @@ func (s *testInterDircSuite) TestSortRequiredEvents(c *C) {
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
 		totalEvents      int
-		groupBy        []int
+		groupBy          []int
 		requiredEvents   []int
 		expectedEvents   []int
 		expectedEventsDS []int
 	}{
 		{
 			totalEvents:      10,
-			groupBy:        []int{0},
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 5, 3, 10},
 			expectedEvents:   []int{1, 5, 3, 1},
 			expectedEventsDS: []int{10, 0},
 		},
 		{
 			totalEvents:      10,
-			groupBy:        []int{0, 1},
+			groupBy:          []int{0, 1},
 			requiredEvents:   []int{1, 5, 3, 10},
 			expectedEvents:   []int{1, 5, 3, 1},
 			expectedEventsDS: []int{10, 0},
 		},
 		{
 			totalEvents:      maxChunkSize + 1,
-			groupBy:        []int{0},
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 5, 3, 10, maxChunkSize},
 			expectedEvents:   []int{1, 5, 3, 10, (maxChunkSize + 1) - 1 - 5 - 3 - 10},
 			expectedEventsDS: []int{maxChunkSize, 1, 0},
 		},
 		{
 			totalEvents:      3*maxChunkSize + 1,
-			groupBy:        []int{0},
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 5, 3, 10, maxChunkSize},
 			expectedEvents:   []int{1, 5, 3, 10, maxChunkSize},
 			expectedEventsDS: []int{maxChunkSize, maxChunkSize, maxChunkSize, 1, 0},
@@ -277,8 +277,8 @@ func (s *testInterDircSuite) TestSortRequiredEvents(c *C) {
 func buildSortInterDirc(sctx stochastikctx.Context, byItems []*soliton.ByItems, src InterlockingDirectorate) InterlockingDirectorate {
 	sortInterDirc := SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(sctx, src.Schema(), 0, src),
-		ByItems:      byItems,
-		schemaReplicant:       src.Schema(),
+		ByItems:                     byItems,
+		schemaReplicant:             src.Schema(),
 	}
 	return &sortInterDirc
 }
@@ -287,72 +287,72 @@ func (s *testInterDircSuite) TestTopNRequiredEvents(c *C) {
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
 		totalEvents      int
-		topNOffset     int
-		topNCount      int
-		groupBy        []int
+		topNOffset       int
+		topNCount        int
+		groupBy          []int
 		requiredEvents   []int
 		expectedEvents   []int
 		expectedEventsDS []int
 	}{
 		{
 			totalEvents:      10,
-			topNOffset:     0,
-			topNCount:      10,
-			groupBy:        []int{0},
+			topNOffset:       0,
+			topNCount:        10,
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 1, 1, 1, 10},
 			expectedEvents:   []int{1, 1, 1, 1, 6},
 			expectedEventsDS: []int{10, 0},
 		},
 		{
 			totalEvents:      100,
-			topNOffset:     15,
-			topNCount:      11,
-			groupBy:        []int{0},
+			topNOffset:       15,
+			topNCount:        11,
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 1, 1, 1, 10},
 			expectedEvents:   []int{1, 1, 1, 1, 7},
 			expectedEventsDS: []int{26, 100 - 26, 0},
 		},
 		{
 			totalEvents:      100,
-			topNOffset:     95,
-			topNCount:      10,
-			groupBy:        []int{0},
+			topNOffset:       95,
+			topNCount:        10,
+			groupBy:          []int{0},
 			requiredEvents:   []int{1, 2, 3, 10},
 			expectedEvents:   []int{1, 2, 2, 0},
 			expectedEventsDS: []int{100, 0, 0},
 		},
 		{
 			totalEvents:      maxChunkSize + 20,
-			topNOffset:     1,
-			topNCount:      5,
-			groupBy:        []int{0, 1},
+			topNOffset:       1,
+			topNCount:        5,
+			groupBy:          []int{0, 1},
 			requiredEvents:   []int{1, 3, 7, 10},
 			expectedEvents:   []int{1, 3, 1, 0},
 			expectedEventsDS: []int{6, maxChunkSize, 14, 0},
 		},
 		{
 			totalEvents:      maxChunkSize + maxChunkSize + 20,
-			topNOffset:     maxChunkSize + 10,
-			topNCount:      8,
-			groupBy:        []int{0, 1},
+			topNOffset:       maxChunkSize + 10,
+			topNCount:        8,
+			groupBy:          []int{0, 1},
 			requiredEvents:   []int{1, 2, 3, 5, 7},
 			expectedEvents:   []int{1, 2, 3, 2, 0},
 			expectedEventsDS: []int{maxChunkSize, 18, maxChunkSize, 2, 0},
 		},
 		{
 			totalEvents:      maxChunkSize*5 + 10,
-			topNOffset:     maxChunkSize*5 + 20,
-			topNCount:      10,
-			groupBy:        []int{0, 1},
+			topNOffset:       maxChunkSize*5 + 20,
+			topNCount:        10,
+			groupBy:          []int{0, 1},
 			requiredEvents:   []int{1, 2, 3},
 			expectedEvents:   []int{0, 0, 0},
 			expectedEventsDS: []int{maxChunkSize, maxChunkSize, maxChunkSize, maxChunkSize, maxChunkSize, 10, 0, 0},
 		},
 		{
 			totalEvents:      maxChunkSize + maxChunkSize + 10,
-			topNOffset:     10,
-			topNCount:      math.MaxInt64,
-			groupBy:        []int{0, 1},
+			topNOffset:       10,
+			topNCount:        math.MaxInt64,
+			groupBy:          []int{0, 1},
 			requiredEvents:   []int{1, 2, 3, maxChunkSize, maxChunkSize},
 			expectedEvents:   []int{1, 2, 3, maxChunkSize, maxChunkSize - 1 - 2 - 3},
 			expectedEventsDS: []int{maxChunkSize, maxChunkSize, 10, 0, 0},
@@ -384,12 +384,12 @@ func (s *testInterDircSuite) TestTopNRequiredEvents(c *C) {
 func buildTopNInterDirc(ctx stochastikctx.Context, offset, count int, byItems []*soliton.ByItems, src InterlockingDirectorate) InterlockingDirectorate {
 	sortInterDirc := SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, src.Schema(), 0, src),
-		ByItems:      byItems,
-		schemaReplicant:       src.Schema(),
+		ByItems:                     byItems,
+		schemaReplicant:             src.Schema(),
 	}
 	return &TopNInterDirc{
 		SortInterDirc: sortInterDirc,
-		limit:    &causetcore.PhysicalLimit{Count: uint64(count), Offset: uint64(offset)},
+		limit:         &causetembedded.PhysicalLimit{Count: uint64(count), Offset: uint64(offset)},
 	}
 }
 
@@ -412,12 +412,12 @@ func (s *testInterDircSuite) TestSelectionRequiredEvents(c *C) {
 
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
-		totalEvents      int
-		filtersOfDefCaus1  int
-		requiredEvents   []int
-		expectedEvents   []int
-		expectedEventsDS []int
-		gen            func(valType *types.FieldType) interface{}
+		totalEvents       int
+		filtersOfDefCaus1 int
+		requiredEvents    []int
+		expectedEvents    []int
+		expectedEventsDS  []int
+		gen               func(valType *types.FieldType) interface{}
 	}{
 		{
 			totalEvents:      20,
@@ -426,20 +426,20 @@ func (s *testInterDircSuite) TestSelectionRequiredEvents(c *C) {
 			expectedEventsDS: []int{20, 0},
 		},
 		{
-			totalEvents:      20,
-			filtersOfDefCaus1:  0,
-			requiredEvents:   []int{1, 3, 5, 7, 9},
-			expectedEvents:   []int{1, 3, 5, 1, 0},
-			expectedEventsDS: []int{20, 0, 0},
-			gen:            gen01(),
+			totalEvents:       20,
+			filtersOfDefCaus1: 0,
+			requiredEvents:    []int{1, 3, 5, 7, 9},
+			expectedEvents:    []int{1, 3, 5, 1, 0},
+			expectedEventsDS:  []int{20, 0, 0},
+			gen:               gen01(),
 		},
 		{
-			totalEvents:      maxChunkSize + 20,
-			filtersOfDefCaus1:  1,
-			requiredEvents:   []int{1, 3, 5, maxChunkSize},
-			expectedEvents:   []int{1, 3, 5, maxChunkSize/2 - 1 - 3 - 5 + 10},
-			expectedEventsDS: []int{maxChunkSize, 20, 0},
-			gen:            gen01(),
+			totalEvents:       maxChunkSize + 20,
+			filtersOfDefCaus1: 1,
+			requiredEvents:    []int{1, 3, 5, maxChunkSize},
+			expectedEvents:    []int{1, 3, 5, maxChunkSize/2 - 1 - 3 - 5 + 10},
+			expectedEventsDS:  []int{maxChunkSize, 20, 0},
+			gen:               gen01(),
 		},
 	}
 
@@ -477,7 +477,7 @@ func (s *testInterDircSuite) TestSelectionRequiredEvents(c *C) {
 func buildSelectionInterDirc(ctx stochastikctx.Context, filters []memex.Expression, src InterlockingDirectorate) InterlockingDirectorate {
 	return &SelectionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, src.Schema(), 0, src),
-		filters:      filters,
+		filters:                     filters,
 	}
 }
 
@@ -537,28 +537,28 @@ func (s *testInterDircSuite) TestProjectionParallelRequiredEvents(c *C) {
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
 		totalEvents      int
-		numWorkers     int
+		numWorkers       int
 		requiredEvents   []int
 		expectedEvents   []int
 		expectedEventsDS []int
 	}{
 		{
 			totalEvents:      20,
-			numWorkers:     1,
+			numWorkers:       1,
 			requiredEvents:   []int{1, 2, 3, 4, 5, 6, 1, 1},
 			expectedEvents:   []int{1, 1, 2, 3, 4, 5, 4, 0},
 			expectedEventsDS: []int{1, 1, 2, 3, 4, 5, 4, 0},
 		},
 		{
 			totalEvents:      maxChunkSize * 2,
-			numWorkers:     1,
+			numWorkers:       1,
 			requiredEvents:   []int{7, maxChunkSize, maxChunkSize, maxChunkSize},
 			expectedEvents:   []int{7, 7, maxChunkSize, maxChunkSize - 14},
 			expectedEventsDS: []int{7, 7, maxChunkSize, maxChunkSize - 14, 0},
 		},
 		{
 			totalEvents:      20,
-			numWorkers:     2,
+			numWorkers:       2,
 			requiredEvents:   []int{1, 2, 3, 4, 5, 6, 1, 1, 1},
 			expectedEvents:   []int{1, 1, 1, 2, 3, 4, 5, 3, 0},
 			expectedEventsDS: []int{1, 1, 1, 2, 3, 4, 5, 3, 0},
@@ -594,9 +594,9 @@ func (s *testInterDircSuite) TestProjectionParallelRequiredEvents(c *C) {
 
 func buildProjectionInterDirc(ctx stochastikctx.Context, exprs []memex.Expression, src InterlockingDirectorate, numWorkers int) InterlockingDirectorate {
 	return &ProjectionInterDirc{
-		baseInterlockingDirectorate:  newBaseInterlockingDirectorate(ctx, src.Schema(), 0, src),
-		numWorkers:    int64(numWorkers),
-		evaluatorSuit: memex.NewEvaluatorSuite(exprs, false),
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(ctx, src.Schema(), 0, src),
+		numWorkers:                  int64(numWorkers),
+		evaluatorSuit:               memex.NewEvaluatorSuite(exprs, false),
 	}
 }
 
@@ -623,35 +623,35 @@ func (s *testInterDircSuite) TestStreamAggRequiredEvents(c *C) {
 	maxChunkSize := defaultCtx().GetStochastikVars().MaxChunkSize
 	testCases := []struct {
 		totalEvents      int
-		aggFunc        string
+		aggFunc          string
 		requiredEvents   []int
 		expectedEvents   []int
 		expectedEventsDS []int
-		gen            func(valType *types.FieldType) interface{}
+		gen              func(valType *types.FieldType) interface{}
 	}{
 		{
 			totalEvents:      1000000,
-			aggFunc:        ast.AggFuncSum,
+			aggFunc:          ast.AggFuncSum,
 			requiredEvents:   []int{1, 2, 3, 4, 5, 6, 7},
 			expectedEvents:   []int{1, 2, 3, 4, 5, 6, 7},
 			expectedEventsDS: []int{maxChunkSize},
-			gen:            divGenerator(1),
+			gen:              divGenerator(1),
 		},
 		{
 			totalEvents:      maxChunkSize * 3,
-			aggFunc:        ast.AggFuncAvg,
+			aggFunc:          ast.AggFuncAvg,
 			requiredEvents:   []int{1, 3},
 			expectedEvents:   []int{1, 2},
 			expectedEventsDS: []int{maxChunkSize, maxChunkSize, maxChunkSize, 0},
-			gen:            divGenerator(maxChunkSize),
+			gen:              divGenerator(maxChunkSize),
 		},
 		{
 			totalEvents:      maxChunkSize*2 - 1,
-			aggFunc:        ast.AggFuncMax,
+			aggFunc:          ast.AggFuncMax,
 			requiredEvents:   []int{maxChunkSize/2 + 1},
 			expectedEvents:   []int{maxChunkSize/2 + 1},
 			expectedEventsDS: []int{maxChunkSize, maxChunkSize - 1},
-			gen:            divGenerator(2),
+			gen:              divGenerator(2),
 		},
 	}
 
@@ -689,8 +689,8 @@ func (s *testInterDircSuite) TestMergeJoinRequiredEvents(c *C) {
 			panic("not support")
 		}
 	}
-	joinTypes := []causetcore.JoinType{causetcore.RightOuterJoin, causetcore.LeftOuterJoin,
-		causetcore.LeftOuterSemiJoin, causetcore.AntiLeftOuterSemiJoin}
+	joinTypes := []causetembedded.JoinType{causetembedded.RightOuterJoin, causetembedded.LeftOuterJoin,
+		causetembedded.LeftOuterSemiJoin, causetembedded.AntiLeftOuterSemiJoin}
 	for _, joinType := range joinTypes {
 		ctx := defaultCtx()
 		required := make([]int, 100)
@@ -762,43 +762,43 @@ func genTestChunk4VecGroupChecker(chkEvents []int, sameNum int) (expr []memex.Ex
 
 func (s *testInterDircSuite) TestVecGroupChecker(c *C) {
 	testCases := []struct {
-		chunkEvents      []int
+		chunkEvents    []int
 		expectedGroups int
 		expectedFlag   []bool
 		sameNum        int
 	}{
 		{
-			chunkEvents:      []int{1024, 1},
+			chunkEvents:    []int{1024, 1},
 			expectedGroups: 1025,
 			expectedFlag:   []bool{false, false},
 			sameNum:        1,
 		},
 		{
-			chunkEvents:      []int{1024, 1},
+			chunkEvents:    []int{1024, 1},
 			expectedGroups: 1,
 			expectedFlag:   []bool{false, true},
 			sameNum:        1025,
 		},
 		{
-			chunkEvents:      []int{1, 1},
+			chunkEvents:    []int{1, 1},
 			expectedGroups: 1,
 			expectedFlag:   []bool{false, true},
 			sameNum:        2,
 		},
 		{
-			chunkEvents:      []int{1, 1},
+			chunkEvents:    []int{1, 1},
 			expectedGroups: 2,
 			expectedFlag:   []bool{false, false},
 			sameNum:        1,
 		},
 		{
-			chunkEvents:      []int{2, 2},
+			chunkEvents:    []int{2, 2},
 			expectedGroups: 2,
 			expectedFlag:   []bool{false, false},
 			sameNum:        2,
 		},
 		{
-			chunkEvents:      []int{2, 2},
+			chunkEvents:    []int{2, 2},
 			expectedGroups: 1,
 			expectedFlag:   []bool{false, true},
 			sameNum:        4,
@@ -824,14 +824,14 @@ func (s *testInterDircSuite) TestVecGroupChecker(c *C) {
 	}
 }
 
-func buildMergeJoinInterDirc(ctx stochastikctx.Context, joinType causetcore.JoinType, innerSrc, outerSrc InterlockingDirectorate) InterlockingDirectorate {
-	if joinType == causetcore.RightOuterJoin {
+func buildMergeJoinInterDirc(ctx stochastikctx.Context, joinType causetembedded.JoinType, innerSrc, outerSrc InterlockingDirectorate) InterlockingDirectorate {
+	if joinType == causetembedded.RightOuterJoin {
 		innerSrc, outerSrc = outerSrc, innerSrc
 	}
 
 	innerDefCauss := innerSrc.Schema().DeferredCausets
 	outerDefCauss := outerSrc.Schema().DeferredCausets
-	j := causetcore.BuildMergeJoinCauset(ctx, joinType, outerDefCauss, innerDefCauss)
+	j := causetembedded.BuildMergeJoinCauset(ctx, joinType, outerDefCauss, innerDefCauss)
 
 	j.SetChildren(&mockCauset{exec: outerSrc}, &mockCauset{exec: innerSrc})
 	defcaus := append(append([]*memex.DeferredCauset{}, outerDefCauss...), innerDefCauss...)

@@ -276,23 +276,23 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Quantile: 0.95,
 		Comment:  "The quantile of ekv storage interlock processing durations",
 	},
-	"milevadb_kv_backoff_duration": {
+	"milevadb_ekv_backoff_duration": {
 		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_backoff_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,type,instance))",
 		Labels:   []string{"instance", "type"},
 		Quantile: 0.95,
 		Comment:  "The quantile of ekv backoff time durations(second)",
 	},
-	"milevadb_kv_backoff_ops": {
+	"milevadb_ekv_backoff_ops": {
 		PromQL:  "sum(rate(milevadb_einsteindbclient_backoff_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
 		Comment: "ekv storage backoff times",
 	},
-	"milevadb_kv_region_error_ops": {
+	"milevadb_ekv_region_error_ops": {
 		PromQL:  "sum(rate(milevadb_einsteindbclient_region_err_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
 		Comment: "ekv region error times",
 	},
-	"milevadb_kv_region_error_total_count": {
+	"milevadb_ekv_region_error_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_region_err_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (type,instance)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of ekv region error",
@@ -317,29 +317,29 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance", "type"},
 		Comment: "safe point uFIDelate ops",
 	},
-	"milevadb_kv_request_ops": {
+	"milevadb_ekv_request_ops": {
 		Comment: "ekv request total by instance and command type",
 		PromQL:  "sum(rate(milevadb_einsteindbclient_request_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance, type)",
 		Labels:  []string{"instance", "type"},
 	},
-	"milevadb_kv_request_duration": {
+	"milevadb_ekv_request_duration": {
 		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_request_seconds_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,type,causetstore,instance))",
 		Labels:   []string{"instance", "type", "causetstore"},
 		Quantile: 0.95,
 		Comment:  "The quantile of ekv requests durations by causetstore",
 	},
-	"milevadb_kv_txn_ops": {
+	"milevadb_ekv_txn_ops": {
 		Comment: "MilevaDB total ekv transaction counts",
 		PromQL:  "sum(rate(milevadb_einsteindbclient_txn_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 	},
-	"milevadb_kv_write_num": {
-		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_txn_write_kv_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, instance))",
+	"milevadb_ekv_write_num": {
+		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_txn_write_ekv_num_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, instance))",
 		Labels:   []string{"instance"},
 		Quantile: 1,
 		Comment:  "The quantile of ekv write count per transaction execution",
 	},
-	"milevadb_kv_write_size": {
+	"milevadb_ekv_write_size": {
 		Comment:  "The quantile of ekv write size per transaction execution",
 		PromQL:   "histogram_quantile($QUANTILE, sum(rate(milevadb_einsteindbclient_txn_write_size_bytes_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le, instance))",
 		Labels:   []string{"instance"},
@@ -361,7 +361,7 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of safe point loading",
 	},
-	"milevadb_kv_snapshot_ops": {
+	"milevadb_ekv_snapshot_ops": {
 		Comment: "using snapshots total",
 		PromQL:  "sum(rate(milevadb_einsteindbclient_snapshot_total{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
@@ -1388,34 +1388,34 @@ var MetricBlockMap = map[string]MetricBlockDef{
 	},
 
 	"einsteindb_scheduler_keys_read": {
-		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_scheduler_kv_command_key_read_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,type))`,
+		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_scheduler_ekv_command_key_read_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,type))`,
 		Labels:   []string{"instance", "type"},
 		Quantile: 0.99,
 		Comment:  "The quantile count of keys read by command",
 	},
 	"einsteindb_scheduler_keys_read_avg": {
-		PromQL:  `sum(rate(einsteindb_scheduler_kv_command_key_read_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) / sum(rate(einsteindb_scheduler_kv_command_key_read_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) `,
+		PromQL:  `sum(rate(einsteindb_scheduler_ekv_command_key_read_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) / sum(rate(einsteindb_scheduler_ekv_command_key_read_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) `,
 		Labels:  []string{"instance", "type"},
 		Comment: "The average count of keys read by command",
 	},
 	"einsteindb_scheduler_keys_written": {
-		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_scheduler_kv_command_key_write_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,type))`,
+		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_scheduler_ekv_command_key_write_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance,type))`,
 		Labels:   []string{"instance", "type"},
 		Quantile: 0.99,
 		Comment:  "The quantile of count of keys written by a command",
 	},
 	"einsteindb_scheduler_keys_written_avg": {
-		PromQL:  `sum(rate(einsteindb_scheduler_kv_command_key_write_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) / sum(rate(einsteindb_scheduler_kv_command_key_write_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) `,
+		PromQL:  `sum(rate(einsteindb_scheduler_ekv_command_key_write_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) / sum(rate(einsteindb_scheduler_ekv_command_key_write_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) `,
 		Labels:  []string{"instance", "type"},
 		Comment: "The average count of keys written by a command",
 	},
 	"einsteindb_scheduler_scan_details": {
-		PromQL:  `sum(rate(einsteindb_scheduler_kv_scan_details{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (tag,instance,req,cf)`,
+		PromQL:  `sum(rate(einsteindb_scheduler_ekv_scan_details{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (tag,instance,req,cf)`,
 		Labels:  []string{"instance", "tag", "req", "cf"},
 		Comment: "The keys scan details of each CF when executing command",
 	},
 	"einsteindb_scheduler_scan_details_total_num": {
-		PromQL: `sum(increase(einsteindb_scheduler_kv_scan_details{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (tag,instance,req,cf)`,
+		PromQL: `sum(increase(einsteindb_scheduler_ekv_scan_details{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (tag,instance,req,cf)`,
 		Labels: []string{"instance", "tag", "req", "cf"},
 	},
 	"einsteindb_mvcc_versions": {
@@ -1520,8 +1520,8 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Quantile: 0.9999,
 		Comment:  "The quantile of snapshot size",
 	},
-	"einsteindb_snapshot_kv_count": {
-		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_snapshot_kv_count_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))`,
+	"einsteindb_snapshot_ekv_count": {
+		PromQL:   `histogram_quantile($QUANTILE, sum(rate(einsteindb_snapshot_ekv_count_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,instance))`,
 		Labels:   []string{"instance"},
 		Quantile: 0.9999,
 		Comment:  "The quantile of number of KV within a snapshot",
@@ -1585,7 +1585,7 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL: `sum(rate(einsteindb_coprocessor_scan_keys_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (req,instance)`,
 		Labels: []string{"instance", "req"},
 	},
-	"einsteindb_cop_kv_cursor_operations": {
+	"einsteindb_cop_ekv_cursor_operations": {
 		PromQL:   `histogram_quantile($QUANTILE, avg(rate(einsteindb_coprocessor_scan_keys_bucket{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (le,req,instance)) `,
 		Labels:   []string{"instance", "req"},
 		Quantile: 1,
@@ -2535,22 +2535,22 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance"},
 		Comment: "The total time of Duration (us) for getting token, it should be small until concurrency limit is reached(microsecond)",
 	},
-	"milevadb_kv_backoff_total_count": {
+	"milevadb_ekv_backoff_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_backoff_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of ekv backoff",
 	},
-	"milevadb_kv_backoff_total_time": {
+	"milevadb_ekv_backoff_total_time": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_backoff_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total time of ekv backoff time durations(second)",
 	},
-	"milevadb_kv_request_total_count": {
+	"milevadb_ekv_request_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_request_seconds_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,causetstore)",
 		Labels:  []string{"instance", "type", "causetstore"},
 		Comment: "The total count of ekv requests durations by causetstore",
 	},
-	"milevadb_kv_request_total_time": {
+	"milevadb_ekv_request_total_time": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_request_seconds_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type,causetstore)",
 		Labels:  []string{"instance", "type", "causetstore"},
 		Comment: "The total time of ekv requests durations by causetstore",
@@ -2942,22 +2942,22 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Labels:  []string{"instance"},
 		Comment: "The total num of allegrosql scan numbers",
 	},
-	"milevadb_kv_write_num_total_count": {
-		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_kv_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_ekv_write_num_total_count": {
+		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_ekv_num_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total count of ekv write in transaction execution",
 	},
-	"milevadb_kv_write_size_total_count": {
+	"milevadb_ekv_write_size_total_count": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_size_bytes_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total count of ekv write size per transaction execution",
 	},
-	"milevadb_kv_write_total_num": {
-		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_kv_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"milevadb_ekv_write_total_num": {
+		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_ekv_num_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total num of ekv write in transaction execution",
 	},
-	"milevadb_kv_write_total_size": {
+	"milevadb_ekv_write_total_size": {
 		PromQL:  "sum(increase(milevadb_einsteindbclient_txn_write_size_bytes_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total ekv write size in transaction execution",
@@ -3030,7 +3030,7 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		PromQL: "sum(increase(einsteindb_backup_range_size_bytes_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,cf)",
 		Labels: []string{"instance", "cf"},
 	},
-	"einsteindb_cop_kv_cursor_operations_total_count": {
+	"einsteindb_cop_ekv_cursor_operations_total_count": {
 		PromQL: "sum(increase(einsteindb_coprocessor_scan_keys_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,req)",
 		Labels: []string{"instance", "req"},
 	},
@@ -3097,32 +3097,32 @@ var MetricBlockMap = map[string]MetricBlockDef{
 		Comment: "The total size of requests into request batch per EinsteinDB instance",
 	},
 	"einsteindb_scheduler_keys_read_total_count": {
-		PromQL:  "sum(increase(einsteindb_scheduler_kv_command_key_read_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+		PromQL:  "sum(increase(einsteindb_scheduler_ekv_command_key_read_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of keys read by a command",
 	},
 	"einsteindb_scheduler_keys_total_read": {
-		PromQL:  "sum(increase(einsteindb_scheduler_kv_command_key_read_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+		PromQL:  "sum(increase(einsteindb_scheduler_ekv_command_key_read_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of keys read by command",
 	},
 	"einsteindb_scheduler_keys_total_written": {
-		PromQL:  "sum(increase(einsteindb_scheduler_kv_command_key_write_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+		PromQL:  "sum(increase(einsteindb_scheduler_ekv_command_key_write_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of keys written by a command",
 	},
 	"einsteindb_scheduler_keys_written_total_count": {
-		PromQL:  "sum(increase(einsteindb_scheduler_kv_command_key_write_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
+		PromQL:  "sum(increase(einsteindb_scheduler_ekv_command_key_write_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance,type)",
 		Labels:  []string{"instance", "type"},
 		Comment: "The total count of keys written by a command",
 	},
-	"einsteindb_snapshot_kv_count_total_count": {
-		PromQL:  "sum(increase(einsteindb_snapshot_kv_count_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"einsteindb_snapshot_ekv_count_total_count": {
+		PromQL:  "sum(increase(einsteindb_snapshot_ekv_count_count{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total count of number of KV within a snapshot",
 	},
-	"einsteindb_snapshot_kv_total_count": {
-		PromQL:  "sum(increase(einsteindb_snapshot_kv_count_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
+	"einsteindb_snapshot_ekv_total_count": {
+		PromQL:  "sum(increase(einsteindb_snapshot_ekv_count_sum{$LABEL_CONDITIONS}[$RANGE_DURATION])) by (instance)",
 		Labels:  []string{"instance"},
 		Comment: "The total number of KV within a snapshot",
 	},

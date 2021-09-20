@@ -17,13 +17,13 @@ import (
 	"context"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/interlock/aggfuncs"
 	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 // WindowInterDirc is the interlock for window functions.
@@ -235,9 +235,9 @@ func (p *aggWindowProcessor) resetPartialResult() {
 type rowFrameWindowProcessor struct {
 	windowFuncs    []aggfuncs.AggFunc
 	partialResults []aggfuncs.PartialResult
-	start          *core.FrameBound
-	end            *core.FrameBound
-	curEventIdx      uint64
+	start          *embedded.FrameBound
+	end            *embedded.FrameBound
+	curEventIdx    uint64
 }
 
 func (p *rowFrameWindowProcessor) getStartOffset(numEvents uint64) uint64 {
@@ -367,12 +367,12 @@ func (p *rowFrameWindowProcessor) resetPartialResult() {
 type rangeFrameWindowProcessor struct {
 	windowFuncs     []aggfuncs.AggFunc
 	partialResults  []aggfuncs.PartialResult
-	start           *core.FrameBound
-	end             *core.FrameBound
-	curEventIdx       uint64
+	start           *embedded.FrameBound
+	end             *embedded.FrameBound
+	curEventIdx     uint64
 	lastStartOffset uint64
 	lastEndOffset   uint64
-	orderByDefCauss     []*memex.DeferredCauset
+	orderByDefCauss []*memex.DeferredCauset
 	// expectedCmpResult is used to decide if one value is included in the frame.
 	expectedCmpResult int64
 }

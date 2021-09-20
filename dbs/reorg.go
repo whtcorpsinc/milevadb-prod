@@ -20,29 +20,29 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -330,12 +330,12 @@ func (dc *dbsCtx) buildDescBlockScan(ctx context.Context, startTS uint64, tbl ca
 	builder.Request.NotFillCache = true
 	builder.Request.Priority = ekv.PriorityLow
 
-	kvReq, err := builder.Build()
+	ekvReq, err := builder.Build()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	result, err := allegrosql.Select(ctx, sctx, kvReq, getDeferredCausetsTypes(handleDefCauss), statistics.NewQueryFeedback(0, nil, 0, false))
+	result, err := allegrosql.Select(ctx, sctx, ekvReq, getDeferredCausetsTypes(handleDefCauss), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

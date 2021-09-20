@@ -17,20 +17,20 @@ import (
 	"strconv"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 var _ = Suite(&testAdminSuite{})
 
 type testAdminSuite struct {
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	petri  *petri.Petri
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 }
 
 func (s *testAdminSuite) SetUpSuite(c *C) {

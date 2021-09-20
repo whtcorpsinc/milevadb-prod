@@ -26,11 +26,11 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	tlog "github.com/opentracing/opentracing-go/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/whtcorpsinc/errors"
 	zaplog "github.com/whtcorpsinc/log"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zapembedded"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -95,7 +95,7 @@ func NewLogConfig(level, format, slowQueryFile string, fileCfg FileLogConfig, di
 // isSKippedPackageName tests wether path name is on log library calling stack.
 func isSkippedPackageName(name string) bool {
 	return strings.Contains(name, "github.com/sirupsen/logrus") ||
-		strings.Contains(name, "github.com/coreos/pkg/capnslog")
+		strings.Contains(name, "github.com/embeddedos/pkg/capnslog")
 }
 
 // modifyHook injects file name and line pos into log entry.
@@ -287,7 +287,7 @@ func InitLogger(cfg *LogConfig) error {
 
 // InitZapLogger initializes a zap logger with cfg.
 func InitZapLogger(cfg *LogConfig) error {
-	gl, props, err := zaplog.InitLogger(&cfg.Config, zap.AddStacktrace(zapcore.FatalLevel))
+	gl, props, err := zaplog.InitLogger(&cfg.Config, zap.AddStacktrace(zapembedded.FatalLevel))
 	if err != nil {
 		return errors.Trace(err)
 	}

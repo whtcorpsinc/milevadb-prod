@@ -19,11 +19,7 @@ import (
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 )
 
-// AlterAlgorithm is used to causetstore supported alter algorithm.
-// For now, MilevaDB only support AlterAlgorithmInplace and AlterAlgorithmInstant.
-// The most alter operations are using instant algorithm, and only the add index is using inplace(not really inplace,
-// because we never causet the DML but costs some time to backfill the index data)
-// See https://dev.allegrosql.com/doc/refman/8.0/en/alter-causet.html#alter-causet-performance.
+
 type AlterAlgorithm struct {
 	// supported MUST causetstore algorithms in the order 'INSTANT, INPLACE, COPY'
 	supported []ast.AlgorithmType

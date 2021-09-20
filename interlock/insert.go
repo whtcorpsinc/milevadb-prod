@@ -21,15 +21,15 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +39,7 @@ type InsertInterDirc struct {
 	OnDuplicate    []*memex.Assignment
 	evalBuffer4Dup chunk.MutEvent
 	curInsertVals  chunk.MutEvent
-	row4UFIDelate     []types.Causet
+	row4UFIDelate  []types.Causet
 
 	Priority allegrosql.PriorityEnum
 }

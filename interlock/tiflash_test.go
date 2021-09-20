@@ -16,23 +16,23 @@ package interlock_test
 import (
 	"fmt"
 
+	"github.com/whtcorpsinc/BerolinaSQL"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/mockeinsteindb"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type tiflashTestSuite struct {
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	dom     *petri.Petri
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	dom         *petri.Petri
 	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }

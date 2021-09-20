@@ -20,15 +20,15 @@ import (
 	"strings"
 	"sync"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 func (s *testSuite8) TestInsertOnDuplicateKey(c *C) {

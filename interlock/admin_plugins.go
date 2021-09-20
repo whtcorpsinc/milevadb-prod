@@ -16,8 +16,8 @@ package interlock
 import (
 	"context"
 
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/plugin"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
@@ -25,16 +25,16 @@ import (
 // AdminPluginsInterDirc indicates AdminPlugins interlock.
 type AdminPluginsInterDirc struct {
 	baseInterlockingDirectorate
-	CausetAction  core.AdminPluginsCausetAction
-	Plugins []string
+	CausetAction embedded.AdminPluginsCausetAction
+	Plugins      []string
 }
 
 // Next implements the InterlockingDirectorate Next interface.
 func (e *AdminPluginsInterDirc) Next(ctx context.Context, _ *chunk.Chunk) error {
 	switch e.CausetAction {
-	case core.Enable:
+	case embedded.Enable:
 		return e.changeDisableFlagAndFlush(false)
-	case core.Disable:
+	case embedded.Disable:
 		return e.changeDisableFlagAndFlush(true)
 	}
 	return nil

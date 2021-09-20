@@ -19,12 +19,12 @@ import (
 	"runtime/trace"
 
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // UnionScanInterDirc merges the rows from dirty causet and the rows from allegrosql request.
@@ -35,21 +35,21 @@ type UnionScanInterDirc struct {
 	memBufSnap ekv.Getter
 
 	// usedIndex is the defCausumn offsets of the index which Src interlock has used.
-	usedIndex            []int
-	desc                 bool
-	conditions           []memex.Expression
+	usedIndex                []int
+	desc                     bool
+	conditions               []memex.Expression
 	conditionsWithVirDefCaus []memex.Expression
 	defCausumns              []*perceptron.DeferredCausetInfo
-	causet                causet.Block
+	causet                   causet.Block
 	// belowHandleDefCauss is the handle's position of the below scan plan.
-	belowHandleDefCauss causetcore.HandleDefCauss
+	belowHandleDefCauss causetembedded.HandleDefCauss
 
 	addedEvents           [][]types.Causet
 	cursor4AddEvents      int
-	sortErr             error
+	sortErr               error
 	snapshotEvents        [][]types.Causet
 	cursor4SnapshotEvents int
-	snapshotChunkBuffer *chunk.Chunk
+	snapshotChunkBuffer   *chunk.Chunk
 	mublockEvent          chunk.MutEvent
 	// virtualDeferredCausetIndex records all the indices of virtual defCausumns and sort them in definition
 	// to make sure we can compute the virtual defCausumn in right order.

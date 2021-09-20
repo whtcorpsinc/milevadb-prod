@@ -20,23 +20,23 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
 	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"go.uber.org/zap"
 )
 
@@ -62,15 +62,15 @@ var (
 type IndexMergeReaderInterlockingDirectorate struct {
 	baseInterlockingDirectorate
 
-	causet        causet.Block
-	indexes      []*perceptron.IndexInfo
-	descs        []bool
-	ranges       [][]*ranger.Range
-	posetPosetDagPBs       []*fidelpb.PosetDagRequest
-	startTS      uint64
-	blockRequest *fidelpb.PosetDagRequest
+	causet           causet.Block
+	indexes          []*perceptron.IndexInfo
+	descs            []bool
+	ranges           [][]*ranger.Range
+	posetPosetDagPBs []*fidelpb.PosetDagRequest
+	startTS          uint64
+	blockRequest     *fidelpb.PosetDagRequest
 	// defCausumns are only required by union scan.
-	defCausumns           []*perceptron.DeferredCausetInfo
+	defCausumns       []*perceptron.DeferredCausetInfo
 	partialStreamings []bool
 	blockStreaming    bool
 	*dataReaderBuilder
@@ -94,21 +94,21 @@ type IndexMergeReaderInterlockingDirectorate struct {
 	*checHoTTexValue
 
 	corDefCausInIdxSide bool
-	partialCausets    [][]causetcore.PhysicalCauset
+	partialCausets      [][]causetembedded.PhysicalCauset
 	corDefCausInTblSide bool
-	tblCausets        []causetcore.PhysicalCauset
+	tblCausets          []causetembedded.PhysicalCauset
 	corDefCausInAccess  bool
 	idxDefCauss         [][]*memex.DeferredCauset
 	defCausLens         [][]int
 
-	handleDefCauss causetcore.HandleDefCauss
+	handleDefCauss causetembedded.HandleDefCauss
 }
 
 // Open implements the InterlockingDirectorate Open interface
 func (e *IndexMergeReaderInterlockingDirectorate) Open(ctx context.Context) error {
 	e.keyRanges = make([][]ekv.KeyRange, 0, len(e.partialCausets))
 	for i, plan := range e.partialCausets {
-		_, ok := plan[0].(*causetcore.PhysicalIndexScan)
+		_, ok := plan[0].(*causetembedded.PhysicalIndexScan)
 		if !ok {
 			if e.causet.Meta().IsCommonHandle {
 				keyRanges, err := allegrosql.CommonHandleRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, getPhysicalBlockID(e.causet), e.ranges[i])
@@ -190,7 +190,7 @@ func (e *IndexMergeReaderInterlockingDirectorate) startPartialIndexWorker(ctx co
 	}
 
 	var builder allegrosql.RequestBuilder
-	kvReq, err := builder.SetKeyRanges(keyRange).
+	ekvReq, err := builder.SetKeyRanges(keyRange).
 		SetPosetDagRequest(e.posetPosetDagPBs[workID]).
 		SetStartTS(e.startTS).
 		SetDesc(e.descs[workID]).
@@ -203,7 +203,7 @@ func (e *IndexMergeReaderInterlockingDirectorate) startPartialIndexWorker(ctx co
 		return err
 	}
 
-	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, e.handleDefCauss.GetFieldsTypes(), e.feedbacks[workID], getPhysicalCausetIDs(e.partialCausets[workID]), e.id)
+	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, ekvReq, e.handleDefCauss.GetFieldsTypes(), e.feedbacks[workID], getPhysicalCausetIDs(e.partialCausets[workID]), e.id)
 	if err != nil {
 		return err
 	}
@@ -251,13 +251,13 @@ func (e *IndexMergeReaderInterlockingDirectorate) startPartialIndexWorker(ctx co
 func (e *IndexMergeReaderInterlockingDirectorate) buildPartialBlockReader(ctx context.Context, workID int) InterlockingDirectorate {
 	blockReaderInterDirc := &BlockReaderInterlockingDirectorate{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(e.ctx, e.schemaReplicant, 0),
-		causet:        e.causet,
-		posetPosetDagPB:        e.posetPosetDagPBs[workID],
-		startTS:      e.startTS,
-		streaming:    e.partialStreamings[workID],
-		feedback:     statistics.NewQueryFeedback(0, nil, 0, false),
-		plans:        e.partialCausets[workID],
-		ranges:       e.ranges[workID],
+		causet:                      e.causet,
+		posetPosetDagPB:             e.posetPosetDagPBs[workID],
+		startTS:                     e.startTS,
+		streaming:                   e.partialStreamings[workID],
+		feedback:                    statistics.NewQueryFeedback(0, nil, 0, false),
+		plans:                       e.partialCausets[workID],
+		ranges:                      e.ranges[workID],
 	}
 	return blockReaderInterDirc
 }
@@ -270,7 +270,7 @@ func (e *IndexMergeReaderInterlockingDirectorate) startPartialBlockWorker(ctx co
 		logutil.Logger(ctx).Error("open Select result failed:", zap.Error(err))
 		return err
 	}
-	blockInfo := e.partialCausets[workID][0].(*causetcore.PhysicalBlockScan).Block
+	blockInfo := e.partialCausets[workID][0].(*causetembedded.PhysicalBlockScan).Block
 	worker := &partialBlockWorker{
 		sc:           e.ctx,
 		batchSize:    e.maxChunkSize,
@@ -316,7 +316,7 @@ type partialBlockWorker struct {
 }
 
 func (w *partialBlockWorker) fetchHandles(ctx context.Context, exitCh <-chan struct{}, fetchCh chan<- *lookupBlockTask, resultCh chan<- *lookupBlockTask,
-	finished <-chan struct{}, handleDefCauss causetcore.HandleDefCauss) (count int64, err error) {
+	finished <-chan struct{}, handleDefCauss causetembedded.HandleDefCauss) (count int64, err error) {
 	chk := chunk.NewChunkWithCapacity(retTypes(w.blockReader), w.maxChunkSize)
 	for {
 		handles, retChunk, err := w.extractTaskHandles(ctx, chk, handleDefCauss)
@@ -345,7 +345,7 @@ func (w *partialBlockWorker) fetchHandles(ctx context.Context, exitCh <-chan str
 	}
 }
 
-func (w *partialBlockWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, handleDefCauss causetcore.HandleDefCauss) (
+func (w *partialBlockWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, handleDefCauss causetembedded.HandleDefCauss) (
 	handles []ekv.Handle, retChk *chunk.Chunk, err error) {
 	handles = make([]ekv.Handle, 0, w.batchSize)
 	for len(handles) < w.batchSize {
@@ -374,7 +374,7 @@ func (w *partialBlockWorker) extractTaskHandles(ctx context.Context, chk *chunk.
 
 func (w *partialBlockWorker) buildBlockTask(handles []ekv.Handle, retChk *chunk.Chunk) *lookupBlockTask {
 	task := &lookupBlockTask{
-		handles: handles,
+		handles:   handles,
 		idxEvents: retChk,
 	}
 
@@ -390,7 +390,7 @@ func (e *IndexMergeReaderInterlockingDirectorate) startIndexMergeBlockScanWorker
 			workCh:         workCh,
 			finished:       e.finished,
 			buildTblReader: e.buildFinalBlockReader,
-			tblCausets:       e.tblCausets,
+			tblCausets:     e.tblCausets,
 			memTracker:     memory.NewTracker(memory.LabelForSimpleTask, -1),
 		}
 		ctx1, cancel := context.WithCancel(ctx)
@@ -410,13 +410,13 @@ func (e *IndexMergeReaderInterlockingDirectorate) startIndexMergeBlockScanWorker
 func (e *IndexMergeReaderInterlockingDirectorate) buildFinalBlockReader(ctx context.Context, handles []ekv.Handle) (InterlockingDirectorate, error) {
 	blockReaderInterDirc := &BlockReaderInterlockingDirectorate{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(e.ctx, e.schemaReplicant, 0),
-		causet:        e.causet,
-		posetPosetDagPB:        e.blockRequest,
-		startTS:      e.startTS,
-		streaming:    e.blockStreaming,
-		defCausumns:      e.defCausumns,
-		feedback:     statistics.NewQueryFeedback(0, nil, 0, false),
-		plans:        e.tblCausets,
+		causet:                      e.causet,
+		posetPosetDagPB:             e.blockRequest,
+		startTS:                     e.startTS,
+		streaming:                   e.blockStreaming,
+		defCausumns:                 e.defCausumns,
+		feedback:                    statistics.NewQueryFeedback(0, nil, 0, false),
+		plans:                       e.tblCausets,
 	}
 	blockReaderInterDirc.buildVirtualDeferredCausetInfo()
 	blockReader, err := e.dataReaderBuilder.buildBlockReaderFromHandles(ctx, blockReaderInterDirc, handles)
@@ -573,7 +573,7 @@ func (w *partialIndexWorker) fetchHandles(
 	fetchCh chan<- *lookupBlockTask,
 	resultCh chan<- *lookupBlockTask,
 	finished <-chan struct{},
-	handleDefCauss causetcore.HandleDefCauss) (count int64, err error) {
+	handleDefCauss causetembedded.HandleDefCauss) (count int64, err error) {
 	chk := chunk.NewChunkWithCapacity(handleDefCauss.GetFieldsTypes(), w.maxChunkSize)
 	for {
 		handles, retChunk, err := w.extractTaskHandles(ctx, chk, result, handleDefCauss)
@@ -602,7 +602,7 @@ func (w *partialIndexWorker) fetchHandles(
 	}
 }
 
-func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult allegrosql.SelectResult, handleDefCauss causetcore.HandleDefCauss) (
+func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult allegrosql.SelectResult, handleDefCauss causetembedded.HandleDefCauss) (
 	handles []ekv.Handle, retChk *chunk.Chunk, err error) {
 	handles = make([]ekv.Handle, 0, w.batchSize)
 	for len(handles) < w.batchSize {
@@ -631,7 +631,7 @@ func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.
 
 func (w *partialIndexWorker) buildBlockTask(handles []ekv.Handle, retChk *chunk.Chunk) *lookupBlockTask {
 	task := &lookupBlockTask{
-		handles: handles,
+		handles:   handles,
 		idxEvents: retChk,
 	}
 
@@ -643,7 +643,7 @@ type indexMergeBlockScanWorker struct {
 	workCh         <-chan *lookupBlockTask
 	finished       <-chan struct{}
 	buildTblReader func(ctx context.Context, handles []ekv.Handle) (InterlockingDirectorate, error)
-	tblCausets       []causetcore.PhysicalCauset
+	tblCausets     []causetembedded.PhysicalCauset
 
 	// memTracker is used to track the memory usage of this interlock.
 	memTracker *memory.Tracker

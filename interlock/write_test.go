@@ -19,20 +19,20 @@ import (
 	"fmt"
 	"sync"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 type testBypassSuite struct{}
@@ -1528,7 +1528,7 @@ func (s *testSuite8) TestUFIDelate(c *C) {
 
 	tk.MustInterDirc("create view v as select * from t")
 	_, err = tk.InterDirc("uFIDelate v set a = '2000-11-11'")
-	c.Assert(err.Error(), Equals, core.ErrViewInvalid.GenWithStackByArgs("test", "v").Error())
+	c.Assert(err.Error(), Equals, embedded.ErrViewInvalid.GenWithStackByArgs("test", "v").Error())
 	tk.MustInterDirc("drop view v")
 
 	tk.MustInterDirc("create sequence seq")
@@ -1834,7 +1834,7 @@ func (s *testSuite) TestDelete(c *C) {
 
 	tk.MustInterDirc("create view v as select * from delete_test")
 	_, err = tk.InterDirc("delete from v where name = 'aaa'")
-	c.Assert(err.Error(), Equals, core.ErrViewInvalid.GenWithStackByArgs("test", "v").Error())
+	c.Assert(err.Error(), Equals, embedded.ErrViewInvalid.GenWithStackByArgs("test", "v").Error())
 	tk.MustInterDirc("drop view v")
 
 	tk.MustInterDirc("create sequence seq")

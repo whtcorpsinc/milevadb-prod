@@ -20,20 +20,20 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/BerolinaSQL/charset"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 func (s *testSuite) createSelectNormal(batch, totalRows int, c *C, planIDs []int) (*selectResult, []*types.FieldType) {
@@ -49,11 +49,11 @@ func (s *testSuite) createSelectNormal(batch, totalRows int, c *C, planIDs []int
 	/// 4 int64 types.
 	defCausTypes := []*types.FieldType{
 		{
-			Tp:      allegrosql.TypeLonglong,
-			Flen:    allegrosql.MaxIntWidth,
-			Decimal: 0,
-			Flag:    allegrosql.BinaryFlag,
-			Charset: charset.CharsetBin,
+			Tp:          allegrosql.TypeLonglong,
+			Flen:        allegrosql.MaxIntWidth,
+			Decimal:     0,
+			Flag:        allegrosql.BinaryFlag,
+			Charset:     charset.CharsetBin,
 			DefCauslate: charset.DefCauslationBin,
 		},
 	}
@@ -194,11 +194,11 @@ func (s *testSuite) createSelectStreaming(batch, totalRows int, c *C) (*streamRe
 	/// 4 int64 types.
 	defCausTypes := []*types.FieldType{
 		{
-			Tp:      allegrosql.TypeLonglong,
-			Flen:    allegrosql.MaxIntWidth,
-			Decimal: 0,
-			Flag:    allegrosql.BinaryFlag,
-			Charset: charset.CharsetBin,
+			Tp:          allegrosql.TypeLonglong,
+			Flen:        allegrosql.MaxIntWidth,
+			Decimal:     0,
+			Flag:        allegrosql.BinaryFlag,
+			Charset:     charset.CharsetBin,
 			DefCauslate: charset.DefCauslationBin,
 		},
 	}
@@ -464,11 +464,11 @@ func createSelectNormal(batch, totalRows int, ctx stochastikctx.Context) (*selec
 	/// 4 int64 types.
 	defCausTypes := []*types.FieldType{
 		{
-			Tp:      allegrosql.TypeLonglong,
-			Flen:    allegrosql.MaxIntWidth,
-			Decimal: 0,
-			Flag:    allegrosql.BinaryFlag,
-			Charset: charset.CharsetBin,
+			Tp:          allegrosql.TypeLonglong,
+			Flen:        allegrosql.MaxIntWidth,
+			Decimal:     0,
+			Flag:        allegrosql.BinaryFlag,
+			Charset:     charset.CharsetBin,
 			DefCauslate: charset.DefCauslationBin,
 		},
 	}

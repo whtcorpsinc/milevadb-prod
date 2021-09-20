@@ -21,28 +21,28 @@ import (
 	"unsafe"
 
 	"github.com/dgryski/go-farm"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/causet/soliton"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/interlock/aggfuncs"
 	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/memex/aggregation"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/types/json"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/types/json"
 )
 
 var _ = Suite(&testSuite{})
@@ -55,10 +55,10 @@ func TestT(t *testing.T) {
 
 type testSuite struct {
 	*BerolinaSQL.BerolinaSQL
-	ctx     stochastikctx.Context
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	petri  *petri.Petri
+	ctx         stochastikctx.Context
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 }
 
 func (s *testSuite) SetUpSuite(c *C) {
@@ -91,12 +91,12 @@ func (s *testSuite) TearDownTest(c *C) {
 }
 
 type aggTest struct {
-	dataType *types.FieldType
-	numEvents  int
-	dataGen  func(i int) types.Causet
-	funcName string
-	results  []types.Causet
-	orderBy  bool
+	dataType  *types.FieldType
+	numEvents int
+	dataGen   func(i int) types.Causet
+	funcName  string
+	results   []types.Causet
+	orderBy   bool
 }
 
 func (p *aggTest) genSrcChk() *chunk.Chunk {
@@ -122,7 +122,7 @@ func (p *aggTest) messUpChunk(c *chunk.Chunk) {
 type multiArgsAggTest struct {
 	dataTypes []*types.FieldType
 	retType   *types.FieldType
-	numEvents   int
+	numEvents int
 	dataGens  []func(i int) types.Causet
 	funcName  string
 	results   []types.Causet
@@ -264,19 +264,19 @@ func rowMemDeltaGens(srcChk *chunk.Chunk, dataType *types.FieldType) (memDeltas 
 }
 
 type aggMemTest struct {
-	aggTest            aggTest
-	allocMemDelta      int64
+	aggTest               aggTest
+	allocMemDelta         int64
 	uFIDelateMemDeltaGens uFIDelateMemDeltaGens
-	isDistinct         bool
+	isDistinct            bool
 }
 
 func builPosetDaggMemTester(funcName string, tp byte, numEvents int, allocMemDelta int64, uFIDelateMemDeltaGens uFIDelateMemDeltaGens, isDistinct bool) aggMemTest {
 	aggTest := builPosetDaggTester(funcName, tp, numEvents)
 	pt := aggMemTest{
-		aggTest:            aggTest,
-		allocMemDelta:      allocMemDelta,
+		aggTest:               aggTest,
+		allocMemDelta:         allocMemDelta,
 		uFIDelateMemDeltaGens: uFIDelateMemDeltaGens,
-		isDistinct:         isDistinct,
+		isDistinct:            isDistinct,
 	}
 	return pt
 }
@@ -370,10 +370,10 @@ func builPosetDaggTester(funcName string, tp byte, numEvents int, results ...int
 
 func builPosetDaggTesterWithFieldType(funcName string, ft *types.FieldType, numEvents int, results ...interface{}) aggTest {
 	pt := aggTest{
-		dataType: ft,
-		numEvents:  numEvents,
-		funcName: funcName,
-		dataGen:  getDataGenFunc(ft),
+		dataType:  ft,
+		numEvents: numEvents,
+		funcName:  funcName,
+		dataGen:   getDataGenFunc(ft),
 	}
 	for _, result := range results {
 		pt.results = append(pt.results, types.NewCauset(result))
@@ -467,7 +467,7 @@ func buildMultiArgsAggTesterWithFieldType(funcName string, fts []*types.FieldTyp
 	mt := multiArgsAggTest{
 		dataTypes: fts,
 		retType:   rt,
-		numEvents:   numEvents,
+		numEvents: numEvents,
 		funcName:  funcName,
 		dataGens:  dataGens,
 	}

@@ -1,4 +1,4 @@
-// Copyright 2020 WHTCORPS INC.
+backup// Copyright 2020 WHTCORPS INC.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 )
 
 
-func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request, fieldTypes []*types.FieldType, fb *statistics.QueryFeedback) (SelectResult, error) {
+func Select(ctx context.Context, sctx stochastikctx.Context, ekvReq *ekv.Request, fieldTypes []*types.FieldType, fb *statistics.QueryFeedback) (SelectResult, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
 		span1 := span.Tracer().StartSpan("allegrosql.Select", opentracing.ChildOf(span.Context()))
 		defer span1.Finish()
@@ -37,13 +37,13 @@ func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
 
 	// For testing purpose.
 	if hook := ctx.Value("CheckSelectRequestHook"); hook != nil {
-		hook.(func(*ekv.Request))(kvReq)
+		hook.(func(*ekv.Request))(ekvReq)
 	}
 
 	if !sctx.GetStochastikVars().EnableStreaming {
-		kvReq.Streaming = false
+		ekvReq.Streaming = false
 	}
-	resp := sctx.GetClient().Send(ctx, kvReq, sctx.GetStochastikVars().KVVars)
+	resp := sctx.GetClient().Send(ctx, ekvReq, sctx.GetStochastikVars().KVVars)
 	if resp == nil {
 		err := errors.New("client returns nil response")
 		return nil, err
@@ -54,11 +54,11 @@ func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
 		label = metrics.LblInternal
 	}
 
-	// kvReq.MemTracker is used to trace and control memory usage in DistALLEGROSQL layer;
+	// ekvReq.MemTracker is used to trace and control memory usage in DistALLEGROSQL layer;
 	// for streamResult, since it is a pipeline which has no buffer, it's not necessary to trace it;
-	// for selectResult, we just use the kvReq.MemTracker prepared for co-processor
+	// for selectResult, we just use the ekvReq.MemTracker prepared for co-processor
 	// instead of creating a new one for simplification.
-	if kvReq.Streaming {
+	if ekvReq.Streaming {
 		return &streamResult{
 			label:      "posetPosetDag-stream",
 			sqlType:    label,
@@ -81,7 +81,7 @@ func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
 		ctx:        sctx,
 		feedback:   fb,
 		sqlType:    label,
-		memTracker: kvReq.MemTracker,
+		memTracker: ekvReq.MemTracker,
 		encodeType: encodetype,
 	}, nil
 }
@@ -89,9 +89,9 @@ func Select(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
 // SelectWithRuntimeStats sends a PosetDag request, returns SelectResult.
 // The difference from Select is that SelectWithRuntimeStats will set copCausetIDs into selectResult,
 // which can help selectResult to defCauslect runtime stats.
-func SelectWithRuntimeStats(ctx context.Context, sctx stochastikctx.Context, kvReq *ekv.Request,
+func SelectWithRuntimeStats(ctx context.Context, sctx stochastikctx.Context, ekvReq *ekv.Request,
 	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copCausetIDs []int, rootCausetID int) (SelectResult, error) {
-	sr, err := Select(ctx, sctx, kvReq, fieldTypes, fb)
+	sr, err := Select(ctx, sctx, ekvReq, fieldTypes, fb)
 	if err == nil {
 		if selectResult, ok := sr.(*selectResult); ok {
 			selectResult.copCausetIDs = copCausetIDs
@@ -102,9 +102,9 @@ func SelectWithRuntimeStats(ctx context.Context, sctx stochastikctx.Context, kvR
 }
 
 // Analyze do a analyze request.
-func Analyze(ctx context.Context, client ekv.Client, kvReq *ekv.Request, vars *ekv.Variables,
+func Analyze(ctx context.Context, client ekv.Client, ekvReq *ekv.Request, vars *ekv.Variables,
 	isRestrict bool) (SelectResult, error) {
-	resp := client.Send(ctx, kvReq, vars)
+	resp := client.Send(ctx, ekvReq, vars)
 	if resp == nil {
 		return nil, errors.New("client returns nil response")
 	}
@@ -123,8 +123,8 @@ func Analyze(ctx context.Context, client ekv.Client, kvReq *ekv.Request, vars *e
 }
 
 // Checksum sends a checksum request.
-func Checksum(ctx context.Context, client ekv.Client, kvReq *ekv.Request, vars *ekv.Variables) (SelectResult, error) {
-	resp := client.Send(ctx, kvReq, vars)
+func Checksum(ctx context.Context, client ekv.Client, ekvReq *ekv.Request, vars *ekv.Variables) (SelectResult, error) {
+	resp := client.Send(ctx, ekvReq, vars)
 	if resp == nil {
 		return nil, errors.New("client returns nil response")
 	}

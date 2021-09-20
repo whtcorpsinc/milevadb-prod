@@ -27,17 +27,17 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	pperceptron "github.com/prometheus/common/perceptron"
 	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/fn"
-	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
-	"github.com/whtcorpsinc/sysutil"
-	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	pperceptron "github.com/prometheus/common/perceptron"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/sysutil"
 	"google.golang.org/grpc"
 )
 
@@ -45,7 +45,7 @@ type testMemBlockReaderSuite struct{ *testClusterBlockBase }
 
 type testClusterBlockBase struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func (s *testClusterBlockBase) SetUpSuite(c *C) {
@@ -88,7 +88,7 @@ func (s *testMemBlockReaderSuite) TestMetricBlockData(c *C) {
 
 	cases := []struct {
 		allegrosql string
-		exp []string
+		exp        []string
 	}{
 		{
 			allegrosql: "select time,instance,quantile,value from milevadb_query_duration;",
@@ -228,13 +228,13 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 		return result
 	}
 	var cases = []struct {
-		allegrosql      string
-		reqCount int32
-		rows     []string
+		allegrosql string
+		reqCount   int32
+		rows       []string
 	}{
 		{
-			allegrosql:      "select * from information_schema.cluster_config",
-			reqCount: 9,
+			allegrosql: "select * from information_schema.cluster_config",
+			reqCount:   9,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["milevadb"][1],
@@ -248,8 +248,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='fidel' or type='einsteindb'",
-			reqCount: 6,
+			allegrosql: "select * from information_schema.cluster_config where type='fidel' or type='einsteindb'",
+			reqCount:   6,
 			rows: flatten(
 				rows["einsteindb"][0],
 				rows["einsteindb"][1],
@@ -260,8 +260,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='fidel' or instance='" + testServers[0].address + "'",
-			reqCount: 9,
+			allegrosql: "select * from information_schema.cluster_config where type='fidel' or instance='" + testServers[0].address + "'",
+			reqCount:   9,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["einsteindb"][0],
@@ -271,12 +271,12 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='fidel' and type='einsteindb'",
-			reqCount: 0,
+			allegrosql: "select * from information_schema.cluster_config where type='fidel' and type='einsteindb'",
+			reqCount:   0,
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='einsteindb'",
-			reqCount: 3,
+			allegrosql: "select * from information_schema.cluster_config where type='einsteindb'",
+			reqCount:   3,
 			rows: flatten(
 				rows["einsteindb"][0],
 				rows["einsteindb"][1],
@@ -284,8 +284,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='fidel'",
-			reqCount: 3,
+			allegrosql: "select * from information_schema.cluster_config where type='fidel'",
+			reqCount:   3,
 			rows: flatten(
 				rows["fidel"][0],
 				rows["fidel"][1],
@@ -293,8 +293,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type='milevadb'",
-			reqCount: 3,
+			allegrosql: "select * from information_schema.cluster_config where type='milevadb'",
+			reqCount:   3,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["milevadb"][1],
@@ -302,8 +302,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where 'milevadb'=type",
-			reqCount: 3,
+			allegrosql: "select * from information_schema.cluster_config where 'milevadb'=type",
+			reqCount:   3,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["milevadb"][1],
@@ -311,8 +311,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type in ('milevadb', 'einsteindb')",
-			reqCount: 6,
+			allegrosql: "select * from information_schema.cluster_config where type in ('milevadb', 'einsteindb')",
+			reqCount:   6,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["milevadb"][1],
@@ -323,8 +323,8 @@ func (s *testMemBlockReaderSuite) TestMilevaDBClusterConfig(c *C) {
 			),
 		},
 		{
-			allegrosql:      "select * from information_schema.cluster_config where type in ('milevadb', 'einsteindb', 'fidel')",
-			reqCount: 9,
+			allegrosql: "select * from information_schema.cluster_config where type in ('milevadb', 'einsteindb', 'fidel')",
+			reqCount:   9,
 			rows: flatten(
 				rows["milevadb"][0],
 				rows["milevadb"][1],
@@ -421,11 +421,11 @@ func (s *testClusterBlockBase) writeTmpFile(c *C, dir, filename string, lines []
 }
 
 type testServer struct {
-	typ     string
-	server  *grpc.Server
-	address string
-	tmFIDelir  string
-	logFile string
+	typ       string
+	server    *grpc.Server
+	address   string
+	tmFIDelir string
+	logFile   string
 }
 
 func (s *testClusterBlockBase) setupClusterGRPCServer(c *C) map[string]*testServer {
@@ -446,11 +446,11 @@ func (s *testClusterBlockBase) setupClusterGRPCServer(c *C) map[string]*testServ
 		c.Assert(err, IsNil, Commentf("cannot find available port"))
 
 		testServers[typ] = &testServer{
-			typ:     typ,
-			server:  server,
-			address: fmt.Sprintf("127.0.0.1:%d", listener.Addr().(*net.TCPAddr).Port),
-			tmFIDelir:  tmFIDelir,
-			logFile: logFile,
+			typ:       typ,
+			server:    server,
+			address:   fmt.Sprintf("127.0.0.1:%d", listener.Addr().(*net.TCPAddr).Port),
+			tmFIDelir: tmFIDelir,
+			logFile:   logFile,
 		}
 		go func() {
 			if err := server.Serve(listener); err != nil {

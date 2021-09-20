@@ -21,23 +21,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/profile"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 const (
 	blockNameGlobalStatus                    = "global_status"
-	blockNameStochastikStatus                   = "stochastik_status"
+	blockNameStochastikStatus                = "stochastik_status"
 	blockNameSetupActors                     = "setup_actors"
 	blockNameSetupObjects                    = "setup_objects"
 	blockNameSetupInstruments                = "setup_instruments"
@@ -53,24 +53,24 @@ const (
 	blockNameEventsStagesHistory             = "events_stages_history"
 	blockNameEventsStagesHistoryLong         = "events_stages_history_long"
 	blockNameEventsStatementsSummaryByDigest = "events_memexs_summary_by_digest"
-	blockNameMilevaDBProfileCPU                  = "milevadb_profile_cpu"
-	blockNameMilevaDBProfileMemory               = "milevadb_profile_memory"
-	blockNameMilevaDBProfileMutex                = "milevadb_profile_mutex"
-	blockNameMilevaDBProfileAllocs               = "milevadb_profile_allocs"
-	blockNameMilevaDBProfileBlock                = "milevadb_profile_block"
-	blockNameMilevaDBProfileGoroutines           = "milevadb_profile_goroutines"
-	blockNameEinsteinDBProfileCPU                  = "einsteindb_profile_cpu"
-	blockNameFIDelProfileCPU                    = "FIDel_profile_cpu"
-	blockNameFIDelProfileMemory                 = "FIDel_profile_memory"
-	blockNameFIDelProfileMutex                  = "FIDel_profile_mutex"
-	blockNameFIDelProfileAllocs                 = "FIDel_profile_allocs"
-	blockNameFIDelProfileBlock                  = "FIDel_profile_block"
-	blockNameFIDelProfileGoroutines             = "FIDel_profile_goroutines"
+	blockNameMilevaDBProfileCPU              = "milevadb_profile_cpu"
+	blockNameMilevaDBProfileMemory           = "milevadb_profile_memory"
+	blockNameMilevaDBProfileMutex            = "milevadb_profile_mutex"
+	blockNameMilevaDBProfileAllocs           = "milevadb_profile_allocs"
+	blockNameMilevaDBProfileBlock            = "milevadb_profile_block"
+	blockNameMilevaDBProfileGoroutines       = "milevadb_profile_goroutines"
+	blockNameEinsteinDBProfileCPU            = "einsteindb_profile_cpu"
+	blockNameFIDelProfileCPU                 = "FIDel_profile_cpu"
+	blockNameFIDelProfileMemory              = "FIDel_profile_memory"
+	blockNameFIDelProfileMutex               = "FIDel_profile_mutex"
+	blockNameFIDelProfileAllocs              = "FIDel_profile_allocs"
+	blockNameFIDelProfileBlock               = "FIDel_profile_block"
+	blockNameFIDelProfileGoroutines          = "FIDel_profile_goroutines"
 )
 
 var blockIDMap = map[string]int64{
 	blockNameGlobalStatus:                    autoid.PerformanceSchemaDBID + 1,
-	blockNameStochastikStatus:                   autoid.PerformanceSchemaDBID + 2,
+	blockNameStochastikStatus:                autoid.PerformanceSchemaDBID + 2,
 	blockNameSetupActors:                     autoid.PerformanceSchemaDBID + 3,
 	blockNameSetupObjects:                    autoid.PerformanceSchemaDBID + 4,
 	blockNameSetupInstruments:                autoid.PerformanceSchemaDBID + 5,
@@ -86,27 +86,27 @@ var blockIDMap = map[string]int64{
 	blockNameEventsStagesHistory:             autoid.PerformanceSchemaDBID + 15,
 	blockNameEventsStagesHistoryLong:         autoid.PerformanceSchemaDBID + 16,
 	blockNameEventsStatementsSummaryByDigest: autoid.PerformanceSchemaDBID + 17,
-	blockNameMilevaDBProfileCPU:                  autoid.PerformanceSchemaDBID + 18,
-	blockNameMilevaDBProfileMemory:               autoid.PerformanceSchemaDBID + 19,
-	blockNameMilevaDBProfileMutex:                autoid.PerformanceSchemaDBID + 20,
-	blockNameMilevaDBProfileAllocs:               autoid.PerformanceSchemaDBID + 21,
-	blockNameMilevaDBProfileBlock:                autoid.PerformanceSchemaDBID + 22,
-	blockNameMilevaDBProfileGoroutines:           autoid.PerformanceSchemaDBID + 23,
-	blockNameEinsteinDBProfileCPU:                  autoid.PerformanceSchemaDBID + 24,
-	blockNameFIDelProfileCPU:                    autoid.PerformanceSchemaDBID + 25,
-	blockNameFIDelProfileMemory:                 autoid.PerformanceSchemaDBID + 26,
-	blockNameFIDelProfileMutex:                  autoid.PerformanceSchemaDBID + 27,
-	blockNameFIDelProfileAllocs:                 autoid.PerformanceSchemaDBID + 28,
-	blockNameFIDelProfileBlock:                  autoid.PerformanceSchemaDBID + 29,
-	blockNameFIDelProfileGoroutines:             autoid.PerformanceSchemaDBID + 30,
+	blockNameMilevaDBProfileCPU:              autoid.PerformanceSchemaDBID + 18,
+	blockNameMilevaDBProfileMemory:           autoid.PerformanceSchemaDBID + 19,
+	blockNameMilevaDBProfileMutex:            autoid.PerformanceSchemaDBID + 20,
+	blockNameMilevaDBProfileAllocs:           autoid.PerformanceSchemaDBID + 21,
+	blockNameMilevaDBProfileBlock:            autoid.PerformanceSchemaDBID + 22,
+	blockNameMilevaDBProfileGoroutines:       autoid.PerformanceSchemaDBID + 23,
+	blockNameEinsteinDBProfileCPU:            autoid.PerformanceSchemaDBID + 24,
+	blockNameFIDelProfileCPU:                 autoid.PerformanceSchemaDBID + 25,
+	blockNameFIDelProfileMemory:              autoid.PerformanceSchemaDBID + 26,
+	blockNameFIDelProfileMutex:               autoid.PerformanceSchemaDBID + 27,
+	blockNameFIDelProfileAllocs:              autoid.PerformanceSchemaDBID + 28,
+	blockNameFIDelProfileBlock:               autoid.PerformanceSchemaDBID + 29,
+	blockNameFIDelProfileGoroutines:          autoid.PerformanceSchemaDBID + 30,
 }
 
 // perfSchemaBlock stands for the fake causet all its data is in the memory.
 type perfSchemaBlock struct {
 	schemareplicant.VirtualBlock
 	spacetime *perceptron.BlockInfo
-	defcaus []*causet.DeferredCauset
-	tp   causet.Type
+	defcaus   []*causet.DeferredCauset
+	tp        causet.Type
 }
 
 var pluginBlock = make(map[string]func(autoid.SlabPredictors, *perceptron.BlockInfo) (causet.Block, error))
@@ -142,8 +142,8 @@ func createPerfSchemaBlock(spacetime *perceptron.BlockInfo) *perfSchemaBlock {
 	tp := causet.VirtualBlock
 	t := &perfSchemaBlock{
 		spacetime: spacetime,
-		defcaus: defCausumns,
-		tp:   tp,
+		defcaus:   defCausumns,
+		tp:        tp,
 	}
 	return t
 }

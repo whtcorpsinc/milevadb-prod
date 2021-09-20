@@ -20,26 +20,26 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 var _ = Suite(&testDeferredCausetChangeSuite{})
 
 type testDeferredCausetChangeSuite struct {
-	causetstore  ekv.CausetStorage
-	dbInfo *perceptron.DBInfo
+	causetstore ekv.CausetStorage
+	dbInfo      *perceptron.DBInfo
 }
 
 func (s *testDeferredCausetChangeSuite) SetUpSuite(c *C) {
@@ -172,10 +172,10 @@ func (s *testDeferredCausetChangeSuite) TestModifyAutoRandDeferredCausetWithMeta
 		FieldType: *types.NewFieldType(allegrosql.TypeLonglong),
 	}
 	tblInfo := &perceptron.BlockInfo{
-		ID:             blockID,
-		Name:           perceptron.NewCIStr("auto_random_block_name"),
-		DeferredCausets:        []*perceptron.DeferredCausetInfo{defCausInfo},
-		AutoRandomBits: 5,
+		ID:              blockID,
+		Name:            perceptron.NewCIStr("auto_random_block_name"),
+		DeferredCausets: []*perceptron.DeferredCausetInfo{defCausInfo},
+		AutoRandomBits:  5,
 	}
 	defCausInfo.ID = allocateDeferredCausetID(tblInfo)
 	ctx := testNewContext(d)

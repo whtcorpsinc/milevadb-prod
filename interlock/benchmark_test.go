@@ -24,38 +24,38 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/memex/aggregation"
-	"github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/log"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/causet/property"
 	"github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/memex/aggregation"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
-	"go.uber.org/zap/zapcore"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
+	"go.uber.org/zap/zapembedded"
 )
 
 var (
-	_          InterlockingDirectorate          = &mockDataSource{}
-	_          core.PhysicalCauset = &mockDataPhysicalCauset{}
-	wideString                   = strings.Repeat("x", 5*1024)
+	_          InterlockingDirectorate = &mockDataSource{}
+	_          embedded.PhysicalCauset = &mockDataPhysicalCauset{}
+	wideString                         = strings.Repeat("x", 5*1024)
 )
 
 type mockDataSourceParameters struct {
-	schemaReplicant      *memex.Schema
-	genDataFunc func(event int, typ *types.FieldType) interface{}
-	ndvs        []int  // number of distinct values on defCausumns[i] and zero represents no limit
-	orders      []bool // defCausumns[i] should be ordered if orders[i] is true
-	rows        int    // number of rows the DataSource should output
-	ctx         stochastikctx.Context
+	schemaReplicant *memex.Schema
+	genDataFunc     func(event int, typ *types.FieldType) interface{}
+	ndvs            []int  // number of distinct values on defCausumns[i] and zero represents no limit
+	orders          []bool // defCausumns[i] should be ordered if orders[i] is true
+	rows            int    // number of rows the DataSource should output
+	ctx             stochastikctx.Context
 }
 
 type mockDataSource struct {
@@ -69,7 +69,7 @@ type mockDataSource struct {
 type mockDataPhysicalCauset struct {
 	MockPhysicalCauset
 	schemaReplicant *memex.Schema
-	exec   InterlockingDirectorate
+	exec            InterlockingDirectorate
 }
 
 func (mp *mockDataPhysicalCauset) GetInterlockingDirectorate() InterlockingDirectorate {
@@ -264,7 +264,7 @@ func defaultAggTestCase(exec string) *aggTestCase {
 
 func buildHashAggInterlockingDirectorate(ctx stochastikctx.Context, src InterlockingDirectorate, schemaReplicant *memex.Schema,
 	aggFuncs []*aggregation.AggFuncDesc, groupItems []memex.Expression) InterlockingDirectorate {
-	plan := new(core.PhysicalHashAgg)
+	plan := new(embedded.PhysicalHashAgg)
 	plan.AggFuncs = aggFuncs
 	plan.GroupByItems = groupItems
 	plan.SetSchema(schemaReplicant)
@@ -279,7 +279,7 @@ func buildHashAggInterlockingDirectorate(ctx stochastikctx.Context, src Interloc
 
 func buildStreamAggInterlockingDirectorate(ctx stochastikctx.Context, src InterlockingDirectorate, schemaReplicant *memex.Schema,
 	aggFuncs []*aggregation.AggFuncDesc, groupItems []memex.Expression) InterlockingDirectorate {
-	plan := new(core.PhysicalStreamAgg)
+	plan := new(embedded.PhysicalStreamAgg)
 	plan.AggFuncs = aggFuncs
 	plan.GroupByItems = groupItems
 	plan.SetSchema(schemaReplicant)
@@ -327,10 +327,10 @@ func benchmarkAggInterDircWithCase(b *testing.B, casTest *aggTestCase) {
 	orders := []bool{false, casTest.execType == "stream"}
 	dataSource := buildMockDataSource(mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(defcaus...),
-		ndvs:   []int{0, casTest.groupByNDV},
-		orders: orders,
-		rows:   casTest.rows,
-		ctx:    casTest.ctx,
+		ndvs:            []int{0, casTest.groupByNDV},
+		orders:          orders,
+		rows:            casTest.rows,
+		ctx:             casTest.ctx,
 	})
 
 	b.ResetTimer()
@@ -427,13 +427,13 @@ func BenchmarkAggDistinct(b *testing.B) {
 	}
 }
 
-func buildWindowInterlockingDirectorate(ctx stochastikctx.Context, windowFunc string, funcs int, frame *core.WindowFrame, srcInterDirc InterlockingDirectorate, schemaReplicant *memex.Schema, partitionBy []*memex.DeferredCauset, concurrency int, dataSourceSorted bool) InterlockingDirectorate {
+func buildWindowInterlockingDirectorate(ctx stochastikctx.Context, windowFunc string, funcs int, frame *embedded.WindowFrame, srcInterDirc InterlockingDirectorate, schemaReplicant *memex.Schema, partitionBy []*memex.DeferredCauset, concurrency int, dataSourceSorted bool) InterlockingDirectorate {
 	src := &mockDataPhysicalCauset{
 		schemaReplicant: srcInterDirc.Schema(),
-		exec:   srcInterDirc,
+		exec:            srcInterDirc,
 	}
 
-	win := new(core.PhysicalWindow)
+	win := new(embedded.PhysicalWindow)
 	win.WindowFuncDescs = make([]*aggregation.WindowFuncDesc, 0)
 	winSchema := schemaReplicant.Clone()
 	for i := 0; i < funcs; i++ {
@@ -471,13 +471,13 @@ func buildWindowInterlockingDirectorate(ctx stochastikctx.Context, windowFunc st
 	win.SetSchema(winSchema)
 	win.Init(ctx, nil, 0)
 
-	var tail core.PhysicalCauset = win
+	var tail embedded.PhysicalCauset = win
 	if !dataSourceSorted {
 		byItems := make([]*soliton.ByItems, 0, len(partitionBy))
 		for _, defCaus := range partitionBy {
 			byItems = append(byItems, &soliton.ByItems{Expr: defCaus, Desc: false})
 		}
-		sort := &core.PhysicalSort{ByItems: byItems}
+		sort := &embedded.PhysicalSort{ByItems: byItems}
 		sort.SetChildren(src)
 		win.SetChildren(sort)
 		tail = sort
@@ -485,18 +485,18 @@ func buildWindowInterlockingDirectorate(ctx stochastikctx.Context, windowFunc st
 		win.SetChildren(src)
 	}
 
-	var plan core.PhysicalCauset
+	var plan embedded.PhysicalCauset
 	if concurrency > 1 {
 		byItems := make([]memex.Expression, 0, len(win.PartitionBy))
 		for _, item := range win.PartitionBy {
 			byItems = append(byItems, item.DefCaus)
 		}
 
-		plan = core.PhysicalShuffle{
+		plan = embedded.PhysicalShuffle{
 			Concurrency:  concurrency,
 			Tail:         tail,
 			DataSource:   src,
-			SplitterType: core.PartitionHashSplitterType,
+			SplitterType: embedded.PartitionHashSplitterType,
 			HashByItems:  byItems,
 		}.Init(ctx, nil, 0)
 		plan.SetChildren(win)
@@ -513,14 +513,14 @@ func buildWindowInterlockingDirectorate(ctx stochastikctx.Context, windowFunc st
 type windowTestCase struct {
 	windowFunc       string
 	numFunc          int // The number of windowFuncs. Default: 1.
-	frame            *core.WindowFrame
+	frame            *embedded.WindowFrame
 	ndv              int // the number of distinct group-by keys
 	rows             int
 	concurrency      int
 	dataSourceSorted bool
 	ctx              stochastikctx.Context
 	rawDataSmall     string
-	defCausumns          []*memex.DeferredCauset // the defCausumns of mock schemaReplicant
+	defCausumns      []*memex.DeferredCauset // the defCausumns of mock schemaReplicant
 }
 
 func (a windowTestCase) String() string {
@@ -550,10 +550,10 @@ func benchmarkWindowInterDircWithCase(b *testing.B, casTest *windowTestCase) {
 	defcaus := casTest.defCausumns
 	dataSource := buildMockDataSource(mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(defcaus...),
-		ndvs:   []int{0, casTest.ndv, 0, 0},
-		orders: []bool{false, casTest.dataSourceSorted, false, false},
-		rows:   casTest.rows,
-		ctx:    casTest.ctx,
+		ndvs:            []int{0, casTest.ndv, 0, 0},
+		orders:          []bool{false, casTest.dataSourceSorted, false, false},
+		rows:            casTest.rows,
+		ctx:             casTest.ctx,
 	})
 
 	b.ResetTimer()
@@ -646,8 +646,8 @@ func BenchmarkWindowFunctionsWithFrame(b *testing.B) {
 		ast.AggFuncBitXor,
 	}
 	numFuncs := []int{1, 5}
-	frames := []*core.WindowFrame{
-		{Type: ast.Events, Start: &core.FrameBound{UnBounded: true}, End: &core.FrameBound{Type: ast.CurrentEvent}},
+	frames := []*embedded.WindowFrame{
+		{Type: ast.Events, Start: &embedded.FrameBound{UnBounded: true}, End: &embedded.FrameBound{Type: ast.CurrentEvent}},
 	}
 	sortTypes := []bool{false, true}
 	concs := []int{1, 2, 3, 4, 5, 6}
@@ -677,7 +677,7 @@ func BenchmarkWindowFunctionsWithFrame(b *testing.B) {
 func BenchmarkWindowFunctionsAggWindowProcessorAboutFrame(b *testing.B) {
 	b.ReportAllocs()
 	windowFunc := ast.AggFuncMax
-	frame := &core.WindowFrame{Type: ast.Events, Start: &core.FrameBound{UnBounded: true}, End: &core.FrameBound{UnBounded: true}}
+	frame := &embedded.WindowFrame{Type: ast.Events, Start: &embedded.FrameBound{UnBounded: true}, End: &embedded.FrameBound{UnBounded: true}}
 	cas := defaultWindowTestCase()
 	cas.rows = 10000
 	cas.ndv = 10
@@ -694,7 +694,7 @@ func BenchmarkWindowFunctionsAggWindowProcessorAboutFrame(b *testing.B) {
 func baseBenchmarkWindowFunctionsWithSlidingWindow(b *testing.B, frameType ast.FrameType) {
 	b.ReportAllocs()
 	windowFuncs := []struct {
-		aggFunc     string
+		aggFunc         string
 		aggDefCausTypes byte
 	}{
 		{ast.AggFuncSum, allegrosql.TypeFloat},
@@ -710,10 +710,10 @@ func baseBenchmarkWindowFunctionsWithSlidingWindow(b *testing.B, frameType ast.F
 	}
 	event := 100000
 	ndv := 100
-	frame := &core.WindowFrame{
+	frame := &embedded.WindowFrame{
 		Type:  frameType,
-		Start: &core.FrameBound{Type: ast.Preceding, Num: 10},
-		End:   &core.FrameBound{Type: ast.Following, Num: 10},
+		Start: &embedded.FrameBound{Type: ast.Preceding, Num: 10},
+		End:   &embedded.FrameBound{Type: ast.Following, Num: 10},
 	}
 	for _, windowFunc := range windowFuncs {
 		cas := defaultWindowTestCase()
@@ -736,11 +736,11 @@ func BenchmarkWindowFunctionsWithSlidingWindow(b *testing.B) {
 
 type hashJoinTestCase struct {
 	rows               int
-	defcaus               []*types.FieldType
+	defcaus            []*types.FieldType
 	concurrency        int
 	ctx                stochastikctx.Context
 	keyIdx             []int
-	joinType           core.JoinType
+	joinType           embedded.JoinType
 	disk               bool
 	useOuterToBuild    bool
 	rawData            string
@@ -761,7 +761,7 @@ func (tc hashJoinTestCase) String() string {
 		tc.rows, tc.defcaus, tc.concurrency, tc.keyIdx, tc.disk)
 }
 
-func defaultHashJoinTestCase(defcaus []*types.FieldType, joinType core.JoinType, useOuterToBuild bool) *hashJoinTestCase {
+func defaultHashJoinTestCase(defcaus []*types.FieldType, joinType embedded.JoinType, useOuterToBuild bool) *hashJoinTestCase {
 	ctx := mock.NewContext()
 	ctx.GetStochastikVars().InitChunkSize = variable.DefInitChunkSize
 	ctx.GetStochastikVars().MaxChunkSize = variable.DefMaxChunkSize
@@ -808,16 +808,16 @@ func prepare4HashJoin(testCase *hashJoinTestCase, innerInterDirc, outerInterDirc
 		probeKeys = append(probeKeys, defcaus1[keyIdx])
 	}
 	e := &HashJoinInterDirc{
-		baseInterlockingDirectorate:      newBaseInterlockingDirectorate(testCase.ctx, joinSchema, 5, innerInterDirc, outerInterDirc),
-		concurrency:       uint(testCase.concurrency),
-		joinType:          testCase.joinType, // 0 for InnerJoin, 1 for LeftOutersJoin, 2 for RightOuterJoin
-		isOuterJoin:       false,
-		buildKeys:         joinKeys,
-		probeKeys:         probeKeys,
-		buildSideInterDirc:     innerInterDirc,
-		probeSideInterDirc:     outerInterDirc,
-		buildSideEstCount: float64(testCase.rows),
-		useOuterToBuild:   testCase.useOuterToBuild,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(testCase.ctx, joinSchema, 5, innerInterDirc, outerInterDirc),
+		concurrency:                 uint(testCase.concurrency),
+		joinType:                    testCase.joinType, // 0 for InnerJoin, 1 for LeftOutersJoin, 2 for RightOuterJoin
+		isOuterJoin:                 false,
+		buildKeys:                   joinKeys,
+		probeKeys:                   probeKeys,
+		buildSideInterDirc:          innerInterDirc,
+		probeSideInterDirc:          outerInterDirc,
+		buildSideEstCount:           float64(testCase.rows),
+		useOuterToBuild:             testCase.useOuterToBuild,
 	}
 
 	childrenUsedSchema := markChildrenUsedDefCauss(e.Schema(), e.children[0].Schema(), e.children[1].Schema())
@@ -940,7 +940,7 @@ func BenchmarkHashJoinInlineProjection(b *testing.B) {
 
 func BenchmarkHashJoinInterDirc(b *testing.B) {
 	lvl := log.GetLevel()
-	log.SetLevel(zapcore.ErrorLevel)
+	log.SetLevel(zapembedded.ErrorLevel)
 	defer log.SetLevel(lvl)
 
 	defcaus := []*types.FieldType{
@@ -991,7 +991,7 @@ func BenchmarkHashJoinInterDirc(b *testing.B) {
 
 func BenchmarkOuterHashJoinInterDirc(b *testing.B) {
 	lvl := log.GetLevel()
-	log.SetLevel(zapcore.ErrorLevel)
+	log.SetLevel(zapembedded.ErrorLevel)
 	defer log.SetLevel(lvl)
 
 	defcaus := []*types.FieldType{
@@ -1043,8 +1043,8 @@ func BenchmarkOuterHashJoinInterDirc(b *testing.B) {
 func benchmarkBuildHashBlockForList(b *testing.B, casTest *hashJoinTestCase) {
 	opt := mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(casTest.defCausumns()...),
-		rows:   casTest.rows,
-		ctx:    casTest.ctx,
+		rows:            casTest.rows,
+		ctx:             casTest.ctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			switch typ.Tp {
 			case allegrosql.TypeLong, allegrosql.TypeLonglong:
@@ -1102,7 +1102,7 @@ func benchmarkBuildHashBlock(b *testing.B, casTest *hashJoinTestCase, dataSource
 
 func BenchmarkBuildHashBlockForList(b *testing.B) {
 	lvl := log.GetLevel()
-	log.SetLevel(zapcore.ErrorLevel)
+	log.SetLevel(zapembedded.ErrorLevel)
 	defer log.SetLevel(lvl)
 
 	defcaus := []*types.FieldType{
@@ -1130,8 +1130,8 @@ func BenchmarkBuildHashBlockForList(b *testing.B) {
 }
 
 type indexJoinTestCase struct {
-	outerEvents       int
-	innerEvents       int
+	outerEvents     int
+	innerEvents     int
 	concurrency     int
 	ctx             stochastikctx.Context
 	outerJoinKeyIdx []int
@@ -1157,8 +1157,8 @@ func defaultIndexJoinTestCase() *indexJoinTestCase {
 	ctx.GetStochastikVars().StmtCtx.MemTracker = memory.NewTracker(-1, -1)
 	ctx.GetStochastikVars().StmtCtx.DiskTracker = disk.NewTracker(-1, -1)
 	tc := &indexJoinTestCase{
-		outerEvents:       100000,
-		innerEvents:       variable.DefMaxChunkSize * 100,
+		outerEvents:     100000,
+		innerEvents:     variable.DefMaxChunkSize * 100,
 		concurrency:     4,
 		ctx:             ctx,
 		outerJoinKeyIdx: []int{0, 1},
@@ -1176,8 +1176,8 @@ func (tc indexJoinTestCase) String() string {
 func (tc indexJoinTestCase) getMockDataSourceOptByEvents(rows int) mockDataSourceParameters {
 	return mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(tc.defCausumns()...),
-		rows:   rows,
-		ctx:    tc.ctx,
+		rows:            rows,
+		ctx:             tc.ctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			switch typ.Tp {
 			case allegrosql.TypeLong, allegrosql.TypeLonglong:
@@ -1210,19 +1210,19 @@ func prepare4IndexInnerHashJoin(tc *indexJoinTestCase, outerDS *mockDataSource, 
 	e := &IndexLookUpJoin{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(tc.ctx, joinSchema, 1, outerDS),
 		outerCtx: outerCtx{
-			rowTypes: leftTypes,
-			keyDefCauss:  tc.outerJoinKeyIdx,
+			rowTypes:    leftTypes,
+			keyDefCauss: tc.outerJoinKeyIdx,
 		},
 		innerCtx: innerCtx{
 			readerBuilder: &dataReaderBuilder{Causet: &mockPhysicalIndexReader{e: innerDS}, interlockBuilder: newInterlockingDirectorateBuilder(tc.ctx, nil)},
 			rowTypes:      rightTypes,
-			defCausLens:       defCausLens,
-			keyDefCauss:       tc.innerJoinKeyIdx,
+			defCausLens:   defCausLens,
+			keyDefCauss:   tc.innerJoinKeyIdx,
 		},
-		workerWg:      new(sync.WaitGroup),
-		joiner:        newJoiner(tc.ctx, 0, false, defaultValues, nil, leftTypes, rightTypes, nil),
-		isOuterJoin:   false,
-		keyOff2IdxOff: keyOff2IdxOff,
+		workerWg:          new(sync.WaitGroup),
+		joiner:            newJoiner(tc.ctx, 0, false, defaultValues, nil, leftTypes, rightTypes, nil),
+		isOuterJoin:       false,
+		keyOff2IdxOff:     keyOff2IdxOff,
 		lastDefCausHelper: nil,
 	}
 	e.joinResult = newFirstChunk(e)
@@ -1273,7 +1273,7 @@ func prepare4IndexMergeJoin(tc *indexJoinTestCase, outerDS *mockDataSource, inne
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(tc.ctx, joinSchema, 2, outerDS),
 		outerMergeCtx: outerMergeCtx{
 			rowTypes:      leftTypes,
-			keyDefCauss:       tc.outerJoinKeyIdx,
+			keyDefCauss:   tc.outerJoinKeyIdx,
 			joinKeys:      outerJoinKeys,
 			needOuterSort: tc.needOuterSort,
 			compareFuncs:  outerCompareFuncs,
@@ -1282,13 +1282,13 @@ func prepare4IndexMergeJoin(tc *indexJoinTestCase, outerDS *mockDataSource, inne
 			readerBuilder: &dataReaderBuilder{Causet: &mockPhysicalIndexReader{e: innerDS}, interlockBuilder: newInterlockingDirectorateBuilder(tc.ctx, nil)},
 			rowTypes:      rightTypes,
 			joinKeys:      innerJoinKeys,
-			defCausLens:       defCausLens,
-			keyDefCauss:       tc.innerJoinKeyIdx,
+			defCausLens:   defCausLens,
+			keyDefCauss:   tc.innerJoinKeyIdx,
 			compareFuncs:  compareFuncs,
 		},
-		workerWg:      new(sync.WaitGroup),
-		isOuterJoin:   false,
-		keyOff2IdxOff: keyOff2IdxOff,
+		workerWg:          new(sync.WaitGroup),
+		isOuterJoin:       false,
+		keyOff2IdxOff:     keyOff2IdxOff,
 		lastDefCausHelper: nil,
 	}
 	concurrency := e.ctx.GetStochastikVars().IndexLookupJoinConcurrency()
@@ -1355,7 +1355,7 @@ func benchmarHoTTexJoinInterDircWithCase(
 
 func BenchmarHoTTexJoinInterDirc(b *testing.B) {
 	lvl := log.GetLevel()
-	log.SetLevel(zapcore.ErrorLevel)
+	log.SetLevel(zapembedded.ErrorLevel)
 	defer log.SetLevel(lvl)
 
 	b.ReportAllocs()
@@ -1428,10 +1428,10 @@ func prepare4MergeJoin(tc *mergeJoinTestCase, leftInterDirc, rightInterDirc *moc
 
 	// only benchmark inner join
 	e := &MergeJoinInterDirc{
-		stmtCtx:      tc.ctx.GetStochastikVars().StmtCtx,
+		stmtCtx:                     tc.ctx.GetStochastikVars().StmtCtx,
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(tc.ctx, joinSchema, 3, leftInterDirc, rightInterDirc),
-		compareFuncs: compareFuncs,
-		isOuterJoin:  false,
+		compareFuncs:                compareFuncs,
+		isOuterJoin:                 false,
 	}
 
 	e.joiner = newJoiner(
@@ -1474,8 +1474,8 @@ func newMergeJoinBenchmark(numOuterEvents, numInnerDup, numInnerRedundant int) (
 
 	numInnerEvents := numOuterEvents*numInnerDup + numInnerRedundant
 	itc := &indexJoinTestCase{
-		outerEvents:       numOuterEvents,
-		innerEvents:       numInnerEvents,
+		outerEvents:     numOuterEvents,
+		innerEvents:     numInnerEvents,
 		concurrency:     4,
 		ctx:             ctx,
 		outerJoinKeyIdx: []int{0, 1},
@@ -1486,8 +1486,8 @@ func newMergeJoinBenchmark(numOuterEvents, numInnerDup, numInnerRedundant int) (
 	tc = &mergeJoinTestCase{*itc, nil}
 	outerOpt := mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(tc.defCausumns()...),
-		rows:   numOuterEvents,
-		ctx:    tc.ctx,
+		rows:            numOuterEvents,
+		ctx:             tc.ctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			switch typ.Tp {
 			case allegrosql.TypeLong, allegrosql.TypeLonglong:
@@ -1504,8 +1504,8 @@ func newMergeJoinBenchmark(numOuterEvents, numInnerDup, numInnerRedundant int) (
 
 	innerOpt := mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(tc.defCausumns()...),
-		rows:   numInnerEvents,
-		ctx:    tc.ctx,
+		rows:            numInnerEvents,
+		ctx:             tc.ctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			event = event / numInnerDup
 			switch typ.Tp {
@@ -1570,7 +1570,7 @@ func benchmarkMergeJoinInterDircWithCase(b *testing.B, tc *mergeJoinTestCase, in
 
 func BenchmarkMergeJoinInterDirc(b *testing.B) {
 	lvl := log.GetLevel()
-	log.SetLevel(zapcore.ErrorLevel)
+	log.SetLevel(zapembedded.ErrorLevel)
 	defer log.SetLevel(lvl)
 	b.ReportAllocs()
 
@@ -1638,15 +1638,15 @@ func defaultSortTestCase() *sortCase {
 func benchmarkSortInterDirc(b *testing.B, cas *sortCase) {
 	opt := mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(cas.defCausumns()...),
-		rows:   cas.rows,
-		ctx:    cas.ctx,
-		ndvs:   cas.ndvs,
+		rows:            cas.rows,
+		ctx:             cas.ctx,
+		ndvs:            cas.ndvs,
 	}
 	dataSource := buildMockDataSource(opt)
 	exec := &SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(cas.ctx, dataSource.schemaReplicant, 4, dataSource),
-		ByItems:      make([]*soliton.ByItems, 0, len(cas.orderByIdx)),
-		schemaReplicant:       dataSource.schemaReplicant,
+		ByItems:                     make([]*soliton.ByItems, 0, len(cas.orderByIdx)),
+		schemaReplicant:             dataSource.schemaReplicant,
 	}
 	for _, idx := range cas.orderByIdx {
 		exec.ByItems = append(exec.ByItems, &soliton.ByItems{Expr: cas.defCausumns()[idx]})

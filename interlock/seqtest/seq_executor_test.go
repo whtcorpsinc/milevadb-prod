@@ -30,36 +30,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
+	pb "github.com/whtcorpsinc/ekvproto/pkg/ekvrpcpb"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	dbssolitonutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
-	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics/handle"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
 	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/statistics/handle"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 )
 
 func TestT(t *testing.T) {
@@ -73,9 +73,9 @@ var _ = SerialSuites(&seqTestSuite{})
 var _ = SerialSuites(&seqTestSuite1{})
 
 type seqTestSuite struct {
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	petri  *petri.Petri
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
@@ -932,14 +932,14 @@ func (s *seqTestSuite) TestCartesianProduct(c *C) {
 	tk.MustInterDirc("use test")
 	tk.MustInterDirc("drop causet if exists t")
 	tk.MustInterDirc("create causet t(c1 int)")
-	causetcore.AllowCartesianProduct.CausetStore(false)
+	causetembedded.AllowCartesianProduct.CausetStore(false)
 	err := tk.InterDircToErr("select * from t t1, t t2")
-	c.Check(causetcore.ErrCartesianProductUnsupported.Equal(err), IsTrue)
+	c.Check(causetembedded.ErrCartesianProductUnsupported.Equal(err), IsTrue)
 	err = tk.InterDircToErr("select * from t t1 left join t t2 on 1")
-	c.Check(causetcore.ErrCartesianProductUnsupported.Equal(err), IsTrue)
+	c.Check(causetembedded.ErrCartesianProductUnsupported.Equal(err), IsTrue)
 	err = tk.InterDircToErr("select * from t t1 right join t t2 on 1")
-	c.Check(causetcore.ErrCartesianProductUnsupported.Equal(err), IsTrue)
-	causetcore.AllowCartesianProduct.CausetStore(true)
+	c.Check(causetembedded.ErrCartesianProductUnsupported.Equal(err), IsTrue)
+	causetembedded.AllowCartesianProduct.CausetStore(true)
 }
 
 func (s *seqTestSuite) TestBatchInsertDelete(c *C) {
@@ -1110,8 +1110,8 @@ func (c *checkPrioClient) SendRequest(ctx context.Context, addr string, req *ein
 
 type seqTestSuite1 struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
-	cli   *checkPrioClient
+	dom         *petri.Petri
+	cli         *checkPrioClient
 }
 
 func (s *seqTestSuite1) SetUpSuite(c *C) {

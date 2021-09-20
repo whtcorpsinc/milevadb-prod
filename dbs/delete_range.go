@@ -21,15 +21,15 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"go.uber.org/zap"
 )
 
@@ -61,11 +61,11 @@ type delRangeManager interface {
 }
 
 type delRange struct {
-	causetstore      ekv.CausetStorage
-	sessPool   *stochastikPool
-	emulatorCh chan struct{}
-	keys       []ekv.Key
-	quitCh     chan struct{}
+	causetstore ekv.CausetStorage
+	sessPool    *stochastikPool
+	emulatorCh  chan struct{}
+	keys        []ekv.Key
+	quitCh      chan struct{}
 
 	wait         sync.WaitGroup // wait is only used when storeSupport is false.
 	storeSupport bool
@@ -74,7 +74,7 @@ type delRange struct {
 // newDelRangeManager returns a delRangeManager.
 func newDelRangeManager(causetstore ekv.CausetStorage, sessPool *stochastikPool) delRangeManager {
 	dr := &delRange{
-		causetstore:        causetstore,
+		causetstore:  causetstore,
 		sessPool:     sessPool,
 		storeSupport: causetstore.SupportDeleteRange(),
 		quitCh:       make(chan struct{}),

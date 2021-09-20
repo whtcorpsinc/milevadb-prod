@@ -26,35 +26,35 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/privilege"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
+	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/soliton/plancodec"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
-	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	"github.com/whtcorpsinc/milevadb/soliton/plancodec"
 	"go.uber.org/zap"
 )
 
 //slowQueryRetriever is used to read slow log data.
 type slowQueryRetriever struct {
-	causet       *perceptron.BlockInfo
-	outputDefCauss  []*perceptron.DeferredCausetInfo
-	initialized bool
-	extractor   *causetcore.SlowQueryExtractor
-	files       []logFile
-	fileIdx     int
-	fileLine    int
-	checker     *slowLogChecker
+	causet         *perceptron.BlockInfo
+	outputDefCauss []*perceptron.DeferredCausetInfo
+	initialized    bool
+	extractor      *causetembedded.SlowQueryExtractor
+	files          []logFile
+	fileIdx        int
+	fileLine       int
+	checker        *slowLogChecker
 
 	parsedSlowLogCh chan parsedSlowLog
 }
@@ -423,7 +423,7 @@ type slowQueryTuple struct {
 	requestCount           uint64
 	totalKeys              uint64
 	processKeys            uint64
-	EDB                     string
+	EDB                    string
 	indexIDs               string
 	digest                 string
 	statsInfo              string
@@ -438,7 +438,7 @@ type slowQueryTuple struct {
 	memMax                 int64
 	diskMax                int64
 	prevStmt               string
-	allegrosql                    string
+	allegrosql             string
 	isInternal             bool
 	succ                   bool
 	planFromCache          bool

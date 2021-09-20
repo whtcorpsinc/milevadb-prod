@@ -19,19 +19,19 @@ import (
 	"runtime"
 
 	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 var _ = SerialSuites(&testMemoryLeak{})
 
 type testMemoryLeak struct {
-	causetstore  ekv.CausetStorage
-	petri *petri.Petri
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 }
 
 func (s *testMemoryLeak) SetUpSuite(c *C) {

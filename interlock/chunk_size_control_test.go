@@ -20,19 +20,19 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var (
@@ -109,11 +109,11 @@ func generateIndexSplitKeyForInt(tid, idx int64, splitNum []int) [][]byte {
 }
 
 type testChunkSizeControlKit struct {
-	causetstore   ekv.CausetStorage
-	dom     *petri.Petri
-	tk      *testkit.TestKit
-	client  *testSlowClient
-	cluster cluster.Cluster
+	causetstore ekv.CausetStorage
+	dom         *petri.Petri
+	tk          *testkit.TestKit
+	client      *testSlowClient
+	cluster     cluster.Cluster
 }
 
 type testChunkSizeControlSuite struct {

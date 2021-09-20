@@ -14,53 +14,53 @@
 package interlock
 
 import (
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type memIndexReader struct {
-	ctx           stochastikctx.Context
-	index         *perceptron.IndexInfo
+	ctx            stochastikctx.Context
+	index          *perceptron.IndexInfo
 	causet         *perceptron.BlockInfo
-	kvRanges      []ekv.KeyRange
-	desc          bool
-	conditions    []memex.Expression
-	addedEvents     [][]types.Causet
-	addedEventsLen  int
-	retFieldTypes []*types.FieldType
-	outputOffset  []int
+	ekvRanges      []ekv.KeyRange
+	desc           bool
+	conditions     []memex.Expression
+	addedEvents    [][]types.Causet
+	addedEventsLen int
+	retFieldTypes  []*types.FieldType
+	outputOffset   []int
 	// belowHandleDefCauss is the handle's position of the below scan plan.
-	belowHandleDefCauss causetcore.HandleDefCauss
+	belowHandleDefCauss causetembedded.HandleDefCauss
 }
 
 func buildMemIndexReader(us *UnionScanInterDirc, idxReader *IndexReaderInterlockingDirectorate) *memIndexReader {
-	kvRanges := idxReader.kvRanges
+	ekvRanges := idxReader.ekvRanges
 	outputOffset := make([]int, 0, len(us.defCausumns))
 	for _, defCaus := range idxReader.outputDeferredCausets {
 		outputOffset = append(outputOffset, defCaus.Index)
 	}
 	return &memIndexReader{
-		ctx:             us.ctx,
-		index:           idxReader.index,
-		causet:           idxReader.causet.Meta(),
-		kvRanges:        kvRanges,
-		desc:            us.desc,
-		conditions:      us.conditions,
-		retFieldTypes:   retTypes(us),
-		outputOffset:    outputOffset,
+		ctx:                 us.ctx,
+		index:               idxReader.index,
+		causet:              idxReader.causet.Meta(),
+		ekvRanges:           ekvRanges,
+		desc:                us.desc,
+		conditions:          us.conditions,
+		retFieldTypes:       retTypes(us),
+		outputOffset:        outputOffset,
 		belowHandleDefCauss: us.belowHandleDefCauss,
 	}
 }
@@ -90,7 +90,7 @@ func (m *memIndexReader) getMemEvents() ([][]types.Causet, error) {
 	}
 
 	mublockEvent := chunk.MutEventFromTypes(m.retFieldTypes)
-	err := iterTxnMemBuffer(m.ctx, m.kvRanges, func(key, value []byte) error {
+	err := iterTxnMemBuffer(m.ctx, m.ekvRanges, func(key, value []byte) error {
 		data, err := m.decodeIndexKeyValue(key, value, tps)
 		if err != nil {
 			return err
@@ -147,16 +147,16 @@ func (m *memIndexReader) decodeIndexKeyValue(key, value []byte, tps []*types.Fie
 
 type memBlockReader struct {
 	ctx           stochastikctx.Context
-	causet         *perceptron.BlockInfo
-	defCausumns       []*perceptron.DeferredCausetInfo
-	kvRanges      []ekv.KeyRange
+	causet        *perceptron.BlockInfo
+	defCausumns   []*perceptron.DeferredCausetInfo
+	ekvRanges     []ekv.KeyRange
 	desc          bool
 	conditions    []memex.Expression
-	addedEvents     [][]types.Causet
+	addedEvents   [][]types.Causet
 	retFieldTypes []*types.FieldType
-	defCausIDs        map[int64]int
+	defCausIDs    map[int64]int
 	buffer        allocBuf
-	pkDefCausIDs      []int64
+	pkDefCausIDs  []int64
 }
 
 type allocBuf struct {
@@ -188,13 +188,13 @@ func buildMemBlockReader(us *UnionScanInterDirc, tblReader *BlockReaderInterlock
 	rd := rowcodec.NewByteCausetDecoder(defCausInfo, pkDefCausIDs, nil, us.ctx.GetStochastikVars().TimeZone)
 	return &memBlockReader{
 		ctx:           us.ctx,
-		causet:         us.causet.Meta(),
-		defCausumns:       us.defCausumns,
-		kvRanges:      tblReader.kvRanges,
+		causet:        us.causet.Meta(),
+		defCausumns:   us.defCausumns,
+		ekvRanges:     tblReader.ekvRanges,
 		desc:          us.desc,
 		conditions:    us.conditions,
 		retFieldTypes: retTypes(us),
-		defCausIDs:        defCausIDs,
+		defCausIDs:    defCausIDs,
 		buffer: allocBuf{
 			handleBytes: make([]byte, 0, 16),
 			rd:          rd,
@@ -206,7 +206,7 @@ func buildMemBlockReader(us *UnionScanInterDirc, tblReader *BlockReaderInterlock
 // TODO: Try to make memXXXReader lazy, There is no need to decode many rows when parent operator only need 1 event.
 func (m *memBlockReader) getMemEvents() ([][]types.Causet, error) {
 	mublockEvent := chunk.MutEventFromTypes(m.retFieldTypes)
-	err := iterTxnMemBuffer(m.ctx, m.kvRanges, func(key, value []byte) error {
+	err := iterTxnMemBuffer(m.ctx, m.ekvRanges, func(key, value []byte) error {
 		event, err := m.decodeRecordKeyValue(key, value)
 		if err != nil {
 			return err
@@ -321,12 +321,12 @@ func hasDefCausVal(data [][]byte, defCausIDs map[int64]int, id int64) bool {
 
 type processKVFunc func(key, value []byte) error
 
-func iterTxnMemBuffer(ctx stochastikctx.Context, kvRanges []ekv.KeyRange, fn processKVFunc) error {
+func iterTxnMemBuffer(ctx stochastikctx.Context, ekvRanges []ekv.KeyRange, fn processKVFunc) error {
 	txn, err := ctx.Txn(true)
 	if err != nil {
 		return err
 	}
-	for _, rg := range kvRanges {
+	for _, rg := range ekvRanges {
 		iter := txn.GetMemBuffer().SnapshotIter(rg.StartKey, rg.EndKey)
 		for ; iter.Valid(); err = iter.Next() {
 			if err != nil {
@@ -353,7 +353,7 @@ func reverseCausetSlice(rows [][]types.Causet) {
 
 func (m *memIndexReader) getMemEventsHandle() ([]ekv.Handle, error) {
 	handles := make([]ekv.Handle, 0, m.addedEventsLen)
-	err := iterTxnMemBuffer(m.ctx, m.kvRanges, func(key, value []byte) error {
+	err := iterTxnMemBuffer(m.ctx, m.ekvRanges, func(key, value []byte) error {
 		handle, err := blockcodec.DecodeIndexHandle(key, value, len(m.index.DeferredCausets))
 		if err != nil {
 			return err
@@ -376,8 +376,8 @@ func (m *memIndexReader) getMemEventsHandle() ([]ekv.Handle, error) {
 type memIndexLookUpReader struct {
 	ctx           stochastikctx.Context
 	index         *perceptron.IndexInfo
-	defCausumns       []*perceptron.DeferredCausetInfo
-	causet         causet.Block
+	defCausumns   []*perceptron.DeferredCausetInfo
+	causet        causet.Block
 	desc          bool
 	conditions    []memex.Expression
 	retFieldTypes []*types.FieldType
@@ -386,24 +386,24 @@ type memIndexLookUpReader struct {
 }
 
 func buildMemIndexLookUpReader(us *UnionScanInterDirc, idxLookUpReader *IndexLookUpInterlockingDirectorate) *memIndexLookUpReader {
-	kvRanges := idxLookUpReader.kvRanges
+	ekvRanges := idxLookUpReader.ekvRanges
 	outputOffset := []int{len(idxLookUpReader.index.DeferredCausets)}
 	memIdxReader := &memIndexReader{
-		ctx:             us.ctx,
-		index:           idxLookUpReader.index,
-		causet:           idxLookUpReader.causet.Meta(),
-		kvRanges:        kvRanges,
-		desc:            idxLookUpReader.desc,
-		retFieldTypes:   retTypes(us),
-		outputOffset:    outputOffset,
+		ctx:                 us.ctx,
+		index:               idxLookUpReader.index,
+		causet:              idxLookUpReader.causet.Meta(),
+		ekvRanges:           ekvRanges,
+		desc:                idxLookUpReader.desc,
+		retFieldTypes:       retTypes(us),
+		outputOffset:        outputOffset,
 		belowHandleDefCauss: us.belowHandleDefCauss,
 	}
 
 	return &memIndexLookUpReader{
 		ctx:           us.ctx,
 		index:         idxLookUpReader.index,
-		defCausumns:       idxLookUpReader.defCausumns,
-		causet:         idxLookUpReader.causet,
+		defCausumns:   idxLookUpReader.defCausumns,
+		causet:        idxLookUpReader.causet,
 		desc:          idxLookUpReader.desc,
 		conditions:    us.conditions,
 		retFieldTypes: retTypes(us),
@@ -445,13 +445,13 @@ func (m *memIndexLookUpReader) getMemEvents() ([][]types.Causet, error) {
 	rd := rowcodec.NewByteCausetDecoder(defCausInfos, handleDefCausIDs, nil, nil)
 	memTblReader := &memBlockReader{
 		ctx:           m.ctx,
-		causet:         m.causet.Meta(),
-		defCausumns:       m.defCausumns,
-		kvRanges:      tblKVRanges,
+		causet:        m.causet.Meta(),
+		defCausumns:   m.defCausumns,
+		ekvRanges:     tblKVRanges,
 		conditions:    m.conditions,
-		addedEvents:     make([][]types.Causet, 0, len(handles)),
+		addedEvents:   make([][]types.Causet, 0, len(handles)),
 		retFieldTypes: m.retFieldTypes,
-		defCausIDs:        defCausIDs,
+		defCausIDs:    defCausIDs,
 		buffer: allocBuf{
 			handleBytes: make([]byte, 0, 16),
 			rd:          rd,

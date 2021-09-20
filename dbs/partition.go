@@ -22,29 +22,29 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/format"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/opcode"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/dbs/memristed"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -871,7 +871,7 @@ func buildPlacementDropMemrules(schemaID, blockID int64, partitionIDs []int64) [
 	rules := make([]*memristed.MemruleOp, 0, len(partitionIDs))
 	for _, partitionID := range partitionIDs {
 		rules = append(rules, &memristed.MemruleOp{
-			CausetAction:           memristed.MemruleOFIDelel,
+			CausetAction:     memristed.MemruleOFIDelel,
 			DeleteByIDPrefix: true,
 			Memrule: &memristed.Memrule{
 				GroupID: memristed.MemruleDefaultGroupID,
@@ -1366,7 +1366,7 @@ func checkPartitioningKeysConstraints(sctx stochastikctx.Context, s *ast.CreateB
 func checkPartitionKeysConstraint(pi *perceptron.PartitionInfo, indexDeferredCausets []*perceptron.IndexDeferredCauset, tblInfo *perceptron.BlockInfo) (bool, error) {
 	var (
 		partDefCauss []*perceptron.DeferredCausetInfo
-		err      error
+		err          error
 	)
 	// The expr will be an empty string if the partition is defined by:
 	// CREATE TABLE t (...) PARTITION BY RANGE COLUMNS(...)
@@ -1396,8 +1396,8 @@ func checkPartitionKeysConstraint(pi *perceptron.PartitionInfo, indexDeferredCau
 
 type columnNameExtractor struct {
 	extractedDeferredCausets []*perceptron.DeferredCausetInfo
-	tblInfo          *perceptron.BlockInfo
-	err              error
+	tblInfo                  *perceptron.BlockInfo
+	err                      error
 }
 
 func (cne *columnNameExtractor) Enter(node ast.Node) (ast.Node, bool) {
@@ -1433,7 +1433,7 @@ func extractPartitionDeferredCausets(partExpr string, tblInfo *perceptron.BlockI
 		return nil, errors.Trace(err)
 	}
 	extractor := &columnNameExtractor{
-		tblInfo:          tblInfo,
+		tblInfo:                  tblInfo,
 		extractedDeferredCausets: make([]*perceptron.DeferredCausetInfo, 0),
 	}
 	stmts[0].Accept(extractor)

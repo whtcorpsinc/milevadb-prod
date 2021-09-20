@@ -18,14 +18,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 type testDBSBlockSplitSuite struct{}
@@ -55,22 +55,22 @@ func (s *testDBSBlockSplitSuite) TestBlockSplit(c *C) {
 	c.Assert(schemaReplicant, NotNil)
 	t, err := schemaReplicant.BlockByName(perceptron.NewCIStr("allegrosql"), perceptron.NewCIStr("milevadb"))
 	c.Assert(err, IsNil)
-	checkRegionStartWithBlockID(c, t.Meta().ID, causetstore.(kvStore))
+	checkRegionStartWithBlockID(c, t.Meta().ID, causetstore.(ekvStore))
 
 	t, err = schemaReplicant.BlockByName(perceptron.NewCIStr("test"), perceptron.NewCIStr("t_part"))
 	c.Assert(err, IsNil)
 	pi := t.Meta().GetPartitionInfo()
 	c.Assert(pi, NotNil)
 	for _, def := range pi.Definitions {
-		checkRegionStartWithBlockID(c, def.ID, causetstore.(kvStore))
+		checkRegionStartWithBlockID(c, def.ID, causetstore.(ekvStore))
 	}
 }
 
-type kvStore interface {
+type ekvStore interface {
 	GetRegionCache() *einsteindb.RegionCache
 }
 
-func checkRegionStartWithBlockID(c *C, id int64, causetstore kvStore) {
+func checkRegionStartWithBlockID(c *C, id int64, causetstore ekvStore) {
 	regionStartKey := blockcodec.EncodeBlockPrefix(id)
 	var loc *einsteindb.KeyLocation
 	var err error

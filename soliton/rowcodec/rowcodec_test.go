@@ -19,17 +19,17 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/types/json"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/types/json"
 )
 
 func TestT(t *testing.T) {
@@ -58,7 +58,7 @@ func (s *testSuite) TestEncodeLargeSmallReuseBug(c *C) {
 	b, err := causetCausetEncoder.Encode(&stmtctx.StatementContext{}, []int64{largeDefCausID}, []types.Causet{types.NewBytesCauset([]byte(""))}, nil)
 	c.Assert(err, IsNil)
 
-	bCausetDecoder := rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
+	bCausetDecoder := rowcodec.NewCausetFIDelioecoder([]rowcodec.DefCausInfo{
 		{
 			ID:         largeDefCausID,
 			Ft:         defCausFt,
@@ -74,7 +74,7 @@ func (s *testSuite) TestEncodeLargeSmallReuseBug(c *C) {
 	b, err = causetCausetEncoder.Encode(&stmtctx.StatementContext{}, []int64{smallDefCausID}, []types.Causet{types.NewIntCauset(2)}, nil)
 	c.Assert(err, IsNil)
 
-	bCausetDecoder = rowcodec.NewCausetMaFIDelecoder([]rowcodec.DefCausInfo{
+	bCausetDecoder = rowcodec.NewCausetFIDelioecoder([]rowcodec.DefCausInfo{
 		{
 			ID:         smallDefCausID,
 			Ft:         defCausFt,
@@ -122,7 +122,7 @@ func (s *testSuite) TestDecodeRowWithHandle(c *C) {
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		mCausetDecoder := rowcodec.NewCausetFIDelioecoder(defcaus, sc.TimeZone)
 		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		dm, err = blockcodec.DecodeHandleToCausetMap(ekv.IntHandle(handleValue),
@@ -325,7 +325,7 @@ func (s *testSuite) TestTypesNewRowCodec(c *C) {
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		mCausetDecoder := rowcodec.NewCausetFIDelioecoder(defcaus, sc.TimeZone)
 		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		for _, t := range testData {
@@ -575,7 +575,7 @@ func (s *testSuite) TestNilAndDefault(c *C) {
 		c.Assert(err, IsNil)
 
 		// decode to causet map.
-		mCausetDecoder := rowcodec.NewCausetMaFIDelecoder(defcaus, sc.TimeZone)
+		mCausetDecoder := rowcodec.NewCausetFIDelioecoder(defcaus, sc.TimeZone)
 		dm, err := mCausetDecoder.DecodeToCausetMap(newRow, nil)
 		c.Assert(err, IsNil)
 		for _, t := range testData {
@@ -818,7 +818,7 @@ func (s *testSuite) Test65535Bug(c *C) {
 		ID: 1,
 		Ft: tps[0],
 	}
-	dc := rowcodec.NewCausetMaFIDelecoder(defcaus, nil)
+	dc := rowcodec.NewCausetFIDelioecoder(defcaus, nil)
 	result, err := dc.DecodeToCausetMap(bd, nil)
 	c.Check(err, IsNil)
 	rs := result[1]

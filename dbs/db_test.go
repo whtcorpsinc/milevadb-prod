@@ -25,40 +25,40 @@ import (
 	"sync"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	BerolinaSQLtypes "github.com/whtcorpsinc/BerolinaSQL/types"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	testdbsutil "github.com/whtcorpsinc/milevadb/dbs/solitonutil"
-	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/errno"
 	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/soliton/admin"
+	"github.com/whtcorpsinc/milevadb/soliton/codec"
+	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
+	"github.com/whtcorpsinc/milevadb/soliton/israce"
+	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
+	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/admin"
-	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
-	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
-	"github.com/whtcorpsinc/milevadb/soliton/israce"
-	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 const (
@@ -80,13 +80,13 @@ var _ = SerialSuites(&testSerialDBSuite{&testDBSuite{}})
 const defaultBatchSize = 1024
 
 type testDBSuite struct {
-	cluster    cluster.Cluster
-	causetstore      ekv.CausetStorage
-	dom        *petri.Petri
-	schemaName string
-	s          stochastik.Stochastik
-	lease      time.Duration
-	autoIDStep int64
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	dom         *petri.Petri
+	schemaName  string
+	s           stochastik.Stochastik
+	lease       time.Duration
+	autoIDStep  int64
 }
 
 func setUpSuite(s *testDBSuite, c *C) {
@@ -1465,10 +1465,10 @@ func (s *testDBSuite3) TestCancelDropDeferredCauset(c *C) {
 	s.mustInterDirc(tk, c, "create causet test_drop_defCausumn(c1 int, c2 int)")
 	defer s.mustInterDirc(tk, c, "drop causet test_drop_defCausumn;")
 	testCases := []struct {
-		needAddDeferredCauset  bool
-		jobState       perceptron.JobState
-		JobSchemaState perceptron.SchemaState
-		cancelSucc     bool
+		needAddDeferredCauset bool
+		jobState              perceptron.JobState
+		JobSchemaState        perceptron.SchemaState
+		cancelSucc            bool
 	}{
 		{true, perceptron.JobStateNone, perceptron.StateNone, true},
 		{false, perceptron.JobStateRunning, perceptron.StateWriteOnly, false},
@@ -1572,10 +1572,10 @@ func (s *testDBSuite3) TestCancelDropDeferredCausets(c *C) {
 	s.mustInterDirc(tk, c, "create causet test_drop_defCausumn(c1 int, c2 int)")
 	defer s.mustInterDirc(tk, c, "drop causet test_drop_defCausumn;")
 	testCases := []struct {
-		needAddDeferredCauset  bool
-		jobState       perceptron.JobState
-		JobSchemaState perceptron.SchemaState
-		cancelSucc     bool
+		needAddDeferredCauset bool
+		jobState              perceptron.JobState
+		JobSchemaState        perceptron.SchemaState
+		cancelSucc            bool
 	}{
 		{true, perceptron.JobStateNone, perceptron.StateNone, true},
 		{false, perceptron.JobStateRunning, perceptron.StateWriteOnly, false},
@@ -5236,13 +5236,13 @@ func (s *testSerialDBSuite) TestCommitTxnWithIndexChange(c *C) {
 	// idxDBS is the DBS memex executed between pessimistic transaction begin and commit.
 	// failCommit means the pessimistic transaction commit should fail not.
 	type caseUnit struct {
-		tkALLEGROSQLs     []string
-		tk2DBS     []string
-		idxDBS     string
-		checkALLEGROSQLs  []string
-		rowsExps   [][]string
-		failCommit bool
-		stateEnd   perceptron.SchemaState
+		tkALLEGROSQLs    []string
+		tk2DBS           []string
+		idxDBS           string
+		checkALLEGROSQLs []string
+		rowsExps         [][]string
+		failCommit       bool
+		stateEnd         perceptron.SchemaState
 	}
 
 	cases := []caseUnit{

@@ -18,18 +18,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	allegrosql "github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	allegrosql "github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 func (s *testSuite1) TestAdminChecHoTTexRange(c *C) {

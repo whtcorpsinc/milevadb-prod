@@ -23,14 +23,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/bitmap"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -38,6 +36,8 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var (
@@ -49,15 +49,15 @@ var (
 type HashJoinInterDirc struct {
 	baseInterlockingDirectorate
 
-	probeSideInterDirc     InterlockingDirectorate
-	buildSideInterDirc     InterlockingDirectorate
-	buildSideEstCount float64
-	outerFilter       memex.CNFExprs
-	probeKeys         []*memex.DeferredCauset
-	buildKeys         []*memex.DeferredCauset
-	isNullEQ          []bool
-	probeTypes        []*types.FieldType
-	buildTypes        []*types.FieldType
+	probeSideInterDirc InterlockingDirectorate
+	buildSideInterDirc InterlockingDirectorate
+	buildSideEstCount  float64
+	outerFilter        memex.CNFExprs
+	probeKeys          []*memex.DeferredCauset
+	buildKeys          []*memex.DeferredCauset
+	isNullEQ           []bool
+	probeTypes         []*types.FieldType
+	buildTypes         []*types.FieldType
 
 	// concurrency is the number of partition, build and join workers.
 	concurrency   uint
@@ -65,8 +65,8 @@ type HashJoinInterDirc struct {
 	buildFinished chan error
 
 	// closeCh add a dagger for closing interlock.
-	closeCh      chan struct{}
-	joinType     causetcore.JoinType
+	closeCh        chan struct{}
+	joinType       causetembedded.JoinType
 	requiredEvents int64
 
 	// We build individual joiner for each join worker when use chunk-based
@@ -249,7 +249,7 @@ func (e *HashJoinInterDirc) wait4BuildSide() (emptyBuild bool, err error) {
 			return false, err
 		}
 	}
-	if e.rowContainer.Len() == uint64(0) && (e.joinType == causetcore.InnerJoin || e.joinType == causetcore.SemiJoin) {
+	if e.rowContainer.Len() == uint64(0) && (e.joinType == causetembedded.InnerJoin || e.joinType == causetembedded.SemiJoin) {
 		return true, nil
 	}
 	return false, nil
@@ -435,7 +435,7 @@ func (e *HashJoinInterDirc) runJoinWorker(workerID uint, probeKeyDefCausIdx []in
 		dest: e.probeResultChs[workerID],
 	}
 	hCtx := &hashContext{
-		allTypes:  e.probeTypes,
+		allTypes:      e.probeTypes,
 		keyDefCausIdx: probeKeyDefCausIdx,
 	}
 	for ok := true; ok; {
@@ -715,7 +715,7 @@ func (e *HashJoinInterDirc) buildHashBlockForList(buildSideResultCh <-chan *chun
 		buildKeyDefCausIdx[i] = e.buildKeys[i].Index
 	}
 	hCtx := &hashContext{
-		allTypes:  e.buildTypes,
+		allTypes:      e.buildTypes,
 		keyDefCausIdx: buildKeyDefCausIdx,
 	}
 	var err error
@@ -766,13 +766,13 @@ func (e *HashJoinInterDirc) buildHashBlockForList(buildSideResultCh <-chan *chun
 type NestedLoopApplyInterDirc struct {
 	baseInterlockingDirectorate
 
-	ctx         stochastikctx.Context
-	innerEvents   []chunk.Event
-	cursor      int
-	innerInterDirc   InterlockingDirectorate
-	outerInterDirc   InterlockingDirectorate
-	innerFilter memex.CNFExprs
-	outerFilter memex.CNFExprs
+	ctx            stochastikctx.Context
+	innerEvents    []chunk.Event
+	cursor         int
+	innerInterDirc InterlockingDirectorate
+	outerInterDirc InterlockingDirectorate
+	innerFilter    memex.CNFExprs
+	outerFilter    memex.CNFExprs
 
 	joiner joiner
 
@@ -790,7 +790,7 @@ type NestedLoopApplyInterDirc struct {
 	innerChunk       *chunk.Chunk
 	innerSelected    []bool
 	innerIter        chunk.Iterator
-	outerEvent         *chunk.Event
+	outerEvent       *chunk.Event
 	hasMatch         bool
 	hasNull          bool
 

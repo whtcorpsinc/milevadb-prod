@@ -16,16 +16,16 @@ package admin_test
 import (
 	"testing"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	. "github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 )
 
 func TestT(t *testing.T) {
@@ -37,7 +37,7 @@ var _ = Suite(&testSuite{})
 
 type testSuite struct {
 	causetstore ekv.CausetStorage
-	ctx   *mock.Context
+	ctx         *mock.Context
 }
 
 func (s *testSuite) SetUpSuite(c *C) {
@@ -376,13 +376,13 @@ func (s *testSuite) TestIsJobRollbackable(c *C) {
 }
 
 func (s *testSuite) TestError(c *C) {
-	kvErrs := []*terror.Error{
+	ekvErrs := []*terror.Error{
 		ErrDataInConsistent,
 		ErrDBSJobNotFound,
 		ErrCancelFinishedDBSJob,
 		ErrCannotCancelDBSJob,
 	}
-	for _, err := range kvErrs {
+	for _, err := range ekvErrs {
 		code := terror.ToALLEGROSQLError(err).Code
 		c.Assert(code != allegrosql.ErrUnknown && code == uint16(err.Code()), IsTrue, Commentf("err: %v", err))
 	}

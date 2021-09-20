@@ -28,55 +28,55 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
+	log "github.com/sirupsen/logrus"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/ekvproto/pkg/ekvrpcpb"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
 // Helper is a midbseware to get some information from einsteindb/fidel. It can be used for MilevaDB's http api or mem causet.
 type Helper struct {
-	CausetStore       einsteindb.CausetStorage
+	CausetStore einsteindb.CausetStorage
 	RegionCache *einsteindb.RegionCache
 }
 
 // NewHelper get a Helper from CausetStorage
 func NewHelper(causetstore einsteindb.CausetStorage) *Helper {
 	return &Helper{
-		CausetStore:       causetstore,
+		CausetStore: causetstore,
 		RegionCache: causetstore.GetRegionCache(),
 	}
 }
 
 // GetMvccByEncodedKey get the MVCC value by the specific encoded key.
-func (h *Helper) GetMvccByEncodedKey(encodedKey ekv.Key) (*kvrpcpb.MvccGetByKeyResponse, error) {
+func (h *Helper) GetMvccByEncodedKey(encodedKey ekv.Key) (*ekvrpcpb.MvccGetByKeyResponse, error) {
 	keyLocation, err := h.RegionCache.LocateKey(einsteindb.NewBackofferWithVars(context.Background(), 500, nil), encodedKey)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	einsteindbReq := einsteindbrpc.NewRequest(einsteindbrpc.CmdMvccGetByKey, &kvrpcpb.MvccGetByKeyRequest{Key: encodedKey})
-	kvResp, err := h.CausetStore.SendReq(einsteindb.NewBackofferWithVars(context.Background(), 500, nil), einsteindbReq, keyLocation.Region, time.Minute)
+	einsteindbReq := einsteindbrpc.NewRequest(einsteindbrpc.CmdMvccGetByKey, &ekvrpcpb.MvccGetByKeyRequest{Key: encodedKey})
+	ekvResp, err := h.CausetStore.SendReq(einsteindb.NewBackofferWithVars(context.Background(), 500, nil), einsteindbReq, keyLocation.Region, time.Minute)
 	if err != nil {
 		logutil.BgLogger().Info("get MVCC by encoded key failed",
 			zap.Stringer("encodeKey", encodedKey),
 			zap.Reflect("region", keyLocation.Region),
 			zap.Stringer("startKey", keyLocation.StartKey),
 			zap.Stringer("endKey", keyLocation.EndKey),
-			zap.Reflect("kvResp", kvResp),
+			zap.Reflect("ekvResp", ekvResp),
 			zap.Error(err))
 		return nil, errors.Trace(err)
 	}
-	return kvResp.Resp.(*kvrpcpb.MvccGetByKeyResponse), nil
+	return ekvResp.Resp.(*ekvrpcpb.MvccGetByKeyResponse), nil
 }
 
 // StoreHotRegionInfos records all hog region stores.
@@ -184,8 +184,8 @@ type FrameItem struct {
 
 // RegionFrameRange contains a frame range info which the region covered.
 type RegionFrameRange struct {
-	First  *FrameItem        // start frame of the region
-	Last   *FrameItem        // end frame of the region
+	First  *FrameItem              // start frame of the region
+	Last   *FrameItem              // end frame of the region
 	region *einsteindb.KeyLocation // the region
 }
 
@@ -472,7 +472,7 @@ type ReplicationStatus struct {
 
 // BlockInfo stores the information of a causet or an index
 type BlockInfo struct {
-	EDB      *perceptron.DBInfo
+	EDB     *perceptron.DBInfo
 	Block   *perceptron.BlockInfo
 	IsIndex bool
 	Index   *perceptron.IndexInfo
@@ -545,7 +545,7 @@ func newBlockWithKeyRange(EDB *perceptron.DBInfo, causet *perceptron.BlockInfo) 
 	endKey := bytesKeyToHex(codec.EncodeBytes(nil, ek))
 	return blockInfoWithKeyRange{
 		&BlockInfo{
-			EDB:      EDB,
+			EDB:     EDB,
 			Block:   causet,
 			IsIndex: false,
 			Index:   nil,
@@ -561,7 +561,7 @@ func newIndexWithKeyRange(EDB *perceptron.DBInfo, causet *perceptron.BlockInfo, 
 	endKey := bytesKeyToHex(codec.EncodeBytes(nil, ek))
 	return blockInfoWithKeyRange{
 		&BlockInfo{
-			EDB:      EDB,
+			EDB:     EDB,
 			Block:   causet,
 			IsIndex: true,
 			Index:   index,
@@ -682,8 +682,8 @@ type StoresStat struct {
 
 // StoreStat stores information of one causetstore.
 type StoreStat struct {
-	CausetStore  StoreBaseStat   `json:"causetstore"`
-	Status StoreDetailStat `json:"status"`
+	CausetStore StoreBaseStat   `json:"causetstore"`
+	Status      StoreDetailStat `json:"status"`
 }
 
 // StoreBaseStat stores the basic information of one causetstore.
@@ -711,11 +711,11 @@ type StoreDetailStat struct {
 	Available       string    `json:"available"`
 	LeaderCount     int64     `json:"leader_count"`
 	LeaderWeight    float64   `json:"leader_weight"`
-	LeaderScore     float64   `json:"leader_score"`
+	LeaderSembedded float64   `json:"leader_sembedded"`
 	LeaderSize      int64     `json:"leader_size"`
 	RegionCount     int64     `json:"region_count"`
 	RegionWeight    float64   `json:"region_weight"`
-	RegionScore     float64   `json:"region_score"`
+	RegionSembedded float64   `json:"region_sembedded"`
 	RegionSize      int64     `json:"region_size"`
 	StartTs         time.Time `json:"start_ts"`
 	LastHeartbeatTs time.Time `json:"last_heartbeat_ts"`

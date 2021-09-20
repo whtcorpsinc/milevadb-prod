@@ -18,11 +18,11 @@ import (
 	"strings"
 
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 // ReloadExprPushdownBlacklistInterDirc indicates ReloadExprPushdownBlacklist interlock.
@@ -187,7 +187,7 @@ var funcName2Alias = map[string]string{
 	"timediff":                   ast.TimeDiff,
 	"timestamp":                  ast.Timestamp,
 	"timestampadd":               ast.TimestampAdd,
-	"timestamFIDeliff":              ast.TimestamFIDeliff,
+	"timestamFIDeliff":           ast.TimestamFIDeliff,
 	"to_days":                    ast.ToDays,
 	"to_seconds":                 ast.ToSeconds,
 	"unix_timestamp":             ast.UnixTimestamp,
@@ -252,7 +252,7 @@ var funcName2Alias = map[string]string{
 	"benchmark":                  ast.Benchmark,
 	"charset":                    ast.Charset,
 	"coercibility":               ast.Coercibility,
-	"defCauslation":                  ast.DefCauslation,
+	"defCauslation":              ast.DefCauslation,
 	"connection_id":              ast.ConnectionID,
 	"current_user":               ast.CurrentUser,
 	"current_role":               ast.CurrentRole,
@@ -260,8 +260,8 @@ var funcName2Alias = map[string]string{
 	"found_rows":                 ast.FoundEvents,
 	"last_insert_id":             ast.LastInsertId,
 	"row_count":                  ast.EventCount,
-	"schemaReplicant":                     ast.Schema,
-	"stochastik_user":               ast.StochastikUser,
+	"schemaReplicant":            ast.Schema,
+	"stochastik_user":            ast.StochastikUser,
 	"system_user":                ast.SystemUser,
 	"user":                       ast.User,
 	"if":                         ast.If,

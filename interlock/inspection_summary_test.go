@@ -16,23 +16,23 @@ package interlock_test
 import (
 	"context"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = SerialSuites(&inspectionSummarySuite{})
 
 type inspectionSummarySuite struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func (s *inspectionSummarySuite) SetUpSuite(c *C) {

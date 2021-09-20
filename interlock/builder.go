@@ -23,28 +23,25 @@ import (
 	"unsafe"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/ekvproto/pkg/diagnosticspb"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	causetutil "github.com/whtcorpsinc/milevadb/causet/soliton"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/interlock/aggfuncs"
 	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/memex/aggregation"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	causetutil "github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -53,19 +50,22 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
 var (
-	interlockCounterMergeJoinInterDirc            = metrics.InterlockingDirectorateCounter.WithLabelValues("MergeJoinInterDirc")
-	interlockCountHashJoinInterDirc               = metrics.InterlockingDirectorateCounter.WithLabelValues("HashJoinInterDirc")
-	interlockCounterHashAggInterDirc              = metrics.InterlockingDirectorateCounter.WithLabelValues("HashAggInterDirc")
-	interlockStreamAggInterDirc                   = metrics.InterlockingDirectorateCounter.WithLabelValues("StreamAggInterDirc")
-	interlockCounterSortInterDirc                 = metrics.InterlockingDirectorateCounter.WithLabelValues("SortInterDirc")
-	interlockCounterTopNInterDirc                 = metrics.InterlockingDirectorateCounter.WithLabelValues("TopNInterDirc")
-	interlockCounterNestedLoopApplyInterDirc      = metrics.InterlockingDirectorateCounter.WithLabelValues("NestedLoopApplyInterDirc")
-	interlockCounterIndexLookUpJoin          = metrics.InterlockingDirectorateCounter.WithLabelValues("IndexLookUpJoin")
+	interlockCounterMergeJoinInterDirc                      = metrics.InterlockingDirectorateCounter.WithLabelValues("MergeJoinInterDirc")
+	interlockCountHashJoinInterDirc                         = metrics.InterlockingDirectorateCounter.WithLabelValues("HashJoinInterDirc")
+	interlockCounterHashAggInterDirc                        = metrics.InterlockingDirectorateCounter.WithLabelValues("HashAggInterDirc")
+	interlockStreamAggInterDirc                             = metrics.InterlockingDirectorateCounter.WithLabelValues("StreamAggInterDirc")
+	interlockCounterSortInterDirc                           = metrics.InterlockingDirectorateCounter.WithLabelValues("SortInterDirc")
+	interlockCounterTopNInterDirc                           = metrics.InterlockingDirectorateCounter.WithLabelValues("TopNInterDirc")
+	interlockCounterNestedLoopApplyInterDirc                = metrics.InterlockingDirectorateCounter.WithLabelValues("NestedLoopApplyInterDirc")
+	interlockCounterIndexLookUpJoin                         = metrics.InterlockingDirectorateCounter.WithLabelValues("IndexLookUpJoin")
 	interlockCounterIndexLookUpInterlockingDirectorate      = metrics.InterlockingDirectorateCounter.WithLabelValues("IndexLookUpInterlockingDirectorate")
 	interlockCounterIndexMergeReaderInterlockingDirectorate = metrics.InterlockingDirectorateCounter.WithLabelValues("IndexMergeReaderInterlockingDirectorate")
 )
@@ -90,143 +90,143 @@ func newInterlockingDirectorateBuilder(ctx stochastikctx.Context, is schemarepli
 // MockPhysicalCauset is used to return a specified interlock in when build.
 // It is mainly used for testing.
 type MockPhysicalCauset interface {
-	causetcore.PhysicalCauset
+	causetembedded.PhysicalCauset
 	GetInterlockingDirectorate() InterlockingDirectorate
 }
 
-func (b *interlockBuilder) build(p causetcore.Causet) InterlockingDirectorate {
+func (b *interlockBuilder) build(p causetembedded.Causet) InterlockingDirectorate {
 	switch v := p.(type) {
 	case nil:
 		return nil
-	case *causetcore.Change:
+	case *causetembedded.Change:
 		return b.buildChange(v)
-	case *causetcore.CheckBlock:
+	case *causetembedded.CheckBlock:
 		return b.buildCheckBlock(v)
-	case *causetcore.RecoverIndex:
+	case *causetembedded.RecoverIndex:
 		return b.buildRecoverIndex(v)
-	case *causetcore.CleanupIndex:
+	case *causetembedded.CleanupIndex:
 		return b.buildCleanupIndex(v)
-	case *causetcore.ChecHoTTexRange:
+	case *causetembedded.ChecHoTTexRange:
 		return b.buildChecHoTTexRange(v)
-	case *causetcore.ChecksumBlock:
+	case *causetembedded.ChecksumBlock:
 		return b.buildChecksumBlock(v)
-	case *causetcore.ReloadExprPushdownBlacklist:
+	case *causetembedded.ReloadExprPushdownBlacklist:
 		return b.buildReloadExprPushdownBlacklist(v)
-	case *causetcore.ReloadOptMemruleBlacklist:
+	case *causetembedded.ReloadOptMemruleBlacklist:
 		return b.buildReloadOptMemruleBlacklist(v)
-	case *causetcore.AdminPlugins:
+	case *causetembedded.AdminPlugins:
 		return b.buildAdminPlugins(v)
-	case *causetcore.DBS:
+	case *causetembedded.DBS:
 		return b.buildDBS(v)
-	case *causetcore.Deallocate:
+	case *causetembedded.Deallocate:
 		return b.buildDeallocate(v)
-	case *causetcore.Delete:
+	case *causetembedded.Delete:
 		return b.buildDelete(v)
-	case *causetcore.InterDircute:
+	case *causetembedded.InterDircute:
 		return b.buildInterDircute(v)
-	case *causetcore.Trace:
+	case *causetembedded.Trace:
 		return b.buildTrace(v)
-	case *causetcore.Explain:
+	case *causetembedded.Explain:
 		return b.buildExplain(v)
-	case *causetcore.PointGetCauset:
+	case *causetembedded.PointGetCauset:
 		return b.buildPointGet(v)
-	case *causetcore.BatchPointGetCauset:
+	case *causetembedded.BatchPointGetCauset:
 		return b.buildBatchPointGet(v)
-	case *causetcore.Insert:
+	case *causetembedded.Insert:
 		return b.buildInsert(v)
-	case *causetcore.LoadData:
+	case *causetembedded.LoadData:
 		return b.buildLoadData(v)
-	case *causetcore.LoadStats:
+	case *causetembedded.LoadStats:
 		return b.buildLoadStats(v)
-	case *causetcore.IndexAdvise:
+	case *causetembedded.IndexAdvise:
 		return b.buildIndexAdvise(v)
-	case *causetcore.PhysicalLimit:
+	case *causetembedded.PhysicalLimit:
 		return b.buildLimit(v)
-	case *causetcore.Prepare:
+	case *causetembedded.Prepare:
 		return b.buildPrepare(v)
-	case *causetcore.PhysicalLock:
+	case *causetembedded.PhysicalLock:
 		return b.buildSelectLock(v)
-	case *causetcore.CancelDBSJobs:
+	case *causetembedded.CancelDBSJobs:
 		return b.buildCancelDBSJobs(v)
-	case *causetcore.ShowNextEventID:
+	case *causetembedded.ShowNextEventID:
 		return b.buildShowNextEventID(v)
-	case *causetcore.ShowDBS:
+	case *causetembedded.ShowDBS:
 		return b.buildShowDBS(v)
-	case *causetcore.PhysicalShowDBSJobs:
+	case *causetembedded.PhysicalShowDBSJobs:
 		return b.buildShowDBSJobs(v)
-	case *causetcore.ShowDBSJobQueries:
+	case *causetembedded.ShowDBSJobQueries:
 		return b.buildShowDBSJobQueries(v)
-	case *causetcore.ShowSlow:
+	case *causetembedded.ShowSlow:
 		return b.buildShowSlow(v)
-	case *causetcore.PhysicalShow:
+	case *causetembedded.PhysicalShow:
 		return b.buildShow(v)
-	case *causetcore.Simple:
+	case *causetembedded.Simple:
 		return b.buildSimple(v)
-	case *causetcore.Set:
+	case *causetembedded.Set:
 		return b.buildSet(v)
-	case *causetcore.SetConfig:
+	case *causetembedded.SetConfig:
 		return b.buildSetConfig(v)
-	case *causetcore.PhysicalSort:
+	case *causetembedded.PhysicalSort:
 		return b.buildSort(v)
-	case *causetcore.PhysicalTopN:
+	case *causetembedded.PhysicalTopN:
 		return b.buildTopN(v)
-	case *causetcore.PhysicalUnionAll:
+	case *causetembedded.PhysicalUnionAll:
 		return b.buildUnionAll(v)
-	case *causetcore.UFIDelate:
+	case *causetembedded.UFIDelate:
 		return b.buildUFIDelate(v)
-	case *causetcore.PhysicalUnionScan:
+	case *causetembedded.PhysicalUnionScan:
 		return b.buildUnionScanInterDirc(v)
-	case *causetcore.PhysicalHashJoin:
+	case *causetembedded.PhysicalHashJoin:
 		return b.buildHashJoin(v)
-	case *causetcore.PhysicalMergeJoin:
+	case *causetembedded.PhysicalMergeJoin:
 		return b.buildMergeJoin(v)
-	case *causetcore.PhysicalIndexJoin:
+	case *causetembedded.PhysicalIndexJoin:
 		return b.buildIndexLookUpJoin(v)
-	case *causetcore.PhysicalIndexMergeJoin:
+	case *causetembedded.PhysicalIndexMergeJoin:
 		return b.buildIndexLookUpMergeJoin(v)
-	case *causetcore.PhysicalIndexHashJoin:
+	case *causetembedded.PhysicalIndexHashJoin:
 		return b.buildIndexNestedLoopHashJoin(v)
-	case *causetcore.PhysicalSelection:
+	case *causetembedded.PhysicalSelection:
 		return b.buildSelection(v)
-	case *causetcore.PhysicalHashAgg:
+	case *causetembedded.PhysicalHashAgg:
 		return b.buildHashAgg(v)
-	case *causetcore.PhysicalStreamAgg:
+	case *causetembedded.PhysicalStreamAgg:
 		return b.buildStreamAgg(v)
-	case *causetcore.PhysicalProjection:
+	case *causetembedded.PhysicalProjection:
 		return b.buildProjection(v)
-	case *causetcore.PhysicalMemBlock:
+	case *causetembedded.PhysicalMemBlock:
 		return b.buildMemBlock(v)
-	case *causetcore.PhysicalBlockDual:
+	case *causetembedded.PhysicalBlockDual:
 		return b.buildBlockDual(v)
-	case *causetcore.PhysicalApply:
+	case *causetembedded.PhysicalApply:
 		return b.buildApply(v)
-	case *causetcore.PhysicalMaxOneEvent:
+	case *causetembedded.PhysicalMaxOneEvent:
 		return b.buildMaxOneEvent(v)
-	case *causetcore.Analyze:
+	case *causetembedded.Analyze:
 		return b.buildAnalyze(v)
-	case *causetcore.PhysicalBlockReader:
+	case *causetembedded.PhysicalBlockReader:
 		return b.buildBlockReader(v)
-	case *causetcore.PhysicalIndexReader:
+	case *causetembedded.PhysicalIndexReader:
 		return b.buildIndexReader(v)
-	case *causetcore.PhysicalIndexLookUpReader:
+	case *causetembedded.PhysicalIndexLookUpReader:
 		return b.buildIndexLookUpReader(v)
-	case *causetcore.PhysicalWindow:
+	case *causetembedded.PhysicalWindow:
 		return b.buildWindow(v)
-	case *causetcore.PhysicalShuffle:
+	case *causetembedded.PhysicalShuffle:
 		return b.buildShuffle(v)
-	case *causetcore.PhysicalShuffleDataSourceStub:
+	case *causetembedded.PhysicalShuffleDataSourceStub:
 		return b.buildShuffleDataSourceStub(v)
-	case *causetcore.ALLEGROSQLBindCauset:
+	case *causetembedded.ALLEGROSQLBindCauset:
 		return b.buildALLEGROSQLBindInterDirc(v)
-	case *causetcore.SplitRegion:
+	case *causetembedded.SplitRegion:
 		return b.buildSplitRegion(v)
-	case *causetcore.PhysicalIndexMergeReader:
+	case *causetembedded.PhysicalIndexMergeReader:
 		return b.buildIndexMergeReader(v)
-	case *causetcore.SelectInto:
+	case *causetembedded.SelectInto:
 		return b.buildSelectInto(v)
-	case *causetcore.AdminShowTelemetry:
+	case *causetembedded.AdminShowTelemetry:
 		return b.buildAdminShowTelemetry(v)
-	case *causetcore.AdminResetTelemetryID:
+	case *causetembedded.AdminResetTelemetryID:
 		return b.buildAdminResetTelemetryID(v)
 	default:
 		if mp, ok := p.(MockPhysicalCauset); ok {
@@ -238,10 +238,10 @@ func (b *interlockBuilder) build(p causetcore.Causet) InterlockingDirectorate {
 	}
 }
 
-func (b *interlockBuilder) buildCancelDBSJobs(v *causetcore.CancelDBSJobs) InterlockingDirectorate {
+func (b *interlockBuilder) buildCancelDBSJobs(v *causetembedded.CancelDBSJobs) InterlockingDirectorate {
 	e := &CancelDBSJobsInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		jobIDs:       v.JobIDs,
+		jobIDs:                      v.JobIDs,
 	}
 	txn, err := e.ctx.Txn(true)
 	if err != nil {
@@ -256,22 +256,22 @@ func (b *interlockBuilder) buildCancelDBSJobs(v *causetcore.CancelDBSJobs) Inter
 	return e
 }
 
-func (b *interlockBuilder) buildChange(v *causetcore.Change) InterlockingDirectorate {
+func (b *interlockBuilder) buildChange(v *causetembedded.Change) InterlockingDirectorate {
 	return &ChangeInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		ChangeStmt:   v.ChangeStmt,
+		ChangeStmt:                  v.ChangeStmt,
 	}
 }
 
-func (b *interlockBuilder) buildShowNextEventID(v *causetcore.ShowNextEventID) InterlockingDirectorate {
+func (b *interlockBuilder) buildShowNextEventID(v *causetembedded.ShowNextEventID) InterlockingDirectorate {
 	e := &ShowNextEventIDInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		tblName:      v.BlockName,
+		tblName:                     v.BlockName,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildShowDBS(v *causetcore.ShowDBS) InterlockingDirectorate {
+func (b *interlockBuilder) buildShowDBS(v *causetembedded.ShowDBS) InterlockingDirectorate {
 	// We get DBSInfo here because for InterlockingDirectorates that returns result set,
 	// next will be called after transaction has been committed.
 	// We need the transaction to get DBSInfo.
@@ -304,35 +304,35 @@ func (b *interlockBuilder) buildShowDBS(v *causetcore.ShowDBS) InterlockingDirec
 	return e
 }
 
-func (b *interlockBuilder) buildShowDBSJobs(v *causetcore.PhysicalShowDBSJobs) InterlockingDirectorate {
+func (b *interlockBuilder) buildShowDBSJobs(v *causetembedded.PhysicalShowDBSJobs) InterlockingDirectorate {
 	e := &ShowDBSJobsInterDirc{
-		jobNumber:    int(v.JobNumber),
-		is:           b.is,
+		jobNumber:                   int(v.JobNumber),
+		is:                          b.is,
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildShowDBSJobQueries(v *causetcore.ShowDBSJobQueries) InterlockingDirectorate {
+func (b *interlockBuilder) buildShowDBSJobQueries(v *causetembedded.ShowDBSJobQueries) InterlockingDirectorate {
 	e := &ShowDBSJobQueriesInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		jobIDs:       v.JobIDs,
+		jobIDs:                      v.JobIDs,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildShowSlow(v *causetcore.ShowSlow) InterlockingDirectorate {
+func (b *interlockBuilder) buildShowSlow(v *causetembedded.ShowSlow) InterlockingDirectorate {
 	e := &ShowSlowInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		ShowSlow:     v.ShowSlow,
+		ShowSlow:                    v.ShowSlow,
 	}
 	return e
 }
 
 // buildIndexLookUpChecker builds check information to IndexLookUpReader.
-func buildIndexLookUpChecker(b *interlockBuilder, p *causetcore.PhysicalIndexLookUpReader,
+func buildIndexLookUpChecker(b *interlockBuilder, p *causetembedded.PhysicalIndexLookUpReader,
 	e *IndexLookUpInterlockingDirectorate) {
-	is := p.IndexCausets[0].(*causetcore.PhysicalIndexScan)
+	is := p.IndexCausets[0].(*causetembedded.PhysicalIndexScan)
 	fullDefCausLen := len(is.Index.DeferredCausets) + len(p.CommonHandleDefCauss)
 	if !e.isCommonHandle() {
 		fullDefCausLen += 1
@@ -342,7 +342,7 @@ func buildIndexLookUpChecker(b *interlockBuilder, p *causetcore.PhysicalIndexLoo
 		e.posetPosetDagPB.OutputOffsets[i] = uint32(i)
 	}
 
-	ts := p.BlockCausets[0].(*causetcore.PhysicalBlockScan)
+	ts := p.BlockCausets[0].(*causetembedded.PhysicalBlockScan)
 	e.handleIdx = ts.HandleIdx
 
 	e.ranges = ranger.FullRange()
@@ -363,13 +363,13 @@ func buildIndexLookUpChecker(b *interlockBuilder, p *causetcore.PhysicalIndexLoo
 		defCausNames = append(defCausNames, is.DeferredCausets[i].Name.O)
 	}
 	if defcaus, missingDefCausName := causet.FindDefCauss(e.causet.DefCauss(), defCausNames, true); missingDefCausName != "" {
-		b.err = causetcore.ErrUnknownDeferredCauset.GenWithStack("Unknown defCausumn %s", missingDefCausName)
+		b.err = causetembedded.ErrUnknownDeferredCauset.GenWithStack("Unknown defCausumn %s", missingDefCausName)
 	} else {
 		e.idxTblDefCauss = defcaus
 	}
 }
 
-func (b *interlockBuilder) buildCheckBlock(v *causetcore.CheckBlock) InterlockingDirectorate {
+func (b *interlockBuilder) buildCheckBlock(v *causetembedded.CheckBlock) InterlockingDirectorate {
 	readerInterDircs := make([]*IndexLookUpInterlockingDirectorate, 0, len(v.IndexLookUpReaders))
 	for _, readerCauset := range v.IndexLookUpReaders {
 		readerInterDirc, err := buildNoRangeIndexLookUpReader(b, readerCauset)
@@ -384,14 +384,14 @@ func (b *interlockBuilder) buildCheckBlock(v *causetcore.CheckBlock) Interlockin
 
 	e := &CheckBlockInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		dbName:       v.DBName,
-		causet:        v.Block,
-		indexInfos:   v.IndexInfos,
-		is:           b.is,
-		srcs:         readerInterDircs,
-		exitCh:       make(chan struct{}),
-		retCh:        make(chan error, len(readerInterDircs)),
-		checHoTTex:   v.ChecHoTTex,
+		dbName:                      v.DBName,
+		causet:                      v.Block,
+		indexInfos:                  v.IndexInfos,
+		is:                          b.is,
+		srcs:                        readerInterDircs,
+		exitCh:                      make(chan struct{}),
+		retCh:                       make(chan error, len(readerInterDircs)),
+		checHoTTex:                  v.ChecHoTTex,
 	}
 	return e
 }
@@ -425,7 +425,7 @@ func buildIdxDefCaussConcatHandleDefCauss(tblInfo *perceptron.BlockInfo, indexIn
 	return defCausumns
 }
 
-func (b *interlockBuilder) buildRecoverIndex(v *causetcore.RecoverIndex) InterlockingDirectorate {
+func (b *interlockBuilder) buildRecoverIndex(v *causetembedded.RecoverIndex) InterlockingDirectorate {
 	tblInfo := v.Block.BlockInfo
 	t, err := b.is.BlockByName(v.Block.Schema, tblInfo.Name)
 	if err != nil {
@@ -440,10 +440,10 @@ func (b *interlockBuilder) buildRecoverIndex(v *causetcore.RecoverIndex) Interlo
 	}
 	e := &RecoverIndexInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		defCausumns:      buildIdxDefCaussConcatHandleDefCauss(tblInfo, index.Meta()),
-		index:        index,
-		causet:        t,
-		physicalID:   t.Meta().ID,
+		defCausumns:                 buildIdxDefCaussConcatHandleDefCauss(tblInfo, index.Meta()),
+		index:                       index,
+		causet:                      t,
+		physicalID:                  t.Meta().ID,
 	}
 	sessCtx := e.ctx.GetStochastikVars().StmtCtx
 	e.handleDefCauss = buildHandleDefCaussForInterDirc(sessCtx, tblInfo, index.Meta(), e.defCausumns)
@@ -451,14 +451,14 @@ func (b *interlockBuilder) buildRecoverIndex(v *causetcore.RecoverIndex) Interlo
 }
 
 func buildHandleDefCaussForInterDirc(sctx *stmtctx.StatementContext, tblInfo *perceptron.BlockInfo,
-	idxInfo *perceptron.IndexInfo, allDefCausInfo []*perceptron.DeferredCausetInfo) causetcore.HandleDefCauss {
+	idxInfo *perceptron.IndexInfo, allDefCausInfo []*perceptron.DeferredCausetInfo) causetembedded.HandleDefCauss {
 	if !tblInfo.IsCommonHandle {
 		extraDefCausPos := len(allDefCausInfo) - 1
 		intDefCaus := &memex.DeferredCauset{
 			Index:   extraDefCausPos,
 			RetType: types.NewFieldType(allegrosql.TypeLonglong),
 		}
-		return causetcore.NewIntHandleDefCauss(intDefCaus)
+		return causetembedded.NewIntHandleDefCauss(intDefCaus)
 	}
 	tblDefCauss := make([]*memex.DeferredCauset, len(tblInfo.DeferredCausets))
 	for i := 0; i < len(tblInfo.DeferredCausets); i++ {
@@ -472,10 +472,10 @@ func buildHandleDefCaussForInterDirc(sctx *stmtctx.StatementContext, tblInfo *pe
 	for i, c := range pkIdx.DeferredCausets {
 		tblDefCauss[c.Offset].Index = len(idxInfo.DeferredCausets) + i
 	}
-	return causetcore.NewCommonHandleDefCauss(sctx, tblInfo, pkIdx, tblDefCauss)
+	return causetembedded.NewCommonHandleDefCauss(sctx, tblInfo, pkIdx, tblDefCauss)
 }
 
-func (b *interlockBuilder) buildCleanupIndex(v *causetcore.CleanupIndex) InterlockingDirectorate {
+func (b *interlockBuilder) buildCleanupIndex(v *causetembedded.CleanupIndex) InterlockingDirectorate {
 	tblInfo := v.Block.BlockInfo
 	t, err := b.is.BlockByName(v.Block.Schema, tblInfo.Name)
 	if err != nil {
@@ -500,18 +500,18 @@ func (b *interlockBuilder) buildCleanupIndex(v *causetcore.CleanupIndex) Interlo
 	}
 	e := &CleanupIndexInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		defCausumns:      buildIdxDefCaussConcatHandleDefCauss(tblInfo, index.Meta()),
-		index:        index,
-		causet:        t,
-		physicalID:   t.Meta().ID,
-		batchSize:    20000,
+		defCausumns:                 buildIdxDefCaussConcatHandleDefCauss(tblInfo, index.Meta()),
+		index:                       index,
+		causet:                      t,
+		physicalID:                  t.Meta().ID,
+		batchSize:                   20000,
 	}
 	sessCtx := e.ctx.GetStochastikVars().StmtCtx
 	e.handleDefCauss = buildHandleDefCaussForInterDirc(sessCtx, tblInfo, index.Meta(), e.defCausumns)
 	return e
 }
 
-func (b *interlockBuilder) buildChecHoTTexRange(v *causetcore.ChecHoTTexRange) InterlockingDirectorate {
+func (b *interlockBuilder) buildChecHoTTexRange(v *causetembedded.ChecHoTTexRange) InterlockingDirectorate {
 	tb, err := b.is.BlockByName(v.Block.Schema, v.Block.Name)
 	if err != nil {
 		b.err = err
@@ -519,9 +519,9 @@ func (b *interlockBuilder) buildChecHoTTexRange(v *causetcore.ChecHoTTexRange) I
 	}
 	e := &ChecHoTTexRangeInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		handleRanges: v.HandleRanges,
-		causet:        tb.Meta(),
-		is:           b.is,
+		handleRanges:                v.HandleRanges,
+		causet:                      tb.Meta(),
+		is:                          b.is,
 	}
 	idxName := strings.ToLower(v.IndexName)
 	for _, idx := range tb.Indices() {
@@ -534,11 +534,11 @@ func (b *interlockBuilder) buildChecHoTTexRange(v *causetcore.ChecHoTTexRange) I
 	return e
 }
 
-func (b *interlockBuilder) buildChecksumBlock(v *causetcore.ChecksumBlock) InterlockingDirectorate {
+func (b *interlockBuilder) buildChecksumBlock(v *causetembedded.ChecksumBlock) InterlockingDirectorate {
 	e := &ChecksumBlockInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		blocks:       make(map[int64]*checksumContext),
-		done:         false,
+		blocks:                      make(map[int64]*checksumContext),
+		done:                        false,
 	}
 	startTs, err := b.getSnapshotTS()
 	if err != nil {
@@ -551,29 +551,29 @@ func (b *interlockBuilder) buildChecksumBlock(v *causetcore.ChecksumBlock) Inter
 	return e
 }
 
-func (b *interlockBuilder) buildReloadExprPushdownBlacklist(v *causetcore.ReloadExprPushdownBlacklist) InterlockingDirectorate {
+func (b *interlockBuilder) buildReloadExprPushdownBlacklist(v *causetembedded.ReloadExprPushdownBlacklist) InterlockingDirectorate {
 	return &ReloadExprPushdownBlacklistInterDirc{baseInterlockingDirectorate{ctx: b.ctx}}
 }
 
-func (b *interlockBuilder) buildReloadOptMemruleBlacklist(v *causetcore.ReloadOptMemruleBlacklist) InterlockingDirectorate {
+func (b *interlockBuilder) buildReloadOptMemruleBlacklist(v *causetembedded.ReloadOptMemruleBlacklist) InterlockingDirectorate {
 	return &ReloadOptMemruleBlacklistInterDirc{baseInterlockingDirectorate{ctx: b.ctx}}
 }
 
-func (b *interlockBuilder) buildAdminPlugins(v *causetcore.AdminPlugins) InterlockingDirectorate {
+func (b *interlockBuilder) buildAdminPlugins(v *causetembedded.AdminPlugins) InterlockingDirectorate {
 	return &AdminPluginsInterDirc{baseInterlockingDirectorate: baseInterlockingDirectorate{ctx: b.ctx}, CausetAction: v.CausetAction, Plugins: v.Plugins}
 }
 
-func (b *interlockBuilder) buildDeallocate(v *causetcore.Deallocate) InterlockingDirectorate {
+func (b *interlockBuilder) buildDeallocate(v *causetembedded.Deallocate) InterlockingDirectorate {
 	base := newBaseInterlockingDirectorate(b.ctx, nil, v.ID())
 	base.initCap = chunk.ZeroCapacity
 	e := &DeallocateInterDirc{
 		baseInterlockingDirectorate: base,
-		Name:         v.Name,
+		Name:                        v.Name,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildSelectLock(v *causetcore.PhysicalLock) InterlockingDirectorate {
+func (b *interlockBuilder) buildSelectLock(v *causetembedded.PhysicalLock) InterlockingDirectorate {
 	b.hasLock = true
 	if b.err = b.uFIDelateForUFIDelateTSIfNeeded(v.Children()[0]); b.err != nil {
 		return nil
@@ -593,15 +593,15 @@ func (b *interlockBuilder) buildSelectLock(v *causetcore.PhysicalLock) Interlock
 		return src
 	}
 	e := &SelectLockInterDirc{
-		baseInterlockingDirectorate:     newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), src),
-		Lock:             v.Lock,
-		tblID2Handle:     v.TblID2Handle,
-		partitionedBlock: v.PartitionedBlock,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), src),
+		Lock:                        v.Lock,
+		tblID2Handle:                v.TblID2Handle,
+		partitionedBlock:            v.PartitionedBlock,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildLimit(v *causetcore.PhysicalLimit) InterlockingDirectorate {
+func (b *interlockBuilder) buildLimit(v *causetembedded.PhysicalLimit) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -611,53 +611,53 @@ func (b *interlockBuilder) buildLimit(v *causetcore.PhysicalLimit) InterlockingD
 	base.initCap = n
 	e := &LimitInterDirc{
 		baseInterlockingDirectorate: base,
-		begin:        v.Offset,
-		end:          v.Offset + v.Count,
+		begin:                       v.Offset,
+		end:                         v.Offset + v.Count,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildPrepare(v *causetcore.Prepare) InterlockingDirectorate {
+func (b *interlockBuilder) buildPrepare(v *causetembedded.Prepare) InterlockingDirectorate {
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())
 	base.initCap = chunk.ZeroCapacity
 	return &PrepareInterDirc{
 		baseInterlockingDirectorate: base,
-		is:           b.is,
-		name:         v.Name,
-		sqlText:      v.ALLEGROSQLText,
+		is:                          b.is,
+		name:                        v.Name,
+		sqlText:                     v.ALLEGROSQLText,
 	}
 }
 
-func (b *interlockBuilder) buildInterDircute(v *causetcore.InterDircute) InterlockingDirectorate {
+func (b *interlockBuilder) buildInterDircute(v *causetembedded.InterDircute) InterlockingDirectorate {
 	e := &InterDircuteInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		is:           b.is,
-		name:         v.Name,
-		usingVars:    v.UsingVars,
-		id:           v.InterDircID,
-		stmt:         v.Stmt,
-		plan:         v.Causet,
-		outputNames:  v.OutputNames(),
+		is:                          b.is,
+		name:                        v.Name,
+		usingVars:                   v.UsingVars,
+		id:                          v.InterDircID,
+		stmt:                        v.Stmt,
+		plan:                        v.Causet,
+		outputNames:                 v.OutputNames(),
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildShow(v *causetcore.PhysicalShow) InterlockingDirectorate {
+func (b *interlockBuilder) buildShow(v *causetembedded.PhysicalShow) InterlockingDirectorate {
 	e := &ShowInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		Tp:           v.Tp,
-		DBName:       perceptron.NewCIStr(v.DBName),
-		Block:        v.Block,
-		DeferredCauset:       v.DeferredCauset,
-		IndexName:    v.IndexName,
-		Flag:         v.Flag,
-		Roles:        v.Roles,
-		User:         v.User,
-		is:           b.is,
-		Full:         v.Full,
-		IfNotExists:  v.IfNotExists,
-		GlobalScope:  v.GlobalScope,
-		Extended:     v.Extended,
+		Tp:                          v.Tp,
+		DBName:                      perceptron.NewCIStr(v.DBName),
+		Block:                       v.Block,
+		DeferredCauset:              v.DeferredCauset,
+		IndexName:                   v.IndexName,
+		Flag:                        v.Flag,
+		Roles:                       v.Roles,
+		User:                        v.User,
+		is:                          b.is,
+		Full:                        v.Full,
+		IfNotExists:                 v.IfNotExists,
+		GlobalScope:                 v.GlobalScope,
+		Extended:                    v.Extended,
 	}
 	if e.Tp == ast.ShowGrants && e.User == nil {
 		// The input is a "show grants" memex, fulfill the user and roles field.
@@ -676,7 +676,7 @@ func (b *interlockBuilder) buildShow(v *causetcore.PhysicalShow) InterlockingDir
 	return e
 }
 
-func (b *interlockBuilder) buildSimple(v *causetcore.Simple) InterlockingDirectorate {
+func (b *interlockBuilder) buildSimple(v *causetembedded.Simple) InterlockingDirectorate {
 	switch s := v.Statement.(type) {
 	case *ast.GrantStmt:
 		return b.buildGrant(s)
@@ -689,30 +689,30 @@ func (b *interlockBuilder) buildSimple(v *causetcore.Simple) InterlockingDirecto
 	base.initCap = chunk.ZeroCapacity
 	e := &SimpleInterDirc{
 		baseInterlockingDirectorate: base,
-		Statement:    v.Statement,
-		is:           b.is,
+		Statement:                   v.Statement,
+		is:                          b.is,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildSet(v *causetcore.Set) InterlockingDirectorate {
+func (b *interlockBuilder) buildSet(v *causetembedded.Set) InterlockingDirectorate {
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())
 	base.initCap = chunk.ZeroCapacity
 	e := &SetInterlockingDirectorate{
 		baseInterlockingDirectorate: base,
-		vars:         v.VarAssigns,
+		vars:                        v.VarAssigns,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildSetConfig(v *causetcore.SetConfig) InterlockingDirectorate {
+func (b *interlockBuilder) buildSetConfig(v *causetembedded.SetConfig) InterlockingDirectorate {
 	return &SetConfigInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		p:            v,
+		p:                           v,
 	}
 }
 
-func (b *interlockBuilder) buildInsert(v *causetcore.Insert) InterlockingDirectorate {
+func (b *interlockBuilder) buildInsert(v *causetembedded.Insert) InterlockingDirectorate {
 	if v.SelectCauset != nil {
 		// Try to uFIDelate the forUFIDelateTS for insert/replace into select memexs.
 		// Set the selectCauset parameter to nil to make it always uFIDelate the forUFIDelateTS.
@@ -734,15 +734,15 @@ func (b *interlockBuilder) buildInsert(v *causetcore.Insert) InterlockingDirecto
 	baseInterDirc.initCap = chunk.ZeroCapacity
 
 	ivs := &InsertValues{
-		baseInterlockingDirectorate:              baseInterDirc,
-		Block:                     v.Block,
-		DeferredCausets:                   v.DeferredCausets,
-		Lists:                     v.Lists,
-		SetList:                   v.SetList,
-		GenExprs:                  v.GenDefCauss.Exprs,
-		allAssignmentsAreConstant: v.AllAssignmentsAreConstant,
-		hasRefDefCauss:                v.NeedFillDefaultValue,
-		SelectInterDirc:                selectInterDirc,
+		baseInterlockingDirectorate: baseInterDirc,
+		Block:                       v.Block,
+		DeferredCausets:             v.DeferredCausets,
+		Lists:                       v.Lists,
+		SetList:                     v.SetList,
+		GenExprs:                    v.GenDefCauss.Exprs,
+		allAssignmentsAreConstant:   v.AllAssignmentsAreConstant,
+		hasRefDefCauss:              v.NeedFillDefaultValue,
+		SelectInterDirc:             selectInterDirc,
 	}
 	err := ivs.initInsertDeferredCausets()
 	if err != nil {
@@ -760,7 +760,7 @@ func (b *interlockBuilder) buildInsert(v *causetcore.Insert) InterlockingDirecto
 	return insert
 }
 
-func (b *interlockBuilder) buildLoadData(v *causetcore.LoadData) InterlockingDirectorate {
+func (b *interlockBuilder) buildLoadData(v *causetembedded.LoadData) InterlockingDirectorate {
 	tbl, ok := b.is.BlockByID(v.Block.BlockInfo.ID)
 	if !ok {
 		b.err = errors.Errorf("Can not get causet %d", v.Block.BlockInfo.ID)
@@ -768,21 +768,21 @@ func (b *interlockBuilder) buildLoadData(v *causetcore.LoadData) InterlockingDir
 	}
 	insertVal := &InsertValues{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, v.ID()),
-		Block:        tbl,
-		DeferredCausets:      v.DeferredCausets,
-		GenExprs:     v.GenDefCauss.Exprs,
+		Block:                       tbl,
+		DeferredCausets:             v.DeferredCausets,
+		GenExprs:                    v.GenDefCauss.Exprs,
 	}
 	loadDataInfo := &LoadDataInfo{
-		event:                make([]types.Causet, 0, len(insertVal.insertDeferredCausets)),
-		InsertValues:       insertVal,
-		Path:               v.Path,
-		Block:              tbl,
-		FieldsInfo:         v.FieldsInfo,
-		LinesInfo:          v.LinesInfo,
-		IgnoreLines:        v.IgnoreLines,
+		event:                      make([]types.Causet, 0, len(insertVal.insertDeferredCausets)),
+		InsertValues:               insertVal,
+		Path:                       v.Path,
+		Block:                      tbl,
+		FieldsInfo:                 v.FieldsInfo,
+		LinesInfo:                  v.LinesInfo,
+		IgnoreLines:                v.IgnoreLines,
 		DeferredCausetAssignments:  v.DeferredCausetAssignments,
 		DeferredCausetsAndUserVars: v.DeferredCausetsAndUserVars,
-		Ctx:                b.ctx,
+		Ctx:                        b.ctx,
 	}
 	defCausumnNames := loadDataInfo.initFieldMappings()
 	err := loadDataInfo.initLoadDeferredCausets(defCausumnNames)
@@ -792,9 +792,9 @@ func (b *interlockBuilder) buildLoadData(v *causetcore.LoadData) InterlockingDir
 	}
 	loadDataInterDirc := &LoadDataInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, v.ID()),
-		IsLocal:      v.IsLocal,
-		OnDuplicate:  v.OnDuplicate,
-		loadDataInfo: loadDataInfo,
+		IsLocal:                     v.IsLocal,
+		OnDuplicate:                 v.OnDuplicate,
+		loadDataInfo:                loadDataInfo,
 	}
 	var defaultLoadDataBatchCnt uint64 = 20000 // TODO this will be changed to variable in another pr
 	loadDataInterDirc.loadDataInfo.InitQueues()
@@ -803,18 +803,18 @@ func (b *interlockBuilder) buildLoadData(v *causetcore.LoadData) InterlockingDir
 	return loadDataInterDirc
 }
 
-func (b *interlockBuilder) buildLoadStats(v *causetcore.LoadStats) InterlockingDirectorate {
+func (b *interlockBuilder) buildLoadStats(v *causetembedded.LoadStats) InterlockingDirectorate {
 	e := &LoadStatsInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, v.ID()),
-		info:         &LoadStatsInfo{v.Path, b.ctx},
+		info:                        &LoadStatsInfo{v.Path, b.ctx},
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildIndexAdvise(v *causetcore.IndexAdvise) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexAdvise(v *causetembedded.IndexAdvise) InterlockingDirectorate {
 	e := &IndexAdviseInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, v.ID()),
-		IsLocal:      v.IsLocal,
+		IsLocal:                     v.IsLocal,
 		indexAdviseInfo: &IndexAdviseInfo{
 			Path:        v.Path,
 			MaxMinutes:  v.MaxMinutes,
@@ -836,13 +836,13 @@ func (b *interlockBuilder) buildReplace(vals *InsertValues) InterlockingDirector
 func (b *interlockBuilder) buildGrant(grant *ast.GrantStmt) InterlockingDirectorate {
 	e := &GrantInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, 0),
-		Privs:        grant.Privs,
-		ObjectType:   grant.ObjectType,
-		Level:        grant.Level,
-		Users:        grant.Users,
-		WithGrant:    grant.WithGrant,
-		TLSOptions:   grant.TLSOptions,
-		is:           b.is,
+		Privs:                       grant.Privs,
+		ObjectType:                  grant.ObjectType,
+		Level:                       grant.Level,
+		Users:                       grant.Users,
+		WithGrant:                   grant.WithGrant,
+		TLSOptions:                  grant.TLSOptions,
+		is:                          b.is,
 	}
 	return e
 }
@@ -850,35 +850,35 @@ func (b *interlockBuilder) buildGrant(grant *ast.GrantStmt) InterlockingDirector
 func (b *interlockBuilder) buildRevoke(revoke *ast.RevokeStmt) InterlockingDirectorate {
 	e := &RevokeInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, nil, 0),
-		ctx:          b.ctx,
-		Privs:        revoke.Privs,
-		ObjectType:   revoke.ObjectType,
-		Level:        revoke.Level,
-		Users:        revoke.Users,
-		is:           b.is,
+		ctx:                         b.ctx,
+		Privs:                       revoke.Privs,
+		ObjectType:                  revoke.ObjectType,
+		Level:                       revoke.Level,
+		Users:                       revoke.Users,
+		is:                          b.is,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildDBS(v *causetcore.DBS) InterlockingDirectorate {
+func (b *interlockBuilder) buildDBS(v *causetembedded.DBS) InterlockingDirectorate {
 	e := &DBSInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		stmt:         v.Statement,
-		is:           b.is,
+		stmt:                        v.Statement,
+		is:                          b.is,
 	}
 	return e
 }
 
 // buildTrace builds a TraceInterDirc for future executing. This method will be called
 // at build().
-func (b *interlockBuilder) buildTrace(v *causetcore.Trace) InterlockingDirectorate {
+func (b *interlockBuilder) buildTrace(v *causetembedded.Trace) InterlockingDirectorate {
 	t := &TraceInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		stmtNode:     v.StmtNode,
-		builder:      b,
-		format:       v.Format,
+		stmtNode:                    v.StmtNode,
+		builder:                     b,
+		format:                      v.Format,
 	}
-	if t.format == causetcore.TraceFormatLog {
+	if t.format == causetembedded.TraceFormatLog {
 		return &SortInterDirc{
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), t),
 			ByItems: []*causetutil.ByItems{
@@ -894,10 +894,10 @@ func (b *interlockBuilder) buildTrace(v *causetcore.Trace) InterlockingDirectora
 }
 
 // buildExplain builds a explain interlock. `e.rows` defCauslects final result to `ExplainInterDirc`.
-func (b *interlockBuilder) buildExplain(v *causetcore.Explain) InterlockingDirectorate {
+func (b *interlockBuilder) buildExplain(v *causetembedded.Explain) InterlockingDirectorate {
 	explainInterDirc := &ExplainInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		explain:      v,
+		explain:                     v,
 	}
 	if v.Analyze {
 		if b.ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl == nil {
@@ -908,18 +908,18 @@ func (b *interlockBuilder) buildExplain(v *causetcore.Explain) InterlockingDirec
 	return explainInterDirc
 }
 
-func (b *interlockBuilder) buildSelectInto(v *causetcore.SelectInto) InterlockingDirectorate {
+func (b *interlockBuilder) buildSelectInto(v *causetembedded.SelectInto) InterlockingDirectorate {
 	child := b.build(v.TargetCauset)
 	if b.err != nil {
 		return nil
 	}
 	return &SelectIntoInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), child),
-		intoOpt:      v.IntoOpt,
+		intoOpt:                     v.IntoOpt,
 	}
 }
 
-func (b *interlockBuilder) buildUnionScanInterDirc(v *causetcore.PhysicalUnionScan) InterlockingDirectorate {
+func (b *interlockBuilder) buildUnionScanInterDirc(v *causetembedded.PhysicalUnionScan) InterlockingDirectorate {
 	reader := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -931,7 +931,7 @@ func (b *interlockBuilder) buildUnionScanInterDirc(v *causetcore.PhysicalUnionSc
 // buildUnionScanFromReader builds union scan interlock from child interlock.
 // Note that this function may be called by inner workers of index lookup join concurrently.
 // Be careful to avoid data race.
-func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectorate, v *causetcore.PhysicalUnionScan) InterlockingDirectorate {
+func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectorate, v *causetembedded.PhysicalUnionScan) InterlockingDirectorate {
 	// Adjust UnionScan->PartitionBlock->Reader
 	// to PartitionBlock->UnionScan->Reader
 	// The build of UnionScan interlock is delay to the nextPartition() function
@@ -976,7 +976,7 @@ func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectora
 		// goroutines write empty DirtyBlock to DirtyDB for this causet concurrently. Although the DirtyDB looks
 		// safe for data race in all the cases, the map of golang will throw panic when it's accessed in parallel.
 		// So we dagger it when getting dirty causet.
-		us.conditions, us.conditionsWithVirDefCaus = causetcore.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
+		us.conditions, us.conditionsWithVirDefCaus = causetembedded.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
 		us.defCausumns = x.defCausumns
 		us.causet = x.causet
 		us.virtualDeferredCausetIndex = x.virtualDeferredCausetIndex
@@ -990,7 +990,7 @@ func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectora
 				}
 			}
 		}
-		us.conditions, us.conditionsWithVirDefCaus = causetcore.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
+		us.conditions, us.conditionsWithVirDefCaus = causetembedded.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
 		us.defCausumns = x.defCausumns
 		us.causet = x.causet
 	case *IndexLookUpInterlockingDirectorate:
@@ -1003,7 +1003,7 @@ func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectora
 				}
 			}
 		}
-		us.conditions, us.conditionsWithVirDefCaus = causetcore.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
+		us.conditions, us.conditionsWithVirDefCaus = causetembedded.SplitSelCondsWithVirtualDeferredCauset(v.Conditions)
 		us.defCausumns = x.defCausumns
 		us.causet = x.causet
 		us.virtualDeferredCausetIndex = buildVirtualDeferredCausetIndex(us.Schema(), us.defCausumns)
@@ -1015,7 +1015,7 @@ func (b *interlockBuilder) buildUnionScanFromReader(reader InterlockingDirectora
 }
 
 // buildMergeJoin builds MergeJoinInterDirc interlock.
-func (b *interlockBuilder) buildMergeJoin(v *causetcore.PhysicalMergeJoin) InterlockingDirectorate {
+func (b *interlockBuilder) buildMergeJoin(v *causetembedded.PhysicalMergeJoin) InterlockingDirectorate {
 	leftInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -1028,7 +1028,7 @@ func (b *interlockBuilder) buildMergeJoin(v *causetcore.PhysicalMergeJoin) Inter
 
 	defaultValues := v.DefaultValues
 	if defaultValues == nil {
-		if v.JoinType == causetcore.RightOuterJoin {
+		if v.JoinType == causetembedded.RightOuterJoin {
 			defaultValues = make([]types.Causet, leftInterDirc.Schema().Len())
 		} else {
 			defaultValues = make([]types.Causet, rightInterDirc.Schema().Len())
@@ -1036,13 +1036,13 @@ func (b *interlockBuilder) buildMergeJoin(v *causetcore.PhysicalMergeJoin) Inter
 	}
 
 	e := &MergeJoinInterDirc{
-		stmtCtx:      b.ctx.GetStochastikVars().StmtCtx,
+		stmtCtx:                     b.ctx.GetStochastikVars().StmtCtx,
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), leftInterDirc, rightInterDirc),
-		compareFuncs: v.CompareFuncs,
+		compareFuncs:                v.CompareFuncs,
 		joiner: newJoiner(
 			b.ctx,
 			v.JoinType,
-			v.JoinType == causetcore.RightOuterJoin,
+			v.JoinType == causetembedded.RightOuterJoin,
 			defaultValues,
 			v.OtherConditions,
 			retTypes(leftInterDirc),
@@ -1064,7 +1064,7 @@ func (b *interlockBuilder) buildMergeJoin(v *causetcore.PhysicalMergeJoin) Inter
 		filters:    v.RightConditions,
 	}
 
-	if v.JoinType == causetcore.RightOuterJoin {
+	if v.JoinType == causetembedded.RightOuterJoin {
 		e.innerBlock = leftBlock
 		e.outerBlock = rightBlock
 	} else {
@@ -1084,7 +1084,7 @@ func (b *interlockBuilder) buildMergeJoin(v *causetcore.PhysicalMergeJoin) Inter
 	return e
 }
 
-func (b *interlockBuilder) buildSideEstCount(v *causetcore.PhysicalHashJoin) float64 {
+func (b *interlockBuilder) buildSideEstCount(v *causetembedded.PhysicalHashJoin) float64 {
 	buildSide := v.Children()[v.InnerChildIdx]
 	if v.UseOuterToBuild {
 		buildSide = v.Children()[1-v.InnerChildIdx]
@@ -1095,7 +1095,7 @@ func (b *interlockBuilder) buildSideEstCount(v *causetcore.PhysicalHashJoin) flo
 	return buildSide.StatsCount()
 }
 
-func (b *interlockBuilder) buildHashJoin(v *causetcore.PhysicalHashJoin) InterlockingDirectorate {
+func (b *interlockBuilder) buildHashJoin(v *causetembedded.PhysicalHashJoin) InterlockingDirectorate {
 	leftInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -1107,11 +1107,11 @@ func (b *interlockBuilder) buildHashJoin(v *causetcore.PhysicalHashJoin) Interlo
 	}
 
 	e := &HashJoinInterDirc{
-		baseInterlockingDirectorate:    newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), leftInterDirc, rightInterDirc),
-		concurrency:     v.Concurrency,
-		joinType:        v.JoinType,
-		isOuterJoin:     v.JoinType.IsOuterJoin(),
-		useOuterToBuild: v.UseOuterToBuild,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), leftInterDirc, rightInterDirc),
+		concurrency:                 v.Concurrency,
+		joinType:                    v.JoinType,
+		isOuterJoin:                 v.JoinType.IsOuterJoin(),
+		useOuterToBuild:             v.UseOuterToBuild,
 	}
 	defaultValues := v.DefaultValues
 	lhsTypes, rhsTypes := retTypes(leftInterDirc), retTypes(rightInterDirc)
@@ -1193,17 +1193,17 @@ func (b *interlockBuilder) buildHashJoin(v *causetcore.PhysicalHashJoin) Interlo
 	return e
 }
 
-func (b *interlockBuilder) buildHashAgg(v *causetcore.PhysicalHashAgg) InterlockingDirectorate {
+func (b *interlockBuilder) buildHashAgg(v *causetembedded.PhysicalHashAgg) InterlockingDirectorate {
 	src := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	stochastikVars := b.ctx.GetStochastikVars()
 	e := &HashAggInterDirc{
-		baseInterlockingDirectorate:    newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), src),
-		sc:              stochastikVars.StmtCtx,
-		PartialAggFuncs: make([]aggfuncs.AggFunc, 0, len(v.AggFuncs)),
-		GroupByItems:    v.GroupByItems,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), src),
+		sc:                          stochastikVars.StmtCtx,
+		PartialAggFuncs:             make([]aggfuncs.AggFunc, 0, len(v.AggFuncs)),
+		GroupByItems:                v.GroupByItems,
 	}
 	// We take `create causet t(a int, b int);` as example.
 	//
@@ -1273,15 +1273,15 @@ func (b *interlockBuilder) buildHashAgg(v *causetcore.PhysicalHashAgg) Interlock
 	return e
 }
 
-func (b *interlockBuilder) buildStreamAgg(v *causetcore.PhysicalStreamAgg) InterlockingDirectorate {
+func (b *interlockBuilder) buildStreamAgg(v *causetembedded.PhysicalStreamAgg) InterlockingDirectorate {
 	src := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	e := &StreamAggInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), src),
-		groupChecker: newVecGroupChecker(b.ctx, v.GroupByItems),
-		aggFuncs:     make([]aggfuncs.AggFunc, 0, len(v.AggFuncs)),
+		groupChecker:                newVecGroupChecker(b.ctx, v.GroupByItems),
+		aggFuncs:                    make([]aggfuncs.AggFunc, 0, len(v.AggFuncs)),
 	}
 	if len(v.GroupByItems) != 0 || aggregation.IsAllFirstEvent(v.AggFuncs) {
 		e.defaultVal = nil
@@ -1301,28 +1301,28 @@ func (b *interlockBuilder) buildStreamAgg(v *causetcore.PhysicalStreamAgg) Inter
 	return e
 }
 
-func (b *interlockBuilder) buildSelection(v *causetcore.PhysicalSelection) InterlockingDirectorate {
+func (b *interlockBuilder) buildSelection(v *causetembedded.PhysicalSelection) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	e := &SelectionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDirc),
-		filters:      v.Conditions,
+		filters:                     v.Conditions,
 	}
 	return e
 }
 
-func (b *interlockBuilder) buildProjection(v *causetcore.PhysicalProjection) InterlockingDirectorate {
+func (b *interlockBuilder) buildProjection(v *causetembedded.PhysicalProjection) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	e := &ProjectionInterDirc{
-		baseInterlockingDirectorate:     newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDirc),
-		numWorkers:       int64(b.ctx.GetStochastikVars().ProjectionConcurrency()),
-		evaluatorSuit:    memex.NewEvaluatorSuite(v.Exprs, v.AvoidDeferredCausetEvaluator),
-		calculateNoDelay: v.CalculateNoDelay,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDirc),
+		numWorkers:                  int64(b.ctx.GetStochastikVars().ProjectionConcurrency()),
+		evaluatorSuit:               memex.NewEvaluatorSuite(v.Exprs, v.AvoidDeferredCausetEvaluator),
+		calculateNoDelay:            v.CalculateNoDelay,
 	}
 
 	// If the calculation event count for this Projection operator is smaller
@@ -1334,7 +1334,7 @@ func (b *interlockBuilder) buildProjection(v *causetcore.PhysicalProjection) Int
 	return e
 }
 
-func (b *interlockBuilder) buildBlockDual(v *causetcore.PhysicalBlockDual) InterlockingDirectorate {
+func (b *interlockBuilder) buildBlockDual(v *causetembedded.PhysicalBlockDual) InterlockingDirectorate {
 	if v.EventCount != 0 && v.EventCount != 1 {
 		b.err = errors.Errorf("buildBlockDual failed, invalid event count for dual causet: %v", v.EventCount)
 		return nil
@@ -1343,7 +1343,7 @@ func (b *interlockBuilder) buildBlockDual(v *causetcore.PhysicalBlockDual) Inter
 	base.initCap = v.EventCount
 	e := &BlockDualInterDirc{
 		baseInterlockingDirectorate: base,
-		numDualEvents:  v.EventCount,
+		numDualEvents:               v.EventCount,
 	}
 	return e
 }
@@ -1369,15 +1369,15 @@ func (b *interlockBuilder) getSnapshotTS() (uint64, error) {
 	return snapshotTS, nil
 }
 
-func (b *interlockBuilder) buildMemBlock(v *causetcore.PhysicalMemBlock) InterlockingDirectorate {
+func (b *interlockBuilder) buildMemBlock(v *causetembedded.PhysicalMemBlock) InterlockingDirectorate {
 	switch v.DBName.L {
 	case soliton.MetricSchemaName.L:
 		return &MemBlockReaderInterDirc{
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-			causet:        v.Block,
+			causet:                      v.Block,
 			retriever: &MetricRetriever{
-				causet:     v.Block,
-				extractor: v.Extractor.(*causetcore.MetricBlockExtractor),
+				causet:    v.Block,
+				extractor: v.Extractor.(*causetembedded.MetricBlockExtractor),
 			},
 		}
 	case soliton.InformationSchemaName.L:
@@ -1385,90 +1385,90 @@ func (b *interlockBuilder) buildMemBlock(v *causetcore.PhysicalMemBlock) Interlo
 		case strings.ToLower(schemareplicant.BlockClusterConfig):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &clusterConfigRetriever{
-					extractor: v.Extractor.(*causetcore.ClusterBlockExtractor),
+					extractor: v.Extractor.(*causetembedded.ClusterBlockExtractor),
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockClusterLoad):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &clusterServerInfoRetriever{
-					extractor:      v.Extractor.(*causetcore.ClusterBlockExtractor),
+					extractor:      v.Extractor.(*causetembedded.ClusterBlockExtractor),
 					serverInfoType: diagnosticspb.ServerInfoType_LoadInfo,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockClusterHardware):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &clusterServerInfoRetriever{
-					extractor:      v.Extractor.(*causetcore.ClusterBlockExtractor),
+					extractor:      v.Extractor.(*causetembedded.ClusterBlockExtractor),
 					serverInfoType: diagnosticspb.ServerInfoType_HardwareInfo,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockClusterSystemInfo):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &clusterServerInfoRetriever{
-					extractor:      v.Extractor.(*causetcore.ClusterBlockExtractor),
+					extractor:      v.Extractor.(*causetembedded.ClusterBlockExtractor),
 					serverInfoType: diagnosticspb.ServerInfoType_SystemInfo,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockClusterLog):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &clusterLogRetriever{
-					extractor: v.Extractor.(*causetcore.ClusterLogBlockExtractor),
+					extractor: v.Extractor.(*causetembedded.ClusterLogBlockExtractor),
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockInspectionResult):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &inspectionResultRetriever{
-					extractor: v.Extractor.(*causetcore.InspectionResultBlockExtractor),
+					extractor: v.Extractor.(*causetembedded.InspectionResultBlockExtractor),
 					timeRange: v.QueryTimeRange,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockInspectionSummary):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &inspectionSummaryRetriever{
-					causet:     v.Block,
-					extractor: v.Extractor.(*causetcore.InspectionSummaryBlockExtractor),
+					causet:    v.Block,
+					extractor: v.Extractor.(*causetembedded.InspectionSummaryBlockExtractor),
 					timeRange: v.QueryTimeRange,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockInspectionMemrules):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &inspectionMemruleRetriever{
-					extractor: v.Extractor.(*causetcore.InspectionMemruleBlockExtractor),
+					extractor: v.Extractor.(*causetembedded.InspectionMemruleBlockExtractor),
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockMetricSummary):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &MetricsSummaryRetriever{
-					causet:     v.Block,
-					extractor: v.Extractor.(*causetcore.MetricSummaryBlockExtractor),
+					causet:    v.Block,
+					extractor: v.Extractor.(*causetembedded.MetricSummaryBlockExtractor),
 					timeRange: v.QueryTimeRange,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockMetricSummaryByLabel):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &MetricsSummaryByLabelRetriever{
-					causet:     v.Block,
-					extractor: v.Extractor.(*causetcore.MetricSummaryBlockExtractor),
+					causet:    v.Block,
+					extractor: v.Extractor.(*causetembedded.MetricSummaryBlockExtractor),
 					timeRange: v.QueryTimeRange,
 				},
 			}
@@ -1505,18 +1505,18 @@ func (b *interlockBuilder) buildMemBlock(v *causetcore.PhysicalMemBlock) Interlo
 			strings.ToLower(schemareplicant.ClusterBlockStatementsSummaryHistory):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &memblockRetriever{
-					causet:   v.Block,
+					causet:      v.Block,
 					defCausumns: v.DeferredCausets,
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockDeferredCausets):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &hugeMemBlockRetriever{
-					causet:   v.Block,
+					causet:      v.Block,
 					defCausumns: v.DeferredCausets,
 				},
 			}
@@ -1524,37 +1524,37 @@ func (b *interlockBuilder) buildMemBlock(v *causetcore.PhysicalMemBlock) Interlo
 		case strings.ToLower(schemareplicant.BlockSlowQuery), strings.ToLower(schemareplicant.ClusterBlockSlowLog):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &slowQueryRetriever{
-					causet:      v.Block,
+					causet:         v.Block,
 					outputDefCauss: v.DeferredCausets,
-					extractor:  v.Extractor.(*causetcore.SlowQueryExtractor),
+					extractor:      v.Extractor.(*causetembedded.SlowQueryExtractor),
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockStorageStats):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &blockStorageStatsRetriever{
-					causet:      v.Block,
+					causet:         v.Block,
 					outputDefCauss: v.DeferredCausets,
-					extractor:  v.Extractor.(*causetcore.BlockStorageStatsExtractor),
+					extractor:      v.Extractor.(*causetembedded.BlockStorageStatsExtractor),
 				},
 			}
 		case strings.ToLower(schemareplicant.BlockDBSJobs):
 			return &DBSJobsReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				is:           b.is,
+				is:                          b.is,
 			}
 		case strings.ToLower(schemareplicant.BlockTiFlashBlocks),
 			strings.ToLower(schemareplicant.BlockTiFlashSegments):
 			return &MemBlockReaderInterDirc{
 				baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-				causet:        v.Block,
+				causet:                      v.Block,
 				retriever: &TiFlashSystemBlockRetriever{
-					causet:      v.Block,
+					causet:         v.Block,
 					outputDefCauss: v.DeferredCausets,
-					extractor:  v.Extractor.(*causetcore.TiFlashSystemBlockExtractor),
+					extractor:      v.Extractor.(*causetembedded.TiFlashSystemBlockExtractor),
 				},
 			}
 		}
@@ -1562,46 +1562,46 @@ func (b *interlockBuilder) buildMemBlock(v *causetcore.PhysicalMemBlock) Interlo
 	tb, _ := b.is.BlockByID(v.Block.ID)
 	return &BlockScanInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		t:            tb,
-		defCausumns:      v.DeferredCausets,
+		t:                           tb,
+		defCausumns:                 v.DeferredCausets,
 	}
 }
 
-func (b *interlockBuilder) buildSort(v *causetcore.PhysicalSort) InterlockingDirectorate {
+func (b *interlockBuilder) buildSort(v *causetembedded.PhysicalSort) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	sortInterDirc := SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDirc),
-		ByItems:      v.ByItems,
-		schemaReplicant:       v.Schema(),
+		ByItems:                     v.ByItems,
+		schemaReplicant:             v.Schema(),
 	}
 	interlockCounterSortInterDirc.Inc()
 	return &sortInterDirc
 }
 
-func (b *interlockBuilder) buildTopN(v *causetcore.PhysicalTopN) InterlockingDirectorate {
+func (b *interlockBuilder) buildTopN(v *causetembedded.PhysicalTopN) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
 	}
 	sortInterDirc := SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDirc),
-		ByItems:      v.ByItems,
-		schemaReplicant:       v.Schema(),
+		ByItems:                     v.ByItems,
+		schemaReplicant:             v.Schema(),
 	}
 	interlockCounterTopNInterDirc.Inc()
 	return &TopNInterDirc{
 		SortInterDirc: sortInterDirc,
-		limit:    &causetcore.PhysicalLimit{Count: v.Count, Offset: v.Offset},
+		limit:         &causetembedded.PhysicalLimit{Count: v.Count, Offset: v.Offset},
 	}
 }
 
-func (b *interlockBuilder) buildApply(v *causetcore.PhysicalApply) InterlockingDirectorate {
+func (b *interlockBuilder) buildApply(v *causetembedded.PhysicalApply) InterlockingDirectorate {
 	var (
-		innerCauset causetcore.PhysicalCauset
-		outerCauset causetcore.PhysicalCauset
+		innerCauset causetembedded.PhysicalCauset
+		outerCauset causetembedded.PhysicalCauset
 	)
 	if v.InnerChildIdx == 0 {
 		innerCauset = v.Children()[0]
@@ -1610,7 +1610,7 @@ func (b *interlockBuilder) buildApply(v *causetcore.PhysicalApply) InterlockingD
 		innerCauset = v.Children()[1]
 		outerCauset = v.Children()[0]
 	}
-	v.OuterSchema = causetcore.ExtractCorDeferredCausetsBySchema4PhysicalCauset(innerCauset, outerCauset.Schema())
+	v.OuterSchema = causetembedded.ExtractCorDeferredCausetsBySchema4PhysicalCauset(innerCauset, outerCauset.Schema())
 	leftChild := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -1634,15 +1634,15 @@ func (b *interlockBuilder) buildApply(v *causetcore.PhysicalApply) InterlockingD
 		defaultValues, otherConditions, retTypes(leftChild), retTypes(rightChild), nil)
 	serialInterDirc := &NestedLoopApplyInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), outerInterDirc, innerInterDirc),
-		innerInterDirc:    innerInterDirc,
-		outerInterDirc:    outerInterDirc,
-		outerFilter:  outerFilter,
-		innerFilter:  innerFilter,
-		outer:        v.JoinType != causetcore.InnerJoin,
-		joiner:       tupleJoiner,
-		outerSchema:  v.OuterSchema,
-		ctx:          b.ctx,
-		canUseCache:  v.CanUseCache,
+		innerInterDirc:              innerInterDirc,
+		outerInterDirc:              outerInterDirc,
+		outerFilter:                 outerFilter,
+		innerFilter:                 innerFilter,
+		outer:                       v.JoinType != causetembedded.InnerJoin,
+		joiner:                      tupleJoiner,
+		outerSchema:                 v.OuterSchema,
+		ctx:                         b.ctx,
+		canUseCache:                 v.CanUseCache,
 	}
 	interlockCounterNestedLoopApplyInterDirc.Inc()
 
@@ -1653,12 +1653,12 @@ func (b *interlockBuilder) buildApply(v *causetcore.PhysicalApply) InterlockingD
 		corDefCauss := make([][]*memex.CorrelatedDeferredCauset, 0, v.Concurrency)
 		joiners := make([]joiner, 0, v.Concurrency)
 		for i := 0; i < v.Concurrency; i++ {
-			clonedInnerCauset, err := causetcore.SafeClone(innerCauset)
+			clonedInnerCauset, err := causetembedded.SafeClone(innerCauset)
 			if err != nil {
 				b.err = nil
 				return serialInterDirc
 			}
-			corDefCaus := causetcore.ExtractCorDeferredCausetsBySchema4PhysicalCauset(clonedInnerCauset, outerCauset.Schema())
+			corDefCaus := causetembedded.ExtractCorDeferredCausetsBySchema4PhysicalCauset(clonedInnerCauset, outerCauset.Schema())
 			clonedInnerInterDirc := b.build(clonedInnerCauset)
 			if b.err != nil {
 				b.err = nil
@@ -1675,21 +1675,21 @@ func (b *interlockBuilder) buildApply(v *causetcore.PhysicalApply) InterlockingD
 
 		return &ParallelNestedLoopApplyInterDirc{
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), allInterDircs...),
-			innerInterDircs:   innerInterDircs,
-			outerInterDirc:    outerInterDirc,
-			outerFilter:  outerFilter,
-			innerFilter:  innerFilters,
-			outer:        v.JoinType != causetcore.InnerJoin,
-			joiners:      joiners,
-			corDefCauss:      corDefCauss,
-			concurrency:  v.Concurrency,
-			useCache:     true,
+			innerInterDircs:             innerInterDircs,
+			outerInterDirc:              outerInterDirc,
+			outerFilter:                 outerFilter,
+			innerFilter:                 innerFilters,
+			outer:                       v.JoinType != causetembedded.InnerJoin,
+			joiners:                     joiners,
+			corDefCauss:                 corDefCauss,
+			concurrency:                 v.Concurrency,
+			useCache:                    true,
 		}
 	}
 	return serialInterDirc
 }
 
-func (b *interlockBuilder) buildMaxOneEvent(v *causetcore.PhysicalMaxOneEvent) InterlockingDirectorate {
+func (b *interlockBuilder) buildMaxOneEvent(v *causetembedded.PhysicalMaxOneEvent) InterlockingDirectorate {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -1701,7 +1701,7 @@ func (b *interlockBuilder) buildMaxOneEvent(v *causetcore.PhysicalMaxOneEvent) I
 	return e
 }
 
-func (b *interlockBuilder) buildUnionAll(v *causetcore.PhysicalUnionAll) InterlockingDirectorate {
+func (b *interlockBuilder) buildUnionAll(v *causetembedded.PhysicalUnionAll) InterlockingDirectorate {
 	childInterDircs := make([]InterlockingDirectorate, len(v.Children()))
 	for i, child := range v.Children() {
 		childInterDircs[i] = b.build(child)
@@ -1711,12 +1711,12 @@ func (b *interlockBuilder) buildUnionAll(v *causetcore.PhysicalUnionAll) Interlo
 	}
 	e := &UnionInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), childInterDircs...),
-		concurrency:  b.ctx.GetStochastikVars().UnionConcurrency(),
+		concurrency:                 b.ctx.GetStochastikVars().UnionConcurrency(),
 	}
 	return e
 }
 
-func buildHandleDefCaussForSplit(sc *stmtctx.StatementContext, tbInfo *perceptron.BlockInfo) causetcore.HandleDefCauss {
+func buildHandleDefCaussForSplit(sc *stmtctx.StatementContext, tbInfo *perceptron.BlockInfo) causetembedded.HandleDefCauss {
 	if tbInfo.IsCommonHandle {
 		primaryIdx := blocks.FindPrimaryIndex(tbInfo)
 		blockDefCauss := make([]*memex.DeferredCauset, len(tbInfo.DeferredCausets))
@@ -1729,52 +1729,52 @@ func buildHandleDefCaussForSplit(sc *stmtctx.StatementContext, tbInfo *perceptro
 		for i, pkDefCaus := range primaryIdx.DeferredCausets {
 			blockDefCauss[pkDefCaus.Offset].Index = i
 		}
-		return causetcore.NewCommonHandleDefCauss(sc, tbInfo, primaryIdx, blockDefCauss)
+		return causetembedded.NewCommonHandleDefCauss(sc, tbInfo, primaryIdx, blockDefCauss)
 	}
 	intDefCaus := &memex.DeferredCauset{
 		RetType: types.NewFieldType(allegrosql.TypeLonglong),
 	}
-	return causetcore.NewIntHandleDefCauss(intDefCaus)
+	return causetembedded.NewIntHandleDefCauss(intDefCaus)
 }
 
-func (b *interlockBuilder) buildSplitRegion(v *causetcore.SplitRegion) InterlockingDirectorate {
+func (b *interlockBuilder) buildSplitRegion(v *causetembedded.SplitRegion) InterlockingDirectorate {
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())
 	base.initCap = 1
 	base.maxChunkSize = 1
 	if v.IndexInfo != nil {
 		return &SplitIndexRegionInterDirc{
-			baseInterlockingDirectorate:   base,
-			blockInfo:      v.BlockInfo,
-			partitionNames: v.PartitionNames,
-			indexInfo:      v.IndexInfo,
-			lower:          v.Lower,
-			upper:          v.Upper,
-			num:            v.Num,
-			valueLists:     v.ValueLists,
+			baseInterlockingDirectorate: base,
+			blockInfo:                   v.BlockInfo,
+			partitionNames:              v.PartitionNames,
+			indexInfo:                   v.IndexInfo,
+			lower:                       v.Lower,
+			upper:                       v.Upper,
+			num:                         v.Num,
+			valueLists:                  v.ValueLists,
 		}
 	}
 	handleDefCauss := buildHandleDefCaussForSplit(b.ctx.GetStochastikVars().StmtCtx, v.BlockInfo)
 	if len(v.ValueLists) > 0 {
 		return &SplitBlockRegionInterDirc{
-			baseInterlockingDirectorate:   base,
-			blockInfo:      v.BlockInfo,
-			partitionNames: v.PartitionNames,
-			handleDefCauss:     handleDefCauss,
-			valueLists:     v.ValueLists,
+			baseInterlockingDirectorate: base,
+			blockInfo:                   v.BlockInfo,
+			partitionNames:              v.PartitionNames,
+			handleDefCauss:              handleDefCauss,
+			valueLists:                  v.ValueLists,
 		}
 	}
 	return &SplitBlockRegionInterDirc{
-		baseInterlockingDirectorate:   base,
-		blockInfo:      v.BlockInfo,
-		partitionNames: v.PartitionNames,
-		handleDefCauss:     handleDefCauss,
-		lower:          v.Lower,
-		upper:          v.Upper,
-		num:            v.Num,
+		baseInterlockingDirectorate: base,
+		blockInfo:                   v.BlockInfo,
+		partitionNames:              v.PartitionNames,
+		handleDefCauss:              handleDefCauss,
+		lower:                       v.Lower,
+		upper:                       v.Upper,
+		num:                         v.Num,
 	}
 }
 
-func (b *interlockBuilder) buildUFIDelate(v *causetcore.UFIDelate) InterlockingDirectorate {
+func (b *interlockBuilder) buildUFIDelate(v *causetembedded.UFIDelate) InterlockingDirectorate {
 	tblID2block := make(map[int64]causet.Block, len(v.TblDefCausPosInfos))
 	for _, info := range v.TblDefCausPosInfos {
 		tbl, _ := b.is.BlockByID(info.TblID)
@@ -1802,16 +1802,16 @@ func (b *interlockBuilder) buildUFIDelate(v *causetcore.UFIDelate) InterlockingD
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), selInterDirc)
 	base.initCap = chunk.ZeroCapacity
 	uFIDelateInterDirc := &UFIDelateInterDirc{
-		baseInterlockingDirectorate:              base,
-		OrderedList:               v.OrderedList,
-		allAssignmentsAreConstant: v.AllAssignmentsAreConstant,
-		tblID2block:               tblID2block,
-		tblDefCausPosInfos:            v.TblDefCausPosInfos,
+		baseInterlockingDirectorate: base,
+		OrderedList:                 v.OrderedList,
+		allAssignmentsAreConstant:   v.AllAssignmentsAreConstant,
+		tblID2block:                 tblID2block,
+		tblDefCausPosInfos:          v.TblDefCausPosInfos,
 	}
 	return uFIDelateInterDirc
 }
 
-func (b *interlockBuilder) buildDelete(v *causetcore.Delete) InterlockingDirectorate {
+func (b *interlockBuilder) buildDelete(v *causetembedded.Delete) InterlockingDirectorate {
 	tblID2block := make(map[int64]causet.Block, len(v.TblDefCausPosInfos))
 	for _, info := range v.TblDefCausPosInfos {
 		tblID2block[info.TblID], _ = b.is.BlockByID(info.TblID)
@@ -1827,10 +1827,10 @@ func (b *interlockBuilder) buildDelete(v *causetcore.Delete) InterlockingDirecto
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), selInterDirc)
 	base.initCap = chunk.ZeroCapacity
 	deleteInterDirc := &DeleteInterDirc{
-		baseInterlockingDirectorate:   base,
-		tblID2Block:    tblID2block,
-		IsMultiBlock:   v.IsMultiBlock,
-		tblDefCausPosInfos: v.TblDefCausPosInfos,
+		baseInterlockingDirectorate: base,
+		tblID2Block:                 tblID2block,
+		IsMultiBlock:                v.IsMultiBlock,
+		tblDefCausPosInfos:          v.TblDefCausPosInfos,
 	}
 	return deleteInterDirc
 }
@@ -1838,12 +1838,12 @@ func (b *interlockBuilder) buildDelete(v *causetcore.Delete) InterlockingDirecto
 // uFIDelateForUFIDelateTSIfNeeded uFIDelates the ForUFIDelateTS for a pessimistic transaction if needed.
 // PointGet interlock will get conflict error if the ForUFIDelateTS is older than the latest commitTS,
 // so we don't need to uFIDelate now for better latency.
-func (b *interlockBuilder) uFIDelateForUFIDelateTSIfNeeded(selectCauset causetcore.PhysicalCauset) error {
+func (b *interlockBuilder) uFIDelateForUFIDelateTSIfNeeded(selectCauset causetembedded.PhysicalCauset) error {
 	txnCtx := b.ctx.GetStochastikVars().TxnCtx
 	if !txnCtx.IsPessimistic {
 		return nil
 	}
-	if _, ok := selectCauset.(*causetcore.PointGetCauset); ok {
+	if _, ok := selectCauset.(*causetembedded.PointGetCauset); ok {
 		return nil
 	}
 	// Activate the invalid txn, use the txn startTS as newForUFIDelateTS
@@ -1887,7 +1887,7 @@ func (b *interlockBuilder) refreshForUFIDelateTSForRC() error {
 	return UFIDelateForUFIDelateTS(b.ctx, newForUFIDelateTS)
 }
 
-func (b *interlockBuilder) buildAnalyzeIndexPushdown(task causetcore.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64, autoAnalyze string) *analyzeTask {
+func (b *interlockBuilder) buildAnalyzeIndexPushdown(task causetembedded.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64, autoAnalyze string) *analyzeTask {
 	_, offset := timeutil.Zone(b.ctx.GetStochastikVars().Location())
 	sc := b.ctx.GetStochastikVars().StmtCtx
 	e := &AnalyzeIndexInterDirc{
@@ -1904,7 +1904,7 @@ func (b *interlockBuilder) buildAnalyzeIndexPushdown(task causetcore.AnalyzeInde
 		opts: opts,
 	}
 	e.analyzePB.IdxReq = &fidelpb.AnalyzeIndexReq{
-		BucketSize: int64(opts[ast.AnalyzeOptNumBuckets]),
+		BucketSize:         int64(opts[ast.AnalyzeOptNumBuckets]),
 		NumDeferredCausets: int32(len(task.IndexInfo.DeferredCausets)),
 	}
 	if e.isCommonHandle && e.idxInfo.Primary {
@@ -1918,7 +1918,7 @@ func (b *interlockBuilder) buildAnalyzeIndexPushdown(task causetcore.AnalyzeInde
 	return &analyzeTask{taskType: idxTask, idxInterDirc: e, job: job}
 }
 
-func (b *interlockBuilder) buildAnalyzeIndexIncremental(task causetcore.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64) *analyzeTask {
+func (b *interlockBuilder) buildAnalyzeIndexIncremental(task causetembedded.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64) *analyzeTask {
 	h := petri.GetPetri(b.ctx).StatsHandle()
 	statsTbl := h.GetPartitionStats(&perceptron.BlockInfo{}, task.BlockID.PersistID)
 	analyzeTask := b.buildAnalyzeIndexPushdown(task, opts, "")
@@ -1952,7 +1952,7 @@ func (b *interlockBuilder) buildAnalyzeIndexIncremental(task causetcore.AnalyzeI
 	return analyzeTask
 }
 
-func (b *interlockBuilder) buildAnalyzeDeferredCausetsPushdown(task causetcore.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64, autoAnalyze string) *analyzeTask {
+func (b *interlockBuilder) buildAnalyzeDeferredCausetsPushdown(task causetembedded.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64, autoAnalyze string) *analyzeTask {
 	defcaus := task.DefCaussInfo
 	if hasPkHist(task.HandleDefCauss) {
 		defCausInfo := task.TblInfo.DeferredCausets[task.HandleDefCauss.GetDefCaus(0).Index]
@@ -1969,11 +1969,11 @@ func (b *interlockBuilder) buildAnalyzeDeferredCausetsPushdown(task causetcore.A
 	_, offset := timeutil.Zone(b.ctx.GetStochastikVars().Location())
 	sc := b.ctx.GetStochastikVars().StmtCtx
 	e := &AnalyzeDeferredCausetsInterDirc{
-		ctx:         b.ctx,
-		blockID:     task.BlockID,
+		ctx:            b.ctx,
+		blockID:        task.BlockID,
 		defcausInfo:    task.DefCaussInfo,
-		handleDefCauss:  task.HandleDefCauss,
-		concurrency: b.ctx.GetStochastikVars().DistALLEGROSQLScanConcurrency(),
+		handleDefCauss: task.HandleDefCauss,
+		concurrency:    b.ctx.GetStochastikVars().DistALLEGROSQLScanConcurrency(),
 		analyzePB: &fidelpb.AnalyzeReq{
 			Tp:             fidelpb.AnalyzeType_TypeDeferredCauset,
 			Flags:          sc.PushDownFlags(),
@@ -1984,22 +1984,22 @@ func (b *interlockBuilder) buildAnalyzeDeferredCausetsPushdown(task causetcore.A
 	depth := int32(opts[ast.AnalyzeOptCMSketchDepth])
 	width := int32(opts[ast.AnalyzeOptCMSketchWidth])
 	e.analyzePB.DefCausReq = &fidelpb.AnalyzeDeferredCausetsReq{
-		BucketSize:    int64(opts[ast.AnalyzeOptNumBuckets]),
-		SampleSize:    maxRegionSampleSize,
-		SketchSize:    maxSketchSize,
-		DeferredCausetsInfo:   soliton.DeferredCausetsToProto(defcaus, task.HandleDefCauss != nil && task.HandleDefCauss.IsInt()),
-		CmsketchDepth: &depth,
-		CmsketchWidth: &width,
+		BucketSize:          int64(opts[ast.AnalyzeOptNumBuckets]),
+		SampleSize:          maxRegionSampleSize,
+		SketchSize:          maxSketchSize,
+		DeferredCausetsInfo: soliton.DeferredCausetsToProto(defcaus, task.HandleDefCauss != nil && task.HandleDefCauss.IsInt()),
+		CmsketchDepth:       &depth,
+		CmsketchWidth:       &width,
 	}
 	if task.TblInfo != nil {
 		e.analyzePB.DefCausReq.PrimaryDeferredCausetIds = blocks.TryGetCommonPkDeferredCausetIds(task.TblInfo)
 	}
-	b.err = causetcore.SetPBDeferredCausetsDefaultValue(b.ctx, e.analyzePB.DefCausReq.DeferredCausetsInfo, defcaus)
+	b.err = causetembedded.SetPBDeferredCausetsDefaultValue(b.ctx, e.analyzePB.DefCausReq.DeferredCausetsInfo, defcaus)
 	job := &statistics.AnalyzeJob{DBName: task.DBName, BlockName: task.BlockName, PartitionName: task.PartitionName, JobInfo: autoAnalyze + "analyze defCausumns"}
 	return &analyzeTask{taskType: defCausTask, defCausInterDirc: e, job: job}
 }
 
-func (b *interlockBuilder) buildAnalyzePKIncremental(task causetcore.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64) *analyzeTask {
+func (b *interlockBuilder) buildAnalyzePKIncremental(task causetembedded.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64) *analyzeTask {
 	h := petri.GetPetri(b.ctx).StatsHandle()
 	statsTbl := h.GetPartitionStats(&perceptron.BlockInfo{}, task.BlockID.PersistID)
 	analyzeTask := b.buildAnalyzeDeferredCausetsPushdown(task, opts, "")
@@ -2036,7 +2036,7 @@ func (b *interlockBuilder) buildAnalyzePKIncremental(task causetcore.AnalyzeDefe
 	return analyzeTask
 }
 
-func (b *interlockBuilder) buildAnalyzeFastDeferredCauset(e *AnalyzeInterDirc, task causetcore.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64) {
+func (b *interlockBuilder) buildAnalyzeFastDeferredCauset(e *AnalyzeInterDirc, task causetembedded.AnalyzeDeferredCausetsTask, opts map[ast.AnalyzeOptionType]uint64) {
 	findTask := false
 	for _, eTask := range e.tasks {
 		if eTask.fastInterDirc != nil && eTask.fastInterDirc.blockID.Equals(&task.BlockID) {
@@ -2052,28 +2052,28 @@ func (b *interlockBuilder) buildAnalyzeFastDeferredCauset(e *AnalyzeInterDirc, t
 			return
 		}
 		fastInterDirc := &AnalyzeFastInterDirc{
-			ctx:         b.ctx,
-			blockID:     task.BlockID,
+			ctx:            b.ctx,
+			blockID:        task.BlockID,
 			defcausInfo:    task.DefCaussInfo,
-			handleDefCauss:  task.HandleDefCauss,
-			opts:        opts,
-			tblInfo:     task.TblInfo,
-			concurrency: concurrency,
-			wg:          &sync.WaitGroup{},
+			handleDefCauss: task.HandleDefCauss,
+			opts:           opts,
+			tblInfo:        task.TblInfo,
+			concurrency:    concurrency,
+			wg:             &sync.WaitGroup{},
 		}
 		b.err = fastInterDirc.calculateEstimateSampleStep()
 		if b.err != nil {
 			return
 		}
 		e.tasks = append(e.tasks, &analyzeTask{
-			taskType: fastTask,
+			taskType:      fastTask,
 			fastInterDirc: fastInterDirc,
-			job:      &statistics.AnalyzeJob{DBName: task.DBName, BlockName: task.BlockName, PartitionName: task.PartitionName, JobInfo: "fast analyze defCausumns"},
+			job:           &statistics.AnalyzeJob{DBName: task.DBName, BlockName: task.BlockName, PartitionName: task.PartitionName, JobInfo: "fast analyze defCausumns"},
 		})
 	}
 }
 
-func (b *interlockBuilder) buildAnalyzeFastIndex(e *AnalyzeInterDirc, task causetcore.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64) {
+func (b *interlockBuilder) buildAnalyzeFastIndex(e *AnalyzeInterDirc, task causetembedded.AnalyzeIndexTask, opts map[ast.AnalyzeOptionType]uint64) {
 	findTask := false
 	for _, eTask := range e.tasks {
 		if eTask.fastInterDirc != nil && eTask.fastInterDirc.blockID.Equals(&task.BlockID) {
@@ -2102,18 +2102,18 @@ func (b *interlockBuilder) buildAnalyzeFastIndex(e *AnalyzeInterDirc, task cause
 			return
 		}
 		e.tasks = append(e.tasks, &analyzeTask{
-			taskType: fastTask,
+			taskType:      fastTask,
 			fastInterDirc: fastInterDirc,
-			job:      &statistics.AnalyzeJob{DBName: task.DBName, BlockName: task.BlockName, PartitionName: "fast analyze index " + task.IndexInfo.Name.O},
+			job:           &statistics.AnalyzeJob{DBName: task.DBName, BlockName: task.BlockName, PartitionName: "fast analyze index " + task.IndexInfo.Name.O},
 		})
 	}
 }
 
-func (b *interlockBuilder) buildAnalyze(v *causetcore.Analyze) InterlockingDirectorate {
+func (b *interlockBuilder) buildAnalyze(v *causetembedded.Analyze) InterlockingDirectorate {
 	e := &AnalyzeInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		tasks:        make([]*analyzeTask, 0, len(v.DefCausTasks)+len(v.IdxTasks)),
-		wg:           &sync.WaitGroup{},
+		tasks:                       make([]*analyzeTask, 0, len(v.DefCausTasks)+len(v.IdxTasks)),
+		wg:                          &sync.WaitGroup{},
 	}
 	enableFastAnalyze := b.ctx.GetStochastikVars().EnableFastAnalyze
 	autoAnalyze := ""
@@ -2151,7 +2151,7 @@ func (b *interlockBuilder) buildAnalyze(v *causetcore.Analyze) InterlockingDirec
 	return e
 }
 
-func constructDistInterDirc(sctx stochastikctx.Context, plans []causetcore.PhysicalCauset) ([]*fidelpb.InterlockingDirectorate, bool, error) {
+func constructDistInterDirc(sctx stochastikctx.Context, plans []causetembedded.PhysicalCauset) ([]*fidelpb.InterlockingDirectorate, bool, error) {
 	streaming := true
 	interlocks := make([]*fidelpb.InterlockingDirectorate, 0, len(plans))
 	for _, p := range plans {
@@ -2159,7 +2159,7 @@ func constructDistInterDirc(sctx stochastikctx.Context, plans []causetcore.Physi
 		if err != nil {
 			return nil, false, err
 		}
-		if !causetcore.SupportStreaming(p) {
+		if !causetembedded.SupportStreaming(p) {
 			streaming = false
 		}
 		interlocks = append(interlocks, execPB)
@@ -2177,13 +2177,13 @@ func markChildrenUsedDefCauss(outputSchema *memex.Schema, childSchema ...*memex.
 	return
 }
 
-func constructDistInterDircForTiFlash(sctx stochastikctx.Context, p causetcore.PhysicalCauset) ([]*fidelpb.InterlockingDirectorate, bool, error) {
+func constructDistInterDircForTiFlash(sctx stochastikctx.Context, p causetembedded.PhysicalCauset) ([]*fidelpb.InterlockingDirectorate, bool, error) {
 	execPB, err := p.ToPB(sctx, ekv.TiFlash)
 	return []*fidelpb.InterlockingDirectorate{execPB}, false, err
 
 }
 
-func (b *interlockBuilder) constructPosetDagReq(plans []causetcore.PhysicalCauset, storeType ekv.StoreType) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, err error) {
+func (b *interlockBuilder) constructPosetDagReq(plans []causetembedded.PhysicalCauset, storeType ekv.StoreType) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, err error) {
 	posetPosetDagReq = &fidelpb.PosetDagRequest{}
 	posetPosetDagReq.TimeZoneName, posetPosetDagReq.TimeZoneOffset = timeutil.Zone(b.ctx.GetStochastikVars().Location())
 	sc := b.ctx.GetStochastikVars().StmtCtx
@@ -2204,9 +2204,9 @@ func (b *interlockBuilder) constructPosetDagReq(plans []causetcore.PhysicalCause
 	return posetPosetDagReq, streaming, err
 }
 
-func (b *interlockBuilder) corDefCausInDistCauset(plans []causetcore.PhysicalCauset) bool {
+func (b *interlockBuilder) corDefCausInDistCauset(plans []causetembedded.PhysicalCauset) bool {
 	for _, p := range plans {
-		x, ok := p.(*causetcore.PhysicalSelection)
+		x, ok := p.(*causetembedded.PhysicalSelection)
 		if !ok {
 			continue
 		}
@@ -2220,12 +2220,12 @@ func (b *interlockBuilder) corDefCausInDistCauset(plans []causetcore.PhysicalCau
 }
 
 // corDefCausInAccess checks whether there's correlated defCausumn in access conditions.
-func (b *interlockBuilder) corDefCausInAccess(p causetcore.PhysicalCauset) bool {
+func (b *interlockBuilder) corDefCausInAccess(p causetembedded.PhysicalCauset) bool {
 	var access []memex.Expression
 	switch x := p.(type) {
-	case *causetcore.PhysicalBlockScan:
+	case *causetembedded.PhysicalBlockScan:
 		access = x.AccessCondition
-	case *causetcore.PhysicalIndexScan:
+	case *causetembedded.PhysicalIndexScan:
 		access = x.AccessCondition
 	}
 	for _, cond := range access {
@@ -2236,7 +2236,7 @@ func (b *interlockBuilder) corDefCausInAccess(p causetcore.PhysicalCauset) bool 
 	return false
 }
 
-func (b *interlockBuilder) buildIndexLookUpJoin(v *causetcore.PhysicalIndexJoin) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexLookUpJoin(v *causetembedded.PhysicalIndexJoin) InterlockingDirectorate {
 	outerInterDirc := b.build(v.Children()[1-v.InnerChildIdx])
 	if b.err != nil {
 		return nil
@@ -2286,15 +2286,15 @@ func (b *interlockBuilder) buildIndexLookUpJoin(v *causetcore.PhysicalIndexJoin)
 			filter:   outerFilter,
 		},
 		innerCtx: innerCtx{
-			readerBuilder: &dataReaderBuilder{Causet: innerCauset, interlockBuilder: b},
-			rowTypes:      innerTypes,
-			defCausLens:       v.IdxDefCausLens,
-			hasPrefixDefCaus:  hasPrefixDefCaus,
+			readerBuilder:    &dataReaderBuilder{Causet: innerCauset, interlockBuilder: b},
+			rowTypes:         innerTypes,
+			defCausLens:      v.IdxDefCausLens,
+			hasPrefixDefCaus: hasPrefixDefCaus,
 		},
-		workerWg:      new(sync.WaitGroup),
-		isOuterJoin:   v.JoinType.IsOuterJoin(),
-		indexRanges:   v.Ranges,
-		keyOff2IdxOff: v.KeyOff2IdxOff,
+		workerWg:          new(sync.WaitGroup),
+		isOuterJoin:       v.JoinType.IsOuterJoin(),
+		indexRanges:       v.Ranges,
+		keyOff2IdxOff:     v.KeyOff2IdxOff,
 		lastDefCausHelper: v.CompareFilters,
 	}
 	childrenUsedSchema := markChildrenUsedDefCauss(v.Schema(), v.Children()[0].Schema(), v.Children()[1].Schema())
@@ -2314,7 +2314,7 @@ func (b *interlockBuilder) buildIndexLookUpJoin(v *causetcore.PhysicalIndexJoin)
 	return e
 }
 
-func (b *interlockBuilder) buildIndexLookUpMergeJoin(v *causetcore.PhysicalIndexMergeJoin) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexLookUpMergeJoin(v *causetembedded.PhysicalIndexMergeJoin) InterlockingDirectorate {
 	outerInterDirc := b.build(v.Children()[1-v.InnerChildIdx])
 	if b.err != nil {
 		return nil
@@ -2364,7 +2364,7 @@ func (b *interlockBuilder) buildIndexLookUpMergeJoin(v *causetcore.PhysicalIndex
 			rowTypes:      outerTypes,
 			filter:        outerFilter,
 			joinKeys:      v.OuterJoinKeys,
-			keyDefCauss:       outerKeyDefCauss,
+			keyDefCauss:   outerKeyDefCauss,
 			needOuterSort: v.NeedOuterSort,
 			compareFuncs:  v.OuterCompareFuncs,
 		},
@@ -2372,16 +2372,16 @@ func (b *interlockBuilder) buildIndexLookUpMergeJoin(v *causetcore.PhysicalIndex
 			readerBuilder:           &dataReaderBuilder{Causet: innerCauset, interlockBuilder: b},
 			rowTypes:                innerTypes,
 			joinKeys:                v.InnerJoinKeys,
-			keyDefCauss:                 innerKeyDefCauss,
+			keyDefCauss:             innerKeyDefCauss,
 			compareFuncs:            v.CompareFuncs,
-			defCausLens:                 v.IdxDefCausLens,
+			defCausLens:             v.IdxDefCausLens,
 			desc:                    v.Desc,
 			keyOff2KeyOffOrderByIdx: v.KeyOff2KeyOffOrderByIdx,
 		},
-		workerWg:      new(sync.WaitGroup),
-		isOuterJoin:   v.JoinType.IsOuterJoin(),
-		indexRanges:   v.Ranges,
-		keyOff2IdxOff: v.KeyOff2IdxOff,
+		workerWg:          new(sync.WaitGroup),
+		isOuterJoin:       v.JoinType.IsOuterJoin(),
+		indexRanges:       v.Ranges,
+		keyOff2IdxOff:     v.KeyOff2IdxOff,
 		lastDefCausHelper: v.CompareFilters,
 	}
 	childrenUsedSchema := markChildrenUsedDefCauss(v.Schema(), v.Children()[0].Schema(), v.Children()[1].Schema())
@@ -2393,7 +2393,7 @@ func (b *interlockBuilder) buildIndexLookUpMergeJoin(v *causetcore.PhysicalIndex
 	return e
 }
 
-func (b *interlockBuilder) buildIndexNestedLoopHashJoin(v *causetcore.PhysicalIndexHashJoin) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexNestedLoopHashJoin(v *causetembedded.PhysicalIndexHashJoin) InterlockingDirectorate {
 	e := b.buildIndexLookUpJoin(&(v.PhysicalIndexJoin)).(*IndexLookUpJoin)
 	idxHash := &IndexNestedLoopHashJoin{
 		IndexLookUpJoin: *e,
@@ -2420,7 +2420,7 @@ func containsLimit(execs []*fidelpb.InterlockingDirectorate) bool {
 
 // When allow batch cop is 1, only agg / topN uses batch cop.
 // When allow batch cop is 2, every query uses batch cop.
-func (e *BlockReaderInterlockingDirectorate) setBatchCop(v *causetcore.PhysicalBlockReader) {
+func (e *BlockReaderInterlockingDirectorate) setBatchCop(v *causetembedded.PhysicalBlockReader) {
 	if e.storeType != ekv.TiFlash || e.keepOrder {
 		return
 	}
@@ -2428,7 +2428,7 @@ func (e *BlockReaderInterlockingDirectorate) setBatchCop(v *causetcore.PhysicalB
 	case 1:
 		for _, p := range v.BlockCausets {
 			switch p.(type) {
-			case *causetcore.PhysicalHashAgg, *causetcore.PhysicalStreamAgg, *causetcore.PhysicalTopN, *causetcore.PhysicalBroadCastJoin:
+			case *causetembedded.PhysicalHashAgg, *causetembedded.PhysicalStreamAgg, *causetembedded.PhysicalTopN, *causetembedded.PhysicalBroadCastJoin:
 				e.batchCop = true
 			}
 		}
@@ -2438,10 +2438,10 @@ func (e *BlockReaderInterlockingDirectorate) setBatchCop(v *causetcore.PhysicalB
 	return
 }
 
-func buildNoRangeBlockReader(b *interlockBuilder, v *causetcore.PhysicalBlockReader) (*BlockReaderInterlockingDirectorate, error) {
+func buildNoRangeBlockReader(b *interlockBuilder, v *causetembedded.PhysicalBlockReader) (*BlockReaderInterlockingDirectorate, error) {
 	blockCausets := v.BlockCausets
 	if v.StoreType == ekv.TiFlash {
-		blockCausets = []causetcore.PhysicalCauset{v.GetBlockCauset()}
+		blockCausets = []causetembedded.PhysicalCauset{v.GetBlockCauset()}
 	}
 	posetPosetDagReq, streaming, err := b.constructPosetDagReq(blockCausets, v.StoreType)
 	if err != nil {
@@ -2459,19 +2459,19 @@ func buildNoRangeBlockReader(b *interlockBuilder, v *causetcore.PhysicalBlockRea
 		return nil, err
 	}
 	e := &BlockReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:   newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		posetPosetDagPB:          posetPosetDagReq,
-		startTS:        startTS,
-		causet:          tbl,
-		keepOrder:      ts.KeepOrder,
-		desc:           ts.Desc,
-		defCausumns:        ts.DeferredCausets,
-		streaming:      streaming,
-		corDefCausInFilter: b.corDefCausInDistCauset(v.BlockCausets),
-		corDefCausInAccess: b.corDefCausInAccess(v.BlockCausets[0]),
-		plans:          v.BlockCausets,
-		blockCauset:      v.GetBlockCauset(),
-		storeType:      v.StoreType,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
+		posetPosetDagPB:             posetPosetDagReq,
+		startTS:                     startTS,
+		causet:                      tbl,
+		keepOrder:                   ts.KeepOrder,
+		desc:                        ts.Desc,
+		defCausumns:                 ts.DeferredCausets,
+		streaming:                   streaming,
+		corDefCausInFilter:          b.corDefCausInDistCauset(v.BlockCausets),
+		corDefCausInAccess:          b.corDefCausInAccess(v.BlockCausets[0]),
+		plans:                       v.BlockCausets,
+		blockCauset:                 v.GetBlockCauset(),
+		storeType:                   v.StoreType,
 	}
 	e.setBatchCop(v)
 	e.buildVirtualDeferredCausetInfo()
@@ -2502,7 +2502,7 @@ func buildNoRangeBlockReader(b *interlockBuilder, v *causetcore.PhysicalBlockRea
 
 // buildBlockReader builds a causet reader interlock. It first build a no range causet reader,
 // and then uFIDelate it ranges from causet scan plan.
-func (b *interlockBuilder) buildBlockReader(v *causetcore.PhysicalBlockReader) InterlockingDirectorate {
+func (b *interlockBuilder) buildBlockReader(v *causetembedded.PhysicalBlockReader) InterlockingDirectorate {
 	if b.ctx.GetStochastikVars().IsPessimisticReadConsistency() {
 		if err := b.refreshForUFIDelateTSForRC(); err != nil {
 			b.err = err
@@ -2559,7 +2559,7 @@ func (b *interlockBuilder) buildBlockReader(v *causetcore.PhysicalBlockReader) I
 		}
 		return &UnionInterDirc{
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID(), partsInterlockingDirectorate...),
-			concurrency:  b.ctx.GetStochastikVars().UnionConcurrency(),
+			concurrency:                 b.ctx.GetStochastikVars().UnionConcurrency(),
 		}
 	}
 
@@ -2572,7 +2572,7 @@ func (b *interlockBuilder) buildBlockReader(v *causetcore.PhysicalBlockReader) I
 	return exec
 }
 
-func buildPartitionBlock(b *interlockBuilder, tblInfo *perceptron.BlockInfo, partitionInfo *causetcore.PartitionInfo, e InterlockingDirectorate, n nextPartition) (InterlockingDirectorate, error) {
+func buildPartitionBlock(b *interlockBuilder, tblInfo *perceptron.BlockInfo, partitionInfo *causetembedded.PartitionInfo, e InterlockingDirectorate, n nextPartition) (InterlockingDirectorate, error) {
 	tmp, _ := b.is.BlockByID(tblInfo.ID)
 	tbl := tmp.(causet.PartitionedBlock)
 	partitions, err := partitionPruning(b.ctx, tbl, partitionInfo.PruningConds, partitionInfo.PartitionNames, partitionInfo.DeferredCausets, partitionInfo.DeferredCausetNames)
@@ -2584,18 +2584,18 @@ func buildPartitionBlock(b *interlockBuilder, tblInfo *perceptron.BlockInfo, par
 		return &BlockDualInterDirc{baseInterlockingDirectorate: *e.base()}, nil
 	}
 	return &PartitionBlockInterlockingDirectorate{
-		baseInterlockingDirectorate:  *e.base(),
-		partitions:    partitions,
-		nextPartition: n,
+		baseInterlockingDirectorate: *e.base(),
+		partitions:                  partitions,
+		nextPartition:               n,
 	}, nil
 }
 
-func buildNoRangeIndexReader(b *interlockBuilder, v *causetcore.PhysicalIndexReader) (*IndexReaderInterlockingDirectorate, error) {
+func buildNoRangeIndexReader(b *interlockBuilder, v *causetembedded.PhysicalIndexReader) (*IndexReaderInterlockingDirectorate, error) {
 	posetPosetDagReq, streaming, err := b.constructPosetDagReq(v.IndexCausets, ekv.EinsteinDB)
 	if err != nil {
 		return nil, err
 	}
-	is := v.IndexCausets[0].(*causetcore.PhysicalIndexScan)
+	is := v.IndexCausets[0].(*causetembedded.PhysicalIndexScan)
 	tbl, _ := b.is.BlockByID(is.Block.ID)
 	isPartition, physicalBlockID := is.IsPartition()
 	if isPartition {
@@ -2609,22 +2609,22 @@ func buildNoRangeIndexReader(b *interlockBuilder, v *causetcore.PhysicalIndexRea
 		return nil, err
 	}
 	e := &IndexReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:    newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
-		posetPosetDagPB:           posetPosetDagReq,
-		startTS:         startTS,
-		physicalBlockID: physicalBlockID,
-		causet:           tbl,
-		index:           is.Index,
-		keepOrder:       is.KeepOrder,
-		desc:            is.Desc,
-		defCausumns:         is.DeferredCausets,
-		streaming:       streaming,
-		corDefCausInFilter:  b.corDefCausInDistCauset(v.IndexCausets),
-		corDefCausInAccess:  b.corDefCausInAccess(v.IndexCausets[0]),
-		idxDefCauss:         is.IdxDefCauss,
-		defCausLens:         is.IdxDefCausLens,
-		plans:           v.IndexCausets,
-		outputDeferredCausets:   v.OutputDeferredCausets,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
+		posetPosetDagPB:             posetPosetDagReq,
+		startTS:                     startTS,
+		physicalBlockID:             physicalBlockID,
+		causet:                      tbl,
+		index:                       is.Index,
+		keepOrder:                   is.KeepOrder,
+		desc:                        is.Desc,
+		defCausumns:                 is.DeferredCausets,
+		streaming:                   streaming,
+		corDefCausInFilter:          b.corDefCausInDistCauset(v.IndexCausets),
+		corDefCausInAccess:          b.corDefCausInAccess(v.IndexCausets[0]),
+		idxDefCauss:                 is.IdxDefCauss,
+		defCausLens:                 is.IdxDefCausLens,
+		plans:                       v.IndexCausets,
+		outputDeferredCausets:       v.OutputDeferredCausets,
 	}
 	if containsLimit(posetPosetDagReq.InterlockingDirectorates) {
 		e.feedback = statistics.NewQueryFeedback(0, nil, 0, is.Desc)
@@ -2644,7 +2644,7 @@ func buildNoRangeIndexReader(b *interlockBuilder, v *causetcore.PhysicalIndexRea
 	return e, nil
 }
 
-func (b *interlockBuilder) buildIndexReader(v *causetcore.PhysicalIndexReader) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexReader(v *causetembedded.PhysicalIndexReader) InterlockingDirectorate {
 	if b.ctx.GetStochastikVars().IsPessimisticReadConsistency() {
 		if err := b.refreshForUFIDelateTSForRC(); err != nil {
 			b.err = err
@@ -2657,7 +2657,7 @@ func (b *interlockBuilder) buildIndexReader(v *causetcore.PhysicalIndexReader) I
 		return nil
 	}
 
-	is := v.IndexCausets[0].(*causetcore.PhysicalIndexScan)
+	is := v.IndexCausets[0].(*causetembedded.PhysicalIndexScan)
 	ret.ranges = is.Ranges
 	sctx := b.ctx.GetStochastikVars().StmtCtx
 	sctx.IndexNames = append(sctx.IndexNames, is.Block.Name.O+":"+is.Index.Name.O)
@@ -2678,7 +2678,7 @@ func (b *interlockBuilder) buildIndexReader(v *causetcore.PhysicalIndexReader) I
 	return exec
 }
 
-func buildBlockReq(b *interlockBuilder, schemaLen int, plans []causetcore.PhysicalCauset) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, val causet.Block, err error) {
+func buildBlockReq(b *interlockBuilder, schemaLen int, plans []causetembedded.PhysicalCauset) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, val causet.Block, err error) {
 	blockReq, blockStreaming, err := b.constructPosetDagReq(plans, ekv.EinsteinDB)
 	if err != nil {
 		return nil, false, nil, err
@@ -2686,7 +2686,7 @@ func buildBlockReq(b *interlockBuilder, schemaLen int, plans []causetcore.Physic
 	for i := 0; i < schemaLen; i++ {
 		blockReq.OutputOffsets = append(blockReq.OutputOffsets, uint32(i))
 	}
-	ts := plans[0].(*causetcore.PhysicalBlockScan)
+	ts := plans[0].(*causetembedded.PhysicalBlockScan)
 	tbl, _ := b.is.BlockByID(ts.Block.ID)
 	isPartition, physicalBlockID := ts.IsPartition()
 	if isPartition {
@@ -2696,7 +2696,7 @@ func buildBlockReq(b *interlockBuilder, schemaLen int, plans []causetcore.Physic
 	return blockReq, blockStreaming, tbl, err
 }
 
-func buildIndexReq(b *interlockBuilder, schemaLen, handleLen int, plans []causetcore.PhysicalCauset) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, err error) {
+func buildIndexReq(b *interlockBuilder, schemaLen, handleLen int, plans []causetembedded.PhysicalCauset) (posetPosetDagReq *fidelpb.PosetDagRequest, streaming bool, err error) {
 	indexReq, indexStreaming, err := b.constructPosetDagReq(plans, ekv.EinsteinDB)
 	if err != nil {
 		return nil, false, err
@@ -2711,8 +2711,8 @@ func buildIndexReq(b *interlockBuilder, schemaLen, handleLen int, plans []causet
 	return indexReq, indexStreaming, err
 }
 
-func buildNoRangeIndexLookUpReader(b *interlockBuilder, v *causetcore.PhysicalIndexLookUpReader) (*IndexLookUpInterlockingDirectorate, error) {
-	is := v.IndexCausets[0].(*causetcore.PhysicalIndexScan)
+func buildNoRangeIndexLookUpReader(b *interlockBuilder, v *causetembedded.PhysicalIndexLookUpReader) (*IndexLookUpInterlockingDirectorate, error) {
+	is := v.IndexCausets[0].(*causetembedded.PhysicalIndexScan)
 	indexReq, indexStreaming, err := buildIndexReq(b, len(is.Index.DeferredCausets), len(v.CommonHandleDefCauss), v.IndexCausets)
 	if err != nil {
 		return nil, err
@@ -2721,32 +2721,32 @@ func buildNoRangeIndexLookUpReader(b *interlockBuilder, v *causetcore.PhysicalIn
 	if err != nil {
 		return nil, err
 	}
-	ts := v.BlockCausets[0].(*causetcore.PhysicalBlockScan)
+	ts := v.BlockCausets[0].(*causetembedded.PhysicalBlockScan)
 	startTS, err := b.getSnapshotTS()
 	if err != nil {
 		return nil, err
 	}
 	e := &IndexLookUpInterlockingDirectorate{
-		baseInterlockingDirectorate:      newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
 		posetPosetDagPB:             indexReq,
-		startTS:           startTS,
-		causet:             tbl,
-		index:             is.Index,
-		keepOrder:         is.KeepOrder,
-		desc:              is.Desc,
-		blockRequest:      blockReq,
-		defCausumns:           ts.DeferredCausets,
-		indexStreaming:    indexStreaming,
-		blockStreaming:    blockStreaming,
-		dataReaderBuilder: &dataReaderBuilder{interlockBuilder: b},
-		corDefCausInIdxSide:   b.corDefCausInDistCauset(v.IndexCausets),
-		corDefCausInTblSide:   b.corDefCausInDistCauset(v.BlockCausets),
-		corDefCausInAccess:    b.corDefCausInAccess(v.IndexCausets[0]),
-		idxDefCauss:           is.IdxDefCauss,
-		defCausLens:           is.IdxDefCausLens,
-		idxCausets:          v.IndexCausets,
-		tblCausets:          v.BlockCausets,
-		PushedLimit:       v.PushedLimit,
+		startTS:                     startTS,
+		causet:                      tbl,
+		index:                       is.Index,
+		keepOrder:                   is.KeepOrder,
+		desc:                        is.Desc,
+		blockRequest:                blockReq,
+		defCausumns:                 ts.DeferredCausets,
+		indexStreaming:              indexStreaming,
+		blockStreaming:              blockStreaming,
+		dataReaderBuilder:           &dataReaderBuilder{interlockBuilder: b},
+		corDefCausInIdxSide:         b.corDefCausInDistCauset(v.IndexCausets),
+		corDefCausInTblSide:         b.corDefCausInDistCauset(v.BlockCausets),
+		corDefCausInAccess:          b.corDefCausInAccess(v.IndexCausets[0]),
+		idxDefCauss:                 is.IdxDefCauss,
+		defCausLens:                 is.IdxDefCausLens,
+		idxCausets:                  v.IndexCausets,
+		tblCausets:                  v.BlockCausets,
+		PushedLimit:                 v.PushedLimit,
 	}
 
 	if containsLimit(indexReq.InterlockingDirectorates) {
@@ -2775,7 +2775,7 @@ func buildNoRangeIndexLookUpReader(b *interlockBuilder, v *causetcore.PhysicalIn
 	return e, nil
 }
 
-func (b *interlockBuilder) buildIndexLookUpReader(v *causetcore.PhysicalIndexLookUpReader) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexLookUpReader(v *causetembedded.PhysicalIndexLookUpReader) InterlockingDirectorate {
 	if b.ctx.GetStochastikVars().IsPessimisticReadConsistency() {
 		if err := b.refreshForUFIDelateTSForRC(); err != nil {
 			b.err = err
@@ -2788,8 +2788,8 @@ func (b *interlockBuilder) buildIndexLookUpReader(v *causetcore.PhysicalIndexLoo
 		return nil
 	}
 
-	is := v.IndexCausets[0].(*causetcore.PhysicalIndexScan)
-	ts := v.BlockCausets[0].(*causetcore.PhysicalBlockScan)
+	is := v.IndexCausets[0].(*causetembedded.PhysicalIndexScan)
+	ts := v.BlockCausets[0].(*causetembedded.PhysicalBlockScan)
 
 	ret.ranges = is.Ranges
 	interlockCounterIndexLookUpInterlockingDirectorate.Inc()
@@ -2815,7 +2815,7 @@ func (b *interlockBuilder) buildIndexLookUpReader(v *causetcore.PhysicalIndexLoo
 	return exec
 }
 
-func buildNoRangeIndexMergeReader(b *interlockBuilder, v *causetcore.PhysicalIndexMergeReader) (*IndexMergeReaderInterlockingDirectorate, error) {
+func buildNoRangeIndexMergeReader(b *interlockBuilder, v *causetembedded.PhysicalIndexMergeReader) (*IndexMergeReaderInterlockingDirectorate, error) {
 	partialCausetCount := len(v.PartialCausets)
 	partialReqs := make([]*fidelpb.PosetDagRequest, 0, partialCausetCount)
 	partialStreamings := make([]bool, 0, partialCausetCount)
@@ -2823,7 +2823,7 @@ func buildNoRangeIndexMergeReader(b *interlockBuilder, v *causetcore.PhysicalInd
 	keepOrders := make([]bool, 0, partialCausetCount)
 	descs := make([]bool, 0, partialCausetCount)
 	feedbacks := make([]*statistics.QueryFeedback, 0, partialCausetCount)
-	ts := v.BlockCausets[0].(*causetcore.PhysicalBlockScan)
+	ts := v.BlockCausets[0].(*causetembedded.PhysicalBlockScan)
 	for i := 0; i < partialCausetCount; i++ {
 		var tempReq *fidelpb.PosetDagRequest
 		var tempStreaming bool
@@ -2833,13 +2833,13 @@ func buildNoRangeIndexMergeReader(b *interlockBuilder, v *causetcore.PhysicalInd
 		feedback.Invalidate()
 		feedbacks = append(feedbacks, feedback)
 
-		if is, ok := v.PartialCausets[i][0].(*causetcore.PhysicalIndexScan); ok {
+		if is, ok := v.PartialCausets[i][0].(*causetembedded.PhysicalIndexScan); ok {
 			tempReq, tempStreaming, err = buildIndexReq(b, len(is.Index.DeferredCausets), ts.HandleDefCauss.NumDefCauss(), v.PartialCausets[i])
 			keepOrders = append(keepOrders, is.KeepOrder)
 			descs = append(descs, is.Desc)
 			indexes = append(indexes, is.Index)
 		} else {
-			ts := v.PartialCausets[i][0].(*causetcore.PhysicalBlockScan)
+			ts := v.PartialCausets[i][0].(*causetembedded.PhysicalBlockScan)
 			tempReq, tempStreaming, _, err = buildBlockReq(b, len(ts.DeferredCausets), v.PartialCausets[i])
 			keepOrders = append(keepOrders, ts.KeepOrder)
 			descs = append(descs, ts.Desc)
@@ -2862,28 +2862,28 @@ func buildNoRangeIndexMergeReader(b *interlockBuilder, v *causetcore.PhysicalInd
 		return nil, err
 	}
 	e := &IndexMergeReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:      newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID()),
 		posetPosetDagPBs:            partialReqs,
-		startTS:           startTS,
-		causet:             tblInfo,
-		indexes:           indexes,
-		descs:             descs,
-		blockRequest:      blockReq,
-		defCausumns:           ts.DeferredCausets,
-		partialStreamings: partialStreamings,
-		blockStreaming:    blockStreaming,
-		partialCausets:      v.PartialCausets,
-		tblCausets:          v.BlockCausets,
-		dataReaderBuilder: &dataReaderBuilder{interlockBuilder: b},
-		feedbacks:         feedbacks,
-		handleDefCauss:        ts.HandleDefCauss,
+		startTS:                     startTS,
+		causet:                      tblInfo,
+		indexes:                     indexes,
+		descs:                       descs,
+		blockRequest:                blockReq,
+		defCausumns:                 ts.DeferredCausets,
+		partialStreamings:           partialStreamings,
+		blockStreaming:              blockStreaming,
+		partialCausets:              v.PartialCausets,
+		tblCausets:                  v.BlockCausets,
+		dataReaderBuilder:           &dataReaderBuilder{interlockBuilder: b},
+		feedbacks:                   feedbacks,
+		handleDefCauss:              ts.HandleDefCauss,
 	}
 	defCauslectBlock := false
 	e.blockRequest.DefCauslectRangeCounts = &defCauslectBlock
 	return e, nil
 }
 
-func (b *interlockBuilder) buildIndexMergeReader(v *causetcore.PhysicalIndexMergeReader) InterlockingDirectorate {
+func (b *interlockBuilder) buildIndexMergeReader(v *causetembedded.PhysicalIndexMergeReader) InterlockingDirectorate {
 	ret, err := buildNoRangeIndexMergeReader(b, v)
 	if err != nil {
 		b.err = err
@@ -2892,18 +2892,18 @@ func (b *interlockBuilder) buildIndexMergeReader(v *causetcore.PhysicalIndexMerg
 	ret.ranges = make([][]*ranger.Range, 0, len(v.PartialCausets))
 	sctx := b.ctx.GetStochastikVars().StmtCtx
 	for i := 0; i < len(v.PartialCausets); i++ {
-		if is, ok := v.PartialCausets[i][0].(*causetcore.PhysicalIndexScan); ok {
+		if is, ok := v.PartialCausets[i][0].(*causetembedded.PhysicalIndexScan); ok {
 			ret.ranges = append(ret.ranges, is.Ranges)
 			sctx.IndexNames = append(sctx.IndexNames, is.Block.Name.O+":"+is.Index.Name.O)
 		} else {
-			ret.ranges = append(ret.ranges, v.PartialCausets[i][0].(*causetcore.PhysicalBlockScan).Ranges)
+			ret.ranges = append(ret.ranges, v.PartialCausets[i][0].(*causetembedded.PhysicalBlockScan).Ranges)
 			if ret.causet.Meta().IsCommonHandle {
 				tblInfo := ret.causet.Meta()
 				sctx.IndexNames = append(sctx.IndexNames, tblInfo.Name.O+":"+blocks.FindPrimaryIndex(tblInfo).Name.O)
 			}
 		}
 	}
-	ts := v.BlockCausets[0].(*causetcore.PhysicalBlockScan)
+	ts := v.BlockCausets[0].(*causetembedded.PhysicalBlockScan)
 	sctx.BlockIDs = append(sctx.BlockIDs, ts.Block.ID)
 	interlockCounterIndexMergeReaderInterlockingDirectorate.Inc()
 
@@ -2930,33 +2930,33 @@ func (b *interlockBuilder) buildIndexMergeReader(v *causetcore.PhysicalIndexMerg
 // 1. dataReaderBuilder calculate data range from argument, rather than plan.
 // 2. the result interlock is already opened.
 type dataReaderBuilder struct {
-	causetcore.Causet
+	causetembedded.Causet
 	*interlockBuilder
 
 	selectResultHook // for testing
 }
 
 type mockPhysicalIndexReader struct {
-	causetcore.PhysicalCauset
+	causetembedded.PhysicalCauset
 
 	e InterlockingDirectorate
 }
 
 func (builder *dataReaderBuilder) buildInterlockingDirectorateForIndexJoin(ctx context.Context, lookUpContents []*indexJoinLookUpContent,
-	IndexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+	IndexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	return builder.buildInterlockingDirectorateForIndexJoinInternal(ctx, builder.Causet, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
 }
 
-func (builder *dataReaderBuilder) buildInterlockingDirectorateForIndexJoinInternal(ctx context.Context, plan causetcore.Causet, lookUpContents []*indexJoinLookUpContent,
-	IndexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildInterlockingDirectorateForIndexJoinInternal(ctx context.Context, plan causetembedded.Causet, lookUpContents []*indexJoinLookUpContent,
+	IndexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	switch v := plan.(type) {
-	case *causetcore.PhysicalBlockReader:
+	case *causetembedded.PhysicalBlockReader:
 		return builder.buildBlockReaderForIndexJoin(ctx, v, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
-	case *causetcore.PhysicalIndexReader:
+	case *causetembedded.PhysicalIndexReader:
 		return builder.buildIndexReaderForIndexJoin(ctx, v, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
-	case *causetcore.PhysicalIndexLookUpReader:
+	case *causetembedded.PhysicalIndexLookUpReader:
 		return builder.buildIndexLookUpReaderForIndexJoin(ctx, v, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
-	case *causetcore.PhysicalUnionScan:
+	case *causetembedded.PhysicalUnionScan:
 		return builder.buildUnionScanForIndexJoin(ctx, v, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
 	// The inner child of IndexJoin might be Projection when a combination of the following conditions is true:
 	// 	1. The inner child fetch data using indexLookupReader
@@ -2964,18 +2964,18 @@ func (builder *dataReaderBuilder) buildInterlockingDirectorateForIndexJoinIntern
 	// 	3. The inner child needs to keep order
 	// In this case, an extra defCausumn milevadb_rowid will be appended in the output result of IndexLookupReader(see copTask.doubleReadNeedProj).
 	// Then we need a Projection upon IndexLookupReader to prune the redundant defCausumn.
-	case *causetcore.PhysicalProjection:
+	case *causetembedded.PhysicalProjection:
 		return builder.buildProjectionForIndexJoin(ctx, v, lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
 	// Need to support physical selection because after PR 16389, MilevaDB will push down all the expr supported by EinsteinDB or TiFlash
 	// in predicate push down stage, so if there is an expr which only supported by TiFlash, a physical selection will be added after index read
-	case *causetcore.PhysicalSelection:
+	case *causetembedded.PhysicalSelection:
 		childInterDirc, err := builder.buildInterlockingDirectorateForIndexJoinInternal(ctx, v.Children()[0], lookUpContents, IndexRanges, keyOff2IdxOff, cwc)
 		if err != nil {
 			return nil, err
 		}
 		exec := &SelectionInterDirc{
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(builder.ctx, v.Schema(), v.ID(), childInterDirc),
-			filters:      v.Conditions,
+			filters:                     v.Conditions,
 		}
 		err = exec.open(ctx)
 		return exec, err
@@ -2985,8 +2985,8 @@ func (builder *dataReaderBuilder) buildInterlockingDirectorateForIndexJoinIntern
 	return nil, errors.New("Wrong plan type for dataReaderBuilder")
 }
 
-func (builder *dataReaderBuilder) buildUnionScanForIndexJoin(ctx context.Context, v *causetcore.PhysicalUnionScan,
-	values []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildUnionScanForIndexJoin(ctx context.Context, v *causetembedded.PhysicalUnionScan,
+	values []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	childBuilder := &dataReaderBuilder{Causet: v.Children()[0], interlockBuilder: builder.interlockBuilder}
 	reader, err := childBuilder.buildInterlockingDirectorateForIndexJoin(ctx, values, indexRanges, keyOff2IdxOff, cwc)
 	if err != nil {
@@ -3000,23 +3000,23 @@ func (builder *dataReaderBuilder) buildUnionScanForIndexJoin(ctx context.Context
 	return ret, err
 }
 
-func (builder *dataReaderBuilder) buildBlockReaderForIndexJoin(ctx context.Context, v *causetcore.PhysicalBlockReader,
-	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildBlockReaderForIndexJoin(ctx context.Context, v *causetembedded.PhysicalBlockReader,
+	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	e, err := buildNoRangeBlockReader(builder.interlockBuilder, v)
 	if err != nil {
 		return nil, err
 	}
 	tbInfo := e.causet.Meta()
 	if v.IsCommonHandle {
-		kvRanges, err := buildKvRangesForIndexJoin(e.ctx, getPhysicalBlockID(e.causet), -1, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
+		ekvRanges, err := buildEkvRangesForIndexJoin(e.ctx, getPhysicalBlockID(e.causet), -1, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
 		if err != nil {
 			return nil, err
 		}
 		if tbInfo.GetPartitionInfo() == nil {
-			return builder.buildBlockReaderFromKvRanges(ctx, e, kvRanges)
+			return builder.buildBlockReaderFromEkvRanges(ctx, e, ekvRanges)
 		}
-		e.kvRangeBuilder = kvRangeBuilderFromFunc(func(pid int64) ([]ekv.KeyRange, error) {
-			return buildKvRangesForIndexJoin(e.ctx, pid, -1, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
+		e.ekvRangeBuilder = ekvRangeBuilderFromFunc(func(pid int64) ([]ekv.KeyRange, error) {
+			return buildEkvRangesForIndexJoin(e.ctx, pid, -1, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
 		})
 		nextPartition := nextPartitionForBlockReader{e}
 		return buildPartitionBlock(builder.interlockBuilder, tbInfo, &v.PartitionInfo, e, nextPartition)
@@ -3043,20 +3043,20 @@ func (builder *dataReaderBuilder) buildBlockReaderForIndexJoin(ctx context.Conte
 		return builder.buildBlockReaderFromHandles(ctx, e, handles)
 	}
 
-	e.kvRangeBuilder = kvRangeBuilderFromHandles(handles)
+	e.ekvRangeBuilder = ekvRangeBuilderFromHandles(handles)
 	nextPartition := nextPartitionForBlockReader{e}
 	return buildPartitionBlock(builder.interlockBuilder, tbInfo, &v.PartitionInfo, e, nextPartition)
 }
 
-type kvRangeBuilderFromFunc func(pid int64) ([]ekv.KeyRange, error)
+type ekvRangeBuilderFromFunc func(pid int64) ([]ekv.KeyRange, error)
 
-func (h kvRangeBuilderFromFunc) buildKeyRange(pid int64) ([]ekv.KeyRange, error) {
+func (h ekvRangeBuilderFromFunc) buildKeyRange(pid int64) ([]ekv.KeyRange, error) {
 	return h(pid)
 }
 
-type kvRangeBuilderFromHandles []ekv.Handle
+type ekvRangeBuilderFromHandles []ekv.Handle
 
-func (h kvRangeBuilderFromHandles) buildKeyRange(pid int64) ([]ekv.KeyRange, error) {
+func (h ekvRangeBuilderFromHandles) buildKeyRange(pid int64) ([]ekv.KeyRange, error) {
 	handles := []ekv.Handle(h)
 	sort.Slice(handles, func(i, j int) bool {
 		return handles[i].Compare(handles[j]) < 0
@@ -3069,7 +3069,7 @@ func (builder *dataReaderBuilder) buildBlockReaderBase(ctx context.Context, e *B
 	if err != nil {
 		return nil, err
 	}
-	kvReq, err := reqBuilderWithRange.
+	ekvReq, err := reqBuilderWithRange.
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(startTS).
 		SetDesc(e.desc).
@@ -3080,9 +3080,9 @@ func (builder *dataReaderBuilder) buildBlockReaderBase(ctx context.Context, e *B
 	if err != nil {
 		return nil, err
 	}
-	e.kvRanges = append(e.kvRanges, kvReq.KeyRanges...)
+	e.ekvRanges = append(e.ekvRanges, ekvReq.KeyRanges...)
 	e.resultHandler = &blockResultHandler{}
-	result, err := builder.SelectResult(ctx, builder.ctx, kvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
+	result, err := builder.SelectResult(ctx, builder.ctx, ekvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
 	if err != nil {
 		return nil, err
 	}
@@ -3100,25 +3100,25 @@ func (builder *dataReaderBuilder) buildBlockReaderFromHandles(ctx context.Contex
 	return builder.buildBlockReaderBase(ctx, e, b)
 }
 
-func (builder *dataReaderBuilder) buildBlockReaderFromKvRanges(ctx context.Context, e *BlockReaderInterlockingDirectorate, ranges []ekv.KeyRange) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildBlockReaderFromEkvRanges(ctx context.Context, e *BlockReaderInterlockingDirectorate, ranges []ekv.KeyRange) (InterlockingDirectorate, error) {
 	var b allegrosql.RequestBuilder
 	b.SetKeyRanges(ranges)
 	return builder.buildBlockReaderBase(ctx, e, b)
 }
 
-func (builder *dataReaderBuilder) buildIndexReaderForIndexJoin(ctx context.Context, v *causetcore.PhysicalIndexReader,
-	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildIndexReaderForIndexJoin(ctx context.Context, v *causetembedded.PhysicalIndexReader,
+	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	e, err := buildNoRangeIndexReader(builder.interlockBuilder, v)
 	if err != nil {
 		return nil, err
 	}
 	tbInfo := e.causet.Meta()
 	if tbInfo.GetPartitionInfo() == nil || !builder.ctx.GetStochastikVars().UseDynamicPartitionPrune() {
-		kvRanges, err := buildKvRangesForIndexJoin(e.ctx, e.physicalBlockID, e.index.ID, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
+		ekvRanges, err := buildEkvRangesForIndexJoin(e.ctx, e.physicalBlockID, e.index.ID, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
 		if err != nil {
 			return nil, err
 		}
-		err = e.open(ctx, kvRanges)
+		err = e.open(ctx, ekvRanges)
 		return e, err
 	}
 
@@ -3135,8 +3135,8 @@ func (builder *dataReaderBuilder) buildIndexReaderForIndexJoin(ctx context.Conte
 	return ret, err
 }
 
-func (builder *dataReaderBuilder) buildIndexLookUpReaderForIndexJoin(ctx context.Context, v *causetcore.PhysicalIndexLookUpReader,
-	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+func (builder *dataReaderBuilder) buildIndexLookUpReaderForIndexJoin(ctx context.Context, v *causetembedded.PhysicalIndexLookUpReader,
+	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
 	e, err := buildNoRangeIndexLookUpReader(builder.interlockBuilder, v)
 	if err != nil {
 		return nil, err
@@ -3144,7 +3144,7 @@ func (builder *dataReaderBuilder) buildIndexLookUpReaderForIndexJoin(ctx context
 
 	tbInfo := e.causet.Meta()
 	if tbInfo.GetPartitionInfo() == nil || !builder.ctx.GetStochastikVars().UseDynamicPartitionPrune() {
-		e.kvRanges, err = buildKvRangesForIndexJoin(e.ctx, getPhysicalBlockID(e.causet), e.index.ID, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
+		e.ekvRanges, err = buildEkvRangesForIndexJoin(e.ctx, getPhysicalBlockID(e.causet), e.index.ID, lookUpContents, indexRanges, keyOff2IdxOff, cwc)
 		if err != nil {
 			return nil, err
 		}
@@ -3165,9 +3165,9 @@ func (builder *dataReaderBuilder) buildIndexLookUpReaderForIndexJoin(ctx context
 	return ret, err
 }
 
-func (builder *dataReaderBuilder) buildProjectionForIndexJoin(ctx context.Context, v *causetcore.PhysicalProjection,
-	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
-	physicalIndexLookUp, isDoubleRead := v.Children()[0].(*causetcore.PhysicalIndexLookUpReader)
+func (builder *dataReaderBuilder) buildProjectionForIndexJoin(ctx context.Context, v *causetembedded.PhysicalProjection,
+	lookUpContents []*indexJoinLookUpContent, indexRanges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (InterlockingDirectorate, error) {
+	physicalIndexLookUp, isDoubleRead := v.Children()[0].(*causetembedded.PhysicalIndexLookUpReader)
 	if !isDoubleRead {
 		return nil, errors.Errorf("inner child of Projection should be IndexLookupReader, but got %T", v)
 	}
@@ -3177,10 +3177,10 @@ func (builder *dataReaderBuilder) buildProjectionForIndexJoin(ctx context.Contex
 	}
 
 	e := &ProjectionInterDirc{
-		baseInterlockingDirectorate:     newBaseInterlockingDirectorate(builder.ctx, v.Schema(), v.ID(), childInterDirc),
-		numWorkers:       int64(builder.ctx.GetStochastikVars().ProjectionConcurrency()),
-		evaluatorSuit:    memex.NewEvaluatorSuite(v.Exprs, v.AvoidDeferredCausetEvaluator),
-		calculateNoDelay: v.CalculateNoDelay,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(builder.ctx, v.Schema(), v.ID(), childInterDirc),
+		numWorkers:                  int64(builder.ctx.GetStochastikVars().ProjectionConcurrency()),
+		evaluatorSuit:               memex.NewEvaluatorSuite(v.Exprs, v.AvoidDeferredCausetEvaluator),
+		calculateNoDelay:            v.CalculateNoDelay,
 	}
 
 	// If the calculation event count for this Projection operator is smaller
@@ -3196,7 +3196,7 @@ func (builder *dataReaderBuilder) buildProjectionForIndexJoin(ctx context.Contex
 
 // buildRangesForIndexJoin builds ekv ranges for index join when the inner plan is index scan plan.
 func buildRangesForIndexJoin(ctx stochastikctx.Context, lookUpContents []*indexJoinLookUpContent,
-	ranges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) ([]*ranger.Range, error) {
+	ranges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) ([]*ranger.Range, error) {
 	retRanges := make([]*ranger.Range, 0, len(ranges)*len(lookUpContents))
 	lastPos := len(ranges[0].LowVal) - 1
 	tmFIDelatumRanges := make([]*ranger.Range, 0, len(lookUpContents))
@@ -3236,10 +3236,10 @@ func buildRangesForIndexJoin(ctx stochastikctx.Context, lookUpContents []*indexJ
 	return ranger.UnionRanges(ctx.GetStochastikVars().StmtCtx, tmFIDelatumRanges, true)
 }
 
-// buildKvRangesForIndexJoin builds ekv ranges for index join when the inner plan is index scan plan.
-func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64, lookUpContents []*indexJoinLookUpContent,
-	ranges []*ranger.Range, keyOff2IdxOff []int, cwc *causetcore.DefCausWithCmpFuncManager) (_ []ekv.KeyRange, err error) {
-	kvRanges := make([]ekv.KeyRange, 0, len(ranges)*len(lookUpContents))
+// buildEkvRangesForIndexJoin builds ekv ranges for index join when the inner plan is index scan plan.
+func buildEkvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64, lookUpContents []*indexJoinLookUpContent,
+	ranges []*ranger.Range, keyOff2IdxOff []int, cwc *causetembedded.DefCausWithCmpFuncManager) (_ []ekv.KeyRange, err error) {
+	ekvRanges := make([]ekv.KeyRange, 0, len(ranges)*len(lookUpContents))
 	lastPos := len(ranges[0].LowVal) - 1
 	sc := ctx.GetStochastikVars().StmtCtx
 	tmFIDelatumRanges := make([]*ranger.Range, 0, len(lookUpContents))
@@ -3252,17 +3252,17 @@ func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64
 		}
 		if cwc == nil {
 			// Index id is -1 means it's a common handle.
-			var tmpKvRanges []ekv.KeyRange
+			var tmpEkvRanges []ekv.KeyRange
 			var err error
 			if indexID == -1 {
-				tmpKvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, blockID, ranges)
+				tmpEkvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, blockID, ranges)
 			} else {
-				tmpKvRanges, err = allegrosql.IndexRangesToKVRanges(sc, blockID, indexID, ranges, nil)
+				tmpEkvRanges, err = allegrosql.IndexRangesToKVRanges(sc, blockID, indexID, ranges, nil)
 			}
 			if err != nil {
 				return nil, err
 			}
-			kvRanges = append(kvRanges, tmpKvRanges...)
+			ekvRanges = append(ekvRanges, tmpEkvRanges...)
 			continue
 		}
 		nextDefCausRanges, err := cwc.BuildRangesByEvent(ctx, content.event)
@@ -3281,10 +3281,10 @@ func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64
 	}
 
 	if cwc == nil {
-		sort.Slice(kvRanges, func(i, j int) bool {
-			return bytes.Compare(kvRanges[i].StartKey, kvRanges[j].StartKey) < 0
+		sort.Slice(ekvRanges, func(i, j int) bool {
+			return bytes.Compare(ekvRanges[i].StartKey, ekvRanges[j].StartKey) < 0
 		})
-		return kvRanges, nil
+		return ekvRanges, nil
 	}
 
 	tmFIDelatumRanges, err = ranger.UnionRanges(ctx.GetStochastikVars().StmtCtx, tmFIDelatumRanges, true)
@@ -3298,7 +3298,7 @@ func buildKvRangesForIndexJoin(ctx stochastikctx.Context, blockID, indexID int64
 	return allegrosql.IndexRangesToKVRanges(ctx.GetStochastikVars().StmtCtx, blockID, indexID, tmFIDelatumRanges, nil)
 }
 
-func (b *interlockBuilder) buildWindow(v *causetcore.PhysicalWindow) *WindowInterDirc {
+func (b *interlockBuilder) buildWindow(v *causetembedded.PhysicalWindow) *WindowInterDirc {
 	childInterDirc := b.build(v.Children()[0])
 	if b.err != nil {
 		return nil
@@ -3350,7 +3350,7 @@ func (b *interlockBuilder) buildWindow(v *causetcore.PhysicalWindow) *WindowInte
 			partialResults:    partialResults,
 			start:             v.Frame.Start,
 			end:               v.Frame.End,
-			orderByDefCauss:       orderByDefCauss,
+			orderByDefCauss:   orderByDefCauss,
 			expectedCmpResult: cmpResult,
 		}
 	}
@@ -3361,14 +3361,14 @@ func (b *interlockBuilder) buildWindow(v *causetcore.PhysicalWindow) *WindowInte
 	}
 }
 
-func (b *interlockBuilder) buildShuffle(v *causetcore.PhysicalShuffle) *ShuffleInterDirc {
+func (b *interlockBuilder) buildShuffle(v *causetembedded.PhysicalShuffle) *ShuffleInterDirc {
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())
 	shuffle := &ShuffleInterDirc{baseInterlockingDirectorate: base,
 		concurrency: v.Concurrency,
 	}
 
 	switch v.SplitterType {
-	case causetcore.PartitionHashSplitterType:
+	case causetembedded.PartitionHashSplitterType:
 		shuffle.splitter = &partitionHashSplitter{
 			byItems:    v.HashByItems,
 			numWorkers: shuffle.concurrency,
@@ -3391,7 +3391,7 @@ func (b *interlockBuilder) buildShuffle(v *causetcore.PhysicalShuffle) *ShuffleI
 			baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.DataSource.Schema(), v.DataSource.ID()),
 		}
 
-		stub := causetcore.PhysicalShuffleDataSourceStub{
+		stub := causetembedded.PhysicalShuffleDataSourceStub{
 			Worker: (unsafe.Pointer)(w),
 		}.Init(b.ctx, v.DataSource.Stats(), v.DataSource.SelectBlockOffset(), nil)
 		stub.SetSchema(v.DataSource.Schema())
@@ -3408,24 +3408,24 @@ func (b *interlockBuilder) buildShuffle(v *causetcore.PhysicalShuffle) *ShuffleI
 	return shuffle
 }
 
-func (b *interlockBuilder) buildShuffleDataSourceStub(v *causetcore.PhysicalShuffleDataSourceStub) *shuffleWorker {
+func (b *interlockBuilder) buildShuffleDataSourceStub(v *causetembedded.PhysicalShuffleDataSourceStub) *shuffleWorker {
 	return (*shuffleWorker)(v.Worker)
 }
 
-func (b *interlockBuilder) buildALLEGROSQLBindInterDirc(v *causetcore.ALLEGROSQLBindCauset) InterlockingDirectorate {
+func (b *interlockBuilder) buildALLEGROSQLBindInterDirc(v *causetembedded.ALLEGROSQLBindCauset) InterlockingDirectorate {
 	base := newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())
 	base.initCap = chunk.ZeroCapacity
 
 	e := &ALLEGROSQLBindInterDirc{
 		baseInterlockingDirectorate: base,
-		sqlBindOp:    v.ALLEGROSQLBindOp,
-		normdOrigALLEGROSQL: v.NormdOrigALLEGROSQL,
-		bindALLEGROSQL:      v.BindALLEGROSQL,
-		charset:      v.Charset,
-		defCauslation:    v.DefCauslation,
-		EDB:           v.EDB,
-		isGlobal:     v.IsGlobal,
-		bindAst:      v.BindStmt,
+		sqlBindOp:                   v.ALLEGROSQLBindOp,
+		normdOrigALLEGROSQL:         v.NormdOrigALLEGROSQL,
+		bindALLEGROSQL:              v.BindALLEGROSQL,
+		charset:                     v.Charset,
+		defCauslation:               v.DefCauslation,
+		EDB:                         v.EDB,
+		isGlobal:                    v.IsGlobal,
+		bindAst:                     v.BindStmt,
 	}
 	return e
 }
@@ -3453,9 +3453,9 @@ func NewEventCausetDecoder(ctx stochastikctx.Context, schemaReplicant *memex.Sch
 			isGeneratedDefCaus = true
 		}
 		reqDefCauss[idx] = rowcodec.DefCausInfo{
-			ID:            defCaus.ID,
+			ID:                defCaus.ID,
 			VirtualGenDefCaus: isGeneratedDefCaus,
-			Ft:            defCaus.RetType,
+			Ft:                defCaus.RetType,
 		}
 	}
 	if len(pkDefCauss) == 0 {
@@ -3476,7 +3476,7 @@ func NewEventCausetDecoder(ctx stochastikctx.Context, schemaReplicant *memex.Sch
 	return rowcodec.NewChunkCausetDecoder(reqDefCauss, pkDefCauss, defVal, ctx.GetStochastikVars().TimeZone)
 }
 
-func (b *interlockBuilder) buildBatchPointGet(plan *causetcore.BatchPointGetCauset) InterlockingDirectorate {
+func (b *interlockBuilder) buildBatchPointGet(plan *causetembedded.BatchPointGetCauset) InterlockingDirectorate {
 	if b.ctx.GetStochastikVars().IsPessimisticReadConsistency() {
 		if err := b.refreshForUFIDelateTSForRC(); err != nil {
 			b.err = err
@@ -3491,16 +3491,16 @@ func (b *interlockBuilder) buildBatchPointGet(plan *causetcore.BatchPointGetCaus
 	causetDecoder := NewEventCausetDecoder(b.ctx, plan.Schema(), plan.TblInfo)
 	e := &BatchPointGetInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, plan.Schema(), plan.ID()),
-		tblInfo:      plan.TblInfo,
-		idxInfo:      plan.IndexInfo,
-		rowCausetDecoder:   causetDecoder,
-		startTS:      startTS,
-		keepOrder:    plan.KeepOrder,
-		desc:         plan.Desc,
-		dagger:         plan.Lock,
-		waitTime:     plan.LockWaitTime,
-		partPos:      plan.PartitionDefCausPos,
-		defCausumns:      plan.DeferredCausets,
+		tblInfo:                     plan.TblInfo,
+		idxInfo:                     plan.IndexInfo,
+		rowCausetDecoder:            causetDecoder,
+		startTS:                     startTS,
+		keepOrder:                   plan.KeepOrder,
+		desc:                        plan.Desc,
+		dagger:                      plan.Lock,
+		waitTime:                    plan.LockWaitTime,
+		partPos:                     plan.PartitionDefCausPos,
+		defCausumns:                 plan.DeferredCausets,
 	}
 	if e.dagger {
 		b.hasLock = true
@@ -3560,17 +3560,17 @@ func getPhysicalBlockID(t causet.Block) int64 {
 	return t.Meta().ID
 }
 
-func (b *interlockBuilder) buildAdminShowTelemetry(v *causetcore.AdminShowTelemetry) InterlockingDirectorate {
+func (b *interlockBuilder) buildAdminShowTelemetry(v *causetembedded.AdminShowTelemetry) InterlockingDirectorate {
 	return &AdminShowTelemetryInterDirc{baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())}
 }
 
-func (b *interlockBuilder) buildAdminResetTelemetryID(v *causetcore.AdminResetTelemetryID) InterlockingDirectorate {
+func (b *interlockBuilder) buildAdminResetTelemetryID(v *causetembedded.AdminResetTelemetryID) InterlockingDirectorate {
 	return &AdminResetTelemetryIDInterDirc{baseInterlockingDirectorate: newBaseInterlockingDirectorate(b.ctx, v.Schema(), v.ID())}
 }
 
 func partitionPruning(ctx stochastikctx.Context, tbl causet.PartitionedBlock, conds []memex.Expression, partitionNames []perceptron.CIStr,
 	defCausumns []*memex.DeferredCauset, defCausumnNames types.NameSlice) ([]causet.PhysicalBlock, error) {
-	idxArr, err := causetcore.PartitionPruning(ctx, tbl, conds, partitionNames, defCausumns, defCausumnNames)
+	idxArr, err := causetembedded.PartitionPruning(ctx, tbl, conds, partitionNames, defCausumns, defCausumnNames)
 	if err != nil {
 		return nil, err
 	}
@@ -3595,5 +3595,5 @@ func partitionPruning(ctx stochastikctx.Context, tbl causet.PartitionedBlock, co
 }
 
 func fullRangePartition(idxArr []int) bool {
-	return len(idxArr) == 1 && idxArr[0] == causetcore.FullRange
+	return len(idxArr) == 1 && idxArr[0] == causetembedded.FullRange
 }

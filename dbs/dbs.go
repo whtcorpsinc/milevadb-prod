@@ -25,25 +25,25 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ngaut/pools"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/tenant"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	goutil "github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causet"
-	goutil "github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/tenant"
 	"go.uber.org/zap"
 )
 
@@ -52,7 +52,7 @@ const (
 	currentVersion = 1
 	// DBSTenantKey is the dbs tenant path that is saved to etcd, and it's exported for testing.
 	DBSTenantKey = "/milevadb/dbs/fg/tenant"
-	dbsPrompt   = "dbs"
+	dbsPrompt    = "dbs"
 
 	shardRowIDBitsMax = 15
 
@@ -188,16 +188,16 @@ type dbs struct {
 
 // dbsCtx is the context when we use worker to handle DBS jobs.
 type dbsCtx struct {
-	uuid         string
-	causetstore        ekv.CausetStorage
+	uuid          string
+	causetstore   ekv.CausetStorage
 	tenantManager tenant.Manager
-	schemaSyncer soliton.SchemaSyncer
-	dbsJobDoneCh chan struct{}
-	dbsEventCh   chan<- *soliton.Event
-	lease        time.Duration        // lease is schemaReplicant lease.
-	binlogCli    *pumpcli.PumpsClient // binlogCli is used for Binlog.
-	infoHandle   *schemareplicant.Handle
-	blockLockCkr soliton.DeadBlockLockChecker
+	schemaSyncer  soliton.SchemaSyncer
+	dbsJobDoneCh  chan struct{}
+	dbsEventCh    chan<- *soliton.Event
+	lease         time.Duration        // lease is schemaReplicant lease.
+	binlogCli     *pumpcli.PumpsClient // binlogCli is used for Binlog.
+	infoHandle    *schemareplicant.Handle
+	blockLockCkr  soliton.DeadBlockLockChecker
 
 	// hook may be modified.
 	mu struct {
@@ -274,15 +274,15 @@ func newDBS(ctx context.Context, options ...Option) *dbs {
 	}
 
 	dbsCtx := &dbsCtx{
-		uuid:         id,
-		causetstore:        opt.CausetStore,
-		lease:        opt.Lease,
-		dbsJobDoneCh: make(chan struct{}, 1),
+		uuid:          id,
+		causetstore:   opt.CausetStore,
+		lease:         opt.Lease,
+		dbsJobDoneCh:  make(chan struct{}, 1),
 		tenantManager: manager,
-		schemaSyncer: syncer,
-		binlogCli:    binloginfo.GetPumpsClient(),
-		infoHandle:   opt.InfoHandle,
-		blockLockCkr: deadLockCkr,
+		schemaSyncer:  syncer,
+		binlogCli:     binloginfo.GetPumpsClient(),
+		infoHandle:    opt.InfoHandle,
+		blockLockCkr:  deadLockCkr,
 	}
 	dbsCtx.mu.hook = opt.Hook
 	dbsCtx.mu.interceptor = &BaseInterceptor{}

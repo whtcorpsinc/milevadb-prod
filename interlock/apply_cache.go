@@ -15,16 +15,16 @@ package interlock
 
 import (
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 // applyCache is used in the apply interlock. When we get the same value of the outer event.
 // We fetch the inner rows in the cache not to fetch them in the inner interlock.
 type applyCache struct {
-	cache       *kvcache.SimpleLRUCache
+	cache       *ekvcache.SimpleLRUCache
 	memCapacity int64
 	memTracker  *memory.Tracker // track memory usage.
 }
@@ -42,7 +42,7 @@ func applyCacheKVMem(key applyCacheKey, value *chunk.List) int64 {
 func newApplyCache(ctx stochastikctx.Context) (*applyCache, error) {
 	// since applyCache controls the memory usage by itself, set the capacity of
 	// the underlying LRUCache to max to close its memory control
-	cache := kvcache.NewSimpleLRUCache(mathutil.MaxUint, 0.1, 0)
+	cache := ekvcache.NewSimpleLRUCache(mathutil.MaxUint, 0.1, 0)
 	c := applyCache{
 		cache:       cache,
 		memCapacity: ctx.GetStochastikVars().NestedLoopJoinCacheCapacity,

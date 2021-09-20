@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +40,7 @@ func HeapProfileForGlobalMemTracker(d time.Duration) {
 }
 
 func heapProfileForGlobalMemTracker() error {
-	bytes, err := defCaus.getFuncMemUsage(kvcache.ProfileName)
+	bytes, err := defCaus.getFuncMemUsage(ekvcache.ProfileName)
 	if err != nil {
 		return err
 	}
@@ -49,6 +49,6 @@ func heapProfileForGlobalMemTracker() error {
 			log.Error("GlobalLRUMemUsageTracker meet panic", zap.Any("panic", p), zap.Stack("stack"))
 		}
 	}()
-	kvcache.GlobalLRUMemUsageTracker.ReplaceBytesUsed(bytes)
+	ekvcache.GlobalLRUMemUsageTracker.ReplaceBytesUsed(bytes)
 	return nil
 }

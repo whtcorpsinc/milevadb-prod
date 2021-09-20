@@ -25,30 +25,30 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/fn"
-	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/server"
-	"github.com/whtcorpsinc/milevadb/stochastik"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/causetstore/helper"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/server"
 	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 	"google.golang.org/grpc"
 )
 
@@ -61,7 +61,7 @@ type testBlockSuite struct {
 
 type testBlockSuiteBase struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func (s *testBlockSuiteBase) SetUpSuite(c *C) {
@@ -91,7 +91,7 @@ func (s *testBlockSuiteBase) newTestKitWithCausetCache(c *C) *testkit.TestKit {
 	tk := testkit.NewTestKit(c, s.causetstore)
 	var err error
 	tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-		PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+		PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 	})
 	c.Assert(err, IsNil)
 	tk.GetConnectionID()
@@ -455,7 +455,7 @@ func (s *testBlockSuite) TestSomeBlocks(c *C) {
 		ID:      1,
 		User:    "user-1",
 		Host:    "localhost",
-		EDB:      "information_schema",
+		EDB:     "information_schema",
 		Command: byte(1),
 		Digest:  "abc1",
 		State:   1,
@@ -466,7 +466,7 @@ func (s *testBlockSuite) TestSomeBlocks(c *C) {
 		ID:      2,
 		User:    "user-2",
 		Host:    "localhost",
-		EDB:      "test",
+		EDB:     "test",
 		Command: byte(2),
 		Digest:  "abc2",
 		State:   2,
@@ -495,7 +495,7 @@ func (s *testBlockSuite) TestSomeBlocks(c *C) {
 		ID:      1,
 		User:    "user-1",
 		Host:    "localhost",
-		EDB:      "information_schema",
+		EDB:     "information_schema",
 		Command: byte(1),
 		Digest:  "abc1",
 		State:   1,
@@ -700,31 +700,31 @@ func (s *testClusterBlockSuite) TestForClusterServerInfo(c *C) {
 	defer func() { c.Assert(failpoint.Disable(fpName), IsNil) }()
 
 	cases := []struct {
-		allegrosql      string
-		types    set.StringSet
-		addrs    set.StringSet
-		names    set.StringSet
-		skipOnOS string
+		allegrosql string
+		types      set.StringSet
+		addrs      set.StringSet
+		names      set.StringSet
+		skipOnOS   string
 	}{
 		{
-			allegrosql:   "select * from information_schema.CLUSTER_LOAD;",
-			types: set.NewStringSet("milevadb", "einsteindb", "fidel"),
-			addrs: set.NewStringSet(s.listenAddr),
-			names: set.NewStringSet("cpu", "memory", "net"),
+			allegrosql: "select * from information_schema.CLUSTER_LOAD;",
+			types:      set.NewStringSet("milevadb", "einsteindb", "fidel"),
+			addrs:      set.NewStringSet(s.listenAddr),
+			names:      set.NewStringSet("cpu", "memory", "net"),
 		},
 		{
-			allegrosql:   "select * from information_schema.CLUSTER_HARDWARE;",
-			types: set.NewStringSet("milevadb", "einsteindb", "fidel"),
-			addrs: set.NewStringSet(s.listenAddr),
-			names: set.NewStringSet("cpu", "memory", "net", "disk"),
+			allegrosql: "select * from information_schema.CLUSTER_HARDWARE;",
+			types:      set.NewStringSet("milevadb", "einsteindb", "fidel"),
+			addrs:      set.NewStringSet(s.listenAddr),
+			names:      set.NewStringSet("cpu", "memory", "net", "disk"),
 			// The sysutil package will filter out all disk don't have /dev prefix.
 			skipOnOS: "windows",
 		},
 		{
-			allegrosql:   "select * from information_schema.CLUSTER_SYSTEMINFO;",
-			types: set.NewStringSet("milevadb", "einsteindb", "fidel"),
-			addrs: set.NewStringSet(s.listenAddr),
-			names: set.NewStringSet("system"),
+			allegrosql: "select * from information_schema.CLUSTER_SYSTEMINFO;",
+			types:      set.NewStringSet("milevadb", "einsteindb", "fidel"),
+			addrs:      set.NewStringSet(s.listenAddr),
+			names:      set.NewStringSet("system"),
 			// This test get empty result and fails on the windows platform.
 			// Because the underlying implementation use `sysctl` command to get the result
 			// and there is no such command on windows.
@@ -981,7 +981,7 @@ func (s *testBlockSuite) TestStmtSummaryBlock(c *C) {
 	).Check(testkit.Rows("<nil>"))
 
 	// Test SELECT.
-	const failpointName = "github.com/whtcorpsinc/milevadb/causet/core/mockCausetRowCount"
+	const failpointName = "github.com/whtcorpsinc/milevadb/causet/embedded/mockCausetRowCount"
 	c.Assert(failpoint.Enable(failpointName, "return(100)"), IsNil)
 	defer func() { c.Assert(failpoint.Disable(failpointName), IsNil) }()
 	tk.MustQuery("select * from t where a=2")
@@ -1323,11 +1323,11 @@ func (s *testBlockSuite) TestStmtSummarySensitiveQuery(c *C) {
 }
 
 func (s *testBlockSuite) TestPerformanceSchemaforCausetCache(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
-	causetcore.SetPreparedCausetCache(true)
+	causetembedded.SetPreparedCausetCache(true)
 
 	tk := s.newTestKitWithCausetCache(c)
 

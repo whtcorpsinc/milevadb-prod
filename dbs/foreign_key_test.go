@@ -18,22 +18,22 @@ import (
 	"strings"
 	"sync"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
 )
 
 var _ = Suite(&testForeignKeySuite{})
 
 type testForeignKeySuite struct {
-	causetstore  ekv.CausetStorage
-	dbInfo *perceptron.DBInfo
-	d      *dbs
-	ctx    stochastikctx.Context
+	causetstore ekv.CausetStorage
+	dbInfo      *perceptron.DBInfo
+	d           *dbs
+	ctx         stochastikctx.Context
 }
 
 func (s *testForeignKeySuite) SetUpSuite(c *C) {
@@ -59,13 +59,13 @@ func (s *testForeignKeySuite) testCreateForeignKey(c *C, tblInfo *perceptron.Blo
 	}
 
 	fkInfo := &perceptron.FKInfo{
-		Name:     FKName,
-		RefBlock: RefBlock,
-		RefDefCauss:  RefKeys,
-		DefCauss:     Keys,
-		OnDelete: int(onDelete),
+		Name:        FKName,
+		RefBlock:    RefBlock,
+		RefDefCauss: RefKeys,
+		DefCauss:    Keys,
+		OnDelete:    int(onDelete),
 		OnUFIDelate: int(onUFIDelate),
-		State:    perceptron.StateNone,
+		State:       perceptron.StateNone,
 	}
 
 	job := &perceptron.Job{

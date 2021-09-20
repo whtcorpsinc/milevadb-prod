@@ -23,15 +23,15 @@ import (
 
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type (
@@ -55,7 +55,7 @@ type (
 
 	inspectionFilter struct {
 		set       set.StringSet
-		timeRange causetcore.QueryTimeRange
+		timeRange causetembedded.QueryTimeRange
 	}
 
 	inspectionMemrule interface {
@@ -108,8 +108,8 @@ var inspectionMemrules = []inspectionMemrule{
 type inspectionResultRetriever struct {
 	dummyCloser
 	retrieved               bool
-	extractor               *causetcore.InspectionResultBlockExtractor
-	timeRange               causetcore.QueryTimeRange
+	extractor               *causetembedded.InspectionResultBlockExtractor
+	timeRange               causetembedded.QueryTimeRange
 	instanceToStatusAddress map[string]string
 	statusToInstanceAddress map[string]string
 }
@@ -477,7 +477,7 @@ func (c nodeLoadInspection) inspect(ctx context.Context, sctx stochastikctx.Cont
 
 type inspectVirtualMemUsage struct{}
 
-func (inspectVirtualMemUsage) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (inspectVirtualMemUsage) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	allegrosql := fmt.Sprintf("select instance, max(value) as max_usage from metrics_schema.node_memory_usage %s group by instance having max_usage >= 70", timeRange.Condition())
 	return allegrosql
 }
@@ -500,7 +500,7 @@ func (inspectVirtualMemUsage) getItem() string {
 
 type inspectSwapMemoryUsed struct{}
 
-func (inspectSwapMemoryUsed) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (inspectSwapMemoryUsed) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	allegrosql := fmt.Sprintf("select instance, max(value) as max_used from metrics_schema.node_memory_swap_used %s group by instance having max_used > 0", timeRange.Condition())
 	return allegrosql
 }
@@ -522,7 +522,7 @@ func (inspectSwapMemoryUsed) getItem() string {
 
 type inspectDiskUsage struct{}
 
-func (inspectDiskUsage) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (inspectDiskUsage) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	allegrosql := fmt.Sprintf("select instance, device, max(value) as max_usage from metrics_schema.node_disk_usage %v and device like '/%%' group by instance, device having max_usage >= 70", timeRange.Condition())
 	return allegrosql
 }
@@ -548,7 +548,7 @@ type inspectCPULoad struct {
 	tbl  string
 }
 
-func (i inspectCPULoad) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (i inspectCPULoad) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	allegrosql := fmt.Sprintf(`select t1.instance, t1.max_load , 0.7*t2.cpu_count from
 			(select instance,max(value) as max_load  from metrics_schema.%[1]s %[2]s group by instance) as t1 join
 			(select instance,max(value) as cpu_count from metrics_schema.node_virtual_cpus %[2]s group by instance) as t2
@@ -564,7 +564,7 @@ func (i inspectCPULoad) genResult(allegrosql string, event chunk.Event) inspecti
 		actual:   fmt.Sprintf("%.1f", event.GetFloat64(1)),
 		expected: fmt.Sprintf("< %.1f", event.GetFloat64(2)),
 		severity: "warning",
-		detail:   i.getItem() + " should less than (cpu_logical_cores * 0.7)",
+		detail:   i.getItem() + " should less than (cpu_logical_embeddeds * 0.7)",
 	}
 }
 
@@ -1015,7 +1015,7 @@ func (thresholdCheckInspection) inspectThreshold2(ctx context.Context, sctx stoc
 }
 
 type ruleChecker interface {
-	genALLEGROSQL(timeRange causetcore.QueryTimeRange) string
+	genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string
 	genResult(allegrosql string, event chunk.Event) inspectionResult
 	getItem() string
 }
@@ -1026,10 +1026,10 @@ type compareStoreStatus struct {
 	threshold float64
 }
 
-func (c compareStoreStatus) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (c compareStoreStatus) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	condition := fmt.Sprintf(`where t1.time>='%[1]s' and t1.time<='%[2]s' and
-		 t2.time>='%[1]s' and t2.time<='%[2]s'`, timeRange.From.Format(causetcore.MetricBlockTimeFormat),
-		timeRange.To.Format(causetcore.MetricBlockTimeFormat))
+		 t2.time>='%[1]s' and t2.time<='%[2]s'`, timeRange.From.Format(causetembedded.MetricBlockTimeFormat),
+		timeRange.To.Format(causetembedded.MetricBlockTimeFormat))
 	return fmt.Sprintf(`
 		SELECT t1.address,
         	max(t1.value),
@@ -1073,7 +1073,7 @@ func (c compareStoreStatus) getItem() string {
 
 type checkRegionHealth struct{}
 
-func (c checkRegionHealth) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (c checkRegionHealth) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	condition := timeRange.Condition()
 	return fmt.Sprintf(`select instance, sum(value) as sum_value from metrics_schema.FIDel_region_health %s and
 		type in ('extra-peer-region-count','learner-peer-region-count','pending-peer-region-count') having sum_value>100`, condition)
@@ -1101,7 +1101,7 @@ func (c checkRegionHealth) getItem() string {
 
 type checkStoreRegionTooMuch struct{}
 
-func (c checkStoreRegionTooMuch) genALLEGROSQL(timeRange causetcore.QueryTimeRange) string {
+func (c checkStoreRegionTooMuch) genALLEGROSQL(timeRange causetembedded.QueryTimeRange) string {
 	condition := timeRange.Condition()
 	return fmt.Sprintf(`select address, max(value) from metrics_schema.FIDel_scheduler_store_status %s and type='region_count' and value > 20000 group by address`, condition)
 }
@@ -1128,13 +1128,13 @@ func (c checkStoreRegionTooMuch) getItem() string {
 func (thresholdCheckInspection) inspectThreshold3(ctx context.Context, sctx stochastikctx.Context, filter inspectionFilter) []inspectionResult {
 	var rules = []ruleChecker{
 		compareStoreStatus{
-			item:      "leader-score-balance",
-			tp:        "leader_score",
+			item:      "leader-sembedded-balance",
+			tp:        "leader_sembedded",
 			threshold: 0.05,
 		},
 		compareStoreStatus{
-			item:      "region-score-balance",
-			tp:        "region_score",
+			item:      "region-sembedded-balance",
+			tp:        "region_sembedded",
 			threshold: 0.05,
 		},
 		compareStoreStatus{

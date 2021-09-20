@@ -22,34 +22,31 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet"
+	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/metrics"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
-// adjustDeferredCausetInfoInAddDeferredCauset is used to set the correct position of defCausumn info when adding defCausumn.
-// 1. The added defCausumn was append at the end of tblInfo.DeferredCausets, due to dbs state was not public then.
-//    It should be moved to the correct position when the dbs state to be changed to public.
-// 2. The offset of defCausumn should also to be set to the right value.
+
 func adjustDeferredCausetInfoInAddDeferredCauset(tblInfo *perceptron.BlockInfo, offset int) {
 	oldDefCauss := tblInfo.DeferredCausets
 	newDefCauss := make([]*perceptron.DeferredCausetInfo, 0, len(oldDefCauss))
@@ -76,9 +73,7 @@ func adjustDeferredCausetInfoInAddDeferredCauset(tblInfo *perceptron.BlockInfo, 
 	tblInfo.DeferredCausets = newDefCauss
 }
 
-// adjustDeferredCausetInfoInDropDeferredCauset is used to set the correct position of defCausumn info when dropping defCausumn.
-// 1. The offset of defCausumn should to be set to the last of the defCausumns.
-// 2. The dropped defCausumn is moved to the end of tblInfo.DeferredCausets, due to it was not public any more.
+
 func adjustDeferredCausetInfoInDropDeferredCauset(tblInfo *perceptron.BlockInfo, offset int) {
 	oldDefCauss := tblInfo.DeferredCausets
 	// Adjust defCausumn offset.
@@ -652,13 +647,13 @@ func needChangeDeferredCausetData(oldDefCaus, newDefCaus *perceptron.DeferredCau
 }
 
 type modifyDeferredCausetJobParameter struct {
-	newDefCaus                *perceptron.DeferredCausetInfo
-	oldDefCausName            *perceptron.CIStr
-	modifyDeferredCausetTp        byte
+	newDefCaus               *perceptron.DeferredCausetInfo
+	oldDefCausName           *perceptron.CIStr
+	modifyDeferredCausetTp   byte
 	uFIDelatedAutoRandomBits uint64
-	changingDefCaus           *perceptron.DeferredCausetInfo
-	changingIdxs          []*perceptron.IndexInfo
-	pos                   *ast.DeferredCausetPosition
+	changingDefCaus          *perceptron.DeferredCausetInfo
+	changingIdxs             []*perceptron.IndexInfo
+	pos                      *ast.DeferredCausetPosition
 }
 
 func getModifyDeferredCausetInfo(t *spacetime.Meta, job *perceptron.Job) (*perceptron.DBInfo, *perceptron.BlockInfo, *perceptron.DeferredCausetInfo, *modifyDeferredCausetJobParameter, error) {
@@ -971,12 +966,12 @@ func (w *worker) uFIDelateDeferredCausetAndIndexes(t causet.Block, oldDefCaus, d
 
 type uFIDelateDeferredCausetWorker struct {
 	*backfillWorker
-	oldDefCausInfo    *perceptron.DeferredCausetInfo
-	newDefCausInfo    *perceptron.DeferredCausetInfo
-	metricCounter prometheus.Counter
+	oldDefCausInfo *perceptron.DeferredCausetInfo
+	newDefCausInfo *perceptron.DeferredCausetInfo
+	metricCounter  prometheus.Counter
 
 	// The following attributes are used to reduce memory allocation.
-	rowRecords []*rowRecord
+	rowRecords       []*rowRecord
 	rowCausetDecoder *causetDecoder.RowCausetDecoder
 
 	rowMap map[int64]types.Causet
@@ -985,12 +980,12 @@ type uFIDelateDeferredCausetWorker struct {
 func newUFIDelateDeferredCausetWorker(sessCtx stochastikctx.Context, worker *worker, id int, t causet.PhysicalBlock, oldDefCaus, newDefCaus *perceptron.DeferredCausetInfo, decodeDefCausMap map[int64]causetDecoder.DeferredCauset) *uFIDelateDeferredCausetWorker {
 	rowCausetDecoder := causetDecoder.NewRowCausetDecoder(t, t.WriblockDefCauss(), decodeDefCausMap)
 	return &uFIDelateDeferredCausetWorker{
-		backfillWorker: newBackfillWorker(sessCtx, worker, id, t),
-		oldDefCausInfo:     oldDefCaus,
-		newDefCausInfo:     newDefCaus,
-		metricCounter:  metrics.BackfillTotalCounter.WithLabelValues("uFIDelate_defCaus_speed"),
-		rowCausetDecoder:     rowCausetDecoder,
-		rowMap:         make(map[int64]types.Causet, len(decodeDefCausMap)),
+		backfillWorker:   newBackfillWorker(sessCtx, worker, id, t),
+		oldDefCausInfo:   oldDefCaus,
+		newDefCausInfo:   newDefCaus,
+		metricCounter:    metrics.BackfillTotalCounter.WithLabelValues("uFIDelate_defCaus_speed"),
+		rowCausetDecoder: rowCausetDecoder,
+		rowMap:           make(map[int64]types.Causet, len(decodeDefCausMap)),
 	}
 }
 

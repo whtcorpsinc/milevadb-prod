@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !codes
 // +build !codes
 
 package testkit
@@ -23,23 +24,23 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 // TestKit is a utility to run allegrosql test.
 type TestKit struct {
-	c     *check.C
+	c           *check.C
 	causetstore ekv.CausetStorage
-	Se    stochastik.Stochastik
+	Se          stochastik.Stochastik
 }
 
 // Result is the result returned by MustQuery.
@@ -114,7 +115,7 @@ func (res *Result) Sort() *Result {
 // NewTestKit returns a new *TestKit.
 func NewTestKit(c *check.C, causetstore ekv.CausetStorage) *TestKit {
 	return &TestKit{
-		c:     c,
+		c:           c,
 		causetstore: causetstore,
 	}
 }

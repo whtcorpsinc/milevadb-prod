@@ -18,24 +18,24 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -243,7 +243,7 @@ func (e *DBSInterDirc) executeDroFIDelatabase(s *ast.DroFIDelatabaseStmt) error 
 // If one drop those blocks by mistake, it's difficult to recover.
 // In the worst case, the whole MilevaDB cluster fails to bootstrap, so we prevent user from dropping them.
 var systemBlocks = map[string]struct{}{
-	"milevadb":                 {},
+	"milevadb":             {},
 	"gc_delete_range":      {},
 	"gc_delete_range_done": {},
 }
@@ -510,7 +510,7 @@ func (e *DBSInterDirc) getRecoverBlockByBlockName(blockName *ast.BlockName) (*pe
 		schemaName = strings.ToLower(e.ctx.GetStochastikVars().CurrentDB)
 	}
 	if schemaName == "" {
-		return nil, nil, errors.Trace(core.ErrNoDB)
+		return nil, nil, errors.Trace(embedded.ErrNoDB)
 	}
 	gcSafePoint, err := gcutil.GetGCSafePoint(e.ctx)
 	if err != nil {

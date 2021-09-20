@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 const (
@@ -32,19 +32,19 @@ const (
 )
 
 type profileBuilder struct {
-	sctx        stochastikctx.Context
-	idMap       map[string]uint64
+	sctx            stochastikctx.Context
+	idMap           map[string]uint64
 	idSlabPredictor uint64
-	totalValue  float64
-	uniqueMap   map[string]struct{}
-	buf         *bytes.Buffer
-	start       time.Time
-	end         time.Time
-	valueTP     metricValueType
+	totalValue      float64
+	uniqueMap       map[string]struct{}
+	buf             *bytes.Buffer
+	start           time.Time
+	end             time.Time
+	valueTP         metricValueType
 }
 
 type metricNode struct {
-	causet      string
+	causet     string
 	name       string
 	label      []string
 	condition  string
@@ -310,14 +310,14 @@ func NewProfileBuilder(sctx stochastikctx.Context, start, end time.Time, tp stri
 		return nil, fmt.Errorf("unknown metric profile type: %v, expect value should be one of 'sum', 'avg' or 'count'", tp)
 	}
 	return &profileBuilder{
-		sctx:        sctx,
-		idMap:       make(map[string]uint64),
+		sctx:            sctx,
+		idMap:           make(map[string]uint64),
 		idSlabPredictor: uint64(1),
-		buf:         bytes.NewBuffer(make([]byte, 0, 1024)),
-		uniqueMap:   make(map[string]struct{}),
-		start:       start,
-		end:         end,
-		valueTP:     valueTp,
+		buf:             bytes.NewBuffer(make([]byte, 0, 1024)),
+		uniqueMap:       make(map[string]struct{}),
+		start:           start,
+		end:             end,
+		valueTP:         valueTp,
 	}, nil
 }
 
@@ -571,7 +571,7 @@ func (pb *profileBuilder) formatValueByTp(value float64) string {
 }
 
 // dotDefCausor function is copy from https://github.com/google/pprof.
-func (pb *profileBuilder) dotDefCausor(score float64, isBackground bool) string {
+func (pb *profileBuilder) dotDefCausor(sembedded float64, isBackground bool) string {
 	// A float between 0.0 and 1.0, indicating the extent to which
 	// defCausors should be shifted away from grey (to make positive and
 	// negative values easier to distinguish, and to make more use of
@@ -594,29 +594,29 @@ func (pb *profileBuilder) dotDefCausor(score float64, isBackground bool) string 
 		value = fgValue
 	}
 
-	// Limit the score values to the range [-1.0, 1.0].
-	score = math.Max(-1.0, math.Min(1.0, score))
+	// Limit the sembedded values to the range [-1.0, 1.0].
+	sembedded = math.Max(-1.0, math.Min(1.0, sembedded))
 
-	// Reduce saturation near score=0 (so it is defCausored grey, rather than yellow).
-	if math.Abs(score) < 0.2 {
-		saturation *= math.Abs(score) / 0.2
+	// Reduce saturation near sembedded=0 (so it is defCausored grey, rather than yellow).
+	if math.Abs(sembedded) < 0.2 {
+		saturation *= math.Abs(sembedded) / 0.2
 	}
 
-	// Apply 'shift' to move scores away from 0.0 (grey).
-	if score > 0.0 {
-		score = math.Pow(score, (1.0 - shift))
+	// Apply 'shift' to move sembeddeds away from 0.0 (grey).
+	if sembedded > 0.0 {
+		sembedded = math.Pow(sembedded, (1.0 - shift))
 	}
-	if score < 0.0 {
-		score = -math.Pow(-score, (1.0 - shift))
+	if sembedded < 0.0 {
+		sembedded = -math.Pow(-sembedded, (1.0 - shift))
 	}
 
 	var r, g, b float64 // red, green, blue
-	if score < 0.0 {
+	if sembedded < 0.0 {
 		g = value
-		r = value * (1 + saturation*score)
+		r = value * (1 + saturation*sembedded)
 	} else {
 		r = value
-		g = value * (1 - saturation*score)
+		g = value * (1 - saturation*sembedded)
 	}
 	b = value * (1 - saturation)
 	return fmt.Sprintf("#%02x%02x%02x", uint8(r*255.0), uint8(g*255.0), uint8(b*255.0))
@@ -624,7 +624,7 @@ func (pb *profileBuilder) dotDefCausor(score float64, isBackground bool) string 
 
 func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 	milevadbKVRequest := &metricNode{
-		causet:          "milevadb_kv_request",
+		causet:         "milevadb_ekv_request",
 		isPartOfParent: true,
 		label:          []string{"type"},
 		children: []*metricNode{
@@ -638,7 +638,7 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 				causet: "milevadb_batch_client_unavailable",
 			},
 			{
-				causet:     "FIDel_client_cmd",
+				causet:    "FIDel_client_cmd",
 				condition: "type not in ('tso','wait','tso_async_wait')",
 			},
 			{
@@ -648,7 +648,7 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 						causet: "einsteindb_cop_request",
 						children: []*metricNode{
 							{
-								causet:     "einsteindb_cop_wait",
+								causet:    "einsteindb_cop_wait",
 								label:     []string{"type"},
 								condition: "type != 'all'",
 							},
@@ -664,12 +664,12 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 								causet: "einsteindb_storage_async_request",
 								children: []*metricNode{
 									{
-										causet:     "einsteindb_storage_async_request",
+										causet:    "einsteindb_storage_async_request",
 										name:      "einsteindb_storage_async_request.snapshot",
 										condition: "type='snapshot'",
 									},
 									{
-										causet:     "einsteindb_storage_async_request",
+										causet:    "einsteindb_storage_async_request",
 										name:      "einsteindb_storage_async_request.write",
 										condition: "type='write'",
 										children: []*metricNode{
@@ -695,11 +695,11 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 	}
 	dbsTime := &metricNode{
 		causet: "milevadb_dbs",
-		label: []string{"type"},
+		label:  []string{"type"},
 		children: []*metricNode{
 			{
 				causet: "milevadb_dbs_worker",
-				label: []string{"type"},
+				label:  []string{"type"},
 				children: []*metricNode{
 					{
 						causet: "milevadb_dbs_batch_add_index",
@@ -727,11 +727,11 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 				causet: "milevadb_auto_id_request",
 			},
 			{
-				causet:          "milevadb_cop",
+				causet:         "milevadb_cop",
 				isPartOfParent: true,
 				children: []*metricNode{
 					{
-						causet:          "milevadb_kv_backoff",
+						causet:         "milevadb_ekv_backoff",
 						label:          []string{"type"},
 						isPartOfParent: true,
 					},
@@ -740,10 +740,10 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 			},
 			{
 				causet: "milevadb_txn_cmd",
-				label: []string{"type"},
+				label:  []string{"type"},
 				children: []*metricNode{
 					{
-						causet:          "milevadb_kv_backoff",
+						causet:         "milevadb_ekv_backoff",
 						label:          []string{"type"},
 						isPartOfParent: true,
 					},
@@ -755,11 +755,11 @@ func (pb *profileBuilder) genMilevaDBQueryTree() *metricNode {
 	}
 	queryTime := &metricNode{
 		causet: "milevadb_query",
-		label: []string{"sql_type"},
+		label:  []string{"sql_type"},
 		children: []*metricNode{
 			{
 				causet: "milevadb_get_token",
-				unit:  int64(10e5),
+				unit:   int64(10e5),
 			},
 			{
 				causet: "milevadb_parse",

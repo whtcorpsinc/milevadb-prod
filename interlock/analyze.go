@@ -27,31 +27,31 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -158,13 +158,13 @@ const (
 )
 
 type analyzeTask struct {
-	taskType           taskType
-	idxInterDirc            *AnalyzeIndexInterDirc
+	taskType                    taskType
+	idxInterDirc                *AnalyzeIndexInterDirc
 	defCausInterDirc            *AnalyzeDeferredCausetsInterDirc
-	fastInterDirc           *AnalyzeFastInterDirc
-	idxIncrementalInterDirc *analyzeIndexIncrementalInterDirc
+	fastInterDirc               *AnalyzeFastInterDirc
+	idxIncrementalInterDirc     *analyzeIndexIncrementalInterDirc
 	defCausIncrementalInterDirc *analyzePKIncrementalInterDirc
-	job                *statistics.AnalyzeJob
+	job                         *statistics.AnalyzeJob
 }
 
 var errAnalyzeWorkerPanic = errors.New("analyze worker panic")
@@ -250,7 +250,7 @@ func analyzeIndexPushdown(idxInterDirc *AnalyzeIndexInterDirc) analyzeResult {
 // AnalyzeIndexInterDirc represents analyze index push down interlock.
 type AnalyzeIndexInterDirc struct {
 	ctx            stochastikctx.Context
-	blockID        core.AnalyzeBlockID
+	blockID        embedded.AnalyzeBlockID
 	idxInfo        *perceptron.IndexInfo
 	isCommonHandle bool
 	concurrency    int
@@ -267,13 +267,13 @@ type AnalyzeIndexInterDirc struct {
 // special null range for single-defCausumn index to get the null count.
 func (e *AnalyzeIndexInterDirc) fetchAnalyzeResult(ranges []*ranger.Range, isNullRange bool) error {
 	var builder allegrosql.RequestBuilder
-	var kvReqBuilder *allegrosql.RequestBuilder
+	var ekvReqBuilder *allegrosql.RequestBuilder
 	if e.isCommonHandle && e.idxInfo.Primary {
-		kvReqBuilder = builder.SetCommonHandleRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], ranges)
+		ekvReqBuilder = builder.SetCommonHandleRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], ranges)
 	} else {
-		kvReqBuilder = builder.SetIndexRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], e.idxInfo.ID, ranges)
+		ekvReqBuilder = builder.SetIndexRanges(e.ctx.GetStochastikVars().StmtCtx, e.blockID.DefCauslectIDs[0], e.idxInfo.ID, ranges)
 	}
-	kvReq, err := kvReqBuilder.
+	ekvReq, err := ekvReqBuilder.
 		SetAnalyzeRequest(e.analyzePB).
 		SetStartTS(math.MaxUint64).
 		SetKeepOrder(true).
@@ -283,7 +283,7 @@ func (e *AnalyzeIndexInterDirc) fetchAnalyzeResult(ranges []*ranger.Range, isNul
 		return err
 	}
 	ctx := context.TODO()
-	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
+	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), ekvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
 	if err != nil {
 		return err
 	}
@@ -415,16 +415,16 @@ func analyzeDeferredCausetsPushdown(defCausInterDirc *AnalyzeDeferredCausetsInte
 
 // AnalyzeDeferredCausetsInterDirc represents Analyze defCausumns push down interlock.
 type AnalyzeDeferredCausetsInterDirc struct {
-	ctx           stochastikctx.Context
-	blockID       core.AnalyzeBlockID
-	defcausInfo      []*perceptron.DeferredCausetInfo
-	handleDefCauss    core.HandleDefCauss
-	concurrency   int
-	priority      int
-	analyzePB     *fidelpb.AnalyzeReq
-	resultHandler *blockResultHandler
-	opts          map[ast.AnalyzeOptionType]uint64
-	job           *statistics.AnalyzeJob
+	ctx            stochastikctx.Context
+	blockID        embedded.AnalyzeBlockID
+	defcausInfo    []*perceptron.DeferredCausetInfo
+	handleDefCauss embedded.HandleDefCauss
+	concurrency    int
+	priority       int
+	analyzePB      *fidelpb.AnalyzeReq
+	resultHandler  *blockResultHandler
+	opts           map[ast.AnalyzeOptionType]uint64
+	job            *statistics.AnalyzeJob
 }
 
 func (e *AnalyzeDeferredCausetsInterDirc) open(ranges []*ranger.Range) error {
@@ -458,7 +458,7 @@ func (e *AnalyzeDeferredCausetsInterDirc) buildResp(ranges []*ranger.Range) (all
 	}
 	// Always set KeepOrder of the request to be true, in order to compute
 	// correct `correlation` of defCausumns.
-	kvReq, err := reqBuilder.
+	ekvReq, err := reqBuilder.
 		SetAnalyzeRequest(e.analyzePB).
 		SetStartTS(math.MaxUint64).
 		SetKeepOrder(true).
@@ -468,7 +468,7 @@ func (e *AnalyzeDeferredCausetsInterDirc) buildResp(ranges []*ranger.Range) (all
 		return nil, err
 	}
 	ctx := context.TODO()
-	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), kvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
+	result, err := allegrosql.Analyze(ctx, e.ctx.GetClient(), ekvReq, e.ctx.GetStochastikVars().KVVars, e.ctx.GetStochastikVars().InRestrictedALLEGROSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -569,11 +569,11 @@ func (e *AnalyzeDeferredCausetsInterDirc) buildStats(ranges []*ranger.Range, nee
 	return hists, cms, extStats, nil
 }
 
-func hasPkHist(handleDefCauss core.HandleDefCauss) bool {
+func hasPkHist(handleDefCauss embedded.HandleDefCauss) bool {
 	return handleDefCauss != nil && handleDefCauss.IsInt()
 }
 
-func pkDefCaussCount(handleDefCauss core.HandleDefCauss) int {
+func pkDefCaussCount(handleDefCauss embedded.HandleDefCauss) int {
 	if handleDefCauss == nil {
 		return 0
 	}
@@ -632,24 +632,24 @@ func analyzeFastInterDirc(exec *AnalyzeFastInterDirc) []analyzeResult {
 
 // AnalyzeFastInterDirc represents Fast Analyze interlock.
 type AnalyzeFastInterDirc struct {
-	ctx         stochastikctx.Context
-	blockID     core.AnalyzeBlockID
-	handleDefCauss  core.HandleDefCauss
+	ctx            stochastikctx.Context
+	blockID        embedded.AnalyzeBlockID
+	handleDefCauss embedded.HandleDefCauss
 	defcausInfo    []*perceptron.DeferredCausetInfo
-	idxsInfo    []*perceptron.IndexInfo
-	concurrency int
-	opts        map[ast.AnalyzeOptionType]uint64
-	tblInfo     *perceptron.BlockInfo
-	cache       *einsteindb.RegionCache
-	wg          *sync.WaitGroup
-	rowCount    int64
-	sampCursor  int32
-	sampTasks   []*einsteindb.KeyLocation
-	scanTasks   []*einsteindb.KeyLocation
-	defCauslectors  []*statistics.SampleDefCauslector
-	randSeed    int64
-	job         *statistics.AnalyzeJob
-	estSampStep uint32
+	idxsInfo       []*perceptron.IndexInfo
+	concurrency    int
+	opts           map[ast.AnalyzeOptionType]uint64
+	tblInfo        *perceptron.BlockInfo
+	cache          *einsteindb.RegionCache
+	wg             *sync.WaitGroup
+	rowCount       int64
+	sampCursor     int32
+	sampTasks      []*einsteindb.KeyLocation
+	scanTasks      []*einsteindb.KeyLocation
+	defCauslectors []*statistics.SampleDefCauslector
+	randSeed       int64
+	job            *statistics.AnalyzeJob
+	estSampStep    uint32
 }
 
 func (e *AnalyzeFastInterDirc) calculateEstimateSampleStep() (err error) {
@@ -888,11 +888,11 @@ func (e *AnalyzeFastInterDirc) uFIDelateDefCauslectorSamples(sValue []byte, sKey
 	return nil
 }
 
-func (e *AnalyzeFastInterDirc) handleBatchSeekResponse(kvMap map[string][]byte) (err error) {
-	length := int32(len(kvMap))
+func (e *AnalyzeFastInterDirc) handleBatchSeekResponse(ekvMap map[string][]byte) (err error) {
+	length := int32(len(ekvMap))
 	newCursor := atomic.AddInt32(&e.sampCursor, length)
 	samplePos := newCursor - length
-	for sKey, sValue := range kvMap {
+	for sKey, sValue := range ekvMap {
 		exceedNeededSampleCounts := uint64(samplePos) >= e.opts[ast.AnalyzeOptNumSamples]
 		if exceedNeededSampleCounts {
 			atomic.StoreInt32(&e.sampCursor, int32(e.opts[ast.AnalyzeOptNumSamples]))
@@ -977,22 +977,22 @@ func (e *AnalyzeFastInterDirc) handleSampTasks(workID int, step uint32, err *err
 			step = uint32(rander.Intn(int(upper-lower))) + lower
 		}
 		snapshot.SetOption(ekv.SampleStep, step)
-		kvMap := make(map[string][]byte)
+		ekvMap := make(map[string][]byte)
 		var iter ekv.Iterator
 		iter, *err = snapshot.Iter(task.StartKey, task.EndKey)
 		if *err != nil {
 			return
 		}
 		for iter.Valid() {
-			kvMap[string(iter.Key())] = iter.Value()
+			ekvMap[string(iter.Key())] = iter.Value()
 			*err = iter.Next()
 			if *err != nil {
 				return
 			}
 		}
-		fastAnalyzeHistogramSample.Observe(float64(len(kvMap)))
+		fastAnalyzeHistogramSample.Observe(float64(len(ekvMap)))
 
-		*err = e.handleBatchSeekResponse(kvMap)
+		*err = e.handleBatchSeekResponse(ekvMap)
 		if *err != nil {
 			return
 		}
@@ -1097,7 +1097,9 @@ func (e *AnalyzeFastInterDirc) runTasks() ([]*statistics.Histogram, []*statistic
 		// Build defCauslector properties.
 		defCauslector := e.defCauslectors[i]
 		defCauslector.Samples = defCauslector.Samples[:e.sampCursor]
-		sort.Slice(defCauslector.Samples, func(i, j int) bool { return defCauslector.Samples[i].Handle.Compare(defCauslector.Samples[j].Handle) < 0 })
+		sort.Slice(defCauslector.Samples, func(i, j int) bool {
+			return defCauslector.Samples[i].Handle.Compare(defCauslector.Samples[j].Handle) < 0
+		})
 		defCauslector.CalcTotalSize()
 		// Adjust the event count in case the count of `tblStats` is not accurate and too small.
 		rowCount = mathutil.MaxInt64(rowCount, int64(len(defCauslector.Samples)))
@@ -1142,11 +1144,11 @@ type AnalyzeTestFastInterDirc struct {
 	AnalyzeFastInterDirc
 	Ctx             stochastikctx.Context
 	PhysicalBlockID int64
-	HandleDefCauss      core.HandleDefCauss
-	DefCaussInfo        []*perceptron.DeferredCausetInfo
+	HandleDefCauss  embedded.HandleDefCauss
+	DefCaussInfo    []*perceptron.DeferredCausetInfo
 	IdxsInfo        []*perceptron.IndexInfo
 	Concurrency     int
-	DefCauslectors      []*statistics.SampleDefCauslector
+	DefCauslectors  []*statistics.SampleDefCauslector
 	TblInfo         *perceptron.BlockInfo
 	Opts            map[ast.AnalyzeOptionType]uint64
 }
@@ -1158,7 +1160,7 @@ func (e *AnalyzeTestFastInterDirc) TestFastSample() error {
 	e.defcausInfo = e.DefCaussInfo
 	e.idxsInfo = e.IdxsInfo
 	e.concurrency = e.Concurrency
-	e.blockID = core.AnalyzeBlockID{PersistID: e.PhysicalBlockID, DefCauslectIDs: []int64{e.PhysicalBlockID}}
+	e.blockID = embedded.AnalyzeBlockID{PersistID: e.PhysicalBlockID, DefCauslectIDs: []int64{e.PhysicalBlockID}}
 	e.wg = &sync.WaitGroup{}
 	e.job = &statistics.AnalyzeJob{}
 	e.tblInfo = e.TblInfo
@@ -1248,7 +1250,7 @@ func analyzePKIncremental(defCausInterDirc *analyzePKIncrementalInterDirc) analy
 
 // analyzeResult is used to represent analyze result.
 type analyzeResult struct {
-	BlockID  core.AnalyzeBlockID
+	BlockID  embedded.AnalyzeBlockID
 	Hist     []*statistics.Histogram
 	Cms      []*statistics.CMSketch
 	ExtStats *statistics.ExtendedStatsDefCausl

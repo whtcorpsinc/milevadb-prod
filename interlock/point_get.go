@@ -16,26 +16,26 @@ package interlock
 import (
 	"context"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
-func (b *interlockBuilder) buildPointGet(p *causetcore.PointGetCauset) InterlockingDirectorate {
+func (b *interlockBuilder) buildPointGet(p *causetembedded.PointGetCauset) InterlockingDirectorate {
 	if b.ctx.GetStochastikVars().IsPessimisticReadConsistency() {
 		if err := b.refreshForUFIDelateTSForRC(); err != nil {
 			b.err = err
@@ -63,20 +63,20 @@ func (b *interlockBuilder) buildPointGet(p *causetcore.PointGetCauset) Interlock
 type PointGetInterlockingDirectorate struct {
 	baseInterlockingDirectorate
 
-	tblInfo      *perceptron.BlockInfo
-	handle       ekv.Handle
-	idxInfo      *perceptron.IndexInfo
-	partInfo     *perceptron.PartitionDefinition
-	idxKey       ekv.Key
-	handleVal    []byte
-	idxVals      []types.Causet
-	startTS      uint64
-	txn          ekv.Transaction
-	snapshot     ekv.Snapshot
-	done         bool
-	dagger         bool
-	lockWaitTime int64
-	rowCausetDecoder   *rowcodec.ChunkCausetDecoder
+	tblInfo          *perceptron.BlockInfo
+	handle           ekv.Handle
+	idxInfo          *perceptron.IndexInfo
+	partInfo         *perceptron.PartitionDefinition
+	idxKey           ekv.Key
+	handleVal        []byte
+	idxVals          []types.Causet
+	startTS          uint64
+	txn              ekv.Transaction
+	snapshot         ekv.Snapshot
+	done             bool
+	dagger           bool
+	lockWaitTime     int64
+	rowCausetDecoder *rowcodec.ChunkCausetDecoder
 
 	defCausumns []*perceptron.DeferredCausetInfo
 	// virtualDeferredCausetIndex records all the indices of virtual defCausumns and sort them in definition
@@ -90,7 +90,7 @@ type PointGetInterlockingDirectorate struct {
 }
 
 // Init set fields needed for PointGetInterlockingDirectorate reuse, this does NOT change baseInterlockingDirectorate field
-func (e *PointGetInterlockingDirectorate) Init(p *causetcore.PointGetCauset, startTs uint64) {
+func (e *PointGetInterlockingDirectorate) Init(p *causetembedded.PointGetCauset, startTs uint64) {
 	causetDecoder := NewEventCausetDecoder(e.ctx, p.Schema(), p.TblInfo)
 	e.tblInfo = p.TblInfo
 	e.handle = p.Handle
@@ -309,7 +309,7 @@ func (e *PointGetInterlockingDirectorate) lockKeyIfNeeded(ctx context.Context, k
 }
 
 // get will first try to get from txn buffer, then check the pessimistic dagger cache,
-// then the causetstore. Kv.ErrNotExist will be returned if key is not found
+// then the causetstore. Ekv.ErrNotExist will be returned if key is not found
 func (e *PointGetInterlockingDirectorate) get(ctx context.Context, key ekv.Key) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, ekv.ErrNotExist

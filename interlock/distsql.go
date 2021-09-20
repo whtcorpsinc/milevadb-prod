@@ -24,20 +24,18 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
@@ -45,7 +43,9 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -61,11 +61,11 @@ var LookupBlockTaskChannelSize int32 = 50
 // lookupBlockTask is created from a partial result of an index request which
 // contains the handles in those index keys.
 type lookupBlockTask struct {
-	handles []ekv.Handle
-	rowIdx  []int // rowIdx represents the handle index for every event. Only used when keep order.
-	rows    []chunk.Event
+	handles   []ekv.Handle
+	rowIdx    []int // rowIdx represents the handle index for every event. Only used when keep order.
+	rows      []chunk.Event
 	idxEvents *chunk.Chunk
-	cursor  int
+	cursor    int
 
 	doneCh chan error
 
@@ -188,7 +188,7 @@ func splitRanges(ranges []*ranger.Range, keepOrder bool, desc bool) ([]*ranger.R
 
 // rebuildIndexRanges will be called if there's correlated defCausumn in access conditions. We will rebuild the range
 // by substitute correlated defCausumn with the constant.
-func rebuildIndexRanges(ctx stochastikctx.Context, is *causetcore.PhysicalIndexScan, idxDefCauss []*memex.DeferredCauset, defCausLens []int) (ranges []*ranger.Range, err error) {
+func rebuildIndexRanges(ctx stochastikctx.Context, is *causetembedded.PhysicalIndexScan, idxDefCauss []*memex.DeferredCauset, defCausLens []int) (ranges []*ranger.Range, err error) {
 	access := make([]memex.Expression, 0, len(is.AccessCondition))
 	for _, cond := range is.AccessCondition {
 		newCond, err1 := memex.SubstituteCorDefCaus2Constant(cond)
@@ -207,14 +207,14 @@ type IndexReaderInterlockingDirectorate struct {
 
 	// For a partitioned causet, the IndexReaderInterlockingDirectorate works on a partition, so
 	// the type of this causet field is actually `causet.PhysicalBlock`.
-	causet           causet.Block
+	causet          causet.Block
 	index           *perceptron.IndexInfo
 	physicalBlockID int64
 	ranges          []*ranger.Range
-	// kvRanges are only used for union scan.
-	kvRanges []ekv.KeyRange
-	posetPosetDagPB    *fidelpb.PosetDagRequest
-	startTS  uint64
+	// ekvRanges are only used for union scan.
+	ekvRanges       []ekv.KeyRange
+	posetPosetDagPB *fidelpb.PosetDagRequest
+	startTS         uint64
 
 	// result returns one or more allegrosql.PartialResult and each PartialResult is returned by one region.
 	result allegrosql.SelectResult
@@ -233,7 +233,7 @@ type IndexReaderInterlockingDirectorate struct {
 	corDefCausInAccess bool
 	idxDefCauss        []*memex.DeferredCauset
 	defCausLens        []int
-	plans          []causetcore.PhysicalCauset
+	plans              []causetembedded.PhysicalCauset
 
 	memTracker *memory.Tracker
 
@@ -261,20 +261,20 @@ func (e *IndexReaderInterlockingDirectorate) Next(ctx context.Context, req *chun
 func (e *IndexReaderInterlockingDirectorate) Open(ctx context.Context) error {
 	var err error
 	if e.corDefCausInAccess {
-		e.ranges, err = rebuildIndexRanges(e.ctx, e.plans[0].(*causetcore.PhysicalIndexScan), e.idxDefCauss, e.defCausLens)
+		e.ranges, err = rebuildIndexRanges(e.ctx, e.plans[0].(*causetembedded.PhysicalIndexScan), e.idxDefCauss, e.defCausLens)
 		if err != nil {
 			return err
 		}
 	}
-	kvRanges, err := allegrosql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, e.physicalBlockID, e.index.ID, e.ranges, e.feedback)
+	ekvRanges, err := allegrosql.IndexRangesToKVRanges(e.ctx.GetStochastikVars().StmtCtx, e.physicalBlockID, e.index.ID, e.ranges, e.feedback)
 	if err != nil {
 		e.feedback.Invalidate()
 		return err
 	}
-	return e.open(ctx, kvRanges)
+	return e.open(ctx, ekvRanges)
 }
 
-func (e *IndexReaderInterlockingDirectorate) open(ctx context.Context, kvRanges []ekv.KeyRange) error {
+func (e *IndexReaderInterlockingDirectorate) open(ctx context.Context, ekvRanges []ekv.KeyRange) error {
 	var err error
 	if e.corDefCausInFilter {
 		e.posetPosetDagPB.InterlockingDirectorates, _, err = constructDistInterDirc(e.ctx, e.plans)
@@ -287,12 +287,12 @@ func (e *IndexReaderInterlockingDirectorate) open(ctx context.Context, kvRanges 
 		defCauslInterDirc := true
 		e.posetPosetDagPB.DefCauslectInterDircutionSummaries = &defCauslInterDirc
 	}
-	e.kvRanges = kvRanges
+	e.ekvRanges = ekvRanges
 
 	e.memTracker = memory.NewTracker(e.id, -1)
 	e.memTracker.AttachTo(e.ctx.GetStochastikVars().StmtCtx.MemTracker)
 	var builder allegrosql.RequestBuilder
-	kvReq, err := builder.SetKeyRanges(kvRanges).
+	ekvReq, err := builder.SetKeyRanges(ekvRanges).
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(e.startTS).
 		SetDesc(e.desc).
@@ -305,7 +305,7 @@ func (e *IndexReaderInterlockingDirectorate) open(ctx context.Context, kvRanges 
 		e.feedback.Invalidate()
 		return err
 	}
-	e.result, err = e.SelectResult(ctx, e.ctx, kvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
+	e.result, err = e.SelectResult(ctx, e.ctx, ekvReq, retTypes(e), e.feedback, getPhysicalCausetIDs(e.plans), e.id)
 	if err != nil {
 		e.feedback.Invalidate()
 		return err
@@ -318,14 +318,14 @@ func (e *IndexReaderInterlockingDirectorate) open(ctx context.Context, kvRanges 
 type IndexLookUpInterlockingDirectorate struct {
 	baseInterlockingDirectorate
 
-	causet   causet.Block
-	index   *perceptron.IndexInfo
-	ranges  []*ranger.Range
-	posetPosetDagPB   *fidelpb.PosetDagRequest
-	startTS uint64
+	causet          causet.Block
+	index           *perceptron.IndexInfo
+	ranges          []*ranger.Range
+	posetPosetDagPB *fidelpb.PosetDagRequest
+	startTS         uint64
 	// handleIdx is the index of handle, which is only used for case of keeping order.
 	handleIdx       []int
-	handleDefCauss      []*memex.DeferredCauset
+	handleDefCauss  []*memex.DeferredCauset
 	primaryKeyIndex *perceptron.IndexInfo
 	blockRequest    *fidelpb.PosetDagRequest
 	// defCausumns are only required by union scan.
@@ -347,7 +347,7 @@ type IndexLookUpInterlockingDirectorate struct {
 	// checHoTTexValue is used to check the consistency of the index data.
 	*checHoTTexValue
 
-	kvRanges      []ekv.KeyRange
+	ekvRanges     []ekv.KeyRange
 	workerStarted bool
 
 	keepOrder bool
@@ -359,12 +359,12 @@ type IndexLookUpInterlockingDirectorate struct {
 	corDefCausInIdxSide bool
 	corDefCausInTblSide bool
 	corDefCausInAccess  bool
-	idxCausets        []causetcore.PhysicalCauset
-	tblCausets        []causetcore.PhysicalCauset
+	idxCausets          []causetembedded.PhysicalCauset
+	tblCausets          []causetembedded.PhysicalCauset
 	idxDefCauss         []*memex.DeferredCauset
 	defCausLens         []int
 	// PushedLimit is used to skip the preceding and tailing handles when Limit is sunk into IndexLookUpReader.
-	PushedLimit *causetcore.PushedDownLimit
+	PushedLimit *causetembedded.PushedDownLimit
 }
 
 type getHandleType int8
@@ -383,7 +383,7 @@ type checHoTTexValue struct {
 func (e *IndexLookUpInterlockingDirectorate) Open(ctx context.Context) error {
 	var err error
 	if e.corDefCausInAccess {
-		e.ranges, err = rebuildIndexRanges(e.ctx, e.idxCausets[0].(*causetcore.PhysicalIndexScan), e.idxDefCauss, e.defCausLens)
+		e.ranges, err = rebuildIndexRanges(e.ctx, e.idxCausets[0].(*causetembedded.PhysicalIndexScan), e.idxDefCauss, e.defCausLens)
 		if err != nil {
 			return err
 		}
@@ -391,9 +391,9 @@ func (e *IndexLookUpInterlockingDirectorate) Open(ctx context.Context) error {
 	sc := e.ctx.GetStochastikVars().StmtCtx
 	physicalID := getPhysicalBlockID(e.causet)
 	if e.index.ID == -1 {
-		e.kvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, physicalID, e.ranges)
+		e.ekvRanges, err = allegrosql.CommonHandleRangesToKVRanges(sc, physicalID, e.ranges)
 	} else {
-		e.kvRanges, err = allegrosql.IndexRangesToKVRanges(sc, physicalID, e.index.ID, e.ranges, e.feedback)
+		e.ekvRanges, err = allegrosql.IndexRangesToKVRanges(sc, physicalID, e.index.ID, e.ranges, e.feedback)
 	}
 	if err != nil {
 		e.feedback.Invalidate()
@@ -438,7 +438,7 @@ func (e *IndexLookUpInterlockingDirectorate) startWorkers(ctx context.Context, i
 	// indexWorker will write to workCh and blockWorker will read from workCh,
 	// so fetching index and getting causet data can run concurrently.
 	workCh := make(chan *lookupBlockTask, 1)
-	if err := e.startIndexWorker(ctx, e.kvRanges, workCh, initBatchSize); err != nil {
+	if err := e.startIndexWorker(ctx, e.ekvRanges, workCh, initBatchSize); err != nil {
 		return err
 	}
 	e.startBlockWorker(ctx, workCh)
@@ -466,7 +466,7 @@ func (e *IndexLookUpInterlockingDirectorate) getRetTpsByHandle() []*types.FieldT
 }
 
 // startIndexWorker launch a background goroutine to fetch handles, send the results to workCh.
-func (e *IndexLookUpInterlockingDirectorate) startIndexWorker(ctx context.Context, kvRanges []ekv.KeyRange, workCh chan<- *lookupBlockTask, initBatchSize int) error {
+func (e *IndexLookUpInterlockingDirectorate) startIndexWorker(ctx context.Context, ekvRanges []ekv.KeyRange, workCh chan<- *lookupBlockTask, initBatchSize int) error {
 	if e.runtimeStats != nil {
 		defCauslInterDirc := true
 		e.posetPosetDagPB.DefCauslectInterDircutionSummaries = &defCauslInterDirc
@@ -475,7 +475,7 @@ func (e *IndexLookUpInterlockingDirectorate) startIndexWorker(ctx context.Contex
 	tracker := memory.NewTracker(memory.LabelForIndexWorker, -1)
 	tracker.AttachTo(e.memTracker)
 	var builder allegrosql.RequestBuilder
-	kvReq, err := builder.SetKeyRanges(kvRanges).
+	ekvReq, err := builder.SetKeyRanges(ekvRanges).
 		SetPosetDagRequest(e.posetPosetDagPB).
 		SetStartTS(e.startTS).
 		SetDesc(e.desc).
@@ -489,7 +489,7 @@ func (e *IndexLookUpInterlockingDirectorate) startIndexWorker(ctx context.Contex
 	}
 	tps := e.getRetTpsByHandle()
 	// Since the first read only need handle information. So its returned defCaus is only 1.
-	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, kvReq, tps, e.feedback, getPhysicalCausetIDs(e.idxCausets), e.id)
+	result, err := allegrosql.SelectWithRuntimeStats(ctx, e.ctx, ekvReq, tps, e.feedback, getPhysicalCausetIDs(e.idxCausets), e.id)
 	if err != nil {
 		return err
 	}
@@ -558,15 +558,15 @@ func (e *IndexLookUpInterlockingDirectorate) startBlockWorker(ctx context.Contex
 
 func (e *IndexLookUpInterlockingDirectorate) buildBlockReader(ctx context.Context, handles []ekv.Handle) (InterlockingDirectorate, error) {
 	blockReaderInterDirc := &BlockReaderInterlockingDirectorate{
-		baseInterlockingDirectorate:   newBaseInterlockingDirectorate(e.ctx, e.schemaReplicant, 0),
-		causet:          e.causet,
-		posetPosetDagPB:          e.blockRequest,
-		startTS:        e.startTS,
-		defCausumns:        e.defCausumns,
-		streaming:      e.blockStreaming,
-		feedback:       statistics.NewQueryFeedback(0, nil, 0, false),
-		corDefCausInFilter: e.corDefCausInTblSide,
-		plans:          e.tblCausets,
+		baseInterlockingDirectorate: newBaseInterlockingDirectorate(e.ctx, e.schemaReplicant, 0),
+		causet:                      e.causet,
+		posetPosetDagPB:             e.blockRequest,
+		startTS:                     e.startTS,
+		defCausumns:                 e.defCausumns,
+		streaming:                   e.blockStreaming,
+		feedback:                    statistics.NewQueryFeedback(0, nil, 0, false),
+		corDefCausInFilter:          e.corDefCausInTblSide,
+		plans:                       e.tblCausets,
 	}
 	blockReaderInterDirc.buildVirtualDeferredCausetInfo()
 	blockReader, err := e.dataReaderBuilder.buildBlockReaderFromHandles(ctx, blockReaderInterDirc, handles)
@@ -659,7 +659,7 @@ type indexWorker struct {
 	// checHoTTexValue is used to check the consistency of the index data.
 	*checHoTTexValue
 	// PushedLimit is used to skip the preceding and tailing handles when Limit is sunk into IndexLookUpReader.
-	PushedLimit *causetcore.PushedDownLimit
+	PushedLimit *causetembedded.PushedDownLimit
 }
 
 // fetchHandles fetches a batch of handles from index data and builds the index lookup tasks.
@@ -802,7 +802,7 @@ func (w *indexWorker) buildBlockTask(handles []ekv.Handle, retChk *chunk.Chunk) 
 		handles:              handles,
 		indexOrder:           indexOrder,
 		duplicatedIndexOrder: duplicatedIndexOrder,
-		idxEvents:              retChk,
+		idxEvents:            retChk,
 	}
 
 	task.doneCh = make(chan error, 1)
@@ -1059,7 +1059,7 @@ func GetLackHandles(expectedHandles []ekv.Handle, obtainedHandlesMap *ekv.Handle
 	return diffHandles
 }
 
-func getPhysicalCausetIDs(plans []causetcore.PhysicalCauset) []int {
+func getPhysicalCausetIDs(plans []causetembedded.PhysicalCauset) []int {
 	planIDs := make([]int, 0, len(plans))
 	for _, p := range plans {
 		planIDs = append(planIDs, p.ID())

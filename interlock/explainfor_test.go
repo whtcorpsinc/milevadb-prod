@@ -20,13 +20,13 @@ import (
 	"strconv"
 	"sync"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastik"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 // mockStochastikManager is a mocked stochastik manager which is used for test.
@@ -79,9 +79,9 @@ func (s *testSuite) TestExplainFor(c *C) {
 		"└─BlockFullScan_4 10000.00 cop[einsteindb] causet:t1 keep order:false, stats:pseudo",
 	))
 	err := tkUser.InterDircToErr(fmt.Sprintf("explain for connection %d", tkRootProcess.ID))
-	c.Check(core.ErrAccessDenied.Equal(err), IsTrue)
+	c.Check(embedded.ErrAccessDenied.Equal(err), IsTrue)
 	err = tkUser.InterDircToErr("explain for connection 42")
-	c.Check(core.ErrNoSuchThread.Equal(err), IsTrue)
+	c.Check(embedded.ErrNoSuchThread.Equal(err), IsTrue)
 
 	tkRootProcess.Causet = nil
 	ps = []*soliton.ProcessInfo{tkRootProcess}
@@ -169,16 +169,16 @@ type testPrepareSerialSuite struct {
 }
 
 func (s *testPrepareSerialSuite) TestExplainForConnCausetCache(c *C) {
-	orgEnable := core.PreparedCausetCacheEnabled()
+	orgEnable := embedded.PreparedCausetCacheEnabled()
 	defer func() {
-		core.SetPreparedCausetCache(orgEnable)
+		embedded.SetPreparedCausetCache(orgEnable)
 	}()
-	core.SetPreparedCausetCache(true)
+	embedded.SetPreparedCausetCache(true)
 
 	var err error
 	tk1 := testkit.NewTestKit(c, s.causetstore)
 	tk1.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-		PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+		PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 	})
 	c.Assert(err, IsNil)
 	tk2 := testkit.NewTestKitWithInit(c, s.causetstore)

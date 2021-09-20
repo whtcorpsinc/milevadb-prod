@@ -21,20 +21,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/prometheus/client_golang/api"
 	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	pperceptron "github.com/prometheus/common/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 const promReadTimeout = time.Second * 10
@@ -42,10 +42,10 @@ const promReadTimeout = time.Second * 10
 // MetricRetriever uses to read metric data.
 type MetricRetriever struct {
 	dummyCloser
-	causet     *perceptron.BlockInfo
+	causet    *perceptron.BlockInfo
 	tblDef    *schemareplicant.MetricBlockDef
-	extractor *causetcore.MetricBlockExtractor
-	timeRange causetcore.QueryTimeRange
+	extractor *causetembedded.MetricBlockExtractor
+	timeRange causetembedded.QueryTimeRange
 	retrieved bool
 }
 
@@ -183,9 +183,9 @@ func (e *MetricRetriever) genRecord(metric pperceptron.Metric, pair pperceptron.
 // MetricsSummaryRetriever uses to read metric data.
 type MetricsSummaryRetriever struct {
 	dummyCloser
-	causet     *perceptron.BlockInfo
-	extractor *causetcore.MetricSummaryBlockExtractor
-	timeRange causetcore.QueryTimeRange
+	causet    *perceptron.BlockInfo
+	extractor *causetembedded.MetricSummaryBlockExtractor
+	timeRange causetembedded.QueryTimeRange
 	retrieved bool
 }
 
@@ -255,9 +255,9 @@ func (e *MetricsSummaryRetriever) retrieve(_ context.Context, sctx stochastikctx
 // MetricsSummaryByLabelRetriever uses to read metric detail data.
 type MetricsSummaryByLabelRetriever struct {
 	dummyCloser
-	causet     *perceptron.BlockInfo
-	extractor *causetcore.MetricSummaryBlockExtractor
-	timeRange causetcore.QueryTimeRange
+	causet    *perceptron.BlockInfo
+	extractor *causetembedded.MetricSummaryBlockExtractor
+	timeRange causetembedded.QueryTimeRange
 	retrieved bool
 }
 

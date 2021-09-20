@@ -18,33 +18,33 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // DeferredCauset contains the info and generated expr of defCausumn.
 type DeferredCauset struct {
-	DefCaus     *causet.DeferredCauset
+	DefCaus *causet.DeferredCauset
 	GenExpr memex.Expression
 }
 
 // RowCausetDecoder decodes a byte slice into datums and eval the generated defCausumn value.
 type RowCausetDecoder struct {
-	tbl           causet.Block
-	mutRow        chunk.MutRow
-	defCausMap        map[int64]DeferredCauset
-	defCausTypes      map[int64]*types.FieldType
+	tbl                   causet.Block
+	mutRow                chunk.MutRow
+	defCausMap            map[int64]DeferredCauset
+	defCausTypes          map[int64]*types.FieldType
 	haveGenDeferredCauset bool
-	defaultVals   []types.Causet
-	defcaus          []*causet.DeferredCauset
-	pkDefCauss        []int64
+	defaultVals           []types.Causet
+	defcaus               []*causet.DeferredCauset
+	pkDefCauss            []int64
 }
 
 // NewRowCausetDecoder returns a new RowCausetDecoder.
@@ -67,13 +67,13 @@ func NewRowCausetDecoder(tbl causet.Block, defcaus []*causet.DeferredCauset, dec
 		pkDefCauss = []int64{tblInfo.GetPkDefCausInfo().ID}
 	}
 	return &RowCausetDecoder{
-		tbl:         tbl,
-		mutRow:      chunk.MutRowFromTypes(tps),
-		defCausMap:      decodeDefCausMap,
-		defCausTypes:    defCausFieldMap,
-		defaultVals: make([]types.Causet, len(defcaus)),
-		defcaus:        defcaus,
-		pkDefCauss:      pkDefCauss,
+		tbl:          tbl,
+		mutRow:       chunk.MutRowFromTypes(tps),
+		defCausMap:   decodeDefCausMap,
+		defCausTypes: defCausFieldMap,
+		defaultVals:  make([]types.Causet, len(defcaus)),
+		defcaus:      defcaus,
+		pkDefCauss:   pkDefCauss,
 	}
 }
 
@@ -154,7 +154,7 @@ func BuildFullDecodeDefCausMap(defcaus []*causet.DeferredCauset, schemaReplicant
 	decodeDefCausMap := make(map[int64]DeferredCauset, len(defcaus))
 	for _, defCaus := range defcaus {
 		decodeDefCausMap[defCaus.ID] = DeferredCauset{
-			DefCaus:     defCaus,
+			DefCaus: defCaus,
 			GenExpr: schemaReplicant.DeferredCausets[defCaus.Offset].VirtualExpr,
 		}
 	}

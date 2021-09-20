@@ -22,19 +22,19 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -68,7 +68,7 @@ type IndexLookUpMergeJoin struct {
 	keyOff2IdxOff []int
 
 	// lastDefCausHelper causetstore the information for last defCaus if there's complicated filter like defCaus > x_defCaus and defCaus < x_defCaus + 100.
-	lastDefCausHelper *causetcore.DefCausWithCmpFuncManager
+	lastDefCausHelper *causetembedded.DefCausWithCmpFuncManager
 
 	memTracker *memory.Tracker // track memory usage
 }
@@ -76,7 +76,7 @@ type IndexLookUpMergeJoin struct {
 type outerMergeCtx struct {
 	rowTypes      []*types.FieldType
 	joinKeys      []*memex.DeferredCauset
-	keyDefCauss       []int
+	keyDefCauss   []int
 	filter        memex.CNFExprs
 	needOuterSort bool
 	compareFuncs  []memex.CompareFunc
@@ -86,9 +86,9 @@ type innerMergeCtx struct {
 	readerBuilder           *dataReaderBuilder
 	rowTypes                []*types.FieldType
 	joinKeys                []*memex.DeferredCauset
-	keyDefCauss                 []int
+	keyDefCauss             []int
 	compareFuncs            []memex.CompareFunc
-	defCausLens                 []int
+	defCausLens             []int
 	desc                    bool
 	keyOff2KeyOffOrderByIdx []int
 }
@@ -101,7 +101,7 @@ type lookUpMergeJoinTask struct {
 	innerIter   chunk.Iterator
 
 	sameKeyInnerEvents []chunk.Event
-	sameKeyIter      chunk.Iterator
+	sameKeyIter        chunk.Iterator
 
 	doneErr error
 	results chan *indexMergeJoinResult
@@ -114,13 +114,13 @@ type outerMergeWorker struct {
 
 	lookup *IndexLookUpMergeJoin
 
-	ctx      stochastikctx.Context
+	ctx       stochastikctx.Context
 	interlock InterlockingDirectorate
 
 	maxBatchSize int
 	batchSize    int
 
-	nextDefCausCompareFilters *causetcore.DefCausWithCmpFuncManager
+	nextDefCausCompareFilters *causetembedded.DefCausWithCmpFuncManager
 
 	resultCh chan<- *lookUpMergeJoinTask
 	innerCh  chan<- *lookUpMergeJoinTask
@@ -135,14 +135,14 @@ type innerMergeWorker struct {
 	joinChkResourceCh chan *chunk.Chunk
 	outerMergeCtx     outerMergeCtx
 	ctx               stochastikctx.Context
-	innerInterDirc         InterlockingDirectorate
+	innerInterDirc    InterlockingDirectorate
 	joiner            joiner
 	retFieldTypes     []*types.FieldType
 
-	maxChunkSize          int
-	indexRanges           []*ranger.Range
-	nextDefCausCompareFilters *causetcore.DefCausWithCmpFuncManager
-	keyOff2IdxOff         []int
+	maxChunkSize              int
+	indexRanges               []*ranger.Range
+	nextDefCausCompareFilters *causetembedded.DefCausWithCmpFuncManager
+	keyOff2IdxOff             []int
 }
 
 type indexMergeJoinResult struct {
@@ -210,15 +210,15 @@ func (e *IndexLookUpMergeJoin) startWorkers(ctx context.Context) {
 
 func (e *IndexLookUpMergeJoin) newOuterWorker(resultCh, innerCh chan *lookUpMergeJoinTask) *outerMergeWorker {
 	omw := &outerMergeWorker{
-		outerMergeCtx:         e.outerMergeCtx,
-		ctx:                   e.ctx,
-		lookup:                e,
-		interlock:              e.children[0],
-		resultCh:              resultCh,
-		innerCh:               innerCh,
-		batchSize:             32,
-		maxBatchSize:          e.ctx.GetStochastikVars().IndexJoinBatchSize,
-		parentMemTracker:      e.memTracker,
+		outerMergeCtx:             e.outerMergeCtx,
+		ctx:                       e.ctx,
+		lookup:                    e,
+		interlock:                 e.children[0],
+		resultCh:                  resultCh,
+		innerCh:                   innerCh,
+		batchSize:                 32,
+		maxBatchSize:              e.ctx.GetStochastikVars().IndexJoinBatchSize,
+		parentMemTracker:          e.memTracker,
 		nextDefCausCompareFilters: e.lastDefCausHelper,
 	}
 	failpoint.Inject("testIssue18068", func() {

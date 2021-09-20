@@ -22,16 +22,16 @@ import (
 
 	"github.com/opentracing/basictracer-go"
 	"github.com/opentracing/opentracing-go"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 	"sourcegraph.com/sourcegraph/apFIDelash"
 	traceImpl "sourcegraph.com/sourcegraph/apFIDelash/opentracing"
@@ -67,7 +67,7 @@ func (e *TraceInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	}
 
 	switch e.format {
-	case core.TraceFormatLog:
+	case embedded.TraceFormatLog:
 		return e.nextTraceLog(ctx, se, req)
 	default:
 		return e.nextEventJSON(ctx, se, req)
@@ -103,7 +103,7 @@ func (e *TraceInterDirc) nextEventJSON(ctx context.Context, se sqlexec.ALLEGROSQ
 	}
 
 	// Event format.
-	if e.format != core.TraceFormatJSON {
+	if e.format != embedded.TraceFormatJSON {
 		if len(traces) < 1 {
 			e.exhausted = true
 			return nil

@@ -18,14 +18,14 @@ import (
 	"sync"
 
 	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 )
 
 var once sync.Once
@@ -35,7 +35,7 @@ var once sync.Once
 //
 // import _ "github.com/whtcorpsinc/milevadb/perfschema"
 //
-// This function depends on plan/core.init(), which initialize the memex.EvalAstExpr function.
+// This function depends on plan/embedded.init(), which initialize the memex.EvalAstExpr function.
 // The initialize order is a problem if init() is used as the function name.
 func Init() {
 	initOnce := func() {
@@ -62,11 +62,11 @@ func Init() {
 			}
 		}
 		dbInfo := &perceptron.DBInfo{
-			ID:      dbID,
-			Name:    soliton.PerformanceSchemaName,
-			Charset: allegrosql.DefaultCharset,
+			ID:          dbID,
+			Name:        soliton.PerformanceSchemaName,
+			Charset:     allegrosql.DefaultCharset,
 			DefCauslate: allegrosql.DefaultDefCauslationName,
-			Blocks:  tbls,
+			Blocks:      tbls,
 		}
 		schemareplicant.RegisterVirtualBlock(dbInfo, blockFromMeta)
 	}

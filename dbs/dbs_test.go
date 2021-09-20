@@ -19,20 +19,20 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type DBSForTest interface {
@@ -123,7 +123,7 @@ func getSchemaVer(c *C, ctx stochastikctx.Context) int64 {
 
 type historyJobArgs struct {
 	ver    int64
-	EDB     *perceptron.DBInfo
+	EDB    *perceptron.DBInfo
 	tbl    *perceptron.BlockInfo
 	tblIDs map[int64]struct{}
 }
@@ -174,7 +174,7 @@ func buildCreateIdxJob(dbInfo *perceptron.DBInfo, tblInfo *perceptron.BlockInfo,
 		Args: []interface{}{unique, perceptron.NewCIStr(indexName),
 			[]*ast.IndexPartSpecification{{
 				DeferredCauset: &ast.DeferredCausetName{Name: perceptron.NewCIStr(defCausName)},
-				Length: types.UnspecifiedLength}}},
+				Length:         types.UnspecifiedLength}}},
 	}
 }
 

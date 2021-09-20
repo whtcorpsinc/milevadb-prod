@@ -16,8 +16,8 @@ package mock
 import (
 	"context"
 
-	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
+	"github.com/whtcorpsinc/milevadb/ekv"
 )
 
 // CausetStore implements ekv.CausetStorage interface.
@@ -61,4 +61,6 @@ func (s *CausetStore) Describe() string {
 }
 
 // ShowStatus implements ekv.CausetStorage interface.
-func (s *CausetStore) ShowStatus(ctx context.Context, key string) (interface{}, error) { return nil, nil }
+func (s *CausetStore) ShowStatus(ctx context.Context, key string) (interface{}, error) {
+	return nil, nil
+}

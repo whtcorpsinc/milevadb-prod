@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	. "github.com/whtcorpsinc/check"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&pkgTestSuite{})
@@ -32,8 +32,8 @@ func (s *pkgTestSuite) TestNestedLoopApply(c *C) {
 	outerSchema := memex.NewSchema(defCaus0)
 	outerInterDirc := buildMockDataSource(mockDataSourceParameters{
 		schemaReplicant: outerSchema,
-		rows:   6,
-		ctx:    sctx,
+		rows:            6,
+		ctx:             sctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			return int64(event + 1)
 		},
@@ -43,8 +43,8 @@ func (s *pkgTestSuite) TestNestedLoopApply(c *C) {
 	innerSchema := memex.NewSchema(defCaus1)
 	innerInterDirc := buildMockDataSource(mockDataSourceParameters{
 		schemaReplicant: innerSchema,
-		rows:   6,
-		ctx:    sctx,
+		rows:            6,
+		ctx:             sctx,
 		genDataFunc: func(event int, typ *types.FieldType) interface{} {
 			return int64(event + 1)
 		},
@@ -54,18 +54,18 @@ func (s *pkgTestSuite) TestNestedLoopApply(c *C) {
 	outerFilter := memex.NewFunctionInternal(sctx, ast.LT, types.NewFieldType(allegrosql.TypeTiny), defCaus0, con)
 	innerFilter := outerFilter.Clone()
 	otherFilter := memex.NewFunctionInternal(sctx, ast.EQ, types.NewFieldType(allegrosql.TypeTiny), defCaus0, defCaus1)
-	joiner := newJoiner(sctx, causetcore.InnerJoin, false,
+	joiner := newJoiner(sctx, causetembedded.InnerJoin, false,
 		make([]types.Causet, innerInterDirc.Schema().Len()), []memex.Expression{otherFilter},
 		retTypes(outerInterDirc), retTypes(innerInterDirc), nil)
 	joinSchema := memex.NewSchema(defCaus0, defCaus1)
 	join := &NestedLoopApplyInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(sctx, joinSchema, 0),
-		outerInterDirc:    outerInterDirc,
-		innerInterDirc:    innerInterDirc,
-		outerFilter:  []memex.Expression{outerFilter},
-		innerFilter:  []memex.Expression{innerFilter},
-		joiner:       joiner,
-		ctx:          sctx,
+		outerInterDirc:              outerInterDirc,
+		innerInterDirc:              innerInterDirc,
+		outerFilter:                 []memex.Expression{outerFilter},
+		innerFilter:                 []memex.Expression{innerFilter},
+		joiner:                      joiner,
+		ctx:                         sctx,
 	}
 	join.innerList = chunk.NewList(retTypes(innerInterDirc), innerInterDirc.initCap, innerInterDirc.maxChunkSize)
 	join.innerChunk = newFirstChunk(innerInterDirc)

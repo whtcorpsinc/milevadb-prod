@@ -18,23 +18,23 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/whtcorpsinc/BerolinaSQL"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/memex"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
+	"github.com/whtcorpsinc/milevadb/soliton/ranger"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/soliton/testleak"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
-	"github.com/whtcorpsinc/milevadb/soliton/ranger"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	"github.com/whtcorpsinc/milevadb/soliton/testleak"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 func TestT(t *testing.T) {
@@ -304,16 +304,16 @@ func (s *testRangerSuite) TestBlockRange(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = causetcore.Preprocess(sctx, stmts[0], is)
+		err = causetembedded.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
+		p, _, err := causetembedded.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
+		selection := p.(causetembedded.LogicalCauset).Children()[0].(*causetembedded.LogicalSelection)
 		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
 			conds[i] = memex.PushDownNot(sctx, cond)
 		}
-		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
+		tbl := selection.Children()[0].(*causetembedded.DataSource).BlockInfo()
 		defCaus := memex.DefCausInfo2DefCaus(selection.Schema().DeferredCausets, tbl.DeferredCausets[0])
 		c.Assert(defCaus, NotNil)
 		var filter []memex.Expression
@@ -631,12 +631,12 @@ create causet t(
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = causetcore.Preprocess(sctx, stmts[0], is)
+		err = causetembedded.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
+		p, _, err := causetembedded.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
-		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
+		selection := p.(causetembedded.LogicalCauset).Children()[0].(*causetembedded.LogicalSelection)
+		tbl := selection.Children()[0].(*causetembedded.DataSource).BlockInfo()
 		c.Assert(selection, NotNil, Commentf("expr:%v", tt.exprStr))
 		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
@@ -752,12 +752,12 @@ func (s *testRangerSuite) TestIndexRangeForUnsignedInt(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = causetcore.Preprocess(sctx, stmts[0], is)
+		err = causetembedded.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
+		p, _, err := causetembedded.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		selection := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
-		tbl := selection.Children()[0].(*causetcore.DataSource).BlockInfo()
+		selection := p.(causetembedded.LogicalCauset).Children()[0].(*causetembedded.LogicalSelection)
+		tbl := selection.Children()[0].(*causetembedded.DataSource).BlockInfo()
 		c.Assert(selection, NotNil, Commentf("expr:%v", tt.exprStr))
 		conds := make([]memex.Expression, len(selection.Conditions))
 		for i, cond := range selection.Conditions {
@@ -788,7 +788,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 	testKit.MustInterDirc("create causet t(a int, b double, c float(3, 2), d varchar(3), e bigint unsigned)")
 
 	tests := []struct {
-		defCausPos      int
+		defCausPos  int
 		exprStr     string
 		accessConds string
 		filterConds string
@@ -796,7 +796,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		length      int
 	}{
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a = 1 and b > 1",
 			accessConds: "[eq(test.t.a, 1)]",
 			filterConds: "[gt(test.t.b, 1)]",
@@ -804,7 +804,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      1,
+			defCausPos:  1,
 			exprStr:     "b > 1",
 			accessConds: "[gt(test.t.b, 1)]",
 			filterConds: "[]",
@@ -812,7 +812,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 = a",
 			accessConds: "[eq(1, test.t.a)]",
 			filterConds: "[]",
@@ -820,7 +820,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a != 1",
 			accessConds: "[ne(test.t.a, 1)]",
 			filterConds: "[]",
@@ -828,7 +828,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 != a",
 			accessConds: "[ne(1, test.t.a)]",
 			filterConds: "[]",
@@ -836,7 +836,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a > 1",
 			accessConds: "[gt(test.t.a, 1)]",
 			filterConds: "[]",
@@ -844,7 +844,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 < a",
 			accessConds: "[lt(1, test.t.a)]",
 			filterConds: "[]",
@@ -852,7 +852,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a >= 1",
 			accessConds: "[ge(test.t.a, 1)]",
 			filterConds: "[]",
@@ -860,7 +860,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 <= a",
 			accessConds: "[le(1, test.t.a)]",
 			filterConds: "[]",
@@ -868,7 +868,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a < 1",
 			accessConds: "[lt(test.t.a, 1)]",
 			filterConds: "[]",
@@ -876,7 +876,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 > a",
 			accessConds: "[gt(1, test.t.a)]",
 			filterConds: "[]",
@@ -884,7 +884,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a <= 1",
 			accessConds: "[le(test.t.a, 1)]",
 			filterConds: "[]",
@@ -892,7 +892,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "1 >= a",
 			accessConds: "[ge(1, test.t.a)]",
 			filterConds: "[]",
@@ -900,7 +900,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "(a)",
 			accessConds: "[test.t.a]",
 			filterConds: "[]",
@@ -908,7 +908,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a in (1, 3, NULL, 2)",
 			accessConds: "[in(test.t.a, 1, 3, <nil>, 2)]",
 			filterConds: "[]",
@@ -916,7 +916,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     `a IN (8,8,81,45)`,
 			accessConds: "[in(test.t.a, 8, 8, 81, 45)]",
 			filterConds: "[]",
@@ -924,7 +924,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a between 1 and 2",
 			accessConds: "[ge(test.t.a, 1) le(test.t.a, 2)]",
 			filterConds: "[]",
@@ -932,7 +932,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a not between 1 and 2",
 			accessConds: "[or(lt(test.t.a, 1), gt(test.t.a, 2))]",
 			filterConds: "[]",
@@ -945,7 +945,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		//	resultStr[(0,+inf]]
 		//},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a between 2 and 1",
 			accessConds: "[ge(test.t.a, 2) le(test.t.a, 1)]",
 			filterConds: "[]",
@@ -953,7 +953,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a not between 2 and 1",
 			accessConds: "[or(lt(test.t.a, 2), gt(test.t.a, 1))]",
 			filterConds: "[]",
@@ -961,7 +961,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS NULL",
 			accessConds: "[isnull(test.t.a)]",
 			filterConds: "[]",
@@ -969,7 +969,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS NOT NULL",
 			accessConds: "[not(isnull(test.t.a))]",
 			filterConds: "[]",
@@ -977,7 +977,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS TRUE",
 			accessConds: "[istrue(test.t.a)]",
 			filterConds: "[]",
@@ -985,7 +985,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS NOT TRUE",
 			accessConds: "[not(istrue(test.t.a))]",
 			filterConds: "[]",
@@ -993,7 +993,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS FALSE",
 			accessConds: "[isfalse(test.t.a)]",
 			filterConds: "[]",
@@ -1001,7 +1001,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a IS NOT FALSE",
 			accessConds: "[not(isfalse(test.t.a))]",
 			filterConds: "[]",
@@ -1009,7 +1009,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      1,
+			defCausPos:  1,
 			exprStr:     `b in (1, '2.1')`,
 			accessConds: "[in(test.t.b, 1, 2.1)]",
 			filterConds: "[]",
@@ -1017,7 +1017,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     `a > 9223372036854775807`,
 			accessConds: "[gt(test.t.a, 9223372036854775807)]",
 			filterConds: "[]",
@@ -1025,7 +1025,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      2,
+			defCausPos:  2,
 			exprStr:     `c > 111.11111111`,
 			accessConds: "[gt(test.t.c, 111.11111111)]",
 			filterConds: "[]",
@@ -1033,7 +1033,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      3,
+			defCausPos:  3,
 			exprStr:     `d > 'aaaaaaaaaaaaaa'`,
 			accessConds: "[gt(test.t.d, aaaaaaaaaaaaaa)]",
 			filterConds: "[]",
@@ -1041,7 +1041,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      4,
+			defCausPos:  4,
 			exprStr:     `e > 18446744073709500000`,
 			accessConds: "[gt(test.t.e, 18446744073709500000)]",
 			filterConds: "[]",
@@ -1049,7 +1049,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      4,
+			defCausPos:  4,
 			exprStr:     `e > -2147483648`,
 			accessConds: "[gt(test.t.e, -2147483648)]",
 			filterConds: "[]",
@@ -1057,7 +1057,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      3,
+			defCausPos:  3,
 			exprStr:     "d = 'aab' or d = 'aac'",
 			accessConds: "[or(eq(test.t.d, aab), eq(test.t.d, aac))]",
 			filterConds: "[]",
@@ -1066,7 +1066,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		},
 		// This test case cannot be simplified to [1, 3] otherwise the index join will executes wrongly.
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a in (1, 2, 3)",
 			accessConds: "[in(test.t.a, 1, 2, 3)]",
 			filterConds: "",
@@ -1075,7 +1075,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		},
 		// test cases for nulleq
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a <=> 1",
 			accessConds: "[nulleq(test.t.a, 1)]",
 			filterConds: "",
@@ -1083,7 +1083,7 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 			length:      types.UnspecifiedLength,
 		},
 		{
-			defCausPos:      0,
+			defCausPos:  0,
 			exprStr:     "a <=> null",
 			accessConds: "[nulleq(test.t.a, <nil>)]",
 			filterConds: "",
@@ -1100,12 +1100,12 @@ func (s *testRangerSuite) TestDeferredCausetRange(c *C) {
 		c.Assert(err, IsNil, Commentf("error %v, for expr %s", err, tt.exprStr))
 		c.Assert(stmts, HasLen, 1)
 		is := petri.GetPetri(sctx).SchemaReplicant()
-		err = causetcore.Preprocess(sctx, stmts[0], is)
+		err = causetembedded.Preprocess(sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for resolve name, expr %s", err, tt.exprStr))
-		p, _, err := causetcore.BuildLogicalCauset(ctx, sctx, stmts[0], is)
+		p, _, err := causetembedded.BuildLogicalCauset(ctx, sctx, stmts[0], is)
 		c.Assert(err, IsNil, Commentf("error %v, for build plan, expr %s", err, tt.exprStr))
-		sel := p.(causetcore.LogicalCauset).Children()[0].(*causetcore.LogicalSelection)
-		ds, ok := sel.Children()[0].(*causetcore.DataSource)
+		sel := p.(causetembedded.LogicalCauset).Children()[0].(*causetembedded.LogicalSelection)
+		ds, ok := sel.Children()[0].(*causetembedded.DataSource)
 		c.Assert(ok, IsTrue, Commentf("expr:%v", tt.exprStr))
 		conds := make([]memex.Expression, len(sel.Conditions))
 		for i, cond := range sel.Conditions {
@@ -1167,8 +1167,8 @@ func (s *testRangerSuite) TestCompIndexInExprCorrDefCaus(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL    string
-		Result []string
+		ALLEGROALLEGROSQL string
+		Result            []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1198,8 +1198,8 @@ func (s *testRangerSuite) TestIndexStringIsTrueRange(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL    string
-		Result []string
+		ALLEGROALLEGROSQL string
+		Result            []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1227,9 +1227,9 @@ func (s *testRangerSuite) TestCompIndexDNFMatch(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL    string
-		Causet   []string
-		Result []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Result            []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1260,9 +1260,9 @@ func (s *testRangerSuite) TestCompIndexMultiDefCausDNF1(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL    string
-		Causet   []string
-		Result []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Result            []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1293,9 +1293,9 @@ func (s *testRangerSuite) TestCompIndexMultiDefCausDNF2(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL    string
-		Causet   []string
-		Result []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Result            []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {

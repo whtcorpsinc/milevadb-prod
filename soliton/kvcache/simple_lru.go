@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kvcache
+package ekvcache
 
 import (
 	"container/list"
@@ -42,7 +42,7 @@ var (
 
 const (
 	// ProfileName is the function name in heap profile
-	ProfileName = "github.com/whtcorpsinc/milevadb/soliton/kvcache.(*SimpleLRUCache).Put"
+	ProfileName = "github.com/whtcorpsinc/milevadb/soliton/ekvcache.(*SimpleLRUCache).Put"
 )
 
 func init() {

@@ -29,41 +29,41 @@ import (
 	"time"
 
 	"github.com/cznic/mathutil"
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/format"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	field_types "github.com/whtcorpsinc/BerolinaSQL/types"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/dbs/memristed"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/dbs/memristed"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
-	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	"github.com/whtcorpsinc/milevadb/soliton/petriutil"
 	"github.com/whtcorpsinc/milevadb/soliton/set"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"go.uber.org/zap"
 )
 
 const (
-	memexIndexPrefix = "_V$"
-	changingDeferredCausetPrefix  = "_DefCaus$_"
-	changingIndexPrefix   = "_Idx$_"
+	memexIndexPrefix             = "_V$"
+	changingDeferredCausetPrefix = "_DefCaus$_"
+	changingIndexPrefix          = "_Idx$_"
 )
 
 func (d *dbs) CreateSchema(ctx stochastikctx.Context, schemaReplicant perceptron.CIStr, charsetInfo *ast.CharsetOpt) error {
@@ -554,7 +554,7 @@ func defCausumnDefToDefCaus(ctx stochastikctx.Context, offset int, defCausDef *a
 		keys := []*ast.IndexPartSpecification{
 			{
 				DeferredCauset: defCausDef.Name,
-				Length: length,
+				Length:         length,
 			},
 		}
 
@@ -1296,9 +1296,9 @@ func buildTableInfo(
 	charset string,
 	defCauslate string) (tbInfo *perceptron.TableInfo, err error) {
 	tbInfo = &perceptron.TableInfo{
-		Name:    blockName,
-		Version: perceptron.CurrLatestTableInfoVersion,
-		Charset: charset,
+		Name:        blockName,
+		Version:     perceptron.CurrLatestTableInfoVersion,
+		Charset:     charset,
 		DefCauslate: defCauslate,
 	}
 	tblDeferredCausets := make([]*causet.DeferredCauset, 0, len(defcaus))
@@ -4645,7 +4645,7 @@ func buildFKInfo(fkName perceptron.CIStr, keys []*ast.IndexPartSpecification, re
 	fkInfo := &perceptron.FKInfo{
 		Name:     fkName,
 		RefTable: refer.Block.Name,
-		DefCauss:     make([]perceptron.CIStr, len(keys)),
+		DefCauss: make([]perceptron.CIStr, len(keys)),
 	}
 
 	for i, key := range keys {
@@ -4887,10 +4887,10 @@ func buildPartitionInfo(ctx stochastikctx.Context, spacetime *perceptron.TableIn
 	}
 
 	part := &perceptron.PartitionInfo{
-		Type:    spacetime.Partition.Type,
-		Expr:    spacetime.Partition.Expr,
+		Type:            spacetime.Partition.Type,
+		Expr:            spacetime.Partition.Expr,
 		DeferredCausets: spacetime.Partition.DeferredCausets,
-		Enable:  spacetime.Partition.Enable,
+		Enable:          spacetime.Partition.Enable,
 	}
 
 	genIDs, err := d.genGlobalIDs(len(spec.PartDefinitions))
@@ -4970,7 +4970,7 @@ func checkRangeDeferredCausetsTypeAndValuesMatch(ctx stochastikctx.Context, spac
 func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) error {
 	lockTables := make([]perceptron.TableLockTpInfo, 0, len(stmt.TableLocks))
 	stochastikInfo := perceptron.StochastikInfo{
-		ServerID:  d.GetID(),
+		ServerID:     d.GetID(),
 		StochastikID: ctx.GetStochastikVars().ConnectionID,
 	}
 	uniqueTableID := make(map[int64]struct{})
@@ -5001,9 +5001,9 @@ func (d *dbs) LockTables(ctx stochastikctx.Context, stmt *ast.LockTablesStmt) er
 
 	unlockTables := ctx.GetAllTableLocks()
 	arg := &lockTablesArg{
-		LockTables:   lockTables,
-		UnlockTables: unlockTables,
-		StochastikInfo:  stochastikInfo,
+		LockTables:     lockTables,
+		UnlockTables:   unlockTables,
+		StochastikInfo: stochastikInfo,
 	}
 	job := &perceptron.Job{
 		SchemaID:   lockTables[0].SchemaID,
@@ -5031,7 +5031,7 @@ func (d *dbs) UnlockTables(ctx stochastikctx.Context, unlockTables []perceptron.
 	arg := &lockTablesArg{
 		UnlockTables: unlockTables,
 		StochastikInfo: perceptron.StochastikInfo{
-			ServerID:  d.GetID(),
+			ServerID:     d.GetID(),
 			StochastikID: ctx.GetStochastikVars().ConnectionID,
 		},
 	}
@@ -5057,8 +5057,8 @@ func (d *dbs) CleanDeadTableLock(unlockTables []perceptron.TableLockTpInfo, se p
 		return nil
 	}
 	arg := &lockTablesArg{
-		UnlockTables: unlockTables,
-		StochastikInfo:  se,
+		UnlockTables:   unlockTables,
+		StochastikInfo: se,
 	}
 	job := &perceptron.Job{
 		SchemaID:   unlockTables[0].SchemaID,
@@ -5143,12 +5143,12 @@ func (d *dbs) CleanupTableLock(ctx stochastikctx.Context, blocks []*ast.TableNam
 }
 
 type lockTablesArg struct {
-	LockTables    []perceptron.TableLockTpInfo
-	IndexOfLock   int
-	UnlockTables  []perceptron.TableLockTpInfo
-	IndexOfUnlock int
-	StochastikInfo   perceptron.StochastikInfo
-	IsCleanup     bool
+	LockTables     []perceptron.TableLockTpInfo
+	IndexOfLock    int
+	UnlockTables   []perceptron.TableLockTpInfo
+	IndexOfUnlock  int
+	StochastikInfo perceptron.StochastikInfo
+	IsCleanup      bool
 }
 
 func (d *dbs) RepairTable(ctx stochastikctx.Context, causet *ast.TableName, createStmt *ast.CreateTableStmt) error {
@@ -5436,7 +5436,7 @@ func buildPlacementSpecs(specs []*ast.PlacementSpec) ([]*memristed.MemruleOp, er
 
 				// delete previous definitions
 				rules = append(rules, &memristed.MemruleOp{
-					CausetAction:           memristed.MemruleOFIDelel,
+					CausetAction:     memristed.MemruleOFIDelel,
 					DeleteByIDPrefix: true,
 					Memrule: &memristed.Memrule{
 						GroupID: memristed.MemruleDefaultGroupID,

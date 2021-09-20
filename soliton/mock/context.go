@@ -19,18 +19,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-binlog"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/tenant"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
-	"github.com/whtcorpsinc/fidelpb/go-binlog"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/tenant"
 )
 
 var _ stochastikctx.Context = (*Context)(nil)
@@ -38,14 +38,14 @@ var _ sqlexec.ALLEGROSQLInterlockingDirectorate = (*Context)(nil)
 
 // Context represents mocked stochastikctx.Context.
 type Context struct {
-	values      map[fmt.Stringer]interface{}
-	txn         wrapTxn    // mock global variable
-	CausetStore       ekv.CausetStorage // mock global variable
+	values         map[fmt.Stringer]interface{}
+	txn            wrapTxn           // mock global variable
+	CausetStore    ekv.CausetStorage // mock global variable
 	stochastikVars *variable.StochastikVars
-	ctx         context.Context
-	cancel      context.CancelFunc
-	sm          soliton.StochastikManager
-	pcache      *kvcache.SimpleLRUCache
+	ctx            context.Context
+	cancel         context.CancelFunc
+	sm             soliton.StochastikManager
+	pcache         *ekvcache.SimpleLRUCache
 }
 
 type wrapTxn struct {
@@ -134,7 +134,7 @@ func (c *Context) SetGlobalSysVar(ctx stochastikctx.Context, name string, value 
 }
 
 // PreparedCausetCache implements the stochastikctx.Context interface.
-func (c *Context) PreparedCausetCache() *kvcache.SimpleLRUCache {
+func (c *Context) PreparedCausetCache() *ekvcache.SimpleLRUCache {
 	return c.pcache
 }
 
@@ -265,10 +265,10 @@ func (c *Context) Close() {
 func NewContext() *Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	sctx := &Context{
-		values:      make(map[fmt.Stringer]interface{}),
+		values:         make(map[fmt.Stringer]interface{}),
 		stochastikVars: variable.NewStochastikVars(),
-		ctx:         ctx,
-		cancel:      cancel,
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 	sctx.stochastikVars.InitChunkSize = 2
 	sctx.stochastikVars.MaxChunkSize = 32

@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zapembedded"
 )
 
 // Handle is the handler for expensive query.
@@ -63,7 +63,7 @@ func (eqh *Handle) Run() {
 					continue
 				}
 				costTime := time.Since(info.Time)
-				if !info.ExceedExpensiveTimeThresh && costTime >= time.Second*time.Duration(threshold) && log.GetLevel() <= zapcore.WarnLevel {
+				if !info.ExceedExpensiveTimeThresh && costTime >= time.Second*time.Duration(threshold) && log.GetLevel() <= zapembedded.WarnLevel {
 					logExpensiveQuery(costTime, info)
 					info.ExceedExpensiveTimeThresh = true
 				}
@@ -81,7 +81,7 @@ func (eqh *Handle) Run() {
 
 // LogOnQueryExceedMemQuota prints a log when memory usage of connID is out of memory quota.
 func (eqh *Handle) LogOnQueryExceedMemQuota(connID uint64) {
-	if log.GetLevel() > zapcore.WarnLevel {
+	if log.GetLevel() > zapembedded.WarnLevel {
 		return
 	}
 	// The out-of-memory ALLEGROALLEGROSQL may be the internal ALLEGROALLEGROSQL which is executed during

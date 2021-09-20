@@ -21,30 +21,30 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton/codec"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/statistics/handle"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/statistics/handle"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/codec"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 )
 
 var _ = Suite(&testFastAnalyze{})
@@ -247,7 +247,7 @@ func (s *testFastAnalyze) TestAnalyzeFastSample(c *C) {
 		tk.MustInterDirc(fmt.Sprintf("insert into t values (%d, %d)", i, i))
 	}
 
-	handleDefCauss := core.BuildHandleDefCaussForAnalyze(tk.Se, tblInfo)
+	handleDefCauss := embedded.BuildHandleDefCaussForAnalyze(tk.Se, tblInfo)
 	var defcausInfo []*perceptron.DeferredCausetInfo
 	var indicesInfo []*perceptron.IndexInfo
 	for _, defCaus := range tblInfo.DeferredCausets {
@@ -265,8 +265,8 @@ func (s *testFastAnalyze) TestAnalyzeFastSample(c *C) {
 	opts[ast.AnalyzeOptNumSamples] = 20
 	mockInterDirc := &interlock.AnalyzeTestFastInterDirc{
 		Ctx:             tk.Se.(stochastikctx.Context),
-		HandleDefCauss:      handleDefCauss,
-		DefCaussInfo:        defcausInfo,
+		HandleDefCauss:  handleDefCauss,
+		DefCaussInfo:    defcausInfo,
 		IdxsInfo:        indicesInfo,
 		Concurrency:     1,
 		PhysicalBlockID: tbl.(causet.PhysicalBlock).GetPhysicalID(),

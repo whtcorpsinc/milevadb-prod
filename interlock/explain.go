@@ -18,7 +18,7 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 )
 
@@ -26,10 +26,10 @@ import (
 type ExplainInterDirc struct {
 	baseInterlockingDirectorate
 
-	explain     *core.Explain
+	explain          *embedded.Explain
 	analyzeInterDirc InterlockingDirectorate
-	rows        [][]string
-	cursor      int
+	rows             [][]string
+	cursor           int
 }
 
 // Open implements the InterlockingDirectorate Open interface.

@@ -20,28 +20,28 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/blockcodec"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/metrics"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	causetDecoder "github.com/whtcorpsinc/milevadb/soliton/rowCausetDecoder"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"go.uber.org/zap"
 )
 
 type backfillWorkerType byte
 
 const (
-	typeAddIndexWorker     backfillWorkerType = 0
+	typeAddIndexWorker                backfillWorkerType = 0
 	typeUFIDelateDeferredCausetWorker backfillWorkerType = 1
 )
 
@@ -84,7 +84,7 @@ type backfillWorker struct {
 	sessCtx   stochastikctx.Context
 	taskCh    chan *reorgBackfillTask
 	resultCh  chan *backfillResult
-	causet     causet.Block
+	causet    causet.Block
 	closed    bool
 	priority  int
 }
@@ -92,7 +92,7 @@ type backfillWorker struct {
 func newBackfillWorker(sessCtx stochastikctx.Context, worker *worker, id int, t causet.PhysicalTable) *backfillWorker {
 	return &backfillWorker{
 		id:        id,
-		causet:     t,
+		causet:    t,
 		dbsWorker: worker,
 		batchCnt:  int(variable.GetDBSReorgBatchSize()),
 		sessCtx:   sessCtx,
@@ -236,16 +236,16 @@ func splitTableRanges(t causet.PhysicalTable, causetstore ekv.CausetStorage, sta
 
 	logutil.BgLogger().Info("[dbs] split causet range from FIDel", zap.Int64("physicalTableID", t.GetPhysicalID()),
 		zap.String("startHandle", toString(startHandle)), zap.String("endHandle", toString(endHandle)))
-	kvRange := ekv.KeyRange{StartKey: startRecordKey, EndKey: endRecordKey}
+	ekvRange := ekv.KeyRange{StartKey: startRecordKey, EndKey: endRecordKey}
 	s, ok := causetstore.(einsteindb.CausetStorage)
 	if !ok {
 		// Only support split ranges in einsteindb.CausetStorage now.
-		return []ekv.KeyRange{kvRange}, nil
+		return []ekv.KeyRange{ekvRange}, nil
 	}
 
 	maxSleep := 10000 // ms
 	bo := einsteindb.NewBackofferWithVars(context.Background(), maxSleep, nil)
-	ranges, err := einsteindb.SplitRegionRanges(bo, s.GetRegionCache(), []ekv.KeyRange{kvRange})
+	ranges, err := einsteindb.SplitRegionRanges(bo, s.GetRegionCache(), []ekv.KeyRange{ekvRange})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -336,14 +336,14 @@ func decodeHandleRange(keyRange ekv.KeyRange) (ekv.Handle, ekv.Handle, error) {
 	return startHandle, endHandle, nil
 }
 
-// sendRangeTaskToWorkers sends tasks to workers, and returns remaining kvRanges that is not handled.
+// sendRangeTaskToWorkers sends tasks to workers, and returns remaining ekvRanges that is not handled.
 func (w *worker) sendRangeTaskToWorkers(workers []*backfillWorker, reorgInfo *reorgInfo,
-	totalAddedCount *int64, kvRanges []ekv.KeyRange, globalEndHandle ekv.Handle) ([]ekv.KeyRange, error) {
+	totalAddedCount *int64, ekvRanges []ekv.KeyRange, globalEndHandle ekv.Handle) ([]ekv.KeyRange, error) {
 	batchTasks := make([]*reorgBackfillTask, 0, len(workers))
 	physicalTableID := reorgInfo.PhysicalTableID
 
 	// Build reorg tasks.
-	for _, keyRange := range kvRanges {
+	for _, keyRange := range ekvRanges {
 		startHandle, endHandle, err := decodeHandleRange(keyRange)
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -371,9 +371,9 @@ func (w *worker) sendRangeTaskToWorkers(workers []*backfillWorker, reorgInfo *re
 		return nil, errors.Trace(err)
 	}
 
-	if len(batchTasks) < len(kvRanges) {
-		// There are kvRanges not handled.
-		remains := kvRanges[len(batchTasks):]
+	if len(batchTasks) < len(ekvRanges) {
+		// There are ekvRanges not handled.
+		remains := ekvRanges[len(batchTasks):]
 		return remains, nil
 	}
 
@@ -461,7 +461,7 @@ func (w *worker) writePhysicalTableRecord(t causet.PhysicalTable, bfWorkerType b
 	}()
 
 	for {
-		kvRanges, err := splitTableRanges(t, reorgInfo.d.causetstore, startHandle, endHandle)
+		ekvRanges, err := splitTableRanges(t, reorgInfo.d.causetstore, startHandle, endHandle)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -472,8 +472,8 @@ func (w *worker) writePhysicalTableRecord(t causet.PhysicalTable, bfWorkerType b
 		}
 		workerCnt = variable.GetDBSReorgWorkerCounter()
 		// If only have 1 range, we can only start 1 worker.
-		if len(kvRanges) < int(workerCnt) {
-			workerCnt = int32(len(kvRanges))
+		if len(ekvRanges) < int(workerCnt) {
+			workerCnt = int32(len(ekvRanges))
 		}
 		// Enlarge the worker size.
 		for i := len(backfillWorkers); i < int(workerCnt); i++ {
@@ -503,12 +503,12 @@ func (w *worker) writePhysicalTableRecord(t causet.PhysicalTable, bfWorkerType b
 			if val.(bool) {
 				num := int(atomic.LoadInt32(&TestCheckWorkerNumber))
 				if num != 0 {
-					if num > len(kvRanges) {
-						if len(backfillWorkers) != len(kvRanges) {
-							failpoint.Return(errors.Errorf("check backfill worker num error, len ekv ranges is: %v, check backfill worker num is: %v, actual record num is: %v", len(kvRanges), num, len(backfillWorkers)))
+					if num > len(ekvRanges) {
+						if len(backfillWorkers) != len(ekvRanges) {
+							failpoint.Return(errors.Errorf("check backfill worker num error, len ekv ranges is: %v, check backfill worker num is: %v, actual record num is: %v", len(ekvRanges), num, len(backfillWorkers)))
 						}
 					} else if num != len(backfillWorkers) {
-						failpoint.Return(errors.Errorf("check backfill worker num error, len ekv ranges is: %v, check backfill worker num is: %v, actual record num is: %v", len(kvRanges), num, len(backfillWorkers)))
+						failpoint.Return(errors.Errorf("check backfill worker num error, len ekv ranges is: %v, check backfill worker num is: %v, actual record num is: %v", len(ekvRanges), num, len(backfillWorkers)))
 					}
 					TestCheckWorkerNumCh <- struct{}{}
 				}
@@ -516,8 +516,8 @@ func (w *worker) writePhysicalTableRecord(t causet.PhysicalTable, bfWorkerType b
 		})
 
 		logutil.BgLogger().Info("[dbs] start backfill workers to reorg record", zap.Int("workerCnt", len(backfillWorkers)),
-			zap.Int("regionCnt", len(kvRanges)), zap.String("startHandle", toString(startHandle)), zap.String("endHandle", toString(endHandle)))
-		remains, err := w.sendRangeTaskToWorkers(backfillWorkers, reorgInfo, &totalAddedCount, kvRanges, endHandle)
+			zap.Int("regionCnt", len(ekvRanges)), zap.String("startHandle", toString(startHandle)), zap.String("endHandle", toString(endHandle)))
+		remains, err := w.sendRangeTaskToWorkers(backfillWorkers, reorgInfo, &totalAddedCount, ekvRanges, endHandle)
 		if err != nil {
 			return errors.Trace(err)
 		}

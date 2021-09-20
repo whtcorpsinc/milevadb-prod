@@ -25,14 +25,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
@@ -40,6 +37,9 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/mvmap"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +77,7 @@ type IndexLookUpJoin struct {
 	innerPtrBytes [][]byte
 
 	// lastDefCausHelper causetstore the information for last defCaus if there's complicated filter like defCaus > x_defCaus and defCaus < x_defCaus + 100.
-	lastDefCausHelper *causetcore.DefCausWithCmpFuncManager
+	lastDefCausHelper *causetembedded.DefCausWithCmpFuncManager
 
 	memTracker *memory.Tracker // track memory usage.
 
@@ -85,17 +85,17 @@ type IndexLookUpJoin struct {
 }
 
 type outerCtx struct {
-	rowTypes []*types.FieldType
-	keyDefCauss  []int
-	filter   memex.CNFExprs
+	rowTypes    []*types.FieldType
+	keyDefCauss []int
+	filter      memex.CNFExprs
 }
 
 type innerCtx struct {
-	readerBuilder *dataReaderBuilder
-	rowTypes      []*types.FieldType
-	keyDefCauss       []int
-	defCausLens       []int
-	hasPrefixDefCaus  bool
+	readerBuilder    *dataReaderBuilder
+	rowTypes         []*types.FieldType
+	keyDefCauss      []int
+	defCausLens      []int
+	hasPrefixDefCaus bool
 }
 
 type lookUpJoinTask struct {
@@ -120,7 +120,7 @@ type outerWorker struct {
 
 	lookup *IndexLookUpJoin
 
-	ctx      stochastikctx.Context
+	ctx       stochastikctx.Context
 	interlock InterlockingDirectorate
 
 	maxBatchSize int
@@ -135,15 +135,15 @@ type outerWorker struct {
 type innerWorker struct {
 	innerCtx
 
-	taskCh      <-chan *lookUpJoinTask
-	outerCtx    outerCtx
-	ctx         stochastikctx.Context
+	taskCh       <-chan *lookUpJoinTask
+	outerCtx     outerCtx
+	ctx          stochastikctx.Context
 	interlockChk *chunk.Chunk
 
-	indexRanges           []*ranger.Range
-	nextDefCausCompareFilters *causetcore.DefCausWithCmpFuncManager
-	keyOff2IdxOff         []int
-	stats                 *innerWorkerRuntimeStats
+	indexRanges               []*ranger.Range
+	nextDefCausCompareFilters *causetembedded.DefCausWithCmpFuncManager
+	keyOff2IdxOff             []int
+	stats                     *innerWorkerRuntimeStats
 }
 
 // Open implements the InterlockingDirectorate interface.
@@ -207,7 +207,7 @@ func (e *IndexLookUpJoin) newOuterWorker(resultCh, innerCh chan *lookUpJoinTask)
 	ow := &outerWorker{
 		outerCtx:         e.outerCtx,
 		ctx:              e.ctx,
-		interlock:         e.children[0],
+		interlock:        e.children[0],
 		resultCh:         resultCh,
 		innerCh:          innerCh,
 		batchSize:        32,
@@ -234,7 +234,7 @@ func (e *IndexLookUpJoin) newInnerWorker(taskCh chan *lookUpJoinTask) *innerWork
 		outerCtx:      e.outerCtx,
 		taskCh:        taskCh,
 		ctx:           e.ctx,
-		interlockChk:   chunk.NewChunkWithCapacity(e.innerCtx.rowTypes, e.maxChunkSize),
+		interlockChk:  chunk.NewChunkWithCapacity(e.innerCtx.rowTypes, e.maxChunkSize),
 		indexRanges:   copiedRanges,
 		keyOff2IdxOff: e.keyOff2IdxOff,
 		stats:         innerStats,
@@ -492,8 +492,8 @@ func (iw *innerWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 type indexJoinLookUpContent struct {
-	keys []types.Causet
-	event  chunk.Event
+	keys  []types.Causet
+	event chunk.Event
 }
 
 func (iw *innerWorker) handleTask(ctx context.Context, task *lookUpJoinTask) error {

@@ -18,23 +18,23 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/milevadb/causet"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testDBSSuite{})
@@ -425,7 +425,7 @@ func checkCancelState(txn ekv.Transaction, job *perceptron.Job, test *testCancel
 
 type testCancelJob struct {
 	jobIDs        []int64
-	cancelRetErrs []error          // cancelRetErrs is the first return value of CancelJobs.
+	cancelRetErrs []error                     // cancelRetErrs is the first return value of CancelJobs.
 	act           perceptron.CausetActionType // act is the job action.
 	cancelState   perceptron.SchemaState
 }
@@ -662,7 +662,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	validArgs := []interface{}{false, perceptron.NewCIStr(idxOrigName),
 		[]*ast.IndexPartSpecification{{
 			DeferredCauset: &ast.DeferredCausetName{Name: perceptron.NewCIStr("c1")},
-			Length: -1,
+			Length:         -1,
 		}}, nil}
 
 	// When the job satisfies this test case, the option will be rollback, so the job's schemaReplicant state is none.
@@ -898,7 +898,7 @@ func (s *testDBSSerialSuite) TestCancelJob(c *C) {
 	validArgs = []interface{}{false, perceptron.NewCIStr(idxOrigName),
 		[]*ast.IndexPartSpecification{{
 			DeferredCauset: &ast.DeferredCausetName{Name: perceptron.NewCIStr("c1")},
-			Length: -1,
+			Length:         -1,
 		}}, nil}
 	cancelState = perceptron.StateNone
 	doDBSJobErrWithSchemaState(ctx, d, c, dbInfo.ID, tblInfo.ID, perceptron.CausetActionAddPrimaryKey, validArgs, &cancelState)

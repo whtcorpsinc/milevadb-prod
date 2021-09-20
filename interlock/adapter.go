@@ -23,25 +23,22 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/log"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/metrics"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/log"
 	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/plugin"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/metrics"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/plugin"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
@@ -50,8 +47,11 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/stmtsummary"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zapembedded"
 )
 
 // processinfoSetter is the interface use to set current running process info.
@@ -62,7 +62,7 @@ type processinfoSetter interface {
 // recordSet wraps an interlock, implements sqlexec.RecordSet interface
 type recordSet struct {
 	fields     []*ast.ResultField
-	interlock   InterlockingDirectorate
+	interlock  InterlockingDirectorate
 	stmt       *InterDircStmt
 	lastErr    error
 	txnStartTS uint64
@@ -90,9 +90,9 @@ func defCausNames2ResultFields(schemaReplicant *memex.Schema, names []*types.Fie
 		rf := &ast.ResultField{
 			DeferredCauset:       &perceptron.DeferredCausetInfo{Name: origDefCausName, FieldType: *schemaReplicant.DeferredCausets[i].RetType},
 			DeferredCausetAsName: names[i].DefCausName,
-			Block:        &perceptron.BlockInfo{Name: names[i].OrigTblName},
-			BlockAsName:  names[i].TblName,
-			DBName:       dbName,
+			Block:                &perceptron.BlockInfo{Name: names[i].OrigTblName},
+			BlockAsName:          names[i].TblName,
+			DBName:               dbName,
 		}
 		// This is for compatibility.
 		// See issue https://github.com/whtcorpsinc/milevadb/issues/10513 .
@@ -165,7 +165,7 @@ type InterDircStmt struct {
 	// SchemaReplicant stores a reference to the schemaReplicant information.
 	SchemaReplicant schemareplicant.SchemaReplicant
 	// Causet stores a reference to the final physical plan.
-	Causet causetcore.Causet
+	Causet causetembedded.Causet
 	// Text represents the origin query text.
 	Text string
 
@@ -174,15 +174,15 @@ type InterDircStmt struct {
 	Ctx stochastikctx.Context
 
 	// LowerPriority represents whether to lower the execution priority of a query.
-	LowerPriority     bool
-	isPreparedStmt    bool
+	LowerPriority        bool
+	isPreparedStmt       bool
 	isSelectForUFIDelate bool
-	retryCount        uint
-	retryStartTime    time.Time
+	retryCount           uint
+	retryStartTime       time.Time
 
 	// OutputNames will be set if using cached plan
 	OutputNames []*types.FieldName
-	PsStmt      *causetcore.CachedPrepareStmt
+	PsStmt      *causetembedded.CachedPrepareStmt
 }
 
 // PointGet short path for point exec directly from plan, keep only necessary steps
@@ -208,7 +208,7 @@ func (a *InterDircStmt) PointGet(ctx context.Context, is schemareplicant.SchemaR
 			a.PsStmt.InterlockingDirectorate = nil
 		} else {
 			// CachedCauset type is already checked in last step
-			pointGetCauset := a.PsStmt.PreparedAst.CachedCauset.(*causetcore.PointGetCauset)
+			pointGetCauset := a.PsStmt.PreparedAst.CachedCauset.(*causetembedded.PointGetCauset)
 			exec.Init(pointGetCauset, startTs)
 			a.PsStmt.InterlockingDirectorate = exec
 		}
@@ -227,7 +227,7 @@ func (a *InterDircStmt) PointGet(ctx context.Context, is schemareplicant.SchemaR
 		return nil, err
 	}
 	return &recordSet{
-		interlock:   pointInterlockingDirectorate,
+		interlock:  pointInterlockingDirectorate,
 		stmt:       a,
 		txnStartTS: startTs,
 	}, nil
@@ -255,7 +255,7 @@ func (a *InterDircStmt) IsReadOnly(vars *variable.StochastikVars) bool {
 func (a *InterDircStmt) RebuildCauset(ctx context.Context) (int64, error) {
 	is := schemareplicant.GetSchemaReplicant(a.Ctx)
 	a.SchemaReplicant = is
-	if err := causetcore.Preprocess(a.Ctx, a.StmtNode, is, causetcore.InTxnRetry); err != nil {
+	if err := causetembedded.Preprocess(a.Ctx, a.StmtNode, is, causetembedded.InTxnRetry); err != nil {
 		return 0, err
 	}
 	p, names, err := causet.Optimize(ctx, a.Ctx, a.StmtNode, is)
@@ -292,7 +292,7 @@ func (a *InterDircStmt) InterDirc(ctx context.Context) (_ sqlexec.RecordSet, err
 
 	sctx := a.Ctx
 	ctx = stochastikctx.SetCommitCtx(ctx, sctx)
-	if _, ok := a.Causet.(*causetcore.Analyze); ok && sctx.GetStochastikVars().InRestrictedALLEGROSQL {
+	if _, ok := a.Causet.(*causetembedded.Analyze); ok && sctx.GetStochastikVars().InRestrictedALLEGROSQL {
 		oriStats, _ := sctx.GetStochastikVars().GetSystemVar(variable.MilevaDBBuildStatsConcurrency)
 		oriScan := sctx.GetStochastikVars().DistALLEGROSQLScanConcurrency()
 		oriIndex := sctx.GetStochastikVars().IndexSerialScanConcurrency()
@@ -329,7 +329,7 @@ func (a *InterDircStmt) InterDirc(ctx context.Context) (_ sqlexec.RecordSet, err
 	if raw, ok := sctx.(processinfoSetter); ok {
 		pi = raw
 		allegrosql := a.OriginText()
-		if simple, ok := a.Causet.(*causetcore.Simple); ok && simple.Statement != nil {
+		if simple, ok := a.Causet.(*causetembedded.Simple); ok && simple.Statement != nil {
 			if ss, ok := simple.Statement.(ast.SensitiveStmtNode); ok {
 				// Use SecureText to avoid leak password information.
 				allegrosql = ss.SecureText()
@@ -363,7 +363,7 @@ func (a *InterDircStmt) InterDirc(ctx context.Context) (_ sqlexec.RecordSet, err
 		txnStartTS = txn.StartTS()
 	}
 	return &recordSet{
-		interlock:   e,
+		interlock:  e,
 		stmt:       a,
 		txnStartTS: txnStartTS,
 	}, nil
@@ -692,10 +692,10 @@ type pessimisticTxn interface {
 func (a *InterDircStmt) buildInterlockingDirectorate() (InterlockingDirectorate, error) {
 	ctx := a.Ctx
 	stmtCtx := ctx.GetStochastikVars().StmtCtx
-	if _, ok := a.Causet.(*causetcore.InterDircute); !ok {
+	if _, ok := a.Causet.(*causetembedded.InterDircute); !ok {
 		// Do not sync transaction for InterDircute memex, because the real optimization work is done in
 		// "InterDircuteInterDirc.Build".
-		useMaxTS, err := causetcore.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, a.Causet)
+		useMaxTS, err := causetembedded.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, a.Causet)
 		if err != nil {
 			return nil, err
 		}
@@ -703,7 +703,7 @@ func (a *InterDircStmt) buildInterlockingDirectorate() (InterlockingDirectorate,
 			logutil.BgLogger().Debug("init txnStartTS with MaxUint64", zap.Uint64("conn", ctx.GetStochastikVars().ConnectionID), zap.String("text", a.Text))
 			err = ctx.InitTxnWithStartTS(math.MaxUint64)
 		} else if ctx.GetStochastikVars().SnapshotTS != 0 {
-			if _, ok := a.Causet.(*causetcore.CheckBlock); ok {
+			if _, ok := a.Causet.(*causetembedded.CheckBlock); ok {
 				err = ctx.InitTxnWithStartTS(ctx.GetStochastikVars().SnapshotTS)
 			}
 		}
@@ -720,7 +720,7 @@ func (a *InterDircStmt) buildInterlockingDirectorate() (InterlockingDirectorate,
 			}
 		}
 	}
-	if _, ok := a.Causet.(*causetcore.Analyze); ok && ctx.GetStochastikVars().InRestrictedALLEGROSQL {
+	if _, ok := a.Causet.(*causetembedded.Analyze); ok && ctx.GetStochastikVars().InRestrictedALLEGROSQL {
 		ctx.GetStochastikVars().StmtCtx.Priority = ekv.PriorityLow
 	}
 
@@ -847,7 +847,7 @@ func (a *InterDircStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults boo
 	threshold := time.Duration(atomic.LoadUint64(&cfg.Log.SlowThreshold)) * time.Millisecond
 	enable := cfg.Log.EnableSlowLog
 	// if the level is Debug, print slow logs anyway
-	if (!enable || costTime < threshold) && level > zapcore.DebugLevel {
+	if (!enable || costTime < threshold) && level > zapembedded.DebugLevel {
 		return
 	}
 	var allegrosql stringutil.StringerFunc
@@ -874,37 +874,37 @@ func (a *InterDircStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults boo
 	}
 	execDetail := sessVars.StmtCtx.GetInterDircDetails()
 	copTaskInfo := sessVars.StmtCtx.CausetTasksDetails()
-	statsInfos := causetcore.GetStatsInfo(a.Causet)
+	statsInfos := causetembedded.GetStatsInfo(a.Causet)
 	memMax := sessVars.StmtCtx.MemTracker.MaxConsumed()
 	diskMax := sessVars.StmtCtx.DiskTracker.MaxConsumed()
 	_, planDigest := getCausetDigest(a.Ctx, a.Causet)
 	slowItems := &variable.SlowQueryLogItems{
-		TxnTS:             txnTS,
-		ALLEGROALLEGROSQL:               allegrosql.String(),
-		Digest:            digest,
-		TimeTotal:         costTime,
-		TimeParse:         sessVars.DurationParse,
-		TimeCompile:       sessVars.DurationCompile,
-		TimeOptimize:      sessVars.DurationOptimization,
-		TimeWaitTS:        sessVars.DurationWaitTS,
-		IndexNames:        indexNames,
-		StatsInfos:        statsInfos,
-		CausetTasks:          copTaskInfo,
-		InterDircDetail:        execDetail,
-		MemMax:            memMax,
-		DiskMax:           diskMax,
-		Succ:              succ,
-		Causet:              getCausetTree(a.Causet),
-		CausetDigest:        planDigest,
-		Prepared:          a.isPreparedStmt,
-		HasMoreResults:    hasMoreResults,
-		CausetFromCache:     sessVars.FoundInCausetCache,
-		RewriteInfo:       sessVars.RewritePhaseInfo,
-		KVTotal:           time.Duration(atomic.LoadInt64(&stmtDetail.WaitKVResFIDeluration)),
-		FIDelTotal:           time.Duration(atomic.LoadInt64(&stmtDetail.WaitFIDelResFIDeluration)),
-		BackoffTotal:      time.Duration(atomic.LoadInt64(&stmtDetail.BackoffDuration)),
+		TxnTS:                    txnTS,
+		ALLEGROALLEGROSQL:        allegrosql.String(),
+		Digest:                   digest,
+		TimeTotal:                costTime,
+		TimeParse:                sessVars.DurationParse,
+		TimeCompile:              sessVars.DurationCompile,
+		TimeOptimize:             sessVars.DurationOptimization,
+		TimeWaitTS:               sessVars.DurationWaitTS,
+		IndexNames:               indexNames,
+		StatsInfos:               statsInfos,
+		CausetTasks:              copTaskInfo,
+		InterDircDetail:          execDetail,
+		MemMax:                   memMax,
+		DiskMax:                  diskMax,
+		Succ:                     succ,
+		Causet:                   getCausetTree(a.Causet),
+		CausetDigest:             planDigest,
+		Prepared:                 a.isPreparedStmt,
+		HasMoreResults:           hasMoreResults,
+		CausetFromCache:          sessVars.FoundInCausetCache,
+		RewriteInfo:              sessVars.RewritePhaseInfo,
+		KVTotal:                  time.Duration(atomic.LoadInt64(&stmtDetail.WaitKVResFIDeluration)),
+		FIDelTotal:               time.Duration(atomic.LoadInt64(&stmtDetail.WaitFIDelResFIDeluration)),
+		BackoffTotal:             time.Duration(atomic.LoadInt64(&stmtDetail.BackoffDuration)),
 		WriteALLEGROSQLRespTotal: stmtDetail.WriteALLEGROSQLResFIDeluration,
-		InterDircRetryCount:    a.retryCount,
+		InterDircRetryCount:      a.retryCount,
 	}
 	if a.retryCount > 0 {
 		slowItems.InterDircRetryTime = costTime - sessVars.DurationParse - sessVars.DurationCompile - time.Since(a.retryStartTime)
@@ -924,30 +924,30 @@ func (a *InterDircStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults boo
 			userString = sessVars.User.String()
 		}
 		petri.GetPetri(a.Ctx).LogSlowQuery(&petri.SlowQueryInfo{
-			ALLEGROALLEGROSQL:        allegrosql.String(),
-			Digest:     digest,
-			Start:      sessVars.StartTime,
-			Duration:   costTime,
-			Detail:     sessVars.StmtCtx.GetInterDircDetails(),
-			Succ:       succ,
-			ConnID:     sessVars.ConnectionID,
-			TxnTS:      txnTS,
-			User:       userString,
-			EDB:         sessVars.CurrentDB,
-			BlockIDs:   blockIDs,
-			IndexNames: indexNames,
-			Internal:   sessVars.InRestrictedALLEGROSQL,
+			ALLEGROALLEGROSQL: allegrosql.String(),
+			Digest:            digest,
+			Start:             sessVars.StartTime,
+			Duration:          costTime,
+			Detail:            sessVars.StmtCtx.GetInterDircDetails(),
+			Succ:              succ,
+			ConnID:            sessVars.ConnectionID,
+			TxnTS:             txnTS,
+			User:              userString,
+			EDB:               sessVars.CurrentDB,
+			BlockIDs:          blockIDs,
+			IndexNames:        indexNames,
+			Internal:          sessVars.InRestrictedALLEGROSQL,
 		})
 	}
 }
 
 // getCausetTree will try to get the select plan tree if the plan is select or the select plan of delete/uFIDelate/insert memex.
-func getCausetTree(p causetcore.Causet) string {
+func getCausetTree(p causetembedded.Causet) string {
 	cfg := config.GetGlobalConfig()
 	if atomic.LoadUint32(&cfg.Log.RecordCausetInSlowLog) == 0 {
 		return ""
 	}
-	planTree := causetcore.EncodeCauset(p)
+	planTree := causetembedded.EncodeCauset(p)
 	if len(planTree) == 0 {
 		return planTree
 	}
@@ -955,12 +955,12 @@ func getCausetTree(p causetcore.Causet) string {
 }
 
 // getCausetDigest will try to get the select plan tree if the plan is select or the select plan of delete/uFIDelate/insert memex.
-func getCausetDigest(sctx stochastikctx.Context, p causetcore.Causet) (normalized, planDigest string) {
+func getCausetDigest(sctx stochastikctx.Context, p causetembedded.Causet) (normalized, planDigest string) {
 	normalized, planDigest = sctx.GetStochastikVars().StmtCtx.GetCausetDigest()
 	if len(normalized) > 0 {
 		return
 	}
-	normalized, planDigest = causetcore.NormalizeCauset(p)
+	normalized, planDigest = causetembedded.NormalizeCauset(p)
 	sctx.GetStochastikVars().StmtCtx.SetCausetDigest(normalized, planDigest)
 	return
 }
@@ -999,7 +999,7 @@ func (a *InterDircStmt) SummaryStmt(succ bool) {
 
 	// No need to encode every time, so encode lazily.
 	planGenerator := func() string {
-		return causetcore.EncodeCauset(a.Causet)
+		return causetembedded.EncodeCauset(a.Causet)
 	}
 	// Generating plan digest is slow, only generate it once if it's 'Point_Get'.
 	// If it's a point get, different ALLEGROSQLs leads to different plans, so ALLEGROALLEGROSQL digest
@@ -1021,29 +1021,29 @@ func (a *InterDircStmt) SummaryStmt(succ bool) {
 	diskMax := stmtCtx.DiskTracker.MaxConsumed()
 	allegrosql := a.GetTextToLog()
 	stmtInterDircInfo := &stmtsummary.StmtInterDircInfo{
-		SchemaName:     strings.ToLower(sessVars.CurrentDB),
-		OriginalALLEGROSQL:    allegrosql,
-		NormalizedALLEGROSQL:  normalizedALLEGROSQL,
-		Digest:         digest,
-		PrevALLEGROSQL:        prevALLEGROSQL,
-		PrevALLEGROSQLDigest:  prevALLEGROSQLDigest,
-		CausetGenerator:  planGenerator,
-		CausetDigest:     planDigest,
-		CausetDigestGen:  planDigestGen,
-		User:           userString,
-		TotalLatency:   costTime,
-		ParseLatency:   sessVars.DurationParse,
-		CompileLatency: sessVars.DurationCompile,
-		StmtCtx:        stmtCtx,
-		CausetTasks:       copTaskInfo,
-		InterDircDetail:     &execDetail,
-		MemMax:         memMax,
-		DiskMax:        diskMax,
-		StartTime:      sessVars.StartTime,
-		IsInternal:     sessVars.InRestrictedALLEGROSQL,
-		Succeed:        succ,
-		CausetInCache:    sessVars.FoundInCausetCache,
-		InterDircRetryCount: a.retryCount,
+		SchemaName:           strings.ToLower(sessVars.CurrentDB),
+		OriginalALLEGROSQL:   allegrosql,
+		NormalizedALLEGROSQL: normalizedALLEGROSQL,
+		Digest:               digest,
+		PrevALLEGROSQL:       prevALLEGROSQL,
+		PrevALLEGROSQLDigest: prevALLEGROSQLDigest,
+		CausetGenerator:      planGenerator,
+		CausetDigest:         planDigest,
+		CausetDigestGen:      planDigestGen,
+		User:                 userString,
+		TotalLatency:         costTime,
+		ParseLatency:         sessVars.DurationParse,
+		CompileLatency:       sessVars.DurationCompile,
+		StmtCtx:              stmtCtx,
+		CausetTasks:          copTaskInfo,
+		InterDircDetail:      &execDetail,
+		MemMax:               memMax,
+		DiskMax:              diskMax,
+		StartTime:            sessVars.StartTime,
+		IsInternal:           sessVars.InRestrictedALLEGROSQL,
+		Succeed:              succ,
+		CausetInCache:        sessVars.FoundInCausetCache,
+		InterDircRetryCount:  a.retryCount,
 	}
 	if a.retryCount > 0 {
 		stmtInterDircInfo.InterDircRetryTime = costTime - sessVars.DurationParse - sessVars.DurationCompile - time.Since(a.retryStartTime)

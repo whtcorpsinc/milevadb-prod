@@ -23,25 +23,25 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/charset"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
+	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
+	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
-	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
 )
 
 const (
@@ -58,7 +58,7 @@ const (
 	BlockCharacterSets = "CHARACTER_SETS"
 	// BlockDefCauslations is the string constant of schemareplicant defCauslations memory causet.
 	BlockDefCauslations = "COLLATIONS"
-	blockFiles      = "FILES"
+	blockFiles          = "FILES"
 	// CatalogVal is the string constant of TABLE_CATALOG.
 	CatalogVal = "def"
 	// BlockProfiling is the string constant of schemareplicant causet.
@@ -66,31 +66,31 @@ const (
 	// BlockPartitions is the string constant of schemareplicant causet.
 	BlockPartitions = "PARTITIONS"
 	// BlockKeyDeferredCauset is the string constant of KEY_COLUMN_USAGE.
-	BlockKeyDeferredCauset  = "KEY_COLUMN_USAGE"
-	blockReferConst = "REFERENTIAL_CONSTRAINTS"
+	BlockKeyDeferredCauset = "KEY_COLUMN_USAGE"
+	blockReferConst        = "REFERENTIAL_CONSTRAINTS"
 	// BlockStochastikVar is the string constant of SESSION_VARIABLES.
 	BlockStochastikVar = "SESSION_VARIABLES"
-	blockPlugins    = "PLUGINS"
+	blockPlugins       = "PLUGINS"
 	// BlockConstraints is the string constant of TABLE_CONSTRAINTS.
 	BlockConstraints = "TABLE_CONSTRAINTS"
 	blockTriggers    = "TRIGGERS"
 	// BlockUserPrivileges is the string constant of schemareplicant user privilege causet.
-	BlockUserPrivileges   = "USER_PRIVILEGES"
-	blockSchemaPrivileges = "SCHEMA_PRIVILEGES"
-	blockBlockPrivileges  = "TABLE_PRIVILEGES"
+	BlockUserPrivileges           = "USER_PRIVILEGES"
+	blockSchemaPrivileges         = "SCHEMA_PRIVILEGES"
+	blockBlockPrivileges          = "TABLE_PRIVILEGES"
 	blockDeferredCausetPrivileges = "COLUMN_PRIVILEGES"
 	// BlockEngines is the string constant of schemareplicant causet.
 	BlockEngines = "ENGINES"
 	// BlockViews is the string constant of schemareplicant causet.
-	BlockViews           = "VIEWS"
-	blockRoutines        = "ROUTINES"
-	blockParameters      = "PARAMETERS"
-	blockEvents          = "EVENTS"
-	blockGlobalStatus    = "GLOBAL_STATUS"
-	blockGlobalVariables = "GLOBAL_VARIABLES"
-	blockStochastikStatus   = "SESSION_STATUS"
-	blockOptimizerTrace  = "OPTIMIZER_TRACE"
-	blockBlockSpaces     = "TABLESPACES"
+	BlockViews            = "VIEWS"
+	blockRoutines         = "ROUTINES"
+	blockParameters       = "PARAMETERS"
+	blockEvents           = "EVENTS"
+	blockGlobalStatus     = "GLOBAL_STATUS"
+	blockGlobalVariables  = "GLOBAL_VARIABLES"
+	blockStochastikStatus = "SESSION_STATUS"
+	blockOptimizerTrace   = "OPTIMIZER_TRACE"
+	blockBlockSpaces      = "TABLESPACES"
 	// BlockDefCauslationCharacterSetApplicability is the string constant of schemareplicant memory causet.
 	BlockDefCauslationCharacterSetApplicability = "COLLATION_CHARACTER_SET_APPLICABILITY"
 	// BlockProcesslist is the string constant of schemareplicant causet.
@@ -154,71 +154,71 @@ const (
 )
 
 var blockIDMap = map[string]int64{
-	BlockSchemata:                           autoid.InformationSchemaDBID + 1,
-	BlockBlocks:                             autoid.InformationSchemaDBID + 2,
-	BlockDeferredCausets:                            autoid.InformationSchemaDBID + 3,
-	blockDeferredCausetStatistics:                   autoid.InformationSchemaDBID + 4,
-	BlockStatistics:                         autoid.InformationSchemaDBID + 5,
-	BlockCharacterSets:                      autoid.InformationSchemaDBID + 6,
-	BlockDefCauslations:                         autoid.InformationSchemaDBID + 7,
-	blockFiles:                              autoid.InformationSchemaDBID + 8,
-	CatalogVal:                              autoid.InformationSchemaDBID + 9,
-	BlockProfiling:                          autoid.InformationSchemaDBID + 10,
-	BlockPartitions:                         autoid.InformationSchemaDBID + 11,
-	BlockKeyDeferredCauset:                          autoid.InformationSchemaDBID + 12,
-	blockReferConst:                         autoid.InformationSchemaDBID + 13,
-	BlockStochastikVar:                         autoid.InformationSchemaDBID + 14,
-	blockPlugins:                            autoid.InformationSchemaDBID + 15,
-	BlockConstraints:                        autoid.InformationSchemaDBID + 16,
-	blockTriggers:                           autoid.InformationSchemaDBID + 17,
-	BlockUserPrivileges:                     autoid.InformationSchemaDBID + 18,
-	blockSchemaPrivileges:                   autoid.InformationSchemaDBID + 19,
-	blockBlockPrivileges:                    autoid.InformationSchemaDBID + 20,
-	blockDeferredCausetPrivileges:                   autoid.InformationSchemaDBID + 21,
-	BlockEngines:                            autoid.InformationSchemaDBID + 22,
-	BlockViews:                              autoid.InformationSchemaDBID + 23,
-	blockRoutines:                           autoid.InformationSchemaDBID + 24,
-	blockParameters:                         autoid.InformationSchemaDBID + 25,
-	blockEvents:                             autoid.InformationSchemaDBID + 26,
-	blockGlobalStatus:                       autoid.InformationSchemaDBID + 27,
-	blockGlobalVariables:                    autoid.InformationSchemaDBID + 28,
-	blockStochastikStatus:                      autoid.InformationSchemaDBID + 29,
-	blockOptimizerTrace:                     autoid.InformationSchemaDBID + 30,
-	blockBlockSpaces:                        autoid.InformationSchemaDBID + 31,
+	BlockSchemata:                 autoid.InformationSchemaDBID + 1,
+	BlockBlocks:                   autoid.InformationSchemaDBID + 2,
+	BlockDeferredCausets:          autoid.InformationSchemaDBID + 3,
+	blockDeferredCausetStatistics: autoid.InformationSchemaDBID + 4,
+	BlockStatistics:               autoid.InformationSchemaDBID + 5,
+	BlockCharacterSets:            autoid.InformationSchemaDBID + 6,
+	BlockDefCauslations:           autoid.InformationSchemaDBID + 7,
+	blockFiles:                    autoid.InformationSchemaDBID + 8,
+	CatalogVal:                    autoid.InformationSchemaDBID + 9,
+	BlockProfiling:                autoid.InformationSchemaDBID + 10,
+	BlockPartitions:               autoid.InformationSchemaDBID + 11,
+	BlockKeyDeferredCauset:        autoid.InformationSchemaDBID + 12,
+	blockReferConst:               autoid.InformationSchemaDBID + 13,
+	BlockStochastikVar:            autoid.InformationSchemaDBID + 14,
+	blockPlugins:                  autoid.InformationSchemaDBID + 15,
+	BlockConstraints:              autoid.InformationSchemaDBID + 16,
+	blockTriggers:                 autoid.InformationSchemaDBID + 17,
+	BlockUserPrivileges:           autoid.InformationSchemaDBID + 18,
+	blockSchemaPrivileges:         autoid.InformationSchemaDBID + 19,
+	blockBlockPrivileges:          autoid.InformationSchemaDBID + 20,
+	blockDeferredCausetPrivileges: autoid.InformationSchemaDBID + 21,
+	BlockEngines:                  autoid.InformationSchemaDBID + 22,
+	BlockViews:                    autoid.InformationSchemaDBID + 23,
+	blockRoutines:                 autoid.InformationSchemaDBID + 24,
+	blockParameters:               autoid.InformationSchemaDBID + 25,
+	blockEvents:                   autoid.InformationSchemaDBID + 26,
+	blockGlobalStatus:             autoid.InformationSchemaDBID + 27,
+	blockGlobalVariables:          autoid.InformationSchemaDBID + 28,
+	blockStochastikStatus:         autoid.InformationSchemaDBID + 29,
+	blockOptimizerTrace:           autoid.InformationSchemaDBID + 30,
+	blockBlockSpaces:              autoid.InformationSchemaDBID + 31,
 	BlockDefCauslationCharacterSetApplicability: autoid.InformationSchemaDBID + 32,
-	BlockProcesslist:                        autoid.InformationSchemaDBID + 33,
-	BlockMilevaDBIndexes:                        autoid.InformationSchemaDBID + 34,
-	BlockSlowQuery:                          autoid.InformationSchemaDBID + 35,
-	BlockMilevaDBHotRegions:                     autoid.InformationSchemaDBID + 36,
-	BlockEinsteinDBStoreStatus:                    autoid.InformationSchemaDBID + 37,
-	BlockAnalyzeStatus:                      autoid.InformationSchemaDBID + 38,
-	BlockEinsteinDBRegionStatus:                   autoid.InformationSchemaDBID + 39,
-	BlockEinsteinDBRegionPeers:                    autoid.InformationSchemaDBID + 40,
-	BlockMilevaDBServersInfo:                    autoid.InformationSchemaDBID + 41,
-	BlockClusterInfo:                        autoid.InformationSchemaDBID + 42,
-	BlockClusterConfig:                      autoid.InformationSchemaDBID + 43,
-	BlockClusterLoad:                        autoid.InformationSchemaDBID + 44,
-	BlockTiFlashReplica:                     autoid.InformationSchemaDBID + 45,
-	ClusterBlockSlowLog:                     autoid.InformationSchemaDBID + 46,
-	ClusterBlockProcesslist:                 autoid.InformationSchemaDBID + 47,
-	BlockClusterLog:                         autoid.InformationSchemaDBID + 48,
-	BlockClusterHardware:                    autoid.InformationSchemaDBID + 49,
-	BlockClusterSystemInfo:                  autoid.InformationSchemaDBID + 50,
-	BlockInspectionResult:                   autoid.InformationSchemaDBID + 51,
-	BlockMetricSummary:                      autoid.InformationSchemaDBID + 52,
-	BlockMetricSummaryByLabel:               autoid.InformationSchemaDBID + 53,
-	BlockMetricBlocks:                       autoid.InformationSchemaDBID + 54,
-	BlockInspectionSummary:                  autoid.InformationSchemaDBID + 55,
-	BlockInspectionMemrules:                    autoid.InformationSchemaDBID + 56,
-	BlockDBSJobs:                            autoid.InformationSchemaDBID + 57,
-	BlockSequences:                          autoid.InformationSchemaDBID + 58,
-	BlockStatementsSummary:                  autoid.InformationSchemaDBID + 59,
-	BlockStatementsSummaryHistory:           autoid.InformationSchemaDBID + 60,
-	ClusterBlockStatementsSummary:           autoid.InformationSchemaDBID + 61,
-	ClusterBlockStatementsSummaryHistory:    autoid.InformationSchemaDBID + 62,
-	BlockStorageStats:                       autoid.InformationSchemaDBID + 63,
-	BlockTiFlashBlocks:                      autoid.InformationSchemaDBID + 64,
-	BlockTiFlashSegments:                    autoid.InformationSchemaDBID + 65,
+	BlockProcesslist:                     autoid.InformationSchemaDBID + 33,
+	BlockMilevaDBIndexes:                 autoid.InformationSchemaDBID + 34,
+	BlockSlowQuery:                       autoid.InformationSchemaDBID + 35,
+	BlockMilevaDBHotRegions:              autoid.InformationSchemaDBID + 36,
+	BlockEinsteinDBStoreStatus:           autoid.InformationSchemaDBID + 37,
+	BlockAnalyzeStatus:                   autoid.InformationSchemaDBID + 38,
+	BlockEinsteinDBRegionStatus:          autoid.InformationSchemaDBID + 39,
+	BlockEinsteinDBRegionPeers:           autoid.InformationSchemaDBID + 40,
+	BlockMilevaDBServersInfo:             autoid.InformationSchemaDBID + 41,
+	BlockClusterInfo:                     autoid.InformationSchemaDBID + 42,
+	BlockClusterConfig:                   autoid.InformationSchemaDBID + 43,
+	BlockClusterLoad:                     autoid.InformationSchemaDBID + 44,
+	BlockTiFlashReplica:                  autoid.InformationSchemaDBID + 45,
+	ClusterBlockSlowLog:                  autoid.InformationSchemaDBID + 46,
+	ClusterBlockProcesslist:              autoid.InformationSchemaDBID + 47,
+	BlockClusterLog:                      autoid.InformationSchemaDBID + 48,
+	BlockClusterHardware:                 autoid.InformationSchemaDBID + 49,
+	BlockClusterSystemInfo:               autoid.InformationSchemaDBID + 50,
+	BlockInspectionResult:                autoid.InformationSchemaDBID + 51,
+	BlockMetricSummary:                   autoid.InformationSchemaDBID + 52,
+	BlockMetricSummaryByLabel:            autoid.InformationSchemaDBID + 53,
+	BlockMetricBlocks:                    autoid.InformationSchemaDBID + 54,
+	BlockInspectionSummary:               autoid.InformationSchemaDBID + 55,
+	BlockInspectionMemrules:              autoid.InformationSchemaDBID + 56,
+	BlockDBSJobs:                         autoid.InformationSchemaDBID + 57,
+	BlockSequences:                       autoid.InformationSchemaDBID + 58,
+	BlockStatementsSummary:               autoid.InformationSchemaDBID + 59,
+	BlockStatementsSummaryHistory:        autoid.InformationSchemaDBID + 60,
+	ClusterBlockStatementsSummary:        autoid.InformationSchemaDBID + 61,
+	ClusterBlockStatementsSummaryHistory: autoid.InformationSchemaDBID + 62,
+	BlockStorageStats:                    autoid.InformationSchemaDBID + 63,
+	BlockTiFlashBlocks:                   autoid.InformationSchemaDBID + 64,
+	BlockTiFlashSegments:                 autoid.InformationSchemaDBID + 65,
 }
 
 type defCausumnInfo struct {
@@ -239,12 +239,12 @@ func buildDeferredCausetInfo(defCaus defCausumnInfo) *perceptron.DeferredCausetI
 		mDefCauslation = charset.DefCauslationUTF8MB4
 	}
 	fieldType := types.FieldType{
-		Charset: mCharset,
+		Charset:     mCharset,
 		DefCauslate: mDefCauslation,
-		Tp:      defCaus.tp,
-		Flen:    defCaus.size,
-		Decimal: defCaus.decimal,
-		Flag:    defCaus.flag,
+		Tp:          defCaus.tp,
+		Flen:        defCaus.size,
+		Decimal:     defCaus.decimal,
+		Flag:        defCaus.flag,
 	}
 	return &perceptron.DeferredCausetInfo{
 		Name:         perceptron.NewCIStr(defCaus.name),
@@ -264,11 +264,11 @@ func buildBlockMeta(blockName string, cs []defCausumnInfo) *perceptron.BlockInfo
 		defCaus.Offset = i
 	}
 	return &perceptron.BlockInfo{
-		Name:    perceptron.NewCIStr(blockName),
+		Name:            perceptron.NewCIStr(blockName),
 		DeferredCausets: defcaus,
-		State:   perceptron.StatePublic,
-		Charset: allegrosql.DefaultCharset,
-		DefCauslate: allegrosql.DefaultDefCauslationName,
+		State:           perceptron.StatePublic,
+		Charset:         allegrosql.DefaultCharset,
+		DefCauslate:     allegrosql.DefaultDefCauslationName,
 	}
 }
 
@@ -1490,66 +1490,66 @@ func GetTiFlashStoreCount(ctx stochastikctx.Context) (cnt uint64, err error) {
 }
 
 var blockNameToDeferredCausets = map[string][]defCausumnInfo{
-	BlockSchemata:                           schemataDefCauss,
-	BlockBlocks:                             blocksDefCauss,
-	BlockDeferredCausets:                            defCausumnsDefCauss,
-	blockDeferredCausetStatistics:                   defCausumnStatisticsDefCauss,
-	BlockStatistics:                         statisticsDefCauss,
-	BlockCharacterSets:                      charsetDefCauss,
-	BlockDefCauslations:                         defCauslationsDefCauss,
-	blockFiles:                              filesDefCauss,
-	BlockProfiling:                          profilingDefCauss,
-	BlockPartitions:                         partitionsDefCauss,
-	BlockKeyDeferredCauset:                          keyDeferredCausetUsageDefCauss,
-	blockReferConst:                         referConstDefCauss,
-	BlockStochastikVar:                         stochastikVarDefCauss,
-	blockPlugins:                            pluginsDefCauss,
-	BlockConstraints:                        blockConstraintsDefCauss,
-	blockTriggers:                           blockTriggersDefCauss,
-	BlockUserPrivileges:                     blockUserPrivilegesDefCauss,
-	blockSchemaPrivileges:                   blockSchemaPrivilegesDefCauss,
-	blockBlockPrivileges:                    blockBlockPrivilegesDefCauss,
-	blockDeferredCausetPrivileges:                   blockDeferredCausetPrivilegesDefCauss,
-	BlockEngines:                            blockEnginesDefCauss,
-	BlockViews:                              blockViewsDefCauss,
-	blockRoutines:                           blockRoutinesDefCauss,
-	blockParameters:                         blockParametersDefCauss,
-	blockEvents:                             blockEventsDefCauss,
-	blockGlobalStatus:                       blockGlobalStatusDefCauss,
-	blockGlobalVariables:                    blockGlobalVariablesDefCauss,
-	blockStochastikStatus:                      blockStochastikStatusDefCauss,
-	blockOptimizerTrace:                     blockOptimizerTraceDefCauss,
-	blockBlockSpaces:                        blockBlockSpacesDefCauss,
+	BlockSchemata:                 schemataDefCauss,
+	BlockBlocks:                   blocksDefCauss,
+	BlockDeferredCausets:          defCausumnsDefCauss,
+	blockDeferredCausetStatistics: defCausumnStatisticsDefCauss,
+	BlockStatistics:               statisticsDefCauss,
+	BlockCharacterSets:            charsetDefCauss,
+	BlockDefCauslations:           defCauslationsDefCauss,
+	blockFiles:                    filesDefCauss,
+	BlockProfiling:                profilingDefCauss,
+	BlockPartitions:               partitionsDefCauss,
+	BlockKeyDeferredCauset:        keyDeferredCausetUsageDefCauss,
+	blockReferConst:               referConstDefCauss,
+	BlockStochastikVar:            stochastikVarDefCauss,
+	blockPlugins:                  pluginsDefCauss,
+	BlockConstraints:              blockConstraintsDefCauss,
+	blockTriggers:                 blockTriggersDefCauss,
+	BlockUserPrivileges:           blockUserPrivilegesDefCauss,
+	blockSchemaPrivileges:         blockSchemaPrivilegesDefCauss,
+	blockBlockPrivileges:          blockBlockPrivilegesDefCauss,
+	blockDeferredCausetPrivileges: blockDeferredCausetPrivilegesDefCauss,
+	BlockEngines:                  blockEnginesDefCauss,
+	BlockViews:                    blockViewsDefCauss,
+	blockRoutines:                 blockRoutinesDefCauss,
+	blockParameters:               blockParametersDefCauss,
+	blockEvents:                   blockEventsDefCauss,
+	blockGlobalStatus:             blockGlobalStatusDefCauss,
+	blockGlobalVariables:          blockGlobalVariablesDefCauss,
+	blockStochastikStatus:         blockStochastikStatusDefCauss,
+	blockOptimizerTrace:           blockOptimizerTraceDefCauss,
+	blockBlockSpaces:              blockBlockSpacesDefCauss,
 	BlockDefCauslationCharacterSetApplicability: blockDefCauslationCharacterSetApplicabilityDefCauss,
-	BlockProcesslist:                        blockProcesslistDefCauss,
-	BlockMilevaDBIndexes:                        blockMilevaDBIndexesDefCauss,
-	BlockSlowQuery:                          slowQueryDefCauss,
-	BlockMilevaDBHotRegions:                     BlockMilevaDBHotRegionsDefCauss,
-	BlockEinsteinDBStoreStatus:                    BlockEinsteinDBStoreStatusDefCauss,
-	BlockAnalyzeStatus:                      blockAnalyzeStatusDefCauss,
-	BlockEinsteinDBRegionStatus:                   BlockEinsteinDBRegionStatusDefCauss,
-	BlockEinsteinDBRegionPeers:                    BlockEinsteinDBRegionPeersDefCauss,
-	BlockMilevaDBServersInfo:                    blockMilevaDBServersInfoDefCauss,
-	BlockClusterInfo:                        blockClusterInfoDefCauss,
-	BlockClusterConfig:                      blockClusterConfigDefCauss,
-	BlockClusterLog:                         blockClusterLogDefCauss,
-	BlockClusterLoad:                        blockClusterLoadDefCauss,
-	BlockTiFlashReplica:                     blockBlockTiFlashReplicaDefCauss,
-	BlockClusterHardware:                    blockClusterHardwareDefCauss,
-	BlockClusterSystemInfo:                  blockClusterSystemInfoDefCauss,
-	BlockInspectionResult:                   blockInspectionResultDefCauss,
-	BlockMetricSummary:                      blockMetricSummaryDefCauss,
-	BlockMetricSummaryByLabel:               blockMetricSummaryByLabelDefCauss,
-	BlockMetricBlocks:                       blockMetricBlocksDefCauss,
-	BlockInspectionSummary:                  blockInspectionSummaryDefCauss,
-	BlockInspectionMemrules:                    blockInspectionMemrulesDefCauss,
-	BlockDBSJobs:                            blockDBSJobsDefCauss,
-	BlockSequences:                          blockSequencesDefCauss,
-	BlockStatementsSummary:                  blockStatementsSummaryDefCauss,
-	BlockStatementsSummaryHistory:           blockStatementsSummaryDefCauss,
-	BlockStorageStats:                       blockStorageStatsDefCauss,
-	BlockTiFlashBlocks:                      blockBlockTiFlashBlocksDefCauss,
-	BlockTiFlashSegments:                    blockBlockTiFlashSegmentsDefCauss,
+	BlockProcesslist:              blockProcesslistDefCauss,
+	BlockMilevaDBIndexes:          blockMilevaDBIndexesDefCauss,
+	BlockSlowQuery:                slowQueryDefCauss,
+	BlockMilevaDBHotRegions:       BlockMilevaDBHotRegionsDefCauss,
+	BlockEinsteinDBStoreStatus:    BlockEinsteinDBStoreStatusDefCauss,
+	BlockAnalyzeStatus:            blockAnalyzeStatusDefCauss,
+	BlockEinsteinDBRegionStatus:   BlockEinsteinDBRegionStatusDefCauss,
+	BlockEinsteinDBRegionPeers:    BlockEinsteinDBRegionPeersDefCauss,
+	BlockMilevaDBServersInfo:      blockMilevaDBServersInfoDefCauss,
+	BlockClusterInfo:              blockClusterInfoDefCauss,
+	BlockClusterConfig:            blockClusterConfigDefCauss,
+	BlockClusterLog:               blockClusterLogDefCauss,
+	BlockClusterLoad:              blockClusterLoadDefCauss,
+	BlockTiFlashReplica:           blockBlockTiFlashReplicaDefCauss,
+	BlockClusterHardware:          blockClusterHardwareDefCauss,
+	BlockClusterSystemInfo:        blockClusterSystemInfoDefCauss,
+	BlockInspectionResult:         blockInspectionResultDefCauss,
+	BlockMetricSummary:            blockMetricSummaryDefCauss,
+	BlockMetricSummaryByLabel:     blockMetricSummaryByLabelDefCauss,
+	BlockMetricBlocks:             blockMetricBlocksDefCauss,
+	BlockInspectionSummary:        blockInspectionSummaryDefCauss,
+	BlockInspectionMemrules:       blockInspectionMemrulesDefCauss,
+	BlockDBSJobs:                  blockDBSJobsDefCauss,
+	BlockSequences:                blockSequencesDefCauss,
+	BlockStatementsSummary:        blockStatementsSummaryDefCauss,
+	BlockStatementsSummaryHistory: blockStatementsSummaryDefCauss,
+	BlockStorageStats:             blockStorageStatsDefCauss,
+	BlockTiFlashBlocks:            blockBlockTiFlashBlocksDefCauss,
+	BlockTiFlashSegments:          blockBlockTiFlashSegmentsDefCauss,
 }
 
 func createSchemaReplicantBlock(_ autoid.SlabPredictors, spacetime *perceptron.BlockInfo) (causet.Block, error) {
@@ -1566,8 +1566,8 @@ func createSchemaReplicantBlock(_ autoid.SlabPredictors, spacetime *perceptron.B
 
 type schemareplicantBlock struct {
 	spacetime *perceptron.BlockInfo
-	defcaus []*causet.DeferredCauset
-	tp   causet.Type
+	defcaus   []*causet.DeferredCauset
+	tp        causet.Type
 }
 
 // SchemasSorter implements the sort.Interface interface, sorts DBInfo by name.

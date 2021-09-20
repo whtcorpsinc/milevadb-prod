@@ -16,15 +16,15 @@ package dbs_test
 import (
 	"strconv"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	allegrosql "github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/causet/blocks"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 var _ = Suite(&testSequenceSuite{&testDBSuite{}})
@@ -917,16 +917,16 @@ func (s *testSequenceSuite) TestSequenceFunctionPrivilege(c *C) {
 }
 
 // Background: the newly added defCausumn in MilevaDB won't fill the known rows with specific
-// sequence next value immediately. Every time MilevaDB select the data from storage, kvDB
+// sequence next value immediately. Every time MilevaDB select the data from storage, ekvDB
 // will fill the originDefaultValue to these incomplete rows (but not causetstore).
 //
-// In sequence case, every time filling these rows, kvDB should eval the sequence
+// In sequence case, every time filling these rows, ekvDB should eval the sequence
 // expr for len(incomplete rows) times, and combine these event data together. That
 // means the select result is not always the same.
 //
 // However, the altered defCausumn with sequence as it's default value can work well.
 // Because this defCausumn has already been added before the alter action, which also
-// means originDefaultValue should be something but nil, so the back filling in kvDB
+// means originDefaultValue should be something but nil, so the back filling in ekvDB
 // can work well.
 //
 // The new altered sequence default value for this defCausumn only take effect on the

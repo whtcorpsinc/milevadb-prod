@@ -19,34 +19,34 @@ import (
 	"math"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
+	dto "github.com/prometheus/client_perceptron/go"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	. "github.com/whtcorpsinc/check"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/interlock"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/soliton"
+	"github.com/whtcorpsinc/milevadb/soliton/ekvcache"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton"
-	"github.com/whtcorpsinc/milevadb/soliton/kvcache"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	dto "github.com/prometheus/client_perceptron/go"
 )
 
 func (s *seqTestSuite) TestPrepared(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 
 	flags := []bool{false, true}
 	ctx := context.Background()
 	for _, flag := range flags {
 		var err error
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 
 		tk := testkit.NewTestKit(c, s.causetstore)
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -62,13 +62,13 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 		c.Assert(interlock.ErrPrepareMulti.Equal(err), IsTrue)
 		// The variable count does not match.
 		_, err = tk.InterDirc(`prepare stmt_test_4 from 'select id from prepare_test where id > ? and id < ?'; set @a = 1; execute stmt_test_4 using @a;`)
-		c.Assert(causetcore.ErrWrongParamCount.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrWrongParamCount.Equal(err), IsTrue)
 		// Prepare and deallocate prepared memex immediately.
 		tk.MustInterDirc(`prepare stmt_test_5 from 'select id from prepare_test where id > ?'; deallocate prepare stmt_test_5;`)
 
 		// Statement not found.
 		_, err = tk.InterDirc("deallocate prepare stmt_test_5")
-		c.Assert(causetcore.ErrStmtNotFound.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrStmtNotFound.Equal(err), IsTrue)
 
 		// incorrect ALLEGROSQLs in prepare. issue #3738, ALLEGROALLEGROSQL in prepare stmt is parsed in DoPrepare.
 		_, err = tk.InterDirc(`prepare p from "delete from t where a = 7 or 1=1/*' and b = 'p'";`)
@@ -76,7 +76,7 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 
 		// The `stmt_test5` should not be found.
 		_, err = tk.InterDirc(`set @a = 1; execute stmt_test_5 using @a;`)
-		c.Assert(causetcore.ErrStmtNotFound.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrStmtNotFound.Equal(err), IsTrue)
 
 		// Use parameter marker with argument will run prepared memex.
 		result := tk.MustQuery("select distinct c1, c2 from prepare_test where c1 = ?", 1)
@@ -97,7 +97,7 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 
 		tk1 := testkit.NewTestKit(c, s.causetstore)
 		tk1.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -172,11 +172,11 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 		tk.MustInterDirc("alter causet prepare_test drop defCausumn c2")
 
 		_, err = tk.Se.InterDircutePreparedStmt(ctx, stmtID, []types.Causet{types.NewCauset(1)})
-		c.Assert(causetcore.ErrUnknownDeferredCauset.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrUnknownDeferredCauset.Equal(err), IsTrue)
 
 		tk.MustInterDirc("drop causet prepare_test")
 		_, err = tk.Se.InterDircutePreparedStmt(ctx, stmtID, []types.Causet{types.NewCauset(1)})
-		c.Assert(causetcore.ErrSchemaChanged.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrSchemaChanged.Equal(err), IsTrue)
 
 		// issue 3381
 		tk.MustInterDirc("drop causet if exists prepare3")
@@ -268,19 +268,19 @@ func (s *seqTestSuite) TestPrepared(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedLimitOffset(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	ctx := context.Background()
 	for _, flag := range flags {
 		var err error
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 
 		tk := testkit.NewTestKit(c, s.causetstore)
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -298,7 +298,7 @@ func (s *seqTestSuite) TestPreparedLimitOffset(c *C) {
 
 		tk.MustInterDirc(`set @c="-1"`)
 		_, err = tk.InterDirc("execute stmt_test_1 using @c, @c")
-		c.Assert(causetcore.ErrWrongArguments.Equal(err), IsTrue)
+		c.Assert(causetembedded.ErrWrongArguments.Equal(err), IsTrue)
 
 		stmtID, _, _, err := tk.Se.PrepareStmt("select id from prepare_test limit ?")
 		c.Assert(err, IsNil)
@@ -308,17 +308,17 @@ func (s *seqTestSuite) TestPreparedLimitOffset(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedNullParam(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -347,17 +347,17 @@ func (s *seqTestSuite) TestPreparedNullParam(c *C) {
 }
 
 func (s *seqTestSuite) TestPrepareWithAggregation(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -377,17 +377,17 @@ func (s *seqTestSuite) TestPrepareWithAggregation(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedIssue7579(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -423,9 +423,9 @@ func (s *seqTestSuite) TestPreparedIssue7579(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedInsert(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	metrics.ResetblockCausetCacheCounterFortTest = true
 	metrics.CausetCacheCounter.Reset()
@@ -433,11 +433,11 @@ func (s *seqTestSuite) TestPreparedInsert(c *C) {
 	pb := &dto.Metric{}
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -501,9 +501,9 @@ func (s *seqTestSuite) TestPreparedInsert(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedUFIDelate(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	metrics.ResetblockCausetCacheCounterFortTest = true
 	metrics.CausetCacheCounter.Reset()
@@ -511,11 +511,11 @@ func (s *seqTestSuite) TestPreparedUFIDelate(c *C) {
 	pb := &dto.Metric{}
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -556,9 +556,9 @@ func (s *seqTestSuite) TestPreparedUFIDelate(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedDelete(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	metrics.ResetblockCausetCacheCounterFortTest = true
 	metrics.CausetCacheCounter.Reset()
@@ -566,11 +566,11 @@ func (s *seqTestSuite) TestPreparedDelete(c *C) {
 	pb := &dto.Metric{}
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -611,16 +611,16 @@ func (s *seqTestSuite) TestPreparedDelete(c *C) {
 }
 
 func (s *seqTestSuite) TestPrepareDealloc(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
-	causetcore.SetPreparedCausetCache(true)
+	causetembedded.SetPreparedCausetCache(true)
 
 	tk := testkit.NewTestKit(c, s.causetstore)
 	var err error
 	tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-		PreparedCausetCache: kvcache.NewSimpleLRUCache(3, 0.1, math.MaxUint64),
+		PreparedCausetCache: ekvcache.NewSimpleLRUCache(3, 0.1, math.MaxUint64),
 	})
 	c.Assert(err, IsNil)
 
@@ -648,17 +648,17 @@ func (s *seqTestSuite) TestPrepareDealloc(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedIssue8153(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	for _, flag := range flags {
 		var err error
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -701,17 +701,17 @@ func (s *seqTestSuite) TestPreparedIssue8153(c *C) {
 }
 
 func (s *seqTestSuite) TestPreparedIssue8644(c *C) {
-	orgEnable := causetcore.PreparedCausetCacheEnabled()
+	orgEnable := causetembedded.PreparedCausetCacheEnabled()
 	defer func() {
-		causetcore.SetPreparedCausetCache(orgEnable)
+		causetembedded.SetPreparedCausetCache(orgEnable)
 	}()
 	flags := []bool{false, true}
 	for _, flag := range flags {
-		causetcore.SetPreparedCausetCache(flag)
+		causetembedded.SetPreparedCausetCache(flag)
 		tk := testkit.NewTestKit(c, s.causetstore)
 		var err error
 		tk.Se, err = stochastik.CreateStochastik4TestWithOpt(s.causetstore, &stochastik.Opt{
-			PreparedCausetCache: kvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
+			PreparedCausetCache: ekvcache.NewSimpleLRUCache(100, 0.1, math.MaxUint64),
 		})
 		c.Assert(err, IsNil)
 
@@ -788,6 +788,6 @@ func (s *seqTestSuite) TestPreparedIssue17419(c *C) {
 
 	// After entirely fixing https://github.com/whtcorpsinc/milevadb/issues/17419
 	// c.Assert(tk1.Se.ShowProcess().Causet, NotNil)
-	// _, ok := tk1.Se.ShowProcess().Causet.(*causetcore.InterDircute)
+	// _, ok := tk1.Se.ShowProcess().Causet.(*causetembedded.InterDircute)
 	// c.Assert(ok, IsTrue)
 }

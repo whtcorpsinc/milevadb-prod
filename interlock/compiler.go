@@ -17,27 +17,27 @@ import (
 	"context"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/metrics"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/metrics"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 var (
-	stmtNodeCounterUse      = metrics.StmtNodeCounter.WithLabelValues("Use")
-	stmtNodeCounterShow     = metrics.StmtNodeCounter.WithLabelValues("Show")
-	stmtNodeCounterBegin    = metrics.StmtNodeCounter.WithLabelValues("Begin")
-	stmtNodeCounterCommit   = metrics.StmtNodeCounter.WithLabelValues("Commit")
-	stmtNodeCounterRollback = metrics.StmtNodeCounter.WithLabelValues("Rollback")
-	stmtNodeCounterInsert   = metrics.StmtNodeCounter.WithLabelValues("Insert")
-	stmtNodeCounterReplace  = metrics.StmtNodeCounter.WithLabelValues("Replace")
-	stmtNodeCounterDelete   = metrics.StmtNodeCounter.WithLabelValues("Delete")
-	stmtNodeCounterUFIDelate   = metrics.StmtNodeCounter.WithLabelValues("UFIDelate")
-	stmtNodeCounterSelect   = metrics.StmtNodeCounter.WithLabelValues("Select")
+	stmtNodeCounterUse       = metrics.StmtNodeCounter.WithLabelValues("Use")
+	stmtNodeCounterShow      = metrics.StmtNodeCounter.WithLabelValues("Show")
+	stmtNodeCounterBegin     = metrics.StmtNodeCounter.WithLabelValues("Begin")
+	stmtNodeCounterCommit    = metrics.StmtNodeCounter.WithLabelValues("Commit")
+	stmtNodeCounterRollback  = metrics.StmtNodeCounter.WithLabelValues("Rollback")
+	stmtNodeCounterInsert    = metrics.StmtNodeCounter.WithLabelValues("Insert")
+	stmtNodeCounterReplace   = metrics.StmtNodeCounter.WithLabelValues("Replace")
+	stmtNodeCounterDelete    = metrics.StmtNodeCounter.WithLabelValues("Delete")
+	stmtNodeCounterUFIDelate = metrics.StmtNodeCounter.WithLabelValues("UFIDelate")
+	stmtNodeCounterSelect    = metrics.StmtNodeCounter.WithLabelValues("Select")
 )
 
 // Compiler compiles an ast.StmtNode to a physical plan.
@@ -54,10 +54,10 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*InterDi
 	}
 
 	schemaReplicant := schemareplicant.GetSchemaReplicant(c.Ctx)
-	if err := causetcore.Preprocess(c.Ctx, stmtNode, schemaReplicant); err != nil {
+	if err := causetembedded.Preprocess(c.Ctx, stmtNode, schemaReplicant); err != nil {
 		return nil, err
 	}
-	stmtNode = causetcore.TryAddExtraLimit(c.Ctx, stmtNode)
+	stmtNode = causetembedded.TryAddExtraLimit(c.Ctx, stmtNode)
 
 	finalCauset, names, err := causet.Optimize(ctx, c.Ctx, stmtNode, schemaReplicant)
 	if err != nil {
@@ -70,14 +70,14 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*InterDi
 		lowerPriority = needLowerPriority(finalCauset)
 	}
 	return &InterDircStmt{
-		GoCtx:         ctx,
-		SchemaReplicant:    schemaReplicant,
+		GoCtx:           ctx,
+		SchemaReplicant: schemaReplicant,
 		Causet:          finalCauset,
-		LowerPriority: lowerPriority,
-		Text:          stmtNode.Text(),
-		StmtNode:      stmtNode,
-		Ctx:           c.Ctx,
-		OutputNames:   names,
+		LowerPriority:   lowerPriority,
+		Text:            stmtNode.Text(),
+		StmtNode:        stmtNode,
+		Ctx:             c.Ctx,
+		OutputNames:     names,
 	}, nil
 }
 
@@ -86,21 +86,21 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*InterDi
 // If the estimated output event count of any operator in the physical plan tree
 // is greater than the specific threshold, we'll set it to lowPriority when
 // sending it to the interlock.
-func needLowerPriority(p causetcore.Causet) bool {
+func needLowerPriority(p causetembedded.Causet) bool {
 	switch x := p.(type) {
-	case causetcore.PhysicalCauset:
+	case causetembedded.PhysicalCauset:
 		return isPhysicalCausetNeedLowerPriority(x)
-	case *causetcore.InterDircute:
+	case *causetembedded.InterDircute:
 		return needLowerPriority(x.Causet)
-	case *causetcore.Insert:
+	case *causetembedded.Insert:
 		if x.SelectCauset != nil {
 			return isPhysicalCausetNeedLowerPriority(x.SelectCauset)
 		}
-	case *causetcore.Delete:
+	case *causetembedded.Delete:
 		if x.SelectCauset != nil {
 			return isPhysicalCausetNeedLowerPriority(x.SelectCauset)
 		}
-	case *causetcore.UFIDelate:
+	case *causetembedded.UFIDelate:
 		if x.SelectCauset != nil {
 			return isPhysicalCausetNeedLowerPriority(x.SelectCauset)
 		}
@@ -108,7 +108,7 @@ func needLowerPriority(p causetcore.Causet) bool {
 	return false
 }
 
-func isPhysicalCausetNeedLowerPriority(p causetcore.PhysicalCauset) bool {
+func isPhysicalCausetNeedLowerPriority(p causetembedded.PhysicalCauset) bool {
 	expensiveThreshold := int64(config.GetGlobalConfig().Log.ExpensiveThreshold)
 	if int64(p.StatsCount()) > expensiveThreshold {
 		return true

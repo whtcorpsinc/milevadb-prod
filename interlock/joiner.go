@@ -14,12 +14,12 @@
 package interlock
 
 import (
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -108,26 +108,26 @@ type joiner interface {
 }
 
 // JoinerType returns the join type of a Joiner.
-func JoinerType(j joiner) causetcore.JoinType {
+func JoinerType(j joiner) causetembedded.JoinType {
 	switch j.(type) {
 	case *semiJoiner:
-		return causetcore.SemiJoin
+		return causetembedded.SemiJoin
 	case *antiSemiJoiner:
-		return causetcore.AntiSemiJoin
+		return causetembedded.AntiSemiJoin
 	case *leftOuterSemiJoiner:
-		return causetcore.LeftOuterSemiJoin
+		return causetembedded.LeftOuterSemiJoin
 	case *antiLeftOuterSemiJoiner:
-		return causetcore.AntiLeftOuterSemiJoin
+		return causetembedded.AntiLeftOuterSemiJoin
 	case *leftOuterJoiner:
-		return causetcore.LeftOuterJoin
+		return causetembedded.LeftOuterJoin
 	case *rightOuterJoiner:
-		return causetcore.RightOuterJoin
+		return causetembedded.RightOuterJoin
 	default:
-		return causetcore.InnerJoin
+		return causetembedded.InnerJoin
 	}
 }
 
-func newJoiner(ctx stochastikctx.Context, joinType causetcore.JoinType,
+func newJoiner(ctx stochastikctx.Context, joinType causetembedded.JoinType,
 	outerIsRight bool, defaultInner []types.Causet, filter []memex.Expression,
 	lhsDefCausTypes, rhsDefCausTypes []*types.FieldType, childrenUsed [][]bool) joiner {
 	base := baseJoiner{
@@ -155,7 +155,7 @@ func newJoiner(ctx stochastikctx.Context, joinType causetcore.JoinType,
 			zap.Ints("lUsed", base.lUsed), zap.Ints("rUsed", base.rUsed),
 			zap.Int("lCount", len(lhsDefCausTypes)), zap.Int("rCount", len(rhsDefCausTypes)))
 	}
-	if joinType == causetcore.LeftOuterJoin || joinType == causetcore.RightOuterJoin {
+	if joinType == causetembedded.LeftOuterJoin || joinType == causetembedded.RightOuterJoin {
 		innerDefCausTypes := lhsDefCausTypes
 		if !outerIsRight {
 			innerDefCausTypes = rhsDefCausTypes
@@ -169,28 +169,28 @@ func newJoiner(ctx stochastikctx.Context, joinType causetcore.JoinType,
 	shallowEventType = append(shallowEventType, lhsDefCausTypes...)
 	shallowEventType = append(shallowEventType, rhsDefCausTypes...)
 	switch joinType {
-	case causetcore.SemiJoin:
+	case causetembedded.SemiJoin:
 		base.shallowEvent = chunk.MutEventFromTypes(shallowEventType)
 		return &semiJoiner{base}
-	case causetcore.AntiSemiJoin:
+	case causetembedded.AntiSemiJoin:
 		base.shallowEvent = chunk.MutEventFromTypes(shallowEventType)
 		return &antiSemiJoiner{base}
-	case causetcore.LeftOuterSemiJoin:
+	case causetembedded.LeftOuterSemiJoin:
 		base.shallowEvent = chunk.MutEventFromTypes(shallowEventType)
 		return &leftOuterSemiJoiner{base}
-	case causetcore.AntiLeftOuterSemiJoin:
+	case causetembedded.AntiLeftOuterSemiJoin:
 		base.shallowEvent = chunk.MutEventFromTypes(shallowEventType)
 		return &antiLeftOuterSemiJoiner{base}
-	case causetcore.LeftOuterJoin, causetcore.RightOuterJoin, causetcore.InnerJoin:
+	case causetembedded.LeftOuterJoin, causetembedded.RightOuterJoin, causetembedded.InnerJoin:
 		if len(base.conditions) > 0 {
 			base.chk = chunk.NewChunkWithCapacity(shallowEventType, ctx.GetStochastikVars().MaxChunkSize)
 		}
 		switch joinType {
-		case causetcore.LeftOuterJoin:
+		case causetembedded.LeftOuterJoin:
 			return &leftOuterJoiner{base}
-		case causetcore.RightOuterJoin:
+		case causetembedded.RightOuterJoin:
 			return &rightOuterJoiner{base}
-		case causetcore.InnerJoin:
+		case causetembedded.InnerJoin:
 			return &innerJoiner{base}
 		}
 	}
@@ -211,7 +211,7 @@ type baseJoiner struct {
 	defaultInner chunk.Event
 	outerIsRight bool
 	chk          *chunk.Chunk
-	shallowEvent   chunk.MutEvent
+	shallowEvent chunk.MutEvent
 	selected     []bool
 	isNull       []bool
 	maxChunkSize int

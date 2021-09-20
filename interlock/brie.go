@@ -21,28 +21,28 @@ import (
 	"sync/atomic"
 	"time"
 
+	fidel "github.com/einsteindb/fidel/client"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	"github.com/whtcorpsinc/br/pkg/glue"
 	"github.com/whtcorpsinc/br/pkg/storage"
 	"github.com/whtcorpsinc/br/pkg/task"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	filter "github.com/whtcorpsinc/milevadb-tools/pkg/causet-filter"
-	fidel "github.com/einsteindb/fidel/client"
 
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/soliton/chunk"
+	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/chunk"
-	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 )
 
 // brieTaskProgress tracks a task's current progress.
@@ -187,7 +187,7 @@ func (b *interlockBuilder) buildBRIE(s *ast.BRIEStmt, schemaReplicant *memex.Sch
 			Cert: milevadbCfg.Security.ClusterSSLCert,
 			Key:  milevadbCfg.Security.ClusterSSLKey,
 		},
-		FIDel:          strings.Split(milevadbCfg.Path, ","),
+		FIDel:       strings.Split(milevadbCfg.Path, ","),
 		Concurrency: 4,
 		Checksum:    true,
 		SendCreds:   true,

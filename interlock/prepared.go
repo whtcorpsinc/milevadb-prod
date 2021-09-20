@@ -19,22 +19,22 @@ import (
 	"sort"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/log"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/BerolinaSQL/ast"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/causet"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
-	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/hint"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
+	driver "github.com/whtcorpsinc/milevadb/types/BerolinaSQL_driver"
 	"go.uber.org/zap"
 )
 
@@ -94,8 +94,8 @@ func NewPrepareInterDirc(ctx stochastikctx.Context, is schemareplicant.SchemaRep
 	base.initCap = chunk.ZeroCapacity
 	return &PrepareInterDirc{
 		baseInterlockingDirectorate: base,
-		is:           is,
-		sqlText:      sqlTxt,
+		is:                          is,
+		sqlText:                     sqlTxt,
 	}
 }
 
@@ -153,7 +153,7 @@ func (e *PrepareInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 		return ErrPsManyParam
 	}
 
-	err = causetcore.Preprocess(e.ctx, stmt, e.is, causetcore.InPrepare)
+	err = causetembedded.Preprocess(e.ctx, stmt, e.is, causetembedded.InPrepare)
 	if err != nil {
 		return err
 	}
@@ -174,13 +174,13 @@ func (e *PrepareInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 		SchemaVersion: e.is.SchemaMetaVersion(),
 	}
 
-	if !causetcore.PreparedCausetCacheEnabled() {
+	if !causetembedded.PreparedCausetCacheEnabled() {
 		prepared.UseCache = false
 	} else {
 		if !e.ctx.GetStochastikVars().UseDynamicPartitionPrune() {
-			prepared.UseCache = causetcore.Cacheable(stmt, e.is)
+			prepared.UseCache = causetembedded.Cacheable(stmt, e.is)
 		} else {
-			prepared.UseCache = causetcore.Cacheable(stmt, nil)
+			prepared.UseCache = causetembedded.Cacheable(stmt, nil)
 		}
 	}
 
@@ -190,10 +190,10 @@ func (e *PrepareInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 		param.Causet.SetNull()
 		param.InInterDircute = false
 	}
-	var p causetcore.Causet
+	var p causetembedded.Causet
 	e.ctx.GetStochastikVars().CausetID = 0
 	e.ctx.GetStochastikVars().CausetDeferredCausetID = 0
-	destBuilder := causetcore.NewCausetBuilder(e.ctx, e.is, &hint.BlockHintProcessor{})
+	destBuilder := causetembedded.NewCausetBuilder(e.ctx, e.is, &hint.BlockHintProcessor{})
 	p, err = destBuilder.Build(ctx, stmt)
 	if err != nil {
 		return err
@@ -209,9 +209,9 @@ func (e *PrepareInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 	}
 
 	normalized, digest := BerolinaSQL.NormalizeDigest(prepared.Stmt.Text())
-	preparedObj := &causetcore.CachedPrepareStmt{
-		PreparedAst:   prepared,
-		VisitInfos:    destBuilder.GetVisitInfo(),
+	preparedObj := &causetembedded.CachedPrepareStmt{
+		PreparedAst:          prepared,
+		VisitInfos:           destBuilder.GetVisitInfo(),
 		NormalizedALLEGROSQL: normalized,
 		ALLEGROSQLDigest:     digest,
 	}
@@ -227,9 +227,9 @@ type InterDircuteInterDirc struct {
 	is            schemareplicant.SchemaReplicant
 	name          string
 	usingVars     []memex.Expression
-	stmtInterDirc      InterlockingDirectorate
+	stmtInterDirc InterlockingDirectorate
 	stmt          ast.StmtNode
-	plan          causetcore.Causet
+	plan          causetembedded.Causet
 	id            uint32
 	lowerPriority bool
 	outputNames   []*types.FieldName
@@ -243,7 +243,7 @@ func (e *InterDircuteInterDirc) Next(ctx context.Context, req *chunk.Chunk) erro
 // Build builds a prepared memex into an interlock.
 // After Build, e.StmtInterDirc will be used to do the real execution.
 func (e *InterDircuteInterDirc) Build(b *interlockBuilder) error {
-	ok, err := causetcore.IsPointGetWithPKOrUniqueKeyByAutoCommit(e.ctx, e.plan)
+	ok, err := causetembedded.IsPointGetWithPKOrUniqueKeyByAutoCommit(e.ctx, e.plan)
 	if err != nil {
 		return err
 	}
@@ -277,17 +277,17 @@ func (e *DeallocateInterDirc) Next(ctx context.Context, req *chunk.Chunk) error 
 	vars := e.ctx.GetStochastikVars()
 	id, ok := vars.PreparedStmtNameToID[e.Name]
 	if !ok {
-		return errors.Trace(causetcore.ErrStmtNotFound)
+		return errors.Trace(causetembedded.ErrStmtNotFound)
 	}
 	preparedPointer := vars.PreparedStmts[id]
-	preparedObj, ok := preparedPointer.(*causetcore.CachedPrepareStmt)
+	preparedObj, ok := preparedPointer.(*causetembedded.CachedPrepareStmt)
 	if !ok {
 		return errors.Errorf("invalid CachedPrepareStmt type")
 	}
 	prepared := preparedObj.PreparedAst
 	delete(vars.PreparedStmtNameToID, e.Name)
-	if causetcore.PreparedCausetCacheEnabled() {
-		e.ctx.PreparedCausetCache().Delete(causetcore.NewPSTMTCausetCacheKey(
+	if causetembedded.PreparedCausetCacheEnabled() {
+		e.ctx.PreparedCausetCache().Delete(causetembedded.NewPSTMTCausetCacheKey(
 			vars, id, prepared.SchemaVersion,
 		))
 	}
@@ -314,15 +314,15 @@ func CompileInterDircutePreparedStmt(ctx context.Context, sctx stochastikctx.Con
 	}
 
 	stmt := &InterDircStmt{
-		GoCtx:       ctx,
-		SchemaReplicant:  is,
-		Causet:        execCauset,
-		StmtNode:    execStmt,
-		Ctx:         sctx,
-		OutputNames: names,
+		GoCtx:           ctx,
+		SchemaReplicant: is,
+		Causet:          execCauset,
+		StmtNode:        execStmt,
+		Ctx:             sctx,
+		OutputNames:     names,
 	}
 	if preparedPointer, ok := sctx.GetStochastikVars().PreparedStmts[ID]; ok {
-		preparedObj, ok := preparedPointer.(*causetcore.CachedPrepareStmt)
+		preparedObj, ok := preparedPointer.(*causetembedded.CachedPrepareStmt)
 		if !ok {
 			return nil, errors.Errorf("invalid CachedPrepareStmt type")
 		}

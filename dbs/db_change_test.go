@@ -22,28 +22,28 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/log"
 	"github.com/whtcorpsinc/BerolinaSQL"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/log"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"go.uber.org/zap"
 )
 
@@ -59,11 +59,11 @@ type testStateChangeSuite struct {
 }
 
 type testStateChangeSuiteBase struct {
-	lease  time.Duration
-	causetstore  ekv.CausetStorage
-	dom    *petri.Petri
-	se     stochastik.Stochastik
-	p      *BerolinaSQL.BerolinaSQL
+	lease         time.Duration
+	causetstore   ekv.CausetStorage
+	dom           *petri.Petri
+	se            stochastik.Stochastik
+	p             *BerolinaSQL.BerolinaSQL
 	preALLEGROSQL string
 }
 
@@ -105,7 +105,7 @@ func (s *serialTestStateChangeSuite) TestShowCreateBlock(c *C) {
 
 	var checkErr error
 	testCases := []struct {
-		allegrosql         string
+		allegrosql  string
 		expectedRet string
 	}{
 		{"alter causet t add index idx(id)",
@@ -337,11 +337,11 @@ func (s *testStateChangeSuite) test(c *C, blockName, alterBlockALLEGROSQL string
 }
 
 type stateCase struct {
-	stochastik            stochastik.Stochastik
-	rawStmt            ast.StmtNode
-	stmt               sqlexec.Statement
-	expectedInterDircErr    string
-	expectedCompileErr string
+	stochastik           stochastik.Stochastik
+	rawStmt              ast.StmtNode
+	stmt                 sqlexec.Statement
+	expectedInterDircErr string
+	expectedCompileErr   string
 }
 
 type sqlInfo struct {
@@ -450,13 +450,13 @@ func (t *testInterDircInfo) execALLEGROSQL(idx int) error {
 }
 
 type sqlWithErr struct {
-	allegrosql       string
-	expectErr error
+	allegrosql string
+	expectErr  error
 }
 
 type expectQuery struct {
-	allegrosql  string
-	rows []string
+	allegrosql string
+	rows       []string
 }
 
 func (s *testStateChangeSuite) TestAppendEnum(c *C) {
@@ -1639,12 +1639,12 @@ func (s *serialTestStateChangeSuite) TestModifyDeferredCausetTypeArgs(c *C) {
 	c.Assert(historyJob, NotNil)
 
 	var (
-		newDefCaus                *perceptron.DeferredCausetInfo
-		oldDefCausName            *perceptron.CIStr
-		modifyDeferredCausetTp        byte
+		newDefCaus               *perceptron.DeferredCausetInfo
+		oldDefCausName           *perceptron.CIStr
+		modifyDeferredCausetTp   byte
 		uFIDelatedAutoRandomBits uint64
-		changingDefCaus           *perceptron.DeferredCausetInfo
-		changingIdxs          []*perceptron.IndexInfo
+		changingDefCaus          *perceptron.DeferredCausetInfo
+		changingIdxs             []*perceptron.IndexInfo
 	)
 	pos := &ast.DeferredCausetPosition{}
 	err = historyJob.DecodeArgs(&newDefCaus, &oldDefCausName, pos, &modifyDeferredCausetTp, &uFIDelatedAutoRandomBits, &changingDefCaus, &changingIdxs)

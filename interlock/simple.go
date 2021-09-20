@@ -21,28 +21,28 @@ import (
 	"time"
 
 	"github.com/ngaut/pools"
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/causet/core"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/plugin"
 	"github.com/whtcorpsinc/milevadb/privilege"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causet"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
-	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/soliton/replog"
 	"github.com/whtcorpsinc/milevadb/soliton/sqlexec"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"go.uber.org/zap"
 )
 
@@ -372,7 +372,7 @@ func (e *SimpleInterDirc) executeSetDefaultRole(s *ast.SetDefaultRoleStmt) (err 
 	activeRoles := stochastikVars.ActiveRoles
 	if !checker.RequestVerification(activeRoles, allegrosql.SystemDB, allegrosql.DefaultRoleBlock, "", allegrosql.UFIDelatePriv) {
 		if !checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateUserPriv) {
-			return core.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE USER")
+			return embedded.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE USER")
 		}
 	}
 
@@ -678,11 +678,11 @@ func (e *SimpleInterDirc) executeCreateUser(ctx context.Context, s *ast.CreateUs
 			if s.IsCreateRole {
 				if !checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateRolePriv) &&
 					!checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateUserPriv) {
-					return core.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE ROLE or CREATE USER")
+					return embedded.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE ROLE or CREATE USER")
 				}
 			}
 			if !s.IsCreateRole && !checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateUserPriv) {
-				return core.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE User")
+				return embedded.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE User")
 			}
 		}
 	}
@@ -921,11 +921,11 @@ func (e *SimpleInterDirc) executeDropUser(s *ast.DropUserStmt) error {
 			if s.IsDropRole {
 				if !checker.RequestVerification(activeRoles, "", "", "", allegrosql.DropRolePriv) &&
 					!checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateUserPriv) {
-					return core.ErrSpecificAccessDenied.GenWithStackByArgs("DROP ROLE or CREATE USER")
+					return embedded.ErrSpecificAccessDenied.GenWithStackByArgs("DROP ROLE or CREATE USER")
 				}
 			}
 			if !s.IsDropRole && !checker.RequestVerification(activeRoles, "", "", "", allegrosql.CreateUserPriv) {
-				return core.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE USER")
+				return embedded.ErrSpecificAccessDenied.GenWithStackByArgs("CREATE USER")
 			}
 		}
 	}
@@ -1229,7 +1229,7 @@ func (e *SimpleInterDirc) executeCreateStatistics(s *ast.CreateStatisticsStmt) (
 func (e *SimpleInterDirc) executeDropStatistics(s *ast.DropStatisticsStmt) error {
 	EDB := e.ctx.GetStochastikVars().CurrentDB
 	if EDB == "" {
-		return core.ErrNoDB
+		return embedded.ErrNoDB
 	}
 	// Call utilities of statistics.Handle to modify system blocks instead of doing DML directly,
 	// because locking in Handle can guarantee the correctness of `version` in system blocks.

@@ -23,31 +23,31 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/auth"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/fn"
-	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/server"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/statistics/handle"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
 	"github.com/whtcorpsinc/milevadb/causetstore/helper"
 	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
+	"github.com/whtcorpsinc/milevadb/server"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/FIDelapi"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/statistics/handle"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"google.golang.org/grpc"
 )
 
@@ -61,7 +61,7 @@ var _ = SerialSuites(&inspectionSuite{})
 
 type testschemaReplicantBlockSuiteBase struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 type testschemaReplicantBlockSuite struct {
@@ -74,7 +74,7 @@ type testschemaReplicantBlockSerialSuite struct {
 
 type inspectionSuite struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
+	dom         *petri.Petri
 }
 
 func (s *testschemaReplicantBlockSuiteBase) SetUpSuite(c *C) {
@@ -738,7 +738,9 @@ func (s *testschemaReplicantClusterBlockSuite) TestMilevaDBClusterInfo(c *C) {
 	}
 	fpExpr := `return("` + strings.Join(instances, ";") + `")`
 	c.Assert(failpoint.Enable("github.com/whtcorpsinc/milevadb/schemareplicant/mockClusterInfo", fpExpr), IsNil)
-	defer func() { c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockClusterInfo"), IsNil) }()
+	defer func() {
+		c.Assert(failpoint.Disable("github.com/whtcorpsinc/milevadb/schemareplicant/mockClusterInfo"), IsNil)
+	}()
 	tk.MustQuery("select * from information_schema.cluster_config").Check(testkit.Events(
 		"fidel 127.0.0.1:11080 key1 value1",
 		"fidel 127.0.0.1:11080 key2.nest1 n-value1",

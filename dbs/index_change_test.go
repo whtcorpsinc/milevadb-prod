@@ -17,22 +17,22 @@ import (
 	"context"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testIndexChangeSuite{})
 
 type testIndexChangeSuite struct {
-	causetstore  ekv.CausetStorage
-	dbInfo *perceptron.DBInfo
+	causetstore ekv.CausetStorage
+	dbInfo      *perceptron.DBInfo
 }
 
 func (s *testIndexChangeSuite) SetUpSuite(c *C) {

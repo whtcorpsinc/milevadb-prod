@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastik"
+	. "github.com/whtcorpsinc/check"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
 )
 
 func (s *testSuite1) TestExplainPrivileges(c *C) {
@@ -50,7 +50,7 @@ func (s *testSuite1) TestExplainPrivileges(c *C) {
 	tk1.MustInterDirc("use explaindatabase")
 	tk1.MustQuery("select * from v")
 	err = tk1.InterDircToErr("explain select * from v")
-	c.Assert(err.Error(), Equals, causetcore.ErrViewNoExplain.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrViewNoExplain.Error())
 
 	tk.MustInterDirc(`grant show view on explaindatabase.v to 'explain'@'%'`)
 	tk1.MustQuery("explain select * from v")
@@ -58,7 +58,7 @@ func (s *testSuite1) TestExplainPrivileges(c *C) {
 	tk.MustInterDirc(`revoke select on explaindatabase.v from 'explain'@'%'`)
 
 	err = tk1.InterDircToErr("explain select * from v")
-	c.Assert(err.Error(), Equals, causetcore.ErrBlockaccessDenied.GenWithStackByArgs("SELECT", "explain", "%", "v").Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrBlockaccessDenied.GenWithStackByArgs("SELECT", "explain", "%", "v").Error())
 }
 
 func (s *testSuite1) TestExplainCartesianJoin(c *C) {
@@ -67,7 +67,7 @@ func (s *testSuite1) TestExplainCartesianJoin(c *C) {
 	tk.MustInterDirc("create causet t (v int)")
 
 	cases := []struct {
-		allegrosql             string
+		allegrosql      string
 		isCartesianJoin bool
 	}{
 		{"explain select * from t t1, t t2", true},

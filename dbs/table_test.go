@@ -18,24 +18,24 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/ekv"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testTableSuite{})
 
 type testTableSuite struct {
-	causetstore  ekv.CausetStorage
-	dbInfo *perceptron.DBInfo
+	causetstore ekv.CausetStorage
+	dbInfo      *perceptron.DBInfo
 
 	d *dbs
 }
@@ -45,8 +45,8 @@ func testTableInfoWith2IndexOnFirstDeferredCauset(c *C, d *dbs, name string, num
 	idxs := make([]*perceptron.IndexInfo, 0, 2)
 	for i := range idxs {
 		idx := &perceptron.IndexInfo{
-			Name:    perceptron.NewCIStr(fmt.Sprintf("i%d", i+1)),
-			State:   perceptron.StatePublic,
+			Name:            perceptron.NewCIStr(fmt.Sprintf("i%d", i+1)),
+			State:           perceptron.StatePublic,
 			DeferredCausets: []*perceptron.IndexDeferredCauset{{Name: perceptron.NewCIStr("c1")}},
 		}
 		idxs = append(idxs, idx)
@@ -225,7 +225,7 @@ func testLockTable(c *C, ctx stochastikctx.Context, d *dbs, newSchemaID int64, t
 	arg := &lockTablesArg{
 		LockTables: []perceptron.TableLockTpInfo{{SchemaID: newSchemaID, TableID: tblInfo.ID, Tp: lockTp}},
 		StochastikInfo: perceptron.StochastikInfo{
-			ServerID:  d.GetID(),
+			ServerID:     d.GetID(),
 			StochastikID: ctx.GetStochastikVars().ConnectionID,
 		},
 	}

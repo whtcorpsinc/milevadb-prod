@@ -17,21 +17,21 @@ import (
 	"context"
 	"crypto/tls"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/failpoint"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	. "github.com/whtcorpsinc/check"
+	"github.com/whtcorpsinc/failpoint"
+	causetutil "github.com/whtcorpsinc/milevadb/causet/soliton"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetutil "github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 var _ = Suite(&testInterDircSuite{})
@@ -93,7 +93,7 @@ func (s *testInterDircSuite) TestShowProcessList(c *C) {
 		ID:      0,
 		User:    "test",
 		Host:    "127.0.0.1",
-		EDB:      "test",
+		EDB:     "test",
 		Command: 't',
 		State:   1,
 		Info:    "",
@@ -109,7 +109,7 @@ func (s *testInterDircSuite) TestShowProcessList(c *C) {
 	// Compose interlock.
 	e := &ShowInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(sctx, schemaReplicant, 0),
-		Tp:           ast.ShowProcessList,
+		Tp:                          ast.ShowProcessList,
 	}
 
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func buildSchema(names []string, ftypes []byte) *memex.Schema {
 	return schemaReplicant
 }
 
-func (s *testInterDircSuite) TestBuildKvRangesForIndexJoinWithoutCwc(c *C) {
+func (s *testInterDircSuite) TestBuildEkvRangesForIndexJoinWithoutCwc(c *C) {
 	indexRanges := make([]*ranger.Range, 0, 6)
 	indexRanges = append(indexRanges, generateIndexRange(1, 1, 1, 1, 1))
 	indexRanges = append(indexRanges, generateIndexRange(1, 1, 2, 1, 1))
@@ -171,13 +171,13 @@ func (s *testInterDircSuite) TestBuildKvRangesForIndexJoinWithoutCwc(c *C) {
 
 	keyOff2IdxOff := []int{1, 3}
 	ctx := mock.NewContext()
-	kvRanges, err := buildKvRangesForIndexJoin(ctx, 0, 0, joinKeyEvents, indexRanges, keyOff2IdxOff, nil)
+	ekvRanges, err := buildEkvRangesForIndexJoin(ctx, 0, 0, joinKeyEvents, indexRanges, keyOff2IdxOff, nil)
 	c.Assert(err, IsNil)
-	// Check the kvRanges is in order.
-	for i, kvRange := range kvRanges {
-		c.Assert(kvRange.StartKey.Cmp(kvRange.EndKey) < 0, IsTrue)
+	// Check the ekvRanges is in order.
+	for i, ekvRange := range ekvRanges {
+		c.Assert(ekvRange.StartKey.Cmp(ekvRange.EndKey) < 0, IsTrue)
 		if i > 0 {
-			c.Assert(kvRange.StartKey.Cmp(kvRanges[i-1].EndKey) >= 0, IsTrue)
+			c.Assert(ekvRange.StartKey.Cmp(ekvRanges[i-1].EndKey) >= 0, IsTrue)
 		}
 	}
 }
@@ -271,15 +271,15 @@ func (s *testInterDircSerialSuite) TestSortSpillDisk(c *C) {
 	cas := &sortCase{rows: 2048, orderByIdx: []int{0, 1}, ndvs: []int{0, 0}, ctx: ctx}
 	opt := mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(cas.defCausumns()...),
-		rows:   cas.rows,
-		ctx:    cas.ctx,
-		ndvs:   cas.ndvs,
+		rows:            cas.rows,
+		ctx:             cas.ctx,
+		ndvs:            cas.ndvs,
 	}
 	dataSource := buildMockDataSource(opt)
 	exec := &SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(cas.ctx, dataSource.schemaReplicant, 0, dataSource),
-		ByItems:      make([]*causetutil.ByItems, 0, len(cas.orderByIdx)),
-		schemaReplicant:       dataSource.schemaReplicant,
+		ByItems:                     make([]*causetutil.ByItems, 0, len(cas.orderByIdx)),
+		schemaReplicant:             dataSource.schemaReplicant,
 	}
 	for _, idx := range cas.orderByIdx {
 		exec.ByItems = append(exec.ByItems, &causetutil.ByItems{Expr: cas.defCausumns()[idx]})
@@ -360,15 +360,15 @@ func (s *testInterDircSerialSuite) TestSortSpillDisk(c *C) {
 	cas = &sortCase{rows: 20480, orderByIdx: []int{0, 1}, ndvs: []int{0, 0}, ctx: ctx}
 	opt = mockDataSourceParameters{
 		schemaReplicant: memex.NewSchema(cas.defCausumns()...),
-		rows:   cas.rows,
-		ctx:    cas.ctx,
-		ndvs:   cas.ndvs,
+		rows:            cas.rows,
+		ctx:             cas.ctx,
+		ndvs:            cas.ndvs,
 	}
 	dataSource = buildMockDataSource(opt)
 	exec = &SortInterDirc{
 		baseInterlockingDirectorate: newBaseInterlockingDirectorate(cas.ctx, dataSource.schemaReplicant, 0, dataSource),
-		ByItems:      make([]*causetutil.ByItems, 0, len(cas.orderByIdx)),
-		schemaReplicant:       dataSource.schemaReplicant,
+		ByItems:                     make([]*causetutil.ByItems, 0, len(cas.orderByIdx)),
+		schemaReplicant:             dataSource.schemaReplicant,
 	}
 	for _, idx := range cas.orderByIdx {
 		exec.ByItems = append(exec.ByItems, &causetutil.ByItems{Expr: cas.defCausumns()[idx]})

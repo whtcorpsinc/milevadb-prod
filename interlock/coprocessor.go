@@ -17,25 +17,25 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
-	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/ekvproto/pkg/einsteindbpb"
+	"github.com/whtcorpsinc/ekvproto/pkg/interlock"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/causet/core"
 	"github.com/whtcorpsinc/milevadb/privilege"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // CoprocessorPosetDagHandler uses to handle cop posetPosetDag request.
 type CoprocessorPosetDagHandler struct {
-	sctx   stochastikctx.Context
+	sctx             stochastikctx.Context
 	posetPosetDagReq *fidelpb.PosetDagRequest
 }
 
@@ -161,7 +161,7 @@ func (h *CoprocessorPosetDagHandler) buildPosetDagInterlockingDirectorate(req *i
 	h.posetPosetDagReq = posetPosetDagReq
 	is := h.sctx.GetStochastikVars().TxnCtx.SchemaReplicant.(schemareplicant.SchemaReplicant)
 	// Build physical plan.
-	bp := core.NewPBCausetBuilder(h.sctx, is)
+	bp := embedded.NewPBCausetBuilder(h.sctx, is)
 	plan, err := bp.Build(posetPosetDagReq.InterlockingDirectorates)
 	if err != nil {
 		return nil, errors.Trace(err)

@@ -16,8 +16,8 @@ package dbs
 import (
 	"time"
 
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"go.etcd.io/etcd/clientv3"
 )
 
@@ -26,11 +26,11 @@ type Option func(*Options)
 
 // Options represents all the options of the DBS module needs
 type Options struct {
-	EtcdCli    *clientv3.Client
-	CausetStore      ekv.CausetStorage
-	InfoHandle *schemareplicant.Handle
-	Hook       Callback
-	Lease      time.Duration
+	EtcdCli     *clientv3.Client
+	CausetStore ekv.CausetStorage
+	InfoHandle  *schemareplicant.Handle
+	Hook        Callback
+	Lease       time.Duration
 }
 
 // WithEtcdClient specifies the `clientv3.Client` of DBS used to request the etcd service

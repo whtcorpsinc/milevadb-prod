@@ -69,7 +69,7 @@ VB_FILE =
 VB_FUNC =
 
 
-.PHONY: all clean test gotest server dev benchkv benchraw check checklist BerolinaSQL tidy dbstest
+.PHONY: all clean test gotest server dev benchekv benchraw check checklist BerolinaSQL tidy dbstest
 
 default: server buildsucc
 
@@ -78,7 +78,7 @@ server-admin-check: server_check buildsucc
 buildsucc:
 	@echo Build MilevaDB Server successfully!
 
-all: dev server benchkv
+all: dev server benchekv
 
 BerolinaSQL:
 	@echo "remove this command later, when our CI script doesn't call it"
@@ -244,8 +244,8 @@ else
 	$(GOBUILDCOVERAGE) $(RACE_FLAG) -ldflags '$(LDFLAGS) $(COVERAGE_SERVER_LDFLAGS) $(CHECK_FLAG)' -o '$(TARGET)'
 endif
 
-benchkv:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/benchkv cmd/benchkv/main.go
+benchekv:
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/benchekv cmd/benchekv/main.go
 
 benchraw:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/benchraw cmd/benchraw/main.go

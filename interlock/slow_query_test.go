@@ -22,15 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/types"
-	"github.com/whtcorpsinc/milevadb/soliton/logutil"
-	"github.com/whtcorpsinc/milevadb/soliton/mock"
 )
 
 func parseLog(retriever *slowQueryRetriever, sctx stochastikctx.Context, reader *bufio.Reader) ([][]types.Causet, error) {
@@ -404,7 +404,7 @@ select 7;`
 	sctx.GetStochastikVars().TimeZone = loc
 	sctx.GetStochastikVars().SlowQueryFile = fileName3
 	for i, cas := range cases {
-		extractor := &causetcore.SlowQueryExtractor{Enable: (len(cas.startTime) > 0 && len(cas.endTime) > 0)}
+		extractor := &causetembedded.SlowQueryExtractor{Enable: (len(cas.startTime) > 0 && len(cas.endTime) > 0)}
 		if extractor.Enable {
 			startTime, err := ParseTime(cas.startTime)
 			c.Assert(err, IsNil)

@@ -29,52 +29,51 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/whtcorpsinc/BerolinaSQL"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
+	"github.com/whtcorpsinc/BerolinaSQL/terror"
 	. "github.com/whtcorpsinc/check"
+	pb "github.com/whtcorpsinc/ekvproto/pkg/ekvrpcpb"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	pb "github.com/whtcorpsinc/ekvproto/pkg/kvrpcpb"
-	"github.com/whtcorpsinc/BerolinaSQL"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/interlock"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/server"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/statistics"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/einsteindbrpc"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb/oracle"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/dbs"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/interlock"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/server"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/mock"
 	"github.com/whtcorpsinc/milevadb/soliton/rowcodec"
+	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/soliton/testleak"
-	"github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 	"google.golang.org/grpc"
 )
 
@@ -145,9 +144,9 @@ type partitionBlockSuite struct{ *baseTestSuite }
 type testSerialSuite struct{ *baseTestSuite }
 
 type baseTestSuite struct {
-	cluster cluster.Cluster
-	causetstore   ekv.CausetStorage
-	petri  *petri.Petri
+	cluster     cluster.Cluster
+	causetstore ekv.CausetStorage
+	petri       *petri.Petri
 	*BerolinaSQL.BerolinaSQL
 	ctx *mock.Context
 }
@@ -990,7 +989,7 @@ func (s *testSuiteP1) TestSelectOrderBy(c *C) {
 	tk.MustQuery("select * from t where 1 order by b").Check(testkit.Events("1 1", "2 2"))
 	tk.MustQuery("select * from t where a between 1 and 2 order by a desc").Check(testkit.Events("2 2", "1 1"))
 
-	// Test double read and topN is pushed down to first read causetcore.
+	// Test double read and topN is pushed down to first read causetembedded.
 	tk.MustInterDirc("drop causet if exists t")
 	tk.MustInterDirc("create causet t(a int primary key, b int, c int, index idx(b))")
 	tk.MustInterDirc("insert into t values(1, 3, 1)")
@@ -1135,9 +1134,9 @@ func (s *testSuiteWithData) TestSetOperation(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL  string
-		Causet []string
-		Res  []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Res               []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1164,9 +1163,9 @@ func (s *testSuiteWithData) TestSetOperationOnDiffDefCausType(c *C) {
 
 	var input []string
 	var output []struct {
-		ALLEGROALLEGROSQL  string
-		Causet []string
-		Res  []string
+		ALLEGROALLEGROSQL string
+		Causet            []string
+		Res               []string
 	}
 	s.testData.GetTestCases(c, &input, &output)
 	for i, tt := range input {
@@ -1334,7 +1333,7 @@ func (s *testSuiteP2) TestUnion(c *C) {
 	c.Assert(terr.Code(), Equals, errors.ErrCode(allegrosql.ErrWrongUsage))
 
 	_, err = tk.InterDirc("(select a from t order by a) union all select a from t limit 1 union all select a from t limit 1")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrWrongUsage), IsTrue, Commentf("err %v", err))
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrWrongUsage), IsTrue, Commentf("err %v", err))
 
 	_, err = tk.InterDirc("(select a from t limit 1) union all select a from t limit 1")
 	c.Assert(err, IsNil)
@@ -1475,8 +1474,8 @@ func (s *testSuiteP1) TestBlockPKisHandleScan(c *C) {
 	tk.MustInterDirc("insert t values (-100),(0)")
 
 	tests := []struct {
-		allegrosql    string
-		result [][]interface{}
+		allegrosql string
+		result     [][]interface{}
 	}{
 		{
 			"select * from t",
@@ -2242,11 +2241,11 @@ func (s *testSuiteP2) TestIsPointGet(c *C) {
 	for sqlStr, result := range tests {
 		stmtNode, err := s.ParseOneStmt(sqlStr, "", "")
 		c.Check(err, IsNil)
-		err = causetcore.Preprocess(ctx, stmtNode, schemaReplicant)
+		err = causetembedded.Preprocess(ctx, stmtNode, schemaReplicant)
 		c.Check(err, IsNil)
 		p, _, err := causet.Optimize(context.TODO(), ctx, stmtNode, schemaReplicant)
 		c.Check(err, IsNil)
-		ret, err := causetcore.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, p)
+		ret, err := causetembedded.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, p)
 		c.Assert(err, IsNil)
 		c.Assert(ret, Equals, result)
 	}
@@ -2273,11 +2272,11 @@ func (s *testSuiteP2) TestClusteredIndexIsPointGet(c *C) {
 	for sqlStr, result := range tests {
 		stmtNode, err := s.ParseOneStmt(sqlStr, "", "")
 		c.Check(err, IsNil)
-		err = causetcore.Preprocess(ctx, stmtNode, schemaReplicant)
+		err = causetembedded.Preprocess(ctx, stmtNode, schemaReplicant)
 		c.Check(err, IsNil)
 		p, _, err := causet.Optimize(context.TODO(), ctx, stmtNode, schemaReplicant)
 		c.Check(err, IsNil)
-		ret, err := causetcore.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, p)
+		ret, err := causetembedded.IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, p)
 		c.Assert(err, IsNil)
 		c.Assert(ret, Equals, result)
 	}
@@ -3059,8 +3058,8 @@ func (c *checkRequestClient) SendRequest(ctx context.Context, addr string, req *
 
 type testSuiteWithCliBase struct {
 	causetstore ekv.CausetStorage
-	dom   *petri.Petri
-	cli   *checkRequestClient
+	dom         *petri.Petri
+	cli         *checkRequestClient
 }
 
 type testSuite1 struct {
@@ -3218,8 +3217,8 @@ func (s *testSuite) TestNotFillCacheFlag(c *C) {
 	tk.MustInterDirc("insert into t values (1)")
 
 	tests := []struct {
-		allegrosql    string
-		expect bool
+		allegrosql string
+		expect     bool
 	}{
 		{"select ALLEGROSQL_NO_CACHE * from t", true},
 		{"select ALLEGROSQL_CACHE * from t", false},
@@ -3614,8 +3613,8 @@ func (s *testSuite) TestCoprocessorStreamingFlag(c *C) {
 	}
 
 	tests := []struct {
-		allegrosql    string
-		expect bool
+		allegrosql string
+		expect     bool
 	}{
 		{"select * from t", true},                         // BlockReader
 		{"select * from t where id = 5", true},            // IndexLookup
@@ -4136,7 +4135,7 @@ func (s *testSuite) TestSelectView(c *C) {
 	err = tk.InterDircToErr("select * from view2")
 	c.Assert(err.Error(), Equals, "[causet:1356]View 'test.view2' references invalid causet(s) or defCausumn(s) or function(s) or definer/invoker of view lack rights to use them")
 	err = tk.InterDircToErr("select * from view3")
-	c.Assert(err.Error(), Equals, causetcore.ErrViewInvalid.GenWithStackByArgs("test", "view3").Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrViewInvalid.GenWithStackByArgs("test", "view3").Error())
 	tk.MustInterDirc("drop causet view_t;")
 	tk.MustInterDirc("create causet view_t(a int,b int,c int)")
 	tk.MustInterDirc("insert into view_t values(1,2,3)")
@@ -4580,7 +4579,7 @@ func (s *testSplitBlock) TestShowBlockRegion(c *C) {
 	atomic.StoreUint32(&dbs.EnableSplitBlockRegion, 1)
 	tk.MustInterDirc("create causet t_regions (a int key, b int, c int, index idx(b), index idx2(c))")
 	_, err := tk.InterDirc("split partition causet t_regions partition (p1,p2) index idx between (0) and (20000) regions 2;")
-	c.Assert(err.Error(), Equals, causetcore.ErrPartitionClauseOnNonpartitioned.Error())
+	c.Assert(err.Error(), Equals, causetembedded.ErrPartitionClauseOnNonpartitioned.Error())
 
 	// Test show causet regions.
 	tk.MustQuery(`split causet t_regions between (-10000) and (10000) regions 4;`).Check(testkit.Rows("4 1"))
@@ -4916,7 +4915,7 @@ func (s *testSplitBlock) TestShowBlockRegion(c *C) {
 
 	// Test show causet partition region on non-partition causet.
 	err = tk.QueryToErr("show causet t partition (p3,p4) index idx regions")
-	c.Assert(terror.ErrorEqual(err, causetcore.ErrPartitionClauseOnNonpartitioned), IsTrue)
+	c.Assert(terror.ErrorEqual(err, causetembedded.ErrPartitionClauseOnNonpartitioned), IsTrue)
 }
 
 func testGetBlockByName(c *C, ctx stochastikctx.Context, EDB, causet string) causet.Block {
@@ -5022,10 +5021,10 @@ func (s *testSuite) TestOOMPanicCausetAction(c *C) {
 }
 
 type testRecoverBlock struct {
-	causetstore   ekv.CausetStorage
-	dom     *petri.Petri
-	cluster cluster.Cluster
-	cli     *regionProperityClient
+	causetstore ekv.CausetStorage
+	dom         *petri.Petri
+	cluster     cluster.Cluster
+	cli         *regionProperityClient
 }
 
 func (s *testRecoverBlock) SetUpSuite(c *C) {
@@ -5312,10 +5311,10 @@ func (s *testSuiteP2) TestPointGetPreparedCauset(c *C) {
 
 	pspk1Id, _, _, err := tk1.Se.PrepareStmt("select * from t where a = ?")
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[pspk1Id].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[pspk1Id].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 	pspk2Id, _, _, err := tk1.Se.PrepareStmt("select * from t where ? = a ")
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[pspk2Id].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[pspk2Id].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 
 	ctx := context.Background()
 	// first time plan generated
@@ -5355,7 +5354,7 @@ func (s *testSuiteP2) TestPointGetPreparedCauset(c *C) {
 	// unique index
 	psuk1Id, _, _, err := tk1.Se.PrepareStmt("select * from t where b = ? ")
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[psuk1Id].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[psuk1Id].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 
 	rs, err = tk1.Se.InterDircutePreparedStmt(ctx, psuk1Id, []types.Causet{types.NewCauset(1)})
 	c.Assert(err, IsNil)
@@ -5469,7 +5468,7 @@ func (s *testSuiteP2) TestPointGetPreparedCausetWithCommitMode(c *C) {
 
 	pspk1Id, _, _, err := tk1.Se.PrepareStmt("select * from t where a = ?")
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[pspk1Id].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[pspk1Id].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 
 	ctx := context.Background()
 	// first time plan generated
@@ -5533,11 +5532,11 @@ func (s *testSuiteP2) TestPointUFIDelatePreparedCauset(c *C) {
 
 	uFIDelateID1, pc, _, err := tk1.Se.PrepareStmt(`uFIDelate t set c = c + 1 where a = ?`)
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID1].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID1].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 	c.Assert(pc, Equals, 1)
 	uFIDelateID2, pc, _, err := tk1.Se.PrepareStmt(`uFIDelate t set c = c + 2 where ? = a`)
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID2].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID2].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 	c.Assert(pc, Equals, 1)
 
 	ctx := context.Background()
@@ -5572,7 +5571,7 @@ func (s *testSuiteP2) TestPointUFIDelatePreparedCauset(c *C) {
 	// unique index
 	uFIDelUkID1, _, _, err := tk1.Se.PrepareStmt(`uFIDelate t set c = c + 10 where b = ?`)
 	c.Assert(err, IsNil)
-	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelUkID1].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelUkID1].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 	rs, err = tk1.Se.InterDircutePreparedStmt(ctx, uFIDelUkID1, []types.Causet{types.NewCauset(3)})
 	c.Assert(rs, IsNil)
 	c.Assert(err, IsNil)
@@ -5637,7 +5636,7 @@ func (s *testSuiteP2) TestPointUFIDelatePreparedCausetWithCommitMode(c *C) {
 
 	ctx := context.Background()
 	uFIDelateID1, _, _, err := tk1.Se.PrepareStmt(`uFIDelate t set c = c + 1 where a = ?`)
-	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID1].(*causetcore.CachedPrepareStmt).PreparedAst.UseCache = false
+	tk1.Se.GetStochastikVars().PreparedStmts[uFIDelateID1].(*causetembedded.CachedPrepareStmt).PreparedAst.UseCache = false
 	c.Assert(err, IsNil)
 
 	// first time plan generated
@@ -5824,56 +5823,56 @@ select 7;`
 	cases := []struct {
 		prepareALLEGROSQL string
 		allegrosql        string
-		result     []string
+		result            []string
 	}{
 		{
-			allegrosql:    "select count(*),min(time),max(time) from %s where time > '2020-01-26 21:51:00' and time < now()",
-			result: []string{"7|2020-02-15 18:00:01.000000|2020-05-14 19:03:54.314615"},
+			allegrosql: "select count(*),min(time),max(time) from %s where time > '2020-01-26 21:51:00' and time < now()",
+			result:     []string{"7|2020-02-15 18:00:01.000000|2020-05-14 19:03:54.314615"},
 		},
 		{
-			allegrosql:    "select count(*),min(time),max(time) from %s where time > '2020-02-15 19:00:00' and time < '2020-02-16 18:00:02'",
-			result: []string{"2|2020-02-15 19:00:05.000000|2020-02-16 18:00:01.000000"},
+			allegrosql: "select count(*),min(time),max(time) from %s where time > '2020-02-15 19:00:00' and time < '2020-02-16 18:00:02'",
+			result:     []string{"2|2020-02-15 19:00:05.000000|2020-02-16 18:00:01.000000"},
 		},
 		{
-			allegrosql:    "select count(*),min(time),max(time) from %s where time > '2020-02-16 18:00:02' and time < '2020-02-17 17:00:00'",
-			result: []string{"2|2020-02-16 18:00:05.000000|2020-02-16 19:00:00.000000"},
+			allegrosql: "select count(*),min(time),max(time) from %s where time > '2020-02-16 18:00:02' and time < '2020-02-17 17:00:00'",
+			result:     []string{"2|2020-02-16 18:00:05.000000|2020-02-16 19:00:00.000000"},
 		},
 		{
-			allegrosql:    "select count(*),min(time),max(time) from %s where time > '2020-02-16 18:00:02' and time < '2020-02-17 20:00:00'",
-			result: []string{"3|2020-02-16 18:00:05.000000|2020-02-17 18:00:05.000000"},
+			allegrosql: "select count(*),min(time),max(time) from %s where time > '2020-02-16 18:00:02' and time < '2020-02-17 20:00:00'",
+			result:     []string{"3|2020-02-16 18:00:05.000000|2020-02-17 18:00:05.000000"},
 		},
 		{
-			allegrosql:    "select count(*),min(time),max(time) from %s",
-			result: []string{"1|2020-05-14 19:03:54.314615|2020-05-14 19:03:54.314615"},
+			allegrosql: "select count(*),min(time),max(time) from %s",
+			result:     []string{"1|2020-05-14 19:03:54.314615|2020-05-14 19:03:54.314615"},
 		},
 		{
-			allegrosql:    "select count(*),min(time) from %s where time > '2020-02-16 20:00:00'",
-			result: []string{"1|2020-02-17 18:00:05.000000"},
+			allegrosql: "select count(*),min(time) from %s where time > '2020-02-16 20:00:00'",
+			result:     []string{"1|2020-02-17 18:00:05.000000"},
 		},
 		{
-			allegrosql:    "select count(*) from %s where time > '2020-02-17 20:00:00'",
-			result: []string{"0"},
+			allegrosql: "select count(*) from %s where time > '2020-02-17 20:00:00'",
+			result:     []string{"0"},
 		},
 		{
-			allegrosql:    "select query from %s where time > '2020-01-26 21:51:00' and time < now()",
-			result: []string{"select 1;", "select 2;", "select 3;", "select 4;", "select 5;", "select 6;", "select 7;"},
+			allegrosql: "select query from %s where time > '2020-01-26 21:51:00' and time < now()",
+			result:     []string{"select 1;", "select 2;", "select 3;", "select 4;", "select 5;", "select 6;", "select 7;"},
 		},
 		// Test for different timezone.
 		{
 			prepareALLEGROSQL: "set @@time_zone = '+00:00'",
 			allegrosql:        "select time from %s where time = '2020-02-17 10:00:05.000000'",
-			result:     []string{"2020-02-17 10:00:05.000000"},
+			result:            []string{"2020-02-17 10:00:05.000000"},
 		},
 		{
 			prepareALLEGROSQL: "set @@time_zone = '+02:00'",
 			allegrosql:        "select time from %s where time = '2020-02-17 12:00:05.000000'",
-			result:     []string{"2020-02-17 12:00:05.000000"},
+			result:            []string{"2020-02-17 12:00:05.000000"},
 		},
 		// Test for issue 17224
 		{
 			prepareALLEGROSQL: "set @@time_zone = '+08:00'",
 			allegrosql:        "select time from %s where time = '2020-05-14 19:03:54.314615'",
-			result:     []string{"2020-05-14 19:03:54.314615"},
+			result:            []string{"2020-05-14 19:03:54.314615"},
 		},
 	}
 	for _, cas := range cases {
@@ -6352,7 +6351,7 @@ func (s *testSuite) TestDefCauslectDMLRuntimeStats(c *C) {
 	getRootStats := func() string {
 		info := tk.Se.ShowProcess()
 		c.Assert(info, NotNil)
-		p, ok := info.Causet.(causetcore.Causet)
+		p, ok := info.Causet.(causetembedded.Causet)
 		c.Assert(ok, IsTrue)
 		stats := tk.Se.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl.GetRootStats(p.ID())
 		return stats.String()

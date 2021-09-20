@@ -17,27 +17,27 @@ import (
 	"context"
 	"math"
 
-	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
 	"github.com/whtcorpsinc/milevadb/allegrosql"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/codec"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/ranger"
 	"github.com/whtcorpsinc/milevadb/soliton/timeutil"
-	"github.com/whtcorpsinc/fidelpb/go-fidelpb"
+	"github.com/whtcorpsinc/milevadb/statistics"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -47,11 +47,11 @@ var (
 	_ InterlockingDirectorate = &CleanupIndexInterDirc{}
 )
 
-// ChecHoTTexRangeInterDirc outputs the index values which has handle between begin and end.
+
 type ChecHoTTexRangeInterDirc struct {
 	baseInterlockingDirectorate
 
-	causet    *perceptron.BlockInfo
+	causet   *perceptron.BlockInfo
 	index    *perceptron.IndexInfo
 	is       schemareplicant.SchemaReplicant
 	startKey []types.Causet
@@ -59,8 +59,8 @@ type ChecHoTTexRangeInterDirc struct {
 	handleRanges []ast.HandleRange
 	srcChunk     *chunk.Chunk
 
-	result allegrosql.SelectResult
-	defcaus   []*perceptron.DeferredCausetInfo
+	result  allegrosql.SelectResult
+	defcaus []*perceptron.DeferredCausetInfo
 }
 
 // Next implements the InterlockingDirectorate Next interface.
@@ -117,7 +117,7 @@ func (e *ChecHoTTexRangeInterDirc) Open(ctx context.Context) error {
 		return nil
 	}
 	var builder allegrosql.RequestBuilder
-	kvReq, err := builder.SetIndexRanges(sc, e.causet.ID, e.index.ID, ranger.FullRange()).
+	ekvReq, err := builder.SetIndexRanges(sc, e.causet.ID, e.index.ID, ranger.FullRange()).
 		SetPosetDagRequest(posetPosetDagPB).
 		SetStartTS(txn.StartTS()).
 		SetKeepOrder(true).
@@ -127,7 +127,7 @@ func (e *ChecHoTTexRangeInterDirc) Open(ctx context.Context) error {
 		return err
 	}
 
-	e.result, err = allegrosql.Select(ctx, e.ctx, kvReq, e.retFieldTypes, statistics.NewQueryFeedback(0, nil, 0, false))
+	e.result, err = allegrosql.Select(ctx, e.ctx, ekvReq, e.retFieldTypes, statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (e *ChecHoTTexRangeInterDirc) buildPosetDagPB() (*fidelpb.PosetDagRequest, 
 	execPB := e.constructIndexScanPB()
 	posetPosetDagReq.InterlockingDirectorates = append(posetPosetDagReq.InterlockingDirectorates, execPB)
 
-	err := causetcore.SetPBDeferredCausetsDefaultValue(e.ctx, posetPosetDagReq.InterlockingDirectorates[0].IdxScan.DeferredCausets, e.defcaus)
+	err := causetembedded.SetPBDeferredCausetsDefaultValue(e.ctx, posetPosetDagReq.InterlockingDirectorates[0].IdxScan.DeferredCausets, e.defcaus)
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +156,8 @@ func (e *ChecHoTTexRangeInterDirc) buildPosetDagPB() (*fidelpb.PosetDagRequest, 
 
 func (e *ChecHoTTexRangeInterDirc) constructIndexScanPB() *fidelpb.InterlockingDirectorate {
 	idxInterDirc := &fidelpb.IndexScan{
-		BlockId: e.causet.ID,
-		IndexId: e.index.ID,
+		BlockId:         e.causet.ID,
+		IndexId:         e.index.ID,
 		DeferredCausets: soliton.DeferredCausetsToProto(e.defcaus, e.causet.PKIsHandle),
 	}
 	return &fidelpb.InterlockingDirectorate{Tp: fidelpb.InterDircType_TypeIndexScan, IdxScan: idxInterDirc}
@@ -177,20 +177,20 @@ type RecoverIndexInterDirc struct {
 	done bool
 
 	index      causet.Index
-	causet      causet.Block
+	causet     causet.Block
 	physicalID int64
 	batchSize  int
 
 	defCausumns       []*perceptron.DeferredCausetInfo
 	defCausFieldTypes []*types.FieldType
-	srcChunk      *chunk.Chunk
-	handleDefCauss    causetcore.HandleDefCauss
+	srcChunk          *chunk.Chunk
+	handleDefCauss    causetembedded.HandleDefCauss
 
 	// below buf is used to reduce allocations.
 	recoverEvents []recoverEvents
-	idxValsBufs [][]types.Causet
-	idxKeyBufs  [][]byte
-	batchKeys   []ekv.Key
+	idxValsBufs   [][]types.Causet
+	idxKeyBufs    [][]byte
+	batchKeys     []ekv.Key
 }
 
 func (e *RecoverIndexInterDirc) defCausumnsTypes() []*types.FieldType {
@@ -222,7 +222,7 @@ func (e *RecoverIndexInterDirc) Open(ctx context.Context) error {
 func (e *RecoverIndexInterDirc) constructBlockScanPB(tblInfo *perceptron.BlockInfo, defCausInfos []*perceptron.DeferredCausetInfo) (*fidelpb.InterlockingDirectorate, error) {
 	tblScan := blocks.BuildBlockScanFromInfos(tblInfo, defCausInfos)
 	tblScan.BlockId = e.physicalID
-	err := causetcore.SetPBDeferredCausetsDefaultValue(e.ctx, tblScan.DeferredCausets, defCausInfos)
+	err := causetembedded.SetPBDeferredCausetsDefaultValue(e.ctx, tblScan.DeferredCausets, defCausInfos)
 	return &fidelpb.InterlockingDirectorate{Tp: fidelpb.InterDircType_TypeBlockScan, TblScan: tblScan}, err
 }
 
@@ -264,7 +264,7 @@ func (e *RecoverIndexInterDirc) buildBlockScan(ctx context.Context, txn ekv.Tran
 	if err != nil {
 		return nil, err
 	}
-	kvReq, err := builder.
+	ekvReq, err := builder.
 		SetPosetDagRequest(posetPosetDagPB).
 		SetStartTS(txn.StartTS()).
 		SetKeepOrder(true).
@@ -276,8 +276,8 @@ func (e *RecoverIndexInterDirc) buildBlockScan(ctx context.Context, txn ekv.Tran
 
 	// Actually, with limitCnt, the match quantum maybe only in one region, so let the concurrency to be 1,
 	// avoid unnecessary region scan.
-	kvReq.Concurrency = 1
-	result, err := allegrosql.Select(ctx, e.ctx, kvReq, e.defCausumnsTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
+	ekvReq.Concurrency = 1
+	result, err := allegrosql.Select(ctx, e.ctx, ekvReq, e.defCausumnsTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, err
 	}
@@ -302,17 +302,17 @@ func buildRecoverIndexKeyRanges(sctx *stmtctx.StatementContext, tid int64, start
 }
 
 type backfillResult struct {
-	currentHandle ekv.Handle
-	addedCount    int64
-	scanEventCount  int64
+	currentHandle  ekv.Handle
+	addedCount     int64
+	scanEventCount int64
 }
 
 func (e *RecoverIndexInterDirc) backfillIndex(ctx context.Context) (int64, int64, error) {
 	var (
 		currentHandle ekv.Handle = nil
-		totalAddedCnt           = int64(0)
-		totalScanCnt            = int64(0)
-		lastLogCnt              = int64(0)
+		totalAddedCnt            = int64(0)
+		totalScanCnt             = int64(0)
+		lastLogCnt               = int64(0)
 		result        backfillResult
 	)
 	for {
@@ -520,20 +520,20 @@ type CleanupIndexInterDirc struct {
 	removeCnt uint64
 
 	index      causet.Index
-	causet      causet.Block
+	causet     causet.Block
 	physicalID int64
 
 	defCausumns          []*perceptron.DeferredCausetInfo
 	idxDefCausFieldTypes []*types.FieldType
-	idxChunk         *chunk.Chunk
-	handleDefCauss       causetcore.HandleDefCauss
+	idxChunk             *chunk.Chunk
+	handleDefCauss       causetembedded.HandleDefCauss
 
-	idxValues   *ekv.HandleMap // ekv.Handle -> [][]types.Causet
-	batchSize   uint64
-	batchKeys   []ekv.Key
-	idxValsBufs [][]types.Causet
-	lastIdxKey  []byte
-	scanEventCnt  uint64
+	idxValues    *ekv.HandleMap // ekv.Handle -> [][]types.Causet
+	batchSize    uint64
+	batchKeys    []ekv.Key
+	idxValsBufs  [][]types.Causet
+	lastIdxKey   []byte
+	scanEventCnt uint64
 }
 
 func (e *CleanupIndexInterDirc) getIdxDefCausTypes() []*types.FieldType {
@@ -726,7 +726,7 @@ func (e *CleanupIndexInterDirc) buildIndexScan(ctx context.Context, txn ekv.Tran
 	sc := e.ctx.GetStochastikVars().StmtCtx
 	var builder allegrosql.RequestBuilder
 	ranges := ranger.FullRange()
-	kvReq, err := builder.SetIndexRanges(sc, e.physicalID, e.index.Meta().ID, ranges).
+	ekvReq, err := builder.SetIndexRanges(sc, e.physicalID, e.index.Meta().ID, ranges).
 		SetPosetDagRequest(posetPosetDagPB).
 		SetStartTS(txn.StartTS()).
 		SetKeepOrder(true).
@@ -736,9 +736,9 @@ func (e *CleanupIndexInterDirc) buildIndexScan(ctx context.Context, txn ekv.Tran
 		return nil, err
 	}
 
-	kvReq.KeyRanges[0].StartKey = ekv.Key(e.lastIdxKey).PrefixNext()
-	kvReq.Concurrency = 1
-	result, err := allegrosql.Select(ctx, e.ctx, kvReq, e.getIdxDefCausTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
+	ekvReq.KeyRanges[0].StartKey = ekv.Key(e.lastIdxKey).PrefixNext()
+	ekvReq.Concurrency = 1
+	result, err := allegrosql.Select(ctx, e.ctx, ekvReq, e.getIdxDefCausTypes(), statistics.NewQueryFeedback(0, nil, 0, false))
 	if err != nil {
 		return nil, err
 	}
@@ -779,7 +779,7 @@ func (e *CleanupIndexInterDirc) buildIdxPosetDagPB(txn ekv.Transaction) (*fidelp
 
 	execPB := e.constructIndexScanPB()
 	posetPosetDagReq.InterlockingDirectorates = append(posetPosetDagReq.InterlockingDirectorates, execPB)
-	err := causetcore.SetPBDeferredCausetsDefaultValue(e.ctx, posetPosetDagReq.InterlockingDirectorates[0].IdxScan.DeferredCausets, e.defCausumns)
+	err := causetembedded.SetPBDeferredCausetsDefaultValue(e.ctx, posetPosetDagReq.InterlockingDirectorates[0].IdxScan.DeferredCausets, e.defCausumns)
 	if err != nil {
 		return nil, err
 	}
@@ -792,8 +792,8 @@ func (e *CleanupIndexInterDirc) buildIdxPosetDagPB(txn ekv.Transaction) (*fidelp
 
 func (e *CleanupIndexInterDirc) constructIndexScanPB() *fidelpb.InterlockingDirectorate {
 	idxInterDirc := &fidelpb.IndexScan{
-		BlockId:          e.physicalID,
-		IndexId:          e.index.Meta().ID,
+		BlockId:                  e.physicalID,
+		IndexId:                  e.index.Meta().ID,
 		DeferredCausets:          soliton.DeferredCausetsToProto(e.defCausumns, e.causet.Meta().PKIsHandle),
 		PrimaryDeferredCausetIds: blocks.TryGetCommonPkDeferredCausetIds(e.causet.Meta()),
 	}

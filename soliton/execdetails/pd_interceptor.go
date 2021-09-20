@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 	fidel "github.com/einsteindb/fidel/client"
+	"github.com/whtcorpsinc/ekvproto/pkg/spacetimepb"
 )
 
 var (

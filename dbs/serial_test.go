@@ -23,31 +23,31 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/failpoint"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/dbs"
 	dbsutil "github.com/whtcorpsinc/milevadb/dbs/soliton"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
+	"github.com/whtcorpsinc/milevadb/soliton/admin"
+	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
+	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
+	"github.com/whtcorpsinc/milevadb/soliton/mock"
+	. "github.com/whtcorpsinc/milevadb/soliton/solitonutil"
+	"github.com/whtcorpsinc/milevadb/soliton/testkit"
 	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
 	"github.com/whtcorpsinc/milevadb/stochastik"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore/cluster"
-	"github.com/whtcorpsinc/milevadb/soliton/admin"
-	"github.com/whtcorpsinc/milevadb/soliton/defCauslate"
-	"github.com/whtcorpsinc/milevadb/soliton/gcutil"
-	"github.com/whtcorpsinc/milevadb/soliton/mock"
-	"github.com/whtcorpsinc/milevadb/soliton/testkit"
-	. "github.com/whtcorpsinc/milevadb/soliton/solitonutil"
 )
 
 // Make it serial because config is modified in test cases.
@@ -55,9 +55,9 @@ var _ = SerialSuites(&testSerialSuite{})
 
 type testSerialSuite struct {
 	CommonHandleSuite
-	causetstore   ekv.CausetStorage
-	cluster cluster.Cluster
-	dom     *petri.Petri
+	causetstore ekv.CausetStorage
+	cluster     cluster.Cluster
+	dom         *petri.Petri
 }
 
 func (s *testSerialSuite) SetUpSuite(c *C) {
@@ -1224,9 +1224,9 @@ func (s *testSerialSuite) TestAutoRandomIncBitsIncrementAndOffset(c *C) {
 	expect := func(vs ...int) []int { return vs }
 	testCase := []struct {
 		setupCausetAction bool  // truncate or recreate
-		increment   int   // @@auto_increment_increment
-		offset      int   // @@auto_increment_offset
-		results     []int // the implicit allocated auto_random incremental-bit part of values
+		increment         int   // @@auto_increment_increment
+		offset            int   // @@auto_increment_offset
+		results           []int // the implicit allocated auto_random incremental-bit part of values
 	}{
 		{recreate, 5, 10, expect(10, 15, 20)},
 		{recreate, 2, 10, expect(10, 12, 14)},

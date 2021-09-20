@@ -17,7 +17,7 @@ import (
 	"context"
 	"sort"
 
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
 	"github.com/whtcorpsinc/milevadb/stochastikctx"
 	"github.com/whtcorpsinc/milevadb/types"
 )
@@ -25,7 +25,7 @@ import (
 type inspectionMemruleRetriever struct {
 	dummyCloser
 	retrieved bool
-	extractor *causetcore.InspectionMemruleBlockExtractor
+	extractor *causetembedded.InspectionMemruleBlockExtractor
 }
 
 const (

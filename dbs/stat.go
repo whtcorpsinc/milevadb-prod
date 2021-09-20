@@ -16,25 +16,25 @@ package dbs
 import (
 	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 )
 
 var (
-	serverID          = "server_id"
-	dbsSchemaVersion  = "dbs_schema_version"
-	dbsJobID          = "dbs_job_id"
-	dbsJobCausetAction      = "dbs_job_action"
-	dbsJobStartTS     = "dbs_job_start_ts"
-	dbsJobState       = "dbs_job_state"
-	dbsJobError       = "dbs_job_error"
-	dbsJobRows        = "dbs_job_row_count"
-	dbsJobSchemaState = "dbs_job_schema_state"
-	dbsJobSchemaID    = "dbs_job_schema_id"
-	dbsJobBlockID     = "dbs_job_block_id"
-	dbsJobSnapshotVer = "dbs_job_snapshot_ver"
-	dbsJobReorgHandle = "dbs_job_reorg_handle"
-	dbsJobArgs        = "dbs_job_args"
+	serverID           = "server_id"
+	dbsSchemaVersion   = "dbs_schema_version"
+	dbsJobID           = "dbs_job_id"
+	dbsJobCausetAction = "dbs_job_action"
+	dbsJobStartTS      = "dbs_job_start_ts"
+	dbsJobState        = "dbs_job_state"
+	dbsJobError        = "dbs_job_error"
+	dbsJobRows         = "dbs_job_row_count"
+	dbsJobSchemaState  = "dbs_job_schema_state"
+	dbsJobSchemaID     = "dbs_job_schema_id"
+	dbsJobBlockID      = "dbs_job_block_id"
+	dbsJobSnapshotVer  = "dbs_job_snapshot_ver"
+	dbsJobReorgHandle  = "dbs_job_reorg_handle"
+	dbsJobArgs         = "dbs_job_args"
 )
 
 // GetScope gets the status variables scope.

@@ -27,30 +27,23 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/opentracing/opentracing-go"
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/auth"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/petri"
-	"github.com/whtcorpsinc/milevadb/petri/infosync"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/schemareplicant"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/causet"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/privilege"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
+	"github.com/whtcorpsinc/milevadb/petri"
+	"github.com/whtcorpsinc/milevadb/petri/infosync"
+	"github.com/whtcorpsinc/milevadb/privilege"
+	"github.com/whtcorpsinc/milevadb/schemareplicant"
 	"github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
@@ -58,6 +51,12 @@ import (
 	"github.com/whtcorpsinc/milevadb/soliton/execdetails"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/stmtctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -93,14 +92,14 @@ var (
 )
 
 type baseInterlockingDirectorate struct {
-	ctx           stochastikctx.Context
-	id            int
-	schemaReplicant        *memex.Schema // output schemaReplicant
-	initCap       int
-	maxChunkSize  int
-	children      []InterlockingDirectorate
-	retFieldTypes []*types.FieldType
-	runtimeStats  *execdetails.BasicRuntimeStats
+	ctx             stochastikctx.Context
+	id              int
+	schemaReplicant *memex.Schema // output schemaReplicant
+	initCap         int
+	maxChunkSize    int
+	children        []InterlockingDirectorate
+	retFieldTypes   []*types.FieldType
+	runtimeStats    *execdetails.BasicRuntimeStats
 }
 
 const (
@@ -205,12 +204,12 @@ func (e *baseInterlockingDirectorate) Next(ctx context.Context, req *chunk.Chunk
 
 func newBaseInterlockingDirectorate(ctx stochastikctx.Context, schemaReplicant *memex.Schema, id int, children ...InterlockingDirectorate) baseInterlockingDirectorate {
 	e := baseInterlockingDirectorate{
-		children:     children,
-		ctx:          ctx,
-		id:           id,
-		schemaReplicant:       schemaReplicant,
-		initCap:      ctx.GetStochastikVars().InitChunkSize,
-		maxChunkSize: ctx.GetStochastikVars().MaxChunkSize,
+		children:        children,
+		ctx:             ctx,
+		id:              id,
+		schemaReplicant: schemaReplicant,
+		initCap:         ctx.GetStochastikVars().InitChunkSize,
+		maxChunkSize:    ctx.GetStochastikVars().MaxChunkSize,
 	}
 	if ctx.GetStochastikVars().StmtCtx.RuntimeStatsDefCausl != nil {
 		if e.id > 0 {
@@ -367,9 +366,9 @@ type ShowDBSInterDirc struct {
 	baseInterlockingDirectorate
 
 	dbsTenantID string
-	selfID     string
-	dbsInfo    *admin.DBSInfo
-	done       bool
+	selfID      string
+	dbsInfo     *admin.DBSInfo
+	done        bool
 }
 
 // Next implements the InterlockingDirectorate Next interface.
@@ -639,7 +638,7 @@ type CheckBlockInterDirc struct {
 	baseInterlockingDirectorate
 
 	dbName     string
-	causet      causet.Block
+	causet     causet.Block
 	indexInfos []*perceptron.IndexInfo
 	srcs       []*IndexLookUpInterlockingDirectorate
 	done       bool
@@ -872,7 +871,7 @@ type SelectLockInterDirc struct {
 	Lock *ast.SelectLockInfo
 	keys []ekv.Key
 
-	tblID2Handle     map[int64][]causetcore.HandleDefCauss
+	tblID2Handle     map[int64][]causetembedded.HandleDefCauss
 	partitionedBlock []causet.PartitionedBlock
 
 	// tblID2Block is cached to reduce cost.
@@ -907,7 +906,7 @@ func (e *SelectLockInterDirc) Next(ctx context.Context, req *chunk.Chunk) error 
 		return err
 	}
 	// If there's no handle or it's not a `SELECT FOR UFIDelATE` memex.
-	if len(e.tblID2Handle) == 0 || (!causetcore.IsSelectForUFIDelateLockType(e.Lock.LockType)) {
+	if len(e.tblID2Handle) == 0 || (!causetembedded.IsSelectForUFIDelateLockType(e.Lock.LockType)) {
 		return nil
 	}
 
@@ -949,7 +948,7 @@ func (e *SelectLockInterDirc) Next(ctx context.Context, req *chunk.Chunk) error 
 func newLockCtx(seVars *variable.StochastikVars, lockWaitTime int64) *ekv.LockCtx {
 	return &ekv.LockCtx{
 		Killed:                &seVars.Killed,
-		ForUFIDelateTS:           seVars.TxnCtx.GetForUFIDelateTS(),
+		ForUFIDelateTS:        seVars.TxnCtx.GetForUFIDelateTS(),
 		LockWaitTime:          lockWaitTime,
 		WaitStartTime:         seVars.StmtCtx.GetLockWaitStartTime(),
 		PessimisticLockWaited: &seVars.StmtCtx.PessimisticLockWaited,
@@ -1087,7 +1086,7 @@ func init() {
 	// While doing optimization in the plan package, we need to execute uncorrelated subquery,
 	// but the plan package cannot import the interlock package because of the dependency cycle.
 	// So we assign a function implemented in the interlock package to the plan package to avoid the dependency cycle.
-	causetcore.EvalSubqueryFirstEvent = func(ctx context.Context, p causetcore.PhysicalCauset, is schemareplicant.SchemaReplicant, sctx stochastikctx.Context) ([]types.Causet, error) {
+	causetembedded.EvalSubqueryFirstEvent = func(ctx context.Context, p causetembedded.PhysicalCauset, is schemareplicant.SchemaReplicant, sctx stochastikctx.Context) ([]types.Causet, error) {
 		defer func(begin time.Time) {
 			s := sctx.GetStochastikVars()
 			s.RewritePhaseInfo.PreprocessSubQueries++
@@ -1131,7 +1130,7 @@ type BlockDualInterDirc struct {
 
 	// numDualEvents can only be 0 or 1.
 	numDualEvents int
-	numReturned int
+	numReturned   int
 }
 
 // Open implements the InterlockingDirectorate Open interface.
@@ -1165,7 +1164,7 @@ type SelectionInterDirc struct {
 	filters     []memex.Expression
 	selected    []bool
 	inputIter   *chunk.Iterator4Chunk
-	inputEvent    chunk.Event
+	inputEvent  chunk.Event
 	childResult *chunk.Chunk
 
 	memTracker *memory.Tracker
@@ -1193,7 +1192,7 @@ func (e *SelectionInterDirc) open(ctx context.Context) error {
 	return nil
 }
 
-// Close implements causetcore.Causet Close interface.
+// Close implements causetembedded.Causet Close interface.
 func (e *SelectionInterDirc) Close() error {
 	e.memTracker.Consume(-e.childResult.MemoryUsage())
 	e.childResult = nil
@@ -1272,7 +1271,7 @@ type BlockScanInterDirc struct {
 	baseInterlockingDirectorate
 
 	t                     causet.Block
-	defCausumns               []*perceptron.DeferredCausetInfo
+	defCausumns           []*perceptron.DeferredCausetInfo
 	virtualBlockChunkList *chunk.List
 	virtualBlockChunkIdx  int
 }

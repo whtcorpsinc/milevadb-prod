@@ -20,21 +20,21 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/whtcorpsinc/errors"
-	"github.com/whtcorpsinc/failpoint"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
+	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/failpoint"
 	pumpcli "github.com/whtcorpsinc/milevadb-tools/milevadb-binlog/pump_client"
 	"github.com/whtcorpsinc/milevadb/dbs/soliton"
 	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime"
 	"github.com/whtcorpsinc/milevadb/metrics"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
-	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	milevadbutil "github.com/whtcorpsinc/milevadb/soliton"
 	"github.com/whtcorpsinc/milevadb/soliton/admin"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
+	"github.com/whtcorpsinc/milevadb/spacetime"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/binloginfo"
+	"github.com/whtcorpsinc/milevadb/stochastikctx/variable"
 	"go.uber.org/zap"
 )
 
@@ -80,7 +80,7 @@ type worker struct {
 	wg       sync.WaitGroup
 
 	sessPool        *stochastikPool // sessPool is used to new stochastik to execute ALLEGROALLEGROSQL in dbs package.
-	reorgCtx        *reorgCtx    // reorgCtx is used for reorganization.
+	reorgCtx        *reorgCtx       // reorgCtx is used for reorganization.
 	delRangeManager delRangeManager
 	logCtx          context.Context
 }

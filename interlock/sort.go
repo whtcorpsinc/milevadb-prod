@@ -20,24 +20,24 @@ import (
 	"sort"
 
 	"github.com/whtcorpsinc/failpoint"
+	causetembedded "github.com/whtcorpsinc/milevadb/causet/embedded"
+	"github.com/whtcorpsinc/milevadb/causet/soliton"
 	"github.com/whtcorpsinc/milevadb/config"
 	"github.com/whtcorpsinc/milevadb/memex"
-	causetcore "github.com/whtcorpsinc/milevadb/causet/core"
-	"github.com/whtcorpsinc/milevadb/causet/soliton"
-	"github.com/whtcorpsinc/milevadb/types"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/disk"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 // SortInterDirc represents sorting interlock.
 type SortInterDirc struct {
 	baseInterlockingDirectorate
 
-	ByItems []*soliton.ByItems
-	Idx     int
-	fetched bool
-	schemaReplicant  *memex.Schema
+	ByItems         []*soliton.ByItems
+	Idx             int
+	fetched         bool
+	schemaReplicant *memex.Schema
 
 	keyExprs []memex.Expression
 	keyTypes []*types.FieldType
@@ -139,14 +139,14 @@ func (e *SortInterDirc) Next(ctx context.Context, req *chunk.Chunk) error {
 }
 
 type partitionPointer struct {
-	event         chunk.Event
+	event       chunk.Event
 	partitionID int
 	consumed    int
 }
 
 type multiWayMerge struct {
 	lessEventFunction func(rowI chunk.Event, rowJ chunk.Event) bool
-	elements        []partitionPointer
+	elements          []partitionPointer
 }
 
 func (h *multiWayMerge) Less(i, j int) bool {
@@ -301,7 +301,7 @@ func (e *SortInterDirc) lessEvent(rowI, rowJ chunk.Event) bool {
 // Instead of sorting all the rows fetched from the causet, it keeps the Top-N elements only in a heap to reduce memory usage.
 type TopNInterDirc struct {
 	SortInterDirc
-	limit      *causetcore.PhysicalLimit
+	limit      *causetembedded.PhysicalLimit
 	totalLimit uint64
 
 	// rowChunks is the chunks to causetstore event values.

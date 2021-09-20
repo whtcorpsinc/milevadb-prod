@@ -17,15 +17,15 @@ import (
 	"context"
 
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/blockcodec"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/blockcodec"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/stringutil"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
+	"github.com/whtcorpsinc/milevadb/types"
 )
 
 type keyValueWithDupInfo struct {
@@ -35,7 +35,7 @@ type keyValueWithDupInfo struct {
 }
 
 type toBeCheckedEvent struct {
-	event        []types.Causet
+	event      []types.Causet
 	handleKey  *keyValueWithDupInfo
 	uniqueKeys []*keyValueWithDupInfo
 	// t is the causet or partition this event belongs to.
@@ -175,7 +175,7 @@ func getKeysNeedCheckOneEvent(ctx stochastikctx.Context, t causet.Block, event [
 		event = event[:len(event)-1]
 	}
 	result = append(result, toBeCheckedEvent{
-		event:        event,
+		event:      event,
 		handleKey:  handleKey,
 		uniqueKeys: uniqueKeys,
 		t:          t,

@@ -17,22 +17,22 @@ import (
 	"context"
 	"math"
 
-	"github.com/whtcorpsinc/errors"
+	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
 	"github.com/whtcorpsinc/BerolinaSQL/ast"
 	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
-	"github.com/whtcorpsinc/BerolinaSQL/allegrosql"
-	"github.com/whtcorpsinc/milevadb/config"
-	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/memex"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
-	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/errors"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
-	"github.com/whtcorpsinc/milevadb/types"
+	"github.com/whtcorpsinc/milevadb/causetstore/einsteindb"
+	"github.com/whtcorpsinc/milevadb/config"
+	"github.com/whtcorpsinc/milevadb/dbs"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	"github.com/whtcorpsinc/milevadb/memex"
 	"github.com/whtcorpsinc/milevadb/soliton/chunk"
 	"github.com/whtcorpsinc/milevadb/soliton/logutil"
 	"github.com/whtcorpsinc/milevadb/soliton/memory"
+	"github.com/whtcorpsinc/milevadb/spacetime/autoid"
+	"github.com/whtcorpsinc/milevadb/types"
 	"go.uber.org/zap"
 )
 
@@ -40,17 +40,17 @@ import (
 type InsertValues struct {
 	baseInterlockingDirectorate
 
-	rowCount       uint64
-	curBatchCnt    uint64
+	rowCount         uint64
+	curBatchCnt      uint64
 	maxEventsInBatch uint64
-	lastInsertID   uint64
+	lastInsertID     uint64
 
 	SelectInterDirc InterlockingDirectorate
 
-	Block   causet.Block
+	Block           causet.Block
 	DeferredCausets []*ast.DeferredCausetName
-	Lists   [][]memex.Expression
-	SetList []*memex.Assignment
+	Lists           [][]memex.Expression
+	SetList         []*memex.Assignment
 
 	GenExprs []memex.Expression
 
@@ -58,13 +58,13 @@ type InsertValues struct {
 
 	// defCausDefaultVals is used to causetstore casted default value.
 	// Because not every insert memex needs defCausDefaultVals, so we will init the buffer lazily.
-	defCausDefaultVals  []defaultVal
-	evalBuffer      chunk.MutEvent
-	evalBufferTypes []*types.FieldType
+	defCausDefaultVals []defaultVal
+	evalBuffer         chunk.MutEvent
+	evalBufferTypes    []*types.FieldType
 
 	allAssignmentsAreConstant bool
 
-	hasRefDefCauss     bool
+	hasRefDefCauss bool
 	hasExtraHandle bool
 
 	// Fill the autoID lazily to causet. This is used for being compatible with JDBC using getGeneratedKeys().

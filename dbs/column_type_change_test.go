@@ -17,28 +17,28 @@ import (
 	"errors"
 	"time"
 
-	. "github.com/whtcorpsinc/check"
-	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	BerolinaSQL_mysql "github.com/whtcorpsinc/BerolinaSQL/allegrosql"
+	"github.com/whtcorpsinc/BerolinaSQL/perceptron"
 	"github.com/whtcorpsinc/BerolinaSQL/terror"
-	"github.com/whtcorpsinc/milevadb/dbs"
-	"github.com/whtcorpsinc/milevadb/petri"
-	allegrosql "github.com/whtcorpsinc/milevadb/errno"
-	"github.com/whtcorpsinc/milevadb/ekv"
-	"github.com/whtcorpsinc/milevadb/stochastik"
-	"github.com/whtcorpsinc/milevadb/stochastikctx"
-	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	. "github.com/whtcorpsinc/check"
 	"github.com/whtcorpsinc/milevadb/causet"
 	"github.com/whtcorpsinc/milevadb/causet/blocks"
+	"github.com/whtcorpsinc/milevadb/causetstore/mockstore"
+	"github.com/whtcorpsinc/milevadb/dbs"
+	"github.com/whtcorpsinc/milevadb/ekv"
+	allegrosql "github.com/whtcorpsinc/milevadb/errno"
+	"github.com/whtcorpsinc/milevadb/petri"
 	"github.com/whtcorpsinc/milevadb/soliton/testkit"
+	"github.com/whtcorpsinc/milevadb/stochastik"
+	"github.com/whtcorpsinc/milevadb/stochastikctx"
 )
 
 var _ = SerialSuites(&testDeferredCausetTypeChangeSuite{})
 
 type testDeferredCausetTypeChangeSuite struct {
-	causetstore  ekv.CausetStorage
-	dbInfo *perceptron.DBInfo
-	dom    *petri.Petri
+	causetstore ekv.CausetStorage
+	dbInfo      *perceptron.DBInfo
+	dom         *petri.Petri
 }
 
 func (s *testDeferredCausetTypeChangeSuite) SetUpSuite(c *C) {
